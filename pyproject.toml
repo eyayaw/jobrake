@@ -5,6 +5,8 @@ description = "Rake job postings off the boards (Indeed, LinkedIn)"
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [{ name = "Eyayaw Beze" }]
+license = "MIT"
+license-files = ["LICENSE"]
 dependencies = [
     "fetchkit==0.19.0",
     "beautifulsoup4>=4.12",
