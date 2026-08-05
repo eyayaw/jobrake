@@ -1,10 +1,31 @@
-"""Shared plumbing: job normalization and small text/date helpers."""
+"""
+Shared plumbing: the POST-capable fetcher and job normalization.
+
+fetchkit's ``Fetcher`` protocol is GET-only; Indeed's GraphQL API needs POST.
+:class:`HttpxPostFetcher` extends ``HttpxFetcher`` with a ``post`` that keeps the
+same contract (a ``FetchResult``, never a raise). Callers may inject any
+fetchkit fetcher instead—LinkedIn only GETs—but Indeed requires one with a
+``post`` method.
+"""
 
 from __future__ import annotations
 
 from datetime import datetime, timezone
 
 from bs4 import BeautifulSoup
+from fetchkit import HttpxFetcher
+from fetchkit.types import FetchResult, build_result
+
+
+class HttpxPostFetcher(HttpxFetcher):
+    """HttpxFetcher plus JSON POST, under the same never-raises contract."""
+
+    async def post(self, url: str, json_body: dict, headers: dict | None = None) -> FetchResult:
+        return await self._capture_result(url, lambda: self._post(url, json_body, headers))
+
+    async def _post(self, url: str, json_body: dict, headers: dict | None) -> FetchResult:
+        r = await self._client.post(url, json=json_body, headers=headers)
+        return build_result(str(r.url), r.status_code, r.text, r.headers)
 
 
 def html_text(html: str) -> str:
