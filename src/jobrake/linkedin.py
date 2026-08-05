@@ -1,11 +1,4 @@
-"""
-LinkedIn via the guest search API (HTML job cards, no login).
-
-The endpoint has a small burst bucket (~5 requests) that refills within
-seconds, so pages are fetched with a delay between requests. A 429 ends the
-search with whatever was collected—fetchkit reports it as a RATE_LIMITED
-error rather than raising.
-"""
+"""LinkedIn via the guest search API (HTML job cards, no login)."""
 
 from __future__ import annotations
 
@@ -84,6 +77,14 @@ async def search(
     hours_old: int | None = None,
     fetch_description: bool = False,
 ) -> list[dict]:
+    """
+    Paginate guest-search job cards into job dicts.
+
+    The endpoint has a small burst bucket (~5 requests) that refills within
+    seconds, so pages are fetched with a delay between requests. A 429 ends
+    the search with whatever was collected—fetchkit reports it as a
+    RATE_LIMITED error rather than raising.
+    """
     jobs: list[dict] = []
     seen: set[str] = set()
     start = 0

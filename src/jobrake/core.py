@@ -1,12 +1,4 @@
-"""
-Shared plumbing: the POST-capable fetcher, job normalization, dispatch.
-
-fetchkit's ``Fetcher`` protocol is GET-only; Indeed's GraphQL API needs POST.
-:class:`HttpxPostFetcher` extends ``HttpxFetcher`` with a ``post`` that keeps the
-same contract (a ``FetchResult``, never a raise). Callers may inject any
-fetchkit fetcher instead—LinkedIn only GETs—but Indeed requires one with a
-``post`` method.
-"""
+"""Shared plumbing: the POST-capable fetcher, job normalization, dispatch."""
 
 from __future__ import annotations
 
@@ -18,7 +10,13 @@ from fetchkit.types import FetchResult, build_result
 
 
 class HttpxPostFetcher(HttpxFetcher):
-    """HttpxFetcher plus JSON POST, under the same never-raises contract."""
+    """
+    HttpxFetcher plus JSON POST, under the same never-raises contract.
+
+    fetchkit's ``Fetcher`` protocol is GET-only; Indeed's GraphQL API needs
+    POST. Any fetchkit fetcher can be injected into the scrapers instead—
+    LinkedIn only GETs—but Indeed needs one with a ``post`` method.
+    """
 
     async def post(self, url: str, json_body: dict, headers: dict | None = None) -> FetchResult:
         return await self._capture_result(url, lambda: self._post(url, json_body, headers))

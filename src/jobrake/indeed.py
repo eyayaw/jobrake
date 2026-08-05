@@ -1,9 +1,4 @@
-"""
-Indeed via its mobile-app GraphQL API (the same one jobspy uses).
-
-Requires a fetcher with a ``post`` method (see core.HttpxPostFetcher): fetchkit's
-Fetcher protocol is GET-only, and this API only answers POST.
-"""
+"""Indeed via its mobile-app GraphQL API (the same one jobspy uses)."""
 
 from __future__ import annotations
 
@@ -121,6 +116,14 @@ async def search(
     results_wanted: int = 25,
     hours_old: int | None = None,
 ) -> list[dict]:
+    """
+    Page through the GraphQL API into job dicts.
+
+    Needs a fetcher with a ``post`` method (``core.HttpxPostFetcher`` is the
+    default): fetchkit's protocol is GET-only, and this API answers POST
+    alone. An error result or a malformed page ends the search with whatever
+    was collected.
+    """
     subdomain, api_code = indeed_domain(country)
     base_url = f"https://{subdomain}.indeed.com"
     headers = {**API_HEADERS, "indeed-co": api_code}

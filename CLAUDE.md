@@ -12,3 +12,5 @@
   Body...
   """
   ```
+- Module docstrings are one-line orientation; rationale and contracts live on
+  the symbol that owns them.

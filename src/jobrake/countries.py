@@ -1,12 +1,9 @@
-"""
-Indeed country editions: name aliases -> (subdomain, API country code).
-
-Ported from jobspy's Country enum, keeping only what Indeed needs. A value
-is the subdomain; where the API code differs it is "subdomain:code".
-"""
+"""Indeed country editions: name aliases -> (subdomain, API country code)."""
 
 from __future__ import annotations
 
+# Ported from jobspy's Country enum, keeping only what Indeed needs. A value
+# is the subdomain; where the API code differs it is "subdomain:code".
 # fmt: off
 _INDEED = {
     "argentina": "ar", "australia": "au", "austria": "at", "bahrain": "bh",
