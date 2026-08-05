@@ -1,5 +1,5 @@
 """
-Shared plumbing: the POST-capable fetcher and job normalization.
+Shared plumbing: the POST-capable fetcher, job normalization, dispatch.
 
 fetchkit's ``Fetcher`` protocol is GET-only; Indeed's GraphQL API needs POST.
 :class:`HttpxPostFetcher` extends ``HttpxFetcher`` with a ``post`` that keeps the
@@ -62,3 +62,48 @@ def make_job(
         "date": (date or "")[:10],
         "site": site,
     }
+
+
+async def scrape(
+    site: str,
+    *,
+    search_term: str,
+    location: str = "",
+    country: str = "usa",
+    distance: int | None = None,
+    results_wanted: int = 25,
+    hours_old: int | None = None,
+    linkedin_fetch_description: bool = False,
+    fetcher=None,
+) -> list[dict]:
+    """
+    Scrape one site; returns plain job dicts.
+
+    ``fetcher`` accepts any fetchkit fetcher (injected fetchers are not closed
+    here—the caller owns their lifecycle). Indeed needs one with a ``post``
+    method; the default :class:`HttpxPostFetcher` provides it.
+    """
+    from jobrake import indeed, linkedin
+
+    searches = {"indeed": indeed.search, "linkedin": linkedin.search}
+    if site not in searches:
+        raise ValueError(f"unknown site {site!r}; expected one of {sorted(searches)}")
+
+    owns_fetcher = fetcher is None
+    fetcher = fetcher or HttpxPostFetcher()
+    kwargs = dict(
+        search_term=search_term,
+        location=location,
+        distance=distance,
+        results_wanted=results_wanted,
+        hours_old=hours_old,
+    )
+    if site == "linkedin":
+        kwargs["fetch_description"] = linkedin_fetch_description
+    elif site == "indeed":
+        kwargs["country"] = country
+    try:
+        return await searches[site](fetcher, **kwargs)
+    finally:
+        if owns_fetcher:
+            await fetcher.close()
