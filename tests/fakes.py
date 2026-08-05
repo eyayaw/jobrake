@@ -22,6 +22,9 @@ class StubFetcher:
     async def fetch(self, url, headers=None):
         return self._lookup(url)
 
+    async def post(self, url, json_body, headers=None):
+        return self._lookup(url)
+
     async def close(self):
         pass
 
