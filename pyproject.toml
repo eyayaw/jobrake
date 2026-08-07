@@ -12,6 +12,11 @@ dependencies = [
     "beautifulsoup4>=4.12",
 ]
 
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+]
+
 [tool.uv.sources]
 fetchkit = { git = "https://github.com/eyayaw/fetchkit" }
 
@@ -26,7 +31,5 @@ packages = ["src/jobrake"]
 line-length = 100
 target-version = "py311"
 
-[dependency-groups]
-dev = [
-    "pytest>=8.0",
-]
+[project.scripts]
+jobrake = "jobrake.cli:main"
