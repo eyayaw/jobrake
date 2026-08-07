@@ -6,6 +6,14 @@ jobrake is a minimal job posting scraper off of Indeed and LinkedIn, and it uses
 
 jobrake returns plain python dicts, and is stripped down keeping only relevant posting attributes: no salary parsing, job types, and company metadata. Inspired by [python-jobspy](https://pypi.org/project/python-jobspy/), but does not depend on pandas, pydantic, tls-client, and requests.
 
+Install from GitHub (not on PyPI):
+
+```sh
+uv add git+https://github.com/eyayaw/jobrake
+# or, for the CLI alone:
+uv tool install git+https://github.com/eyayaw/jobrake
+```
+
 ```python
 from jobrake import scrape
 
@@ -20,6 +28,22 @@ jobs = await scrape(
 # [{"title", "company", "url", "location", "description", "date", "site"}, ...]
 ```
 
+Each site has one required geographic argument: Indeed needs `country`—a name like `germany` or the alias `usa`, not an ISO code like `de`—to pick the edition it queries. LinkedIn needs `location` and ignores `country`. The search radius (`distance=`, `--radius` in the CLI) is in **kilometers** and defaults to 50.
+
+jobrake also has a CLI:
+
+```sh
+jobrake --site indeed --search-term "Data Scientist" --location "Amsterdam" --country "Netherlands" --results-wanted 5 --hours-old 48
+```
+> [!TIP]
+> Pipe it to [`jq`](https://github.com/jqlang/jq) to filter fields:
+> ```sh
+> jobrake -s indeed -q "data scientist" -c usa -n 2 | jq '.[] | {title, company, url, date}'
+> ```
+
+Unlike indeed, the scraper for linkedin does not return full descriptions by default, but you can enable this with `linkedin_fetch_description=True` or the `--fetch-description` flag in the CLI. The scraper may appear slow, as it makes an additional request for each job to fetch the description, which is slower and may lead to rate limits.
+
+
 ## Sites
 
 | Site | Mechanism | Notes |
@@ -27,7 +51,7 @@ jobs = await scrape(
 | `indeed` | Mobile-app GraphQL API (POST) | most reliable; full descriptions |
 | `linkedin` | Guest search API (HTML cards) | ~5-request burst bucket; pages paced 3s apart; optional per-job description fetch (`linkedin_fetch_description=True`) |
 
-Unlike jobspy, jobrake does not support Glassdoor. At the time of writing, Indeed acquired it and largely serves the same inventory. If it is ever wanted, we could use fetchkit's `CffiFetcher` (TLS impersonation) for its Cloudflare frontend, but it is not a priority. Raising a PR is welcome.
+Unlike jobspy, jobrake does not support Glassdoor. At the time of writing, it was acquired by Indeed and largely serves the same inventory. If it is ever wanted, we could use fetchkit's `CffiFetcher` (TLS impersonation) for its Cloudflare frontend, but it is not a priority. Raising a PR is welcome.
 
 ## Transport injection
 
