@@ -121,7 +121,7 @@ async def search(
     Page through the GraphQL API into job dicts.
 
     Needs a fetcher with a ``post`` method (``core.HttpxPostFetcher`` is the
-    default): fetchkit's protocol is GET-only, and this API answers POST
+    default): the ``Fetcher`` protocol is GET-only, and this API answers POST
     alone. An error result or a malformed page ends the search with whatever
     was collected.
     """
