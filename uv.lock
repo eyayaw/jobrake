@@ -116,6 +116,7 @@ source = { editable = "." }
 dependencies = [
     { name = "beautifulsoup4" },
     { name = "fetchkit" },
+    { name = "httpx" },
 ]
 
 [package.dev-dependencies]
@@ -127,6 +128,7 @@ dev = [
 requires-dist = [
     { name = "beautifulsoup4", specifier = ">=4.12" },
     { name = "fetchkit", git = "https://github.com/eyayaw/fetchkit" },
+    { name = "httpx", specifier = ">=0.27.0" },
 ]
 
 [package.metadata.requires-dev]
