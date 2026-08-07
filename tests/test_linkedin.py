@@ -24,7 +24,9 @@ def test_linkedin_parses_cards_and_dedups(monkeypatch):
     monkeypatch.setattr(linkedin, "PAGE_DELAY", 0)
     html = linkedin_card("111") + linkedin_card("222") + linkedin_card("111")
     fetcher = StubFetcher({"seeMoreJobPostings": ok(html)})
-    jobs = asyncio.run(linkedin.search(fetcher, search_term="economist", results_wanted=2))
+    jobs = asyncio.run(
+        linkedin.search(fetcher, search_term="economist", location="Seattle", results_wanted=2)
+    )
     assert [j["url"] for j in jobs] == [
         "https://www.linkedin.com/jobs/view/111",
         "https://www.linkedin.com/jobs/view/222",
@@ -38,7 +40,7 @@ def test_linkedin_parses_cards_and_dedups(monkeypatch):
 def test_linkedin_429_returns_partial(monkeypatch):
     monkeypatch.setattr(linkedin, "PAGE_DELAY", 0)
     fetcher = StubFetcher({"seeMoreJobPostings": rate_limited()})
-    assert asyncio.run(linkedin.search(fetcher, search_term="x")) == []
+    assert asyncio.run(linkedin.search(fetcher, search_term="x", location="Seattle")) == []
 
 
 def test_linkedin_fetch_description(monkeypatch):
@@ -48,6 +50,8 @@ def test_linkedin_fetch_description(monkeypatch):
         {"seeMoreJobPostings": ok(linkedin_card("111")), "/jobs/view/": ok(detail)}
     )
     jobs = asyncio.run(
-        linkedin.search(fetcher, search_term="x", results_wanted=1, fetch_description=True)
+        linkedin.search(
+            fetcher, search_term="x", location="Seattle", results_wanted=1, fetch_description=True
+        )
     )
     assert jobs[0]["description"] == "Great & big role"

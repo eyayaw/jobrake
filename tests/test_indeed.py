@@ -40,7 +40,9 @@ def test_indeed_parses_and_paginates():
             return ok(json.dumps(pages[len(self.requests) - 1]))
 
     fetcher = Paged({})
-    jobs = asyncio.run(indeed.search(fetcher, search_term="economist", results_wanted=10))
+    jobs = asyncio.run(
+        indeed.search(fetcher, search_term="economist", country="usa", results_wanted=10)
+    )
     assert [j["title"] for j in jobs] == ["Job a", "Job b", "Job c"]
     assert jobs[0]["url"] == "https://www.indeed.com/viewjob?jk=a"
     assert jobs[0]["location"] == "NYC, NY, US"
@@ -51,10 +53,10 @@ def test_indeed_parses_and_paginates():
 
 def test_indeed_stops_at_results_wanted():
     fetcher = StubFetcher({"apis.indeed.com": ok(json.dumps(indeed_payload(["a", "b", "c"])))})
-    jobs = asyncio.run(indeed.search(fetcher, search_term="x", results_wanted=2))
+    jobs = asyncio.run(indeed.search(fetcher, search_term="x", country="usa", results_wanted=2))
     assert len(jobs) == 2
 
 
 def test_indeed_error_result_yields_empty():
     fetcher = StubFetcher({"apis.indeed.com": rate_limited()})
-    assert asyncio.run(indeed.search(fetcher, search_term="x")) == []
+    assert asyncio.run(indeed.search(fetcher, search_term="x", country="usa")) == []

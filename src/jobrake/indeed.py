@@ -111,10 +111,10 @@ async def search(
     fetcher,
     *,
     search_term: str,
-    location: str = "",
-    country: str = "usa",
-    distance: int | None = None,
-    results_wanted: int = 25,
+    location: str | None = None,
+    country: str,
+    distance: int | None = JBC.radius,
+    results_wanted: int = JBC.results_wanted,
     hours_old: int | None = None,
 ) -> list[dict]:
     """

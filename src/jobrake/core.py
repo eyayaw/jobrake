@@ -47,7 +47,7 @@ def make_job(
     company: str,
     url: str,
     site: str,
-    location: str = "",
+    location: str,
     description: str = "",
     date: str = "",
 ) -> dict:
@@ -66,8 +66,8 @@ async def scrape(
     site: str,
     *,
     search_term: str,
-    location: str = "",
-    country: str = "usa",
+    location: str | None = None,
+    country: str | None = None,
     distance: int | None = None,
     results_wanted: int = 25,
     hours_old: int | None = None,
@@ -80,6 +80,9 @@ async def scrape(
     ``fetcher`` accepts any fetchkit fetcher (injected fetchers are not closed
     here—the caller owns their lifecycle). Indeed needs one with a ``post``
     method; the default :class:`HttpxPostFetcher` provides it.
+
+    ``country`` is required for indeed, ignored by linkedin.
+    ``location`` is required for linkedin, optional for indeed.
     """
     from jobrake import indeed, linkedin
 
@@ -98,7 +101,13 @@ async def scrape(
     )
     if site == "linkedin":
         kwargs["fetch_description"] = linkedin_fetch_description
+        if location is None:
+            raise ValueError(
+                f"location is required for site='{site}' (pass e.g. 'London, England')"
+            )
     elif site == "indeed":
+        if country is None:
+            raise ValueError(f"country is required for site='{site}' (pass e.g. 'usa', 'germany')")
         kwargs["country"] = country
     try:
         return await searches[site](fetcher, **kwargs)

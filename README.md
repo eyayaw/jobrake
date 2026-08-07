@@ -35,7 +35,12 @@ Every scraper takes any fetchkit fetcher via `fetcher=`; failures are returned a
 
 ```python
 from fetchkit import CffiFetcher
-jobs = await scrape("linkedin", search_term="economist", fetcher=CffiFetcher())
+jobs = await scrape(
+    "linkedin",
+    search_term="economist",
+    location="Amsterdam, Netherlands",
+    fetcher=CffiFetcher()
+)
 ```
 
 ## Disclaimer

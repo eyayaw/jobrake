@@ -8,6 +8,7 @@ from urllib.parse import urlencode
 from bs4 import BeautifulSoup
 
 from jobrake.core import html_text, make_job
+from jobrake.constants import JobrakeConstants as JBC
 
 BASE_URL = "https://www.linkedin.com"
 SEARCH_URL = f"{BASE_URL}/jobs-guest/jobs/api/seeMoreJobPostings/search"
@@ -71,11 +72,11 @@ async def search(
     fetcher,
     *,
     search_term: str,
-    location: str = "",
-    distance: int | None = None,
-    results_wanted: int = 25,
-    hours_old: int | None = None,
-    fetch_description: bool = False,
+    location: str,
+    distance: int | None = JBC.radius,
+    results_wanted: int = JBC.results_wanted,
+    hours_old: int | None = JBC.hours_old,
+    fetch_description: bool = JBC.fetch_description,
 ) -> list[dict]:
     """
     Paginate guest-search job cards into job dicts.
