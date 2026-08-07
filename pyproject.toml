@@ -1,6 +1,6 @@
 [project]
 name = "jobrake"
-version = "0.1.0"
+version = "0.2.0"
 description = "Rake job postings off the boards (Indeed, LinkedIn)"
 readme = "README.md"
 requires-python = ">=3.11"
