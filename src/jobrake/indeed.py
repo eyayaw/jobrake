@@ -6,6 +6,7 @@ import json
 
 from jobrake.core import epoch_ms_to_date, html_text, make_job
 from jobrake.countries import indeed_domain
+from jobrake.constants import JobrakeConstants as JBC
 
 API_URL = "https://apis.indeed.com/graphql"
 
@@ -70,7 +71,7 @@ def build_query(
     return QUERY.format(
         what=f'what: "{escaped}"' if escaped else "",
         location=(
-            f'location: {{ where: "{location}", radius: {distance or 50}, radiusUnit: MILES }}'
+            f'location: {{ where: "{location}", radius: {distance or JBC.radius}, radiusUnit: {JBC.radius_unit} }}'
             if location
             else ""
         ),
