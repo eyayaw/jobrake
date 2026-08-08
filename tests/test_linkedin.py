@@ -55,9 +55,29 @@ def test_linkedin_parses_cards_and_dedups(unlimited):
     assert jobs[0]["date"] == "2026-08-01"
 
 
-def test_linkedin_429_returns_partial(unlimited):
+def test_linkedin_429_retries_once_then_recovers(unlimited, monkeypatch):
+    monkeypatch.setattr(linkedin, "RETRY_DELAY", 0)
+
+    class FlakyOnce(StubFetcher):
+        async def fetch(self, url, headers=None):
+            if not self.requests:
+                self.requests.append(url)
+                return rate_limited()
+            return await super().fetch(url, headers)
+
+    fetcher = FlakyOnce({"seeMoreJobPostings": ok(linkedin_card("111"))})
+    jobs = asyncio.run(
+        linkedin.search(fetcher, search_term="x", location="Seattle", results_wanted=1)
+    )
+    assert [j["id"] for j in jobs] == ["111"]
+    assert len(fetcher.requests) == 2
+
+
+def test_linkedin_persistent_429_returns_partial(unlimited, monkeypatch):
+    monkeypatch.setattr(linkedin, "RETRY_DELAY", 0)
     fetcher = StubFetcher({"seeMoreJobPostings": rate_limited()})
     assert asyncio.run(linkedin.search(fetcher, search_term="x", location="Seattle")) == []
+    assert len(fetcher.requests) == 2  # the one retry, then give up
 
 
 def test_every_request_takes_a_token(monkeypatch):

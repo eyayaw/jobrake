@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import asyncio
 from urllib.parse import urlencode
 
 from bs4 import BeautifulSoup
 
 from jobrake.constants import JobrakeConstants as JBC
 from jobrake.core import html_text, make_job
-from jobrake.fetchkit import Fetcher, TokenBucket
+from jobrake.fetchkit import ErrorCategory, Fetcher, FetchResult, TokenBucket
 
 BASE_URL = "https://www.linkedin.com"
 SEARCH_URL = f"{BASE_URL}/jobs-guest/jobs/api/seeMoreJobPostings/search"
@@ -33,6 +34,26 @@ MAX_START = 1000  # the guest API stops serving past this offset
 # has a token for them. Module-level on purpose: the server's budget is
 # per IP, so one bucket per process, shared across all search calls.
 LIMITER = TokenBucket(capacity=4, refill_interval=2.25)
+
+RETRY_DELAY = 5.0  # seconds before retrying a 429; measured recovery is ~4-10s
+
+
+async def _paced_fetch(fetcher: Fetcher, url: str) -> FetchResult:
+    """
+    Take a token, fetch, and retry once after a 429.
+
+    A 429 despite our pacing means someone else on this IP is spending the
+    server's bucket; it refills within seconds, so one retry usually lands.
+    A still-rate-limited result is returned as-is—give-up decisions stay
+    with the caller.
+    """
+    await LIMITER.acquire()
+    result = await fetcher.fetch(url, headers=HEADERS)
+    if result.error and result.error.category is ErrorCategory.RATE_LIMITED:
+        await asyncio.sleep(RETRY_DELAY)
+        await LIMITER.acquire()
+        result = await fetcher.fetch(url, headers=HEADERS)
+    return result
 
 
 def job_id(url: str) -> str:
@@ -96,9 +117,10 @@ async def search(
     Paginate guest-search job cards into job dicts.
 
     Every request first takes a token from ``LIMITER``, so bursts ride the
-    bucket and sustained fetching settles onto its refill rate. A 429 ends
-    the search with whatever was collected—the fetch layer reports it as a
-    RATE_LIMITED error rather than raising.
+    bucket and sustained fetching settles onto its refill rate. A 429 is
+    retried once after ``RETRY_DELAY``; if it persists, the search ends with
+    whatever was collected—the fetch layer reports it as a RATE_LIMITED
+    error rather than raising.
     """
     jobs: list[dict] = []
     seen: set[str] = set()
@@ -112,8 +134,7 @@ async def search(
             "f_TPR": f"r{hours_old * 3600}" if hours_old else None,
         }
         query = urlencode({k: v for k, v in params.items() if v is not None})
-        await LIMITER.acquire()
-        result = await fetcher.fetch(f"{SEARCH_URL}?{query}", headers=HEADERS)
+        result = await _paced_fetch(fetcher, f"{SEARCH_URL}?{query}")
         if not result.ok:
             break
         page = [j for j in parse_cards(result.text) if j["url"] not in seen]
@@ -126,8 +147,7 @@ async def search(
     jobs = jobs[:results_wanted]
     if fetch_description:
         for job in jobs:
-            await LIMITER.acquire()
-            result = await fetcher.fetch(job["url"], headers=HEADERS)
+            result = await _paced_fetch(fetcher, job["url"])
             if result.ok and "linkedin.com/signup" not in result.url:
                 job["description"] = parse_description(result.text)
     return jobs
