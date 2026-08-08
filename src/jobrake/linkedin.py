@@ -83,7 +83,7 @@ async def search(
 
     The endpoint has a small burst bucket (~5 requests) that refills within
     seconds, so pages are fetched with a delay between requests. A 429 ends
-    the search with whatever was collected—fetchkit reports it as a
+    the search with whatever was collected—the fetch layer reports it as a
     RATE_LIMITED error rather than raising.
     """
     jobs: list[dict] = []

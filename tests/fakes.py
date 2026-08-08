@@ -1,6 +1,6 @@
-"""Shared test fakes: canned fetchkit results, no network."""
+"""Shared test fakes: canned FetchResults, no network."""
 
-from fetchkit.types import ErrorCategory, FetchError, FetchResult
+from jobrake.fetchkit import ErrorCategory, FetchError, FetchResult
 
 
 class StubFetcher:

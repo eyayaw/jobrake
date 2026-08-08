@@ -5,17 +5,16 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from bs4 import BeautifulSoup
-from fetchkit import HttpxFetcher
-from fetchkit.types import FetchResult, build_result
+from jobrake.fetchkit import FetchResult, HttpxFetcher, build_result
 
 
 class HttpxPostFetcher(HttpxFetcher):
     """
     HttpxFetcher plus JSON POST, under the same never-raises contract.
 
-    fetchkit's ``Fetcher`` protocol is GET-only; Indeed's GraphQL API needs
-    POST. Any fetchkit fetcher can be injected into the scrapers instead—
-    LinkedIn only GETs—but Indeed needs one with a ``post`` method.
+    The ``Fetcher`` protocol is GET-only; Indeed's GraphQL API needs POST.
+    Any ``Fetcher`` can be injected into the scrapers instead—LinkedIn only
+    GETs—but Indeed needs one with a ``post`` method.
     """
 
     async def post(self, url: str, json_body: dict, headers: dict | None = None) -> FetchResult:
@@ -77,8 +76,8 @@ async def scrape(
     """
     Scrape one site; returns plain job dicts.
 
-    ``fetcher`` accepts any fetchkit fetcher (injected fetchers are not closed
-    here—the caller owns their lifecycle). Indeed needs one with a ``post``
+    ``fetcher`` accepts any ``jobrake.fetchkit.Fetcher`` (injected fetchers are
+    not closed here—the caller owns their lifecycle). Indeed needs one with a ``post``
     method; the default :class:`HttpxPostFetcher` provides it.
 
     ``country`` is required for indeed, ignored by linkedin.
