@@ -52,7 +52,7 @@ Unlike jobspy, jobrake does not support Glassdoor. At the time of writing, it wa
 
 ## LinkedIn pacing and descriptions
 
-LinkedIn gives each visitor one request budget: a burst of about five, then one more every two seconds, shared by every guest endpoint. jobrake keeps a slightly stingier copy of that budget (a token bucket) and waits its turn before every request, so it goes as fast as the budget allows without getting rate-limited; a 429 that slips through anyway is retried once.
+LinkedIn budgets each visitor's requests: a small burst, then a steady drip, with search pages metered more strictly than job-detail fragments. jobrake keeps its own copy of that budget (a token bucket, tuned to the strictest lane) and waits its turn before every request, so it goes as fast as the budget allows without getting rate-limited; a 429 that slips through anyway is retried once after the limit clears.
 
 Descriptions are not in the search results—each one is an extra request against that budget. `linkedin_fetch_description=True` (`--fetch-description` in the CLI) fetches them for every job returned, every time. For repeated searches, list first and hydrate only what you haven't stored:
 
