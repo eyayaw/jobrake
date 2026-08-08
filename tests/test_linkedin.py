@@ -20,6 +20,16 @@ def linkedin_card(job_id, title="Economist", company="Acme"):
     </div>"""
 
 
+def test_job_id_from_url():
+    assert (
+        linkedin.job_id("https://nl.linkedin.com/jobs/view/economist-at-acme-4433303524")
+        == "4433303524"
+    )
+    assert linkedin.job_id("https://www.linkedin.com/jobs/view/4433303524/?trk=x") == "4433303524"
+    assert linkedin.job_id("https://www.linkedin.com/jobs/view/111") == "111"
+    assert linkedin.job_id("https://www.linkedin.com/jobs/search") == ""
+
+
 def test_linkedin_parses_cards_and_dedups(monkeypatch):
     monkeypatch.setattr(linkedin, "PAGE_DELAY", 0)
     html = linkedin_card("111") + linkedin_card("222") + linkedin_card("111")
@@ -31,6 +41,7 @@ def test_linkedin_parses_cards_and_dedups(monkeypatch):
         "https://www.linkedin.com/jobs/view/111",
         "https://www.linkedin.com/jobs/view/222",
     ]
+    assert jobs[0]["id"] == "111"
     assert jobs[0]["title"] == "Economist"
     assert jobs[0]["company"] == "Acme"
     assert jobs[0]["location"] == "Seattle, WA"
