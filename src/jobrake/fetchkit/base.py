@@ -25,7 +25,7 @@ class Fetcher(Protocol):
     Protocol for URL fetchers.
 
     A fetcher retrieves content from a URL and reports the outcome as a
-    FetchResult: failures become ``result.error`` rather than exceptions,
+    ``FetchResult``: failures become ``result.error`` rather than exceptions,
     and retry decisions stay with the caller.
 
     Implementations can wrap any HTTP library (httpx, aiohttp, requests, etc.)
@@ -48,6 +48,16 @@ class Fetcher(Protocol):
 
     async def close(self) -> None:
         """Clean up resources (close connections, etc.)."""
+        ...
+
+
+class PostFetcher(Fetcher, Protocol):
+    """A Fetcher that can also POST JSON, e.g., the indeed scraper."""
+
+    async def post(
+        self, url: str, json_body: dict, headers: dict[str, str] | None = None
+    ) -> FetchResult:
+        """POST a JSON body, under the same never-raises contract as ``fetch``."""
         ...
 
 

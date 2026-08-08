@@ -9,6 +9,7 @@ from bs4 import BeautifulSoup
 
 from jobrake.core import html_text, make_job
 from jobrake.constants import JobrakeConstants as JBC
+from jobrake.fetchkit import Fetcher
 
 BASE_URL = "https://www.linkedin.com"
 SEARCH_URL = f"{BASE_URL}/jobs-guest/jobs/api/seeMoreJobPostings/search"
@@ -69,7 +70,7 @@ def parse_description(html: str) -> str:
 
 
 async def search(
-    fetcher,
+    fetcher: Fetcher,
     *,
     search_term: str,
     location: str,

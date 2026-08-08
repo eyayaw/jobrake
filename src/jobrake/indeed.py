@@ -7,6 +7,7 @@ import json
 from jobrake.core import epoch_ms_to_date, html_text, make_job
 from jobrake.countries import indeed_domain
 from jobrake.constants import JobrakeConstants as JBC
+from jobrake.fetchkit import PostFetcher
 
 API_URL = "https://apis.indeed.com/graphql"
 
@@ -108,7 +109,7 @@ def parse_jobs(data: dict, base_url: str) -> tuple[list[dict], str | None]:
 
 
 async def search(
-    fetcher,
+    fetcher: PostFetcher,
     *,
     search_term: str,
     location: str | None = None,
@@ -120,10 +121,8 @@ async def search(
     """
     Page through the GraphQL API into job dicts.
 
-    Needs a fetcher with a ``post`` method (``core.HttpxPostFetcher`` is the
-    default): the ``Fetcher`` protocol is GET-only, and this API answers POST
-    alone. An error result or a malformed page ends the search with whatever
-    was collected.
+    This API answers POST alone, hence the ``PostFetcher``. An error result
+    or a malformed page ends the search with whatever was collected.
     """
     subdomain, api_code = indeed_domain(country)
     base_url = f"https://{subdomain}.indeed.com"
