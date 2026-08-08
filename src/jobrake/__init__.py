@@ -1,5 +1,5 @@
 """
-Minimal async job-board scrapers on a vendored fetch layer (``jobrake.fetchkit``).
+Minimal async job-board scrapers on a small built-in fetch layer (``jobrake.fetchkit``).
 
     from jobrake import scrape
 
