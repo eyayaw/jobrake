@@ -1,6 +1,6 @@
-"""Vendored subset of fetchkit: the GET transport, its base contract, and types."""
+"""Minimal async fetch layer: the httpx transport, its base contract, and result types."""
 
-from .base import BaseFetcher, Fetcher
+from .base import BaseFetcher, Fetcher, PostFetcher
 from .httpx import HttpxFetcher
 from .types import ErrorCategory, FetchError, FetchResult, build_result
 
@@ -11,5 +11,6 @@ __all__ = [
     "FetchResult",
     "Fetcher",
     "HttpxFetcher",
+    "PostFetcher",
     "build_result",
 ]

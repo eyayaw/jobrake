@@ -1,4 +1,4 @@
-"""Fetcher protocol, shared base implementation, and backend constants."""
+"""Fetcher protocol, shared base implementation, and transport defaults."""
 
 import asyncio
 import logging
@@ -25,7 +25,7 @@ class Fetcher(Protocol):
     Protocol for URL fetchers.
 
     A fetcher retrieves content from a URL and reports the outcome as a
-    FetchResult: failures become ``result.error`` rather than exceptions,
+    ``FetchResult``: failures become ``result.error`` rather than exceptions,
     and retry decisions stay with the caller.
 
     Implementations can wrap any HTTP library (httpx, aiohttp, requests, etc.)
@@ -51,15 +51,25 @@ class Fetcher(Protocol):
         ...
 
 
+class PostFetcher(Fetcher, Protocol):
+    """A Fetcher that can also POST JSON, e.g., the indeed scraper."""
+
+    async def post(
+        self, url: str, json_body: dict, headers: dict[str, str] | None = None
+    ) -> FetchResult:
+        """POST a JSON body, under the same never-raises contract as ``fetch``."""
+        ...
+
+
 class BaseFetcher:
     """
-    Shared fetcher implementation. Custom backends may subclass this.
+    Shared fetcher implementation. Custom transports may subclass this.
 
     Subclasses implement ``_fetch`` and declare ``network_errors``; the
     never-raises guarantee, jitter spacing, and error mapping live here.
     """
 
-    # Backend-specific exceptions that should map to a NETWORK error.
+    # Transport-specific exceptions that should map to a NETWORK error.
     network_errors: tuple[type[BaseException], ...] = ()
 
     def __init__(self, jitter: float = 0.0):
@@ -80,7 +90,7 @@ class BaseFetcher:
         url: str,
         operation: Callable[[], Awaitable[FetchResult]],
     ) -> FetchResult:
-        """Run a backend operation under the fetcher's error contract."""
+        """Run a transport operation under the fetcher's error contract."""
         try:
             return await operation()
         except Exception as e:

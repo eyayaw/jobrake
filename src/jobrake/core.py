@@ -1,28 +1,11 @@
-"""Shared plumbing: the POST-capable fetcher, job normalization, dispatch."""
+"""Shared plumbing: job normalization and the per-site dispatch."""
 
 from __future__ import annotations
 
 from datetime import datetime, timezone
 
 from bs4 import BeautifulSoup
-from jobrake.fetchkit import FetchResult, HttpxFetcher, build_result
-
-
-class HttpxPostFetcher(HttpxFetcher):
-    """
-    HttpxFetcher plus JSON POST, under the same never-raises contract.
-
-    The ``Fetcher`` protocol is GET-only; Indeed's GraphQL API needs POST.
-    Any ``Fetcher`` can be injected into the scrapers instead—LinkedIn only
-    GETs—but Indeed needs one with a ``post`` method.
-    """
-
-    async def post(self, url: str, json_body: dict, headers: dict | None = None) -> FetchResult:
-        return await self._capture_result(url, lambda: self._post(url, json_body, headers))
-
-    async def _post(self, url: str, json_body: dict, headers: dict | None) -> FetchResult:
-        r = await self._client.post(url, json=json_body, headers=headers)
-        return build_result(str(r.url), r.status_code, r.text, r.headers)
+from jobrake.fetchkit import HttpxFetcher
 
 
 def html_text(html: str) -> str:
@@ -77,8 +60,9 @@ async def scrape(
     Scrape one site; returns plain job dicts.
 
     ``fetcher`` accepts any ``jobrake.fetchkit.Fetcher`` (injected fetchers are
-    not closed here—the caller owns their lifecycle). Indeed needs one with a ``post``
-    method; the default :class:`HttpxPostFetcher` provides it.
+    not closed here—the caller owns their lifecycle); indeed needs the
+    ``PostFetcher`` variant. The default :class:`HttpxFetcher` qualifies for
+    every site.
 
     ``country`` is required for indeed, ignored by linkedin.
     ``location`` is required for linkedin, optional for indeed.
@@ -90,7 +74,7 @@ async def scrape(
         raise ValueError(f"unknown site {site!r}; expected one of {sorted(searches)}")
 
     owns_fetcher = fetcher is None
-    fetcher = fetcher or HttpxPostFetcher()
+    fetcher = fetcher or HttpxFetcher()
     kwargs = dict(
         search_term=search_term,
         location=location,

@@ -53,7 +53,7 @@ def build_result(
 
     Handles 429 (rate-limited), 4xx/5xx (error), and 2xx/3xx (success).
     Header keys are normalized to lowercase, so lookups behave the same
-    for every backend. Error results retain the response body for caller
+    for every transport. Error results retain the response body for caller
     inspection.
     """
     normalized = {k.lower(): v for k, v in headers.items()}

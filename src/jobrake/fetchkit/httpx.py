@@ -7,7 +7,12 @@ from .types import FetchResult, build_result
 
 
 class HttpxFetcher(BaseFetcher):
-    """Fetcher using httpx: an async HTTP client with connection pooling."""
+    """
+    Fetcher using httpx: an async HTTP client with connection pooling.
+
+    Satisfies ``PostFetcher``: JSON ``post`` on top of the GET-only
+    ``Fetcher`` contract.
+    """
 
     network_errors = (httpx.TimeoutException, httpx.NetworkError)
 
@@ -41,6 +46,16 @@ class HttpxFetcher(BaseFetcher):
 
     async def _fetch(self, url: str, headers: dict[str, str] | None) -> FetchResult:
         r = await self._client.get(url, headers=headers)
+        return build_result(str(r.url), r.status_code, r.text, r.headers)
+
+    async def post(
+        self, url: str, json_body: dict, headers: dict[str, str] | None = None
+    ) -> FetchResult:
+        """POST JSON, under the same never-raises contract as ``fetch``."""
+        return await self._capture_result(url, lambda: self._post(url, json_body, headers))
+
+    async def _post(self, url: str, json_body: dict, headers: dict[str, str] | None) -> FetchResult:
+        r = await self._client.post(url, json=json_body, headers=headers)
         return build_result(str(r.url), r.status_code, r.text, r.headers)
 
     async def close(self) -> None:
