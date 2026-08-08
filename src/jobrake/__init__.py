@@ -7,10 +7,10 @@ Minimal async job-board scrapers on a vendored fetch layer (``jobrake.fetchkit``
 
 Each job is a plain dict: title, company, url, location, description, date
 (YYYY-MM-DD or ""), site. Inject any ``jobrake.fetchkit.Fetcher`` via ``fetcher=``
-to swap transports. Indeed uses a custom fetcher with a ``post`` method, which
-the default :class:`HttpxPostFetcher` provides.
+to swap transports (indeed needs the ``PostFetcher`` variant).
 """
 
-from jobrake.core import HttpxPostFetcher, scrape
+from jobrake.core import scrape
+from jobrake.fetchkit import HttpxFetcher
 
-__all__ = ["HttpxPostFetcher", "scrape"]
+__all__ = ["HttpxFetcher", "scrape"]

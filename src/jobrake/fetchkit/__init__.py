@@ -1,4 +1,4 @@
-"""Vendored subset of fetchkit: the GET transport, its base contract, and types."""
+"""Vendored subset of fetchkit: the httpx transport, its base contract, and types."""
 
 from .base import BaseFetcher, Fetcher, PostFetcher
 from .httpx import HttpxFetcher

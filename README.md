@@ -55,15 +55,15 @@ Unlike jobspy, jobrake does not support Glassdoor. At the time of writing, it wa
 
 ## Transport injection
 
-Every scraper takes any object implementing the `jobrake.fetchkit.Fetcher` protocol via `fetcher=`; failures are returned as results, and no exceptions are thrown. An injected fetcher's lifecycle stays with the caller. Indeed requires a fetcher with a `post` method. The `Fetcher` protocol is GET-only, so this package's `HttpxPostFetcher` (the default) adds one. Subclass `jobrake.fetchkit.BaseFetcher` to wrap another HTTP client or a browser.
+Every scraper takes any `jobrake.fetchkit.Fetcher` via `fetcher=`; failures are returned as results, and no exceptions are thrown. An injected fetcher's lifecycle stays with the caller. Indeed needs the `PostFetcher` variant (JSON `post` on top of the GET-only protocol), which the default `HttpxFetcher` implements. Subclass `jobrake.fetchkit.BaseFetcher` to wrap another HTTP client or a browser.
 
 ```python
-from jobrake import HttpxPostFetcher
+from jobrake import HttpxFetcher
 jobs = await scrape(
     "linkedin",
     search_term="economist",
     location="Amsterdam, Netherlands",
-    fetcher=HttpxPostFetcher(headers={"Accept-Language": "en-US"}),
+    fetcher=HttpxFetcher(headers={"Accept-Language": "en-US"}),
 )
 ```
 
