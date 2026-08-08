@@ -1,6 +1,7 @@
 """LinkedIn guest-search parsing and pagination tests."""
 
 import asyncio
+import logging
 
 import pytest
 from fakes import StubFetcher, not_found, ok, rate_limited
@@ -78,6 +79,24 @@ def test_linkedin_persistent_429_returns_partial(unlimited, monkeypatch):
     fetcher = StubFetcher({"seeMoreJobPostings": rate_limited()})
     assert asyncio.run(linkedin.search(fetcher, search_term="x", location="Seattle")) == []
     assert len(fetcher.requests) == 2  # the one retry, then give up
+
+
+def test_warns_on_empty_first_page(unlimited, caplog):
+    fetcher = StubFetcher({"seeMoreJobPostings": ok("<!DOCTYPE html>\n<!---->")})
+    with caplog.at_level(logging.WARNING, logger="jobrake.linkedin"):
+        jobs = asyncio.run(linkedin.search(fetcher, search_term="x", location="Amsterdam"))
+    assert jobs == []
+    assert any("location" in record.message for record in caplog.records)
+
+
+def test_no_warning_when_pagination_simply_ends(unlimited, caplog):
+    fetcher = StubFetcher({"seeMoreJobPostings": ok(linkedin_card("111"))})
+    with caplog.at_level(logging.WARNING, logger="jobrake.linkedin"):
+        jobs = asyncio.run(
+            linkedin.search(fetcher, search_term="x", location="Seattle", results_wanted=5)
+        )
+    assert [j["id"] for j in jobs] == ["111"]  # second page dedups to empty: normal end
+    assert caplog.records == []
 
 
 def test_every_request_takes_a_token(monkeypatch):

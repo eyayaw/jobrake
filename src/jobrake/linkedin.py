@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from collections.abc import Iterable
 from urllib.parse import urlencode
 
@@ -11,6 +12,8 @@ from bs4 import BeautifulSoup
 from jobrake.constants import JobrakeConstants as JBC
 from jobrake.core import html_text, make_job
 from jobrake.fetchkit import ErrorCategory, Fetcher, FetchResult, TokenBucket
+
+logger = logging.getLogger(__name__)
 
 BASE_URL = "https://www.linkedin.com"
 SEARCH_URL = f"{BASE_URL}/jobs-guest/jobs/api/seeMoreJobPostings/search"
@@ -163,6 +166,16 @@ async def search(
             break
         page = [j for j in parse_cards(result.text) if j["url"] not in seen]
         if not page:
+            if start == 0:
+                # An unresolvable location yields an empty 200 identical to a
+                # genuine no-results page; the guest geocoder wants qualified
+                # names ("Berlin" works, bare "Amsterdam" does not).
+                logger.warning(
+                    "linkedin returned an empty first page for location=%r; "
+                    "if results were expected, try a qualified location like "
+                    "'Amsterdam, North Holland, Netherlands'",
+                    location,
+                )
             break
         seen.update(j["url"] for j in page)
         jobs.extend(page)
