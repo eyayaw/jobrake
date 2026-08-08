@@ -25,10 +25,10 @@ jobs = await scrape(
     results_wanted=25,
     hours_old=168,
 )
-# [{"title", "company", "url", "location", "description", "date", "site"}, ...]
+# [{"id", "title", "company", "url", "location", "description", "date", "site"}, ...]
 ```
 
-Each site has one required geographic argument: Indeed needs `country`—a name like `germany` or the alias `usa`, not an ISO code like `de`—to pick the edition it queries. LinkedIn needs `location` and ignores `country`. The search radius (`distance=`, `--radius` in the CLI) is in **kilometers** and defaults to 50.
+Each site has one required geographic argument: Indeed needs `country`—a name like `germany` or the alias `usa`, not an ISO code like `de`—to pick the edition it queries. LinkedIn needs `location` and ignores `country`. Qualify ambiguous places ("Amsterdam, North Holland, Netherlands"): a location LinkedIn cannot resolve returns an empty result, with a warning. The search radius (`distance=`, `--radius` in the CLI) is in **kilometers** and defaults to 50.
 
 jobrake also has a CLI:
 
@@ -41,17 +41,36 @@ jobrake --site indeed --search-term "Data Scientist" --location "Amsterdam" --co
 > jobrake -s indeed -q "data scientist" -c usa -n 2 | jq '.[] | {title, company, url, date}'
 > ```
 
-Unlike indeed, the scraper for linkedin does not return full descriptions by default, but you can enable this with `linkedin_fetch_description=True` or the `--fetch-description` flag in the CLI. The scraper may appear slow, as it makes an additional request for each job to fetch the description, which is slower and may lead to rate limits.
-
-
 ## Sites
 
 | Site | Mechanism | Notes |
 |---|---|---|
 | `indeed` | Mobile-app GraphQL API (POST) | most reliable; full descriptions |
-| `linkedin` | Guest search API (HTML cards) | ~5-request burst bucket; pages paced 3s apart; optional per-job description fetch (`linkedin_fetch_description=True`) |
+| `linkedin` | Guest search API (HTML cards) | token-bucket pacing (short burst, then ~one request per 2s); optional per-job description fetch, see below |
 
 Unlike jobspy, jobrake does not support Glassdoor. At the time of writing, it was acquired by Indeed and largely serves the same inventory. If it is ever wanted, we could inject a TLS-impersonating fetcher (e.g. one wrapping curl_cffi) for its Cloudflare frontend, but it is not a priority. Raising a PR is welcome.
+
+## LinkedIn pacing and descriptions
+
+LinkedIn gives each visitor one request budget: a burst of about five, then one more every two seconds, shared by every guest endpoint. jobrake keeps a slightly stingier copy of that budget (a token bucket) and waits its turn before every request, so it goes as fast as the budget allows without getting rate-limited; a 429 that slips through anyway is retried once.
+
+Descriptions are not in the search results—each one is an extra request against that budget. `linkedin_fetch_description=True` (`--fetch-description` in the CLI) fetches them for every job returned, every time. For repeated searches, list first and hydrate only what you haven't stored:
+
+```python
+from jobrake import HttpxFetcher, linkedin, scrape
+
+fetcher = HttpxFetcher()
+jobs = await scrape(
+    "linkedin",
+    search_term="economist",
+    location="Berlin, Germany",
+    fetcher=fetcher,
+)
+wanted = [j["id"] for j in jobs if j["id"] not in store]  # your store, your policy
+descriptions = await linkedin.fetch_descriptions(fetcher, wanted)
+```
+
+`fetch_descriptions` maps each id to its text, to `None` when the posting is gone (404—prune it, stop asking), or omits it when the fetch failed transiently (retry whenever suits you). Descriptions never change after posting, so anything you store never goes stale.
 
 ## Transport injection
 

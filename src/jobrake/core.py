@@ -74,6 +74,9 @@ async def scrape(
 
     ``country`` is required for indeed, ignored by linkedin.
     ``location`` is required for linkedin, optional for indeed.
+    ``linkedin_fetch_description`` costs one extra paced request per job,
+    every call; for repeated searches prefer ``linkedin.fetch_descriptions``
+    over ids you have not stored yet.
     """
     from jobrake import indeed, linkedin
 
