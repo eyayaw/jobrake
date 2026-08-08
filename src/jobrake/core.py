@@ -25,6 +25,7 @@ def epoch_ms_to_date(ms) -> str:
 
 def make_job(
     *,
+    id: str,
     title: str,
     company: str,
     url: str,
@@ -33,7 +34,14 @@ def make_job(
     description: str = "",
     date: str = "",
 ) -> dict:
+    """
+    Normalize scraped fields into the job dict.
+
+    ``id`` is the site-local posting identifier (LinkedIn's numeric posting
+    id, Indeed's job key): stable per posting, unique only within a site.
+    """
     return {
+        "id": (id or "").strip(),
         "title": (title or "").strip(),
         "company": (company or "").strip(),
         "url": (url or "").strip(),

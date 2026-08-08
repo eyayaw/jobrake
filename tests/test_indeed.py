@@ -44,6 +44,7 @@ def test_indeed_parses_and_paginates():
         indeed.search(fetcher, search_term="economist", country="usa", results_wanted=10)
     )
     assert [j["title"] for j in jobs] == ["Job a", "Job b", "Job c"]
+    assert jobs[0]["id"] == "a"
     assert jobs[0]["url"] == "https://www.indeed.com/viewjob?jk=a"
     assert jobs[0]["location"] == "NYC, NY, US"
     assert jobs[0]["description"] == "Economist & analyst"

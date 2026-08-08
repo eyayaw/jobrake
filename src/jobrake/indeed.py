@@ -96,6 +96,7 @@ def parse_jobs(data: dict, base_url: str) -> tuple[list[dict], str | None]:
         employer = job.get("employer") or {}
         jobs.append(
             make_job(
+                id=job["key"],
                 title=job.get("title", ""),
                 company=employer.get("name") or "",
                 url=f"{base_url}/viewjob?jk={job['key']}",

@@ -7,8 +7,8 @@ from urllib.parse import urlencode
 
 from bs4 import BeautifulSoup
 
-from jobrake.core import html_text, make_job
 from jobrake.constants import JobrakeConstants as JBC
+from jobrake.core import html_text, make_job
 from jobrake.fetchkit import Fetcher
 
 BASE_URL = "https://www.linkedin.com"
@@ -30,6 +30,13 @@ PAGE_DELAY = 3.0  # seconds between search pages; measured safe sustained pace
 MAX_START = 1000  # the guest API stops serving past this offset
 
 
+def job_id(url: str) -> str:
+    """Numeric posting id from a ``/jobs/view/<sluggified-title>-<id>`` URL; ``""`` when absent."""
+    slug = url.split("?")[0].rstrip("/").rsplit("/", 1)[-1]
+    tail = slug.rsplit("-", 1)[-1]
+    return tail if tail.isdigit() else ""
+
+
 def parse_cards(html: str) -> list[dict]:
     """Job dicts (no description) from one guest search page."""
     soup = BeautifulSoup(html, "html.parser")
@@ -47,6 +54,7 @@ def parse_cards(html: str) -> list[dict]:
 
         jobs.append(
             make_job(
+                id=job_id(url),
                 title=title_tag.get_text(strip=True) if title_tag else "",
                 company=company_tag.get_text(strip=True) if company_tag else "",
                 url=url,
