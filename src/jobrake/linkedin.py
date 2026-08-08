@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-import asyncio
 from urllib.parse import urlencode
 
 from bs4 import BeautifulSoup
 
 from jobrake.constants import JobrakeConstants as JBC
 from jobrake.core import html_text, make_job
-from jobrake.fetchkit import Fetcher
+from jobrake.fetchkit import Fetcher, TokenBucket
 
 BASE_URL = "https://www.linkedin.com"
 SEARCH_URL = f"{BASE_URL}/jobs-guest/jobs/api/seeMoreJobPostings/search"
@@ -26,8 +25,14 @@ HEADERS = {
     ),
 }
 
-PAGE_DELAY = 3.0  # seconds between search pages; measured safe sustained pace
 MAX_START = 1000  # the guest API stops serving past this offset
+
+# The server enforces a per-IP budget on all guest endpoints: roughly
+# 5 requests of burst, then one back every ~2s (measured). This bucket
+# mirrors it with a small margin, so requests only leave when the server
+# has a token for them. Module-level on purpose: the server's budget is
+# per IP, so one bucket per process, shared across all search calls.
+LIMITER = TokenBucket(capacity=4, refill_interval=2.25)
 
 
 def job_id(url: str) -> str:
@@ -90,8 +95,8 @@ async def search(
     """
     Paginate guest-search job cards into job dicts.
 
-    The endpoint has a small burst bucket (~5 requests) that refills within
-    seconds, so pages are fetched with a delay between requests. A 429 ends
+    Every request first takes a token from ``LIMITER``, so bursts ride the
+    bucket and sustained fetching settles onto its refill rate. A 429 ends
     the search with whatever was collected—the fetch layer reports it as a
     RATE_LIMITED error rather than raising.
     """
@@ -107,6 +112,7 @@ async def search(
             "f_TPR": f"r{hours_old * 3600}" if hours_old else None,
         }
         query = urlencode({k: v for k, v in params.items() if v is not None})
+        await LIMITER.acquire()
         result = await fetcher.fetch(f"{SEARCH_URL}?{query}", headers=HEADERS)
         if not result.ok:
             break
@@ -116,14 +122,12 @@ async def search(
         seen.update(j["url"] for j in page)
         jobs.extend(page)
         start += len(page)
-        if len(jobs) < results_wanted:
-            await asyncio.sleep(PAGE_DELAY)
 
     jobs = jobs[:results_wanted]
     if fetch_description:
         for job in jobs:
+            await LIMITER.acquire()
             result = await fetcher.fetch(job["url"], headers=HEADERS)
             if result.ok and "linkedin.com/signup" not in result.url:
                 job["description"] = parse_description(result.text)
-            await asyncio.sleep(PAGE_DELAY)
     return jobs

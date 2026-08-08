@@ -2,9 +2,17 @@
 
 import asyncio
 
+import pytest
 from fakes import StubFetcher, ok, rate_limited
 
 from jobrake import linkedin
+from jobrake.fetchkit import TokenBucket
+
+
+@pytest.fixture
+def unlimited(monkeypatch):
+    """Replace the module limiter with one whose burst no test can exhaust."""
+    monkeypatch.setattr(linkedin, "LIMITER", TokenBucket(capacity=10**9, refill_interval=1.0))
 
 
 def linkedin_card(job_id, title="Economist", company="Acme"):
@@ -30,8 +38,7 @@ def test_job_id_from_url():
     assert linkedin.job_id("https://www.linkedin.com/jobs/search") == ""
 
 
-def test_linkedin_parses_cards_and_dedups(monkeypatch):
-    monkeypatch.setattr(linkedin, "PAGE_DELAY", 0)
+def test_linkedin_parses_cards_and_dedups(unlimited):
     html = linkedin_card("111") + linkedin_card("222") + linkedin_card("111")
     fetcher = StubFetcher({"seeMoreJobPostings": ok(html)})
     jobs = asyncio.run(
@@ -48,14 +55,32 @@ def test_linkedin_parses_cards_and_dedups(monkeypatch):
     assert jobs[0]["date"] == "2026-08-01"
 
 
-def test_linkedin_429_returns_partial(monkeypatch):
-    monkeypatch.setattr(linkedin, "PAGE_DELAY", 0)
+def test_linkedin_429_returns_partial(unlimited):
     fetcher = StubFetcher({"seeMoreJobPostings": rate_limited()})
     assert asyncio.run(linkedin.search(fetcher, search_term="x", location="Seattle")) == []
 
 
-def test_linkedin_fetch_description(monkeypatch):
-    monkeypatch.setattr(linkedin, "PAGE_DELAY", 0)
+def test_every_request_takes_a_token(monkeypatch):
+    acquired = []
+
+    class Counting(TokenBucket):
+        async def acquire(self):
+            acquired.append(1)
+
+    monkeypatch.setattr(linkedin, "LIMITER", Counting(capacity=10**9, refill_interval=1.0))
+    detail = '<div class="show-more-less-html__markup"><p>x</p></div>'
+    fetcher = StubFetcher(
+        {"seeMoreJobPostings": ok(linkedin_card("111")), "/jobs/view/": ok(detail)}
+    )
+    asyncio.run(
+        linkedin.search(
+            fetcher, search_term="x", location="Seattle", results_wanted=1, fetch_description=True
+        )
+    )
+    assert len(acquired) == len(fetcher.requests) == 2
+
+
+def test_linkedin_fetch_description(unlimited):
     detail = '<div class="show-more-less-html__markup"><p>Great &amp; big role</p></div>'
     fetcher = StubFetcher(
         {"seeMoreJobPostings": ok(linkedin_card("111")), "/jobs/view/": ok(detail)}
