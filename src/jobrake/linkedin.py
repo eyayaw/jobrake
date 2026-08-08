@@ -33,14 +33,15 @@ HEADERS = {
 
 MAX_START = 1000  # the guest API stops serving past this offset
 
-# The server enforces a per-IP budget on all guest endpoints: roughly
-# 5 requests of burst, then one back every ~2s (measured). This bucket
-# mirrors it with a small margin, so requests only leave when the server
-# has a token for them. Module-level on purpose: the server's budget is
-# per IP, so one bucket per process, shared across all search calls.
-LIMITER = TokenBucket(capacity=4, refill_interval=2.25)
+# The server budget is not uniform: search pages 429 under a 4-burst +
+# 2.25s cadence (the sixth request, deterministically), while a steady 3s
+# never does. A longer-horizon limit still yields sporadic 429s on 100+
+# request runs; the retry in _paced_fetch absorbs those. Module-level on
+# purpose: the budget is per IP, so one bucket per process, shared across
+# all search calls.
+LIMITER = TokenBucket(capacity=2, refill_interval=3.0)
 
-RETRY_DELAY = 5.0  # seconds before retrying a 429; measured recovery is ~4-10s
+RETRY_DELAY = 10.0  # seconds before retrying a 429; still 429 at +5s, clear by ~10s
 
 
 async def _paced_fetch(fetcher: Fetcher, url: str) -> FetchResult:
