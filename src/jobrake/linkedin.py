@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Iterable
 from urllib.parse import urlencode
 
 from bs4 import BeautifulSoup
@@ -13,6 +14,7 @@ from jobrake.fetchkit import ErrorCategory, Fetcher, FetchResult, TokenBucket
 
 BASE_URL = "https://www.linkedin.com"
 SEARCH_URL = f"{BASE_URL}/jobs-guest/jobs/api/seeMoreJobPostings/search"
+DETAIL_URL = f"{BASE_URL}/jobs-guest/jobs/api/jobPosting"
 
 HEADERS = {
     "accept": (
@@ -94,13 +96,35 @@ def parse_cards(html: str) -> list[dict]:
 
 def parse_description(html: str) -> str:
     """
-    Description text from a public job page; ``""`` when the markup is absent.
+    Description text from a job page or guest fragment; ``""`` when the markup is absent.
 
     LinkedIn nondeterministically serves a signup page (interstitial) instead of the job page.
     """
     soup = BeautifulSoup(html, "html.parser")
     div = soup.find("div", class_=lambda c: c and "show-more-less-html__markup" in c)
     return html_text(div.decode_contents()) if div else ""
+
+
+async def fetch_descriptions(fetcher: Fetcher, ids: Iterable[str]) -> dict[str, str | None]:
+    """
+    Full description per posting id, via the guest jobPosting fragment.
+
+    The fragment (~30KB) carries the same description markup as the full
+    job page (~300KB) at the same one-token price. Duplicate and empty ids
+    are skipped. Three outcomes per id: description text (hydrated), ``None``
+    (the posting is gone—404/410—stop asking), or absent from the result
+    (transient: rate-limited past the retry, network failure, or markup
+    absent) and safe to try again later. Never raises.
+    """
+    descriptions: dict[str, str | None] = {}
+    for posting_id in dict.fromkeys(i for i in ids if i):
+        result = await _paced_fetch(fetcher, f"{DETAIL_URL}/{posting_id}")
+        if result.ok:
+            if description := parse_description(result.text):
+                descriptions[posting_id] = description
+        elif result.error.http_status in (404, 410):
+            descriptions[posting_id] = None
+    return descriptions
 
 
 async def search(
@@ -146,8 +170,7 @@ async def search(
 
     jobs = jobs[:results_wanted]
     if fetch_description:
+        descriptions = await fetch_descriptions(fetcher, (job["id"] for job in jobs))
         for job in jobs:
-            result = await _paced_fetch(fetcher, job["url"])
-            if result.ok and "linkedin.com/signup" not in result.url:
-                job["description"] = parse_description(result.text)
+            job["description"] = descriptions.get(job["id"]) or job["description"]
     return jobs

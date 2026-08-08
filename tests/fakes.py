@@ -33,6 +33,14 @@ def ok(text: str) -> FetchResult:
     return FetchResult(url="stub", status_code=200, text=text)
 
 
+def not_found() -> FetchResult:
+    return FetchResult(
+        url="stub",
+        status_code=404,
+        error=FetchError(ErrorCategory.CLIENT, "Client error: 404", http_status=404),
+    )
+
+
 def rate_limited() -> FetchResult:
     return FetchResult(
         url="stub",
