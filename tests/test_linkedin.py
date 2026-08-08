@@ -3,7 +3,7 @@
 import asyncio
 
 import pytest
-from fakes import StubFetcher, ok, rate_limited
+from fakes import StubFetcher, not_found, ok, rate_limited
 
 from jobrake import linkedin
 from jobrake.fetchkit import TokenBucket
@@ -90,7 +90,7 @@ def test_every_request_takes_a_token(monkeypatch):
     monkeypatch.setattr(linkedin, "LIMITER", Counting(capacity=10**9, refill_interval=1.0))
     detail = '<div class="show-more-less-html__markup"><p>x</p></div>'
     fetcher = StubFetcher(
-        {"seeMoreJobPostings": ok(linkedin_card("111")), "/jobs/view/": ok(detail)}
+        {"seeMoreJobPostings": ok(linkedin_card("111")), "jobPosting/111": ok(detail)}
     )
     asyncio.run(
         linkedin.search(
@@ -103,7 +103,7 @@ def test_every_request_takes_a_token(monkeypatch):
 def test_linkedin_fetch_description(unlimited):
     detail = '<div class="show-more-less-html__markup"><p>Great &amp; big role</p></div>'
     fetcher = StubFetcher(
-        {"seeMoreJobPostings": ok(linkedin_card("111")), "/jobs/view/": ok(detail)}
+        {"seeMoreJobPostings": ok(linkedin_card("111")), "jobPosting/111": ok(detail)}
     )
     jobs = asyncio.run(
         linkedin.search(
@@ -111,3 +111,40 @@ def test_linkedin_fetch_description(unlimited):
         )
     )
     assert jobs[0]["description"] == "Great & big role"
+    assert any("jobPosting/111" in url for url in fetcher.requests)
+
+
+def test_fetch_descriptions_dedups_and_omits_unhydrated(unlimited):
+    detail = '<div class="show-more-less-html__markup"><p>Role</p></div>'
+    fetcher = StubFetcher(
+        {
+            "jobPosting/111": ok(detail),
+            "jobPosting/222": ok("<div>signup wall</div>"),
+            "jobPosting/333": not_found(),
+        }
+    )
+    descriptions = asyncio.run(
+        linkedin.fetch_descriptions(fetcher, ["111", "", "111", "222", "333"])
+    )
+    # 222 fetched but empty: absent, retryable; 333 gone: None, stop asking
+    assert descriptions == {"111": "Role", "333": None}
+    assert len(fetcher.requests) == 3  # duplicates and empty ids cost nothing
+
+
+def test_search_keeps_empty_description_for_gone_posting(unlimited):
+    fetcher = StubFetcher(
+        {"seeMoreJobPostings": ok(linkedin_card("111")), "jobPosting/111": not_found()}
+    )
+    jobs = asyncio.run(
+        linkedin.search(
+            fetcher, search_term="x", location="Seattle", results_wanted=1, fetch_description=True
+        )
+    )
+    assert jobs[0]["description"] == ""
+
+
+def test_fetch_descriptions_skips_persistent_429(unlimited, monkeypatch):
+    monkeypatch.setattr(linkedin, "RETRY_DELAY", 0)
+    fetcher = StubFetcher({"jobPosting/": rate_limited()})
+    assert asyncio.run(linkedin.fetch_descriptions(fetcher, ["111"])) == {}
+    assert len(fetcher.requests) == 2  # the one retry, then move on
