@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import math
 import time
 
 
@@ -35,10 +36,10 @@ class TokenBucket:
     """
 
     def __init__(self, capacity: float, refill_interval: float):
-        if capacity < 1:
-            raise ValueError("capacity must be at least 1")
-        if refill_interval <= 0:
-            raise ValueError("refill_interval must be positive")
+        if not math.isfinite(capacity) or capacity < 1:
+            raise ValueError("capacity must be finite and at least 1")
+        if not math.isfinite(refill_interval) or refill_interval <= 0:
+            raise ValueError("refill_interval must be finite and positive")
         self.capacity = float(capacity)
         self.refill_interval = float(refill_interval)
         self._level = self.capacity
