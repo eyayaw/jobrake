@@ -49,6 +49,23 @@ def test_acquire_paces_in_real_time():
     assert asyncio.run(two_acquires()) >= 0.04
 
 
+def test_canceled_acquire_refunds_the_token(monkeypatch):
+    async def canceled_sleep(seconds):
+        raise asyncio.CancelledError
+
+    monkeypatch.setattr(asyncio, "sleep", canceled_sleep)
+
+    async def run():
+        bucket = TokenBucket(1, 2.0)
+        await bucket.acquire()  # burst token, no sleep
+        with pytest.raises(asyncio.CancelledError):
+            await bucket.acquire()  # owes one refill; canceled mid-wait
+        return bucket.reserve(time.monotonic())
+
+    # The canceled waiter's token came back: one refill owed, not two.
+    assert asyncio.run(run()) == pytest.approx(2.0, abs=0.1)
+
+
 def test_rejects_invalid_parameters():
     with pytest.raises(ValueError):
         TokenBucket(0, 1.0)

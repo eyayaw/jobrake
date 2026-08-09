@@ -59,4 +59,10 @@ class TokenBucket:
         # bucket one at a time; each sees the debt left by those before it.
         wait = self.reserve(time.monotonic())
         if wait > 0:
-            await asyncio.sleep(wait)
+            try:
+                await asyncio.sleep(wait)
+            except asyncio.CancelledError:
+                # The reservation was never spent on a request; return the
+                # token so the cancellation doesn't tax later callers.
+                self._level += 1.0
+                raise
