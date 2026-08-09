@@ -12,13 +12,17 @@ dependencies = [
     "beautifulsoup4>=4.12",
 ]
 
+[project.urls]
+Repository = "https://github.com/eyayaw/jobrake"
+Changelog = "https://github.com/eyayaw/jobrake/blob/main/CHANGELOG.md"
+
 [dependency-groups]
 dev = [
     "pytest>=8.0",
 ]
 
 [build-system]
-requires = ["uv_build>=0.11,<0.12"]
+requires = ["uv_build>=0.11,<0.13"]
 build-backend = "uv_build"
 
 [tool.uv_build.targets.wheel]
