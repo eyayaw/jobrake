@@ -46,7 +46,7 @@ jobrake --site indeed --search-term "Data Scientist" --location "Amsterdam" --co
 | Site | Mechanism | Notes |
 |---|---|---|
 | `indeed` | Mobile-app GraphQL API (POST) | most reliable; full descriptions |
-| `linkedin` | Guest search API (HTML cards) | token-bucket pacing (short burst, then ~one request per 2s); optional per-job description fetch, see below |
+| `linkedin` | Guest search API (HTML cards) | token-bucket pacing (short burst, then ~one request per 3s); optional per-job description fetch, see below |
 
 Unlike jobspy, jobrake does not support Glassdoor. At the time of writing, it was acquired by Indeed and largely serves the same inventory. If it is ever wanted, we could inject a TLS-impersonating fetcher (e.g. one wrapping curl_cffi) for its Cloudflare frontend, but it is not a priority. Raising a PR is welcome.
 
@@ -70,7 +70,7 @@ async with HttpxFetcher() as fetcher:  # injected fetchers are caller-owned
     descriptions = await linkedin.fetch_descriptions(fetcher, wanted)
 ```
 
-`fetch_descriptions` maps each id to its text, to `None` when the posting is gone (404—prune it, stop asking), or omits it when the fetch failed transiently (retry whenever suits you). Descriptions never change after posting, so anything you store never goes stale.
+`fetch_descriptions` maps each id to its text, to `None` when the posting is gone (404—prune it, stop asking), or omits it when the fetch failed transiently (retry whenever suits you). Descriptions rarely change after posting—LinkedIn does let employers edit live posts—so cache freely and re-hydrate the ids where freshness matters.
 
 ## Transport injection
 
