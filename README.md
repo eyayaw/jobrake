@@ -1,6 +1,10 @@
 # jobrake
 
-Rake job postings off the boards.
+The job boards shed new postings every day. Bring a rake. 🍂
+
+jobrake (read as "job-rake") is a minimal python package and CLI tool for scraping job postings from LinkedIn and Indeed.
+
+> If your name happens to be Jo, read it again: **Jo-brake**—the brake on the job-board doomscroll.
 
 <table>
 <tr>
@@ -8,12 +12,12 @@ Rake job postings off the boards.
 
 ```sh
 jobrake --site linkedin \
-        --search-term "data scientist" \
-        --location "amsterdam, netherlands" \
-        --radius 100 \
-        --hours-old 48 \
-        --results-wanted 5 \
-        --fetch-description
+  --search-term "data scientist" \
+  --location "amsterdam, netherlands" \
+  --radius 100 \
+  --hours-old 48 \
+  --results-wanted 5 \
+  --fetch-description
 ```
 
 </td>
@@ -21,12 +25,12 @@ jobrake --site linkedin \
 
 ```sh
 jobrake -s indeed \
-        -q "data scientist" \
-        -l amsterdam -c netherlands \
-        -r 100 \
-        -a 48 \
-        -n 5 \
-        -d # indeed includes descriptions anyway
+  -q "data scientist" \
+  -l amsterdam -c netherlands \
+  -r 100 \
+  -a 48 \
+  -n 5 \
+  -d # always on for indeed
 ```
 
 </td>
@@ -113,8 +117,7 @@ Use `--fetch-description | -d` in the CLI to include them.
 > [!IMPORTANT]
 > Be gentle with LinkedIn's guest API.
 >
-> For repeated searches, list first and fetch descriptions only for
-> jobs you don't already have:
+> For repeated searches, list first and fetch descriptions only for jobs you don't already have (or for those you are interested in based on the titles):
 >
 > ```python
 > import json
@@ -146,6 +149,10 @@ Descriptions rarely change after posting, so cache freely, but if freshness matt
 ## Bring your own fetcher
 
 Every scraper takes any `jobrake.fetchkit.Fetcher` via `fetcher=`, as in the LinkedIn example above; failures are returned as results, and no exceptions are thrown. A fetcher you pass in stays yours to close. Indeed needs the `PostFetcher` variant (JSON `post` on top of the GET-only protocol), which the default `HttpxFetcher` implements. Subclass `jobrake.fetchkit.BaseFetcher` to wrap another HTTP client or a browser.
+
+## Credits
+
+jobrake owes a lot to [python-jobspy](https://pypi.org/project/python-jobspy/): the Indeed mobile-app GraphQL endpoint, its public app key, and the LinkedIn guest-search approach were all adapted from it. Thanks.
 
 ## Disclaimer
 
