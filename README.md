@@ -59,15 +59,15 @@ Descriptions are not in the search results—each one is an extra request agains
 ```python
 from jobrake import HttpxFetcher, linkedin, scrape
 
-fetcher = HttpxFetcher()
-jobs = await scrape(
-    "linkedin",
-    search_term="economist",
-    location="Berlin, Germany",
-    fetcher=fetcher,
-)
-wanted = [j["id"] for j in jobs if j["id"] not in store]  # your store, your policy
-descriptions = await linkedin.fetch_descriptions(fetcher, wanted)
+async with HttpxFetcher() as fetcher:  # injected fetchers are caller-owned
+    jobs = await scrape(
+        "linkedin",
+        search_term="economist",
+        location="Berlin, Germany",
+        fetcher=fetcher,
+    )
+    wanted = [j["id"] for j in jobs if j["id"] not in store]  # your store, your policy
+    descriptions = await linkedin.fetch_descriptions(fetcher, wanted)
 ```
 
 `fetch_descriptions` maps each id to its text, to `None` when the posting is gone (404—prune it, stop asking), or omits it when the fetch failed transiently (retry whenever suits you). Descriptions never change after posting, so anything you store never goes stale.
@@ -78,12 +78,13 @@ Every scraper takes any `jobrake.fetchkit.Fetcher` via `fetcher=`; failures are 
 
 ```python
 from jobrake import HttpxFetcher
-jobs = await scrape(
-    "linkedin",
-    search_term="economist",
-    location="Amsterdam, Netherlands",
-    fetcher=HttpxFetcher(headers={"Accept-Language": "en-US"}),
-)
+async with HttpxFetcher(headers={"Accept-Language": "en-US"}) as fetcher:
+    jobs = await scrape(
+        "linkedin",
+        search_term="economist",
+        location="Amsterdam, Netherlands",
+        fetcher=fetcher,
+    )
 ```
 
 ## Disclaimer
