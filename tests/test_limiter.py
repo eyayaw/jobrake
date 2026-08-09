@@ -66,8 +66,17 @@ def test_canceled_acquire_refunds_the_token(monkeypatch):
     assert asyncio.run(run()) == pytest.approx(2.0, abs=0.1)
 
 
-def test_rejects_invalid_parameters():
+@pytest.mark.parametrize(
+    "capacity, refill_interval",
+    [
+        (0, 1.0),
+        (1, 0),
+        (float("nan"), 1.0),  # nan passes `< 1` checks and disables pacing
+        (1, float("nan")),
+        (float("inf"), 1.0),
+        (1, float("inf")),  # an infinite interval means an infinite wait
+    ],
+)
+def test_rejects_invalid_parameters(capacity, refill_interval):
     with pytest.raises(ValueError):
-        TokenBucket(0, 1.0)
-    with pytest.raises(ValueError):
-        TokenBucket(1, 0)
+        TokenBucket(capacity, refill_interval)
