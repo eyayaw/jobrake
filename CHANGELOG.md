@@ -1,5 +1,36 @@
 # Changelog
 
+## [0.6.0] — 2026-08-10
+
+Fetched descriptions now persist in an on-disk cache, so repeat searches only
+pay for postings they have not seen: a ~430-job sweep that took ~24 minutes
+reruns in ~2.
+
+### New
+
+- Descriptions are cached in a sqlite file in the user cache directory for a
+  week; gone postings are remembered and never refetched. Each result is
+  written as it arrives, so an interrupted sweep keeps what it paid for.
+  `--no-cache` (or `cache=False`) bypasses it; a broken cache costs extra
+  requests, never the scrape.
+- The CLI logs progress and warnings to stderr and keeps chatty dependency
+  loggers quiet; stdout stays pure JSON for piping.
+
+### Changed
+
+- `scrape`'s `linkedin_fetch_description` is now `fetch_description`; every
+  search accepts the same keywords.
+- `linkedin.search` accepts `country` and ignores it (LinkedIn resolves places
+  from `location` alone); one set of arguments works for every site.
+- `indeed.search` likewise accepts `fetch_description` and `cache` as no-ops:
+  descriptions always arrive in the search response, so there is nothing to
+  fetch or cache.
+
+### Docs
+
+- README: the cache promoted up top, the hand-rolled store recipe replaced by
+  it, sections reordered around the reader; this changelog added.
+
 ## [0.5.0] — 2026-08-10
 
 The LinkedIn scraper was rebuilt around the site's measured request budget, and
@@ -58,6 +89,7 @@ on the private fetchkit package.
 
 The fetchkit transport subset vendored as `jobrake.fetchkit`.
 
+[0.6.0]: https://github.com/eyayaw/jobrake/releases/tag/v0.6.0
 [0.5.0]: https://github.com/eyayaw/jobrake/releases/tag/v0.5.0
 [0.4.0]: https://github.com/eyayaw/jobrake/releases/tag/v0.4.0
 [0.3.0]: https://github.com/eyayaw/jobrake/releases/tag/v0.3.0
