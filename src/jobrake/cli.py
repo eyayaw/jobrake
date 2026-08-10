@@ -64,8 +64,11 @@ def main():
     )
 
     args = parser.parse_args()
-    # progress and warnings go to stderr; stdout stays pure JSON for piping
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s [%(name)s] %(message)s")
+    # Progress and warnings go to stderr, stdout stays pure JSON for piping.
+    # Root stays at WARNING so chatty dependencies (httpx logs every request at INFO) are muted,
+    # only our own loggers speak at INFO.
+    logging.basicConfig(level=logging.WARNING, format="%(levelname)s [%(name)s] %(message)s")
+    logging.getLogger("jobrake").setLevel(logging.INFO)
     try:
         jobs = asyncio.run(
             scrape(
