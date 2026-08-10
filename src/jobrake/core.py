@@ -62,6 +62,7 @@ async def scrape(
     results_wanted: int = 25,
     hours_old: int | None = None,
     fetch_description: bool = False,
+    cache: bool = True,
     fetcher=None,
 ) -> list[dict]:
     """
@@ -77,6 +78,9 @@ async def scrape(
     ``fetch_description`` costs one extra paced request per job, every call, on linkedin
     (indeed always includes descriptions); for repeated searches
     call ``linkedin.fetch_descriptions`` on just the new ids instead.
+    ``cache`` (linkedin) serves still-fresh descriptions from an on-disk cache
+    in the user cache directory instead of refetching (freshness window:
+    ``jobrake.cache.TTL``).
     """
     from jobrake import indeed, linkedin
 
@@ -94,6 +98,7 @@ async def scrape(
         results_wanted=results_wanted,
         hours_old=hours_old,
         fetch_description=fetch_description,
+        cache=cache,
     )
     if site == "linkedin":
         if location is None:

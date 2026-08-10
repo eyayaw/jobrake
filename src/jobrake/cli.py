@@ -57,6 +57,11 @@ def main():
         action="store_true",
         help="fetch the full description of the job post (linkedin only; indeed always includes descriptions)",
     )
+    parser.add_argument(
+        "--no-cache",
+        action="store_true",
+        help="always refetch descriptions instead of serving cached ones from disk (linkedin)",
+    )
 
     args = parser.parse_args()
     # progress and warnings go to stderr; stdout stays pure JSON for piping
@@ -72,6 +77,7 @@ def main():
                 results_wanted=args.results_wanted,
                 hours_old=args.hours_old,
                 fetch_description=args.fetch_description,
+                cache=not args.no_cache,
             )
         )
     except ValueError as e:

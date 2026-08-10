@@ -9,6 +9,7 @@ from urllib.parse import urlencode
 
 from bs4 import BeautifulSoup
 
+from jobrake.cache import DescriptionCache
 from jobrake.constants import JobrakeConstants as JBC
 from jobrake.core import html_text, make_job
 from jobrake.fetchkit import ErrorCategory, Fetcher, FetchResult, TokenBucket
@@ -42,6 +43,9 @@ MAX_START = 1000  # the guest API stops serving past this offset
 LIMITER = TokenBucket(capacity=2, refill_interval=3.0)
 
 RETRY_DELAY = 10.0  # seconds before retrying a 429; still 429 at +5s, clear by ~10s
+
+# One cache per process, lazy, so no file is touched until the first cached fetch.
+CACHE = DescriptionCache()
 
 
 async def _paced_fetch(fetcher: Fetcher, url: str) -> FetchResult:
@@ -109,7 +113,9 @@ def parse_description(html: str) -> str:
     return html_text(div.decode_contents()) if div else ""
 
 
-async def fetch_descriptions(fetcher: Fetcher, ids: Iterable[str]) -> dict[str, str | None]:
+async def fetch_descriptions(
+    fetcher: Fetcher, ids: Iterable[str], *, cache: bool = True
+) -> dict[str, str | None]:
     """
     Full description per posting id, via the guest jobPosting fragment.
 
@@ -119,16 +125,31 @@ async def fetch_descriptions(fetcher: Fetcher, ids: Iterable[str]) -> dict[str, 
     (the posting is gone—404/410—stop asking), or absent from the result
     (transient: rate-limited past the retry, network failure, or markup
     absent) and safe to try again later. Never raises.
+
+    With ``cache`` (the default), ids still fresh in the on-disk cache
+    (``CACHE``; freshness window ``jobrake.cache.TTL``) are served from disk
+    and only the rest cost requests. Each result is saved as it arrives, so
+    an interrupted sweep keeps everything it already paid for.
     """
-    descriptions: dict[str, str | None] = {}
-    for posting_id in dict.fromkeys(i for i in ids if i):
+    wanted = list(dict.fromkeys(i for i in ids if i))
+    cached = CACHE.get("linkedin", wanted) if cache else {}
+    fetched: dict[str, str | None] = {}
+    for posting_id in wanted:
+        if posting_id in cached:
+            continue
         result = await _paced_fetch(fetcher, f"{DETAIL_URL}/{posting_id}")
         if result.ok:
-            if description := parse_description(result.text):
-                descriptions[posting_id] = description
+            if not (description := parse_description(result.text)):
+                continue
+            value = description
         elif result.error.http_status in (404, 410):
-            descriptions[posting_id] = None
-    return descriptions
+            value = None
+        else:
+            continue
+        fetched[posting_id] = value
+        if cache:
+            CACHE.put("linkedin", {posting_id: value})
+    return cached | fetched
 
 
 async def search(
@@ -141,6 +162,7 @@ async def search(
     results_wanted: int = JBC.results_wanted,
     hours_old: int | None = JBC.hours_old,
     fetch_description: bool = JBC.fetch_description,
+    cache: bool = True,
 ) -> list[dict]:
     """
     Paginate guest-search job cards into job dicts.
@@ -188,7 +210,7 @@ async def search(
     jobs = jobs[:results_wanted]
     if fetch_description:
         logger.info("fetching full descriptions for %d jobs...", len(jobs))
-        descriptions = await fetch_descriptions(fetcher, (job["id"] for job in jobs))
+        descriptions = await fetch_descriptions(fetcher, (job["id"] for job in jobs), cache=cache)
         for job in jobs:
             job["description"] = descriptions.get(job["id"]) or job["description"]
     return jobs

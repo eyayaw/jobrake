@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import json
 
+from jobrake.constants import JobrakeConstants as JBC
 from jobrake.core import epoch_ms_to_date, html_text, make_job
 from jobrake.countries import indeed_domain
-from jobrake.constants import JobrakeConstants as JBC
 from jobrake.fetchkit import PostFetcher
 
 API_URL = "https://apis.indeed.com/graphql"
@@ -118,7 +118,8 @@ async def search(
     distance: int | None = JBC.radius,
     results_wanted: int = JBC.results_wanted,
     hours_old: int | None = None,
-    fetch_description: bool = True,  # no-op: always included in the GraphQL response
+    fetch_description: bool = True,
+    cache: bool = True,
 ) -> list[dict]:
     """
     Page through the GraphQL API into job dicts.
@@ -126,6 +127,9 @@ async def search(
     This API answers POST alone, hence the ``PostFetcher``. An error result
     or a malformed page ends the search with whatever was collected.
     """
+    # fetch_description: no-op: always included in the GraphQL response
+    # cache: no-op: nothing costs an extra request (one step, unlike linkedin's search -> hydrate details)
+
     subdomain, api_code = indeed_domain(country)
     base_url = f"https://{subdomain}.indeed.com"
     headers = {**API_HEADERS, "indeed-co": api_code}
