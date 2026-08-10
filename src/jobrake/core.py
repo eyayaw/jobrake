@@ -61,7 +61,7 @@ async def scrape(
     distance: int | None = None,
     results_wanted: int = 25,
     hours_old: int | None = None,
-    linkedin_fetch_description: bool = False,
+    fetch_description: bool = False,
     fetcher=None,
 ) -> list[dict]:
     """
@@ -74,9 +74,9 @@ async def scrape(
 
     ``country`` is required for indeed, ignored by linkedin.
     ``location`` is required for linkedin, optional for indeed.
-    ``linkedin_fetch_description`` costs one extra paced request per job,
-    every call; for repeated searches prefer ``linkedin.fetch_descriptions``
-    over ids you have not stored yet.
+    ``fetch_description`` costs one extra paced request per job, every call, on linkedin
+    (indeed always includes descriptions); for repeated searches
+    call ``linkedin.fetch_descriptions`` on just the new ids instead.
     """
     from jobrake import indeed, linkedin
 
@@ -89,12 +89,13 @@ async def scrape(
     kwargs = dict(
         search_term=search_term,
         location=location,
+        country=country,
         distance=distance,
         results_wanted=results_wanted,
         hours_old=hours_old,
+        fetch_description=fetch_description,
     )
     if site == "linkedin":
-        kwargs["fetch_description"] = linkedin_fetch_description
         if location is None:
             raise ValueError(
                 f"location is required for site='{site}' (pass e.g. 'London, England')"
@@ -102,7 +103,6 @@ async def scrape(
     elif site == "indeed":
         if country is None:
             raise ValueError(f"country is required for site='{site}' (pass e.g. 'usa', 'germany')")
-        kwargs["country"] = country
     try:
         return await searches[site](fetcher, **kwargs)
     finally:

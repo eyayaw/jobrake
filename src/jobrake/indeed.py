@@ -118,6 +118,7 @@ async def search(
     distance: int | None = JBC.radius,
     results_wanted: int = JBC.results_wanted,
     hours_old: int | None = None,
+    fetch_description: bool = True,  # no-op: always included in the GraphQL response
 ) -> list[dict]:
     """
     Page through the GraphQL API into job dicts.

@@ -3,6 +3,7 @@
 import argparse
 import asyncio
 import json
+import logging
 
 from jobrake import scrape
 
@@ -24,8 +25,14 @@ def main():
     )
     parser.add_argument("--site", "-s", choices=JBC.sites, required=True)
     parser.add_argument("--search-term", "-q", required=True, help="search query")
-    parser.add_argument("--location", "-l", help="location, e.g., United States, or New York (required for linkedin)")
-    parser.add_argument("--country", "-c", help="country name, e.g., usa, uk, netherlands (ignored by linkedin)")
+    parser.add_argument(
+        "--location",
+        "-l",
+        help="location, e.g., United States, or New York (required for linkedin)",
+    )
+    parser.add_argument(
+        "--country", "-c", help="country name, e.g., usa, uk, netherlands (ignored by linkedin)"
+    )
     parser.add_argument(
         "--radius",
         "-r",
@@ -48,10 +55,12 @@ def main():
         "-d",
         default=JBC.fetch_description,
         action="store_true",
-        help="fetch the full description of the job post",
+        help="fetch the full description of the job post (linkedin only; indeed always includes descriptions)",
     )
 
     args = parser.parse_args()
+    # progress and warnings go to stderr; stdout stays pure JSON for piping
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s [%(name)s] %(message)s")
     try:
         jobs = asyncio.run(
             scrape(
@@ -62,7 +71,7 @@ def main():
                 distance=args.radius,
                 results_wanted=args.results_wanted,
                 hours_old=args.hours_old,
-                linkedin_fetch_description=args.fetch_description,
+                fetch_description=args.fetch_description,
             )
         )
     except ValueError as e:

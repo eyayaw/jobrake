@@ -136,6 +136,7 @@ async def search(
     *,
     search_term: str,
     location: str,
+    country: str | None = None,
     distance: int | None = JBC.radius,
     results_wanted: int = JBC.results_wanted,
     hours_old: int | None = JBC.hours_old,
@@ -143,6 +144,8 @@ async def search(
 ) -> list[dict]:
     """
     Paginate guest-search job cards into job dicts.
+
+    ``country`` is accepted for signature uniformity across sites and ignored.
 
     Every request first takes a token from ``LIMITER``, so bursts ride the
     bucket and sustained fetching settles onto its refill rate. A 429 is
@@ -184,6 +187,7 @@ async def search(
 
     jobs = jobs[:results_wanted]
     if fetch_description:
+        logger.info("fetching full descriptions for %d jobs...", len(jobs))
         descriptions = await fetch_descriptions(fetcher, (job["id"] for job in jobs))
         for job in jobs:
             job["description"] = descriptions.get(job["id"]) or job["description"]
