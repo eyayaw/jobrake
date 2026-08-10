@@ -50,6 +50,24 @@ uv tool install git+https://github.com/eyayaw/jobrake
 
 ## Usage
 
+### CLI
+
+```sh
+jobrake --help
+```
+
+> [!TIP]
+> Pipe it to [`jq`](https://github.com/jqlang/jq) to filter fields:
+>
+> ```sh
+> jobrake -s indeed -q "data scientist" -c usa -n 2 | jq '.[] | [.date, .title, .company, .url] | @tsv'
+>
+> "2026-08-09\tMachine Learning Engineer\tComponentWise Solutions, Inc.\thttps://www.indeed.com/viewjob?jk=024b6af7590a3553"
+> "2026-03-10\tMachine Learning Engineer - Special Projects\tApple\thttps://www.indeed.com/viewjob?jk=d82828ae66c7adf9"
+> ```
+
+### As a library
+
 ```python
 from jobrake import scrape
 
@@ -65,25 +83,7 @@ print(jobs)
 # [{"id", "title", "company", "url", "location", "description", "date", "site"}, ...]
 ```
 
-### jobrake via the cli
-
-```sh
-jobrake --help
-
-jobrake --site indeed --search-term "data scientist AND economics" \
-        --country "united states" --results-wanted 5 --hours-old 48
-```
-> [!TIP]
-> Pipe it to [`jq`](https://github.com/jqlang/jq) to filter fields:
->
-> ```sh
-> jobrake -s indeed -q "data scientist" -c usa -n 2 | jq '.[] | [.date, .title, .company, .url] | @tsv'
->
-> "2026-08-09\tMachine Learning Engineer\tComponentWise Solutions, Inc.\thttps://www.indeed.com/viewjob?jk=024b6af7590a3553"
-> "2026-03-10\tMachine Learning Engineer - Special Projects\tApple\thttps://www.indeed.com/viewjob?jk=d82828ae66c7adf9"
-> ```
-
-## Important parameters
+## Locations and countries
 
 Each site has one **required geographic argument**.
 
@@ -105,7 +105,7 @@ The search radius (`--radius` in the cli) is in **kilometers** and defaults to 5
 Unlike jobspy, jobrake does not support Glassdoor. At the time of writing, it was acquired by Indeed and largely serves the same inventory. If it is ever wanted, we could inject a TLS-impersonating fetcher (e.g. one wrapping curl_cffi) for its Cloudflare frontend, but it is not a priority. Raising a PR is welcome, including any other major job board.
 </details>
 
-## LinkedIn: Rate limiting and job descriptions
+### LinkedIn: Rate limiting and job descriptions
 
 LinkedIn rate-limits each visitor (per IP): a few requests are allowed immediately, then roughly one every couple of seconds.
 Search pages are limited more strictly than job-detail pages.
