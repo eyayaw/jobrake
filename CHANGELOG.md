@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.7.0] — 2026-08-11
+
+Results now land wherever your tools want them: `--output` writes json, jsonl,
+or csv, resolved from the file extension.
+
+### New
+
+- `--output | -o PATH` writes results to a file instead of stdout. A bad extension fails before the scrape spends a single request; with `-o`, stdout stays silent and a summary line goes to stderr.
+- jsonl output holds one job per line, so files from separate runs merge with a plain `cat runs/*.jsonl`.
+- The writers are library API too: `jobrake.io.write_json`, `write_jsonl`, and `write_csv` save a job list exactly as the CLI does, with the csv header derived from the job dict itself.
+
 ## [0.6.0] — 2026-08-10
 
 Fetched descriptions now persist in an on-disk cache, so repeat searches only
@@ -89,6 +100,7 @@ on the private fetchkit package.
 
 The fetchkit transport subset vendored as `jobrake.fetchkit`.
 
+[0.7.0]: https://github.com/eyayaw/jobrake/releases/tag/v0.7.0
 [0.6.0]: https://github.com/eyayaw/jobrake/releases/tag/v0.6.0
 [0.5.0]: https://github.com/eyayaw/jobrake/releases/tag/v0.5.0
 [0.4.0]: https://github.com/eyayaw/jobrake/releases/tag/v0.4.0
