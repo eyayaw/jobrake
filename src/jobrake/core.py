@@ -52,6 +52,10 @@ def make_job(
     }
 
 
+# Derived, not declared, so the field list can never drift from the dict shape.
+JOB_FIELDS = tuple(make_job(id="", title="", company="", url="", site="", location=""))
+
+
 async def scrape(
     site: str,
     *,
