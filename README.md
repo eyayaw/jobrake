@@ -66,6 +66,17 @@ jobrake --help
 > "2026-03-10\tMachine Learning Engineer - Special Projects\tApple\thttps://www.indeed.com/viewjob?jk=d82828ae66c7adf9"
 > ```
 
+Or write directly to a file with `--output | -o`; the extension determines the format: use `-o jobs.csv` for CSV, and `-o jobs.json` or `-o jobs.jsonl` for JSON.
+
+> [!TIP]
+> `-o` replaces the file, so give each run its own; jsonl files then merge with a plain `cat`:
+>
+> ```sh
+> jobrake ... -o runs/2026-08-10.jsonl   # Monday's run
+> jobrake ... -o runs/2026-08-11.jsonl   # Tuesday's run
+> cat runs/*.jsonl | jq ...              # merge them
+> ```
+
 ### As a library
 
 ```python

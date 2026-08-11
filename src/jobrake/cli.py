@@ -2,21 +2,15 @@
 
 import argparse
 import asyncio
-import json
 import logging
+from pathlib import Path
 
 from jobrake import scrape
 
 from .constants import JobrakeConstants as JBC
+from .io import WRITERS, to_json
 
-
-def to_json(obj: list, **kwargs):
-    if len(obj) < 50 and "indent" not in kwargs:
-        kwargs["indent"] = 2
-
-    if "ensure_ascii" not in kwargs:
-        kwargs["ensure_ascii"] = False
-    return json.dumps(obj, **kwargs)
+logger = logging.getLogger(__name__)
 
 
 def main():
@@ -62,8 +56,19 @@ def main():
         action="store_true",
         help="always refetch descriptions instead of serving cached ones from disk (linkedin)",
     )
+    parser.add_argument(
+        "--output",
+        "-o",
+        type=Path,
+        help=f"write results to this file, format from the extension ({' or '.join(WRITERS)})",
+    )
 
     args = parser.parse_args()
+    # Reject a bad extension upfront (before the scrape, not after paying for it)
+    if args.output is not None and args.output.suffix not in WRITERS:
+        parser.error(
+            f"unsupported output extension {args.output.suffix!r} (use {' or '.join(WRITERS)})"
+        )
     # Progress and warnings go to stderr, stdout stays pure JSON for piping.
     # Root stays at WARNING so chatty dependencies (httpx logs every request at INFO) are muted,
     # only our own loggers speak at INFO.
@@ -85,7 +90,11 @@ def main():
         )
     except ValueError as e:
         parser.error(str(e))
-    print(to_json(jobs))
+    if args.output is None:
+        print(to_json(jobs))
+    else:
+        WRITERS[args.output.suffix](jobs, args.output)
+        logger.info("wrote %d jobs to %s", len(jobs), args.output)
 
 
 if __name__ == "__main__":
