@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import datetime, timezone
 
 from bs4 import BeautifulSoup
@@ -56,6 +57,14 @@ def make_job(
 JOB_FIELDS = tuple(make_job(id="", title="", company="", url="", site="", location=""))
 
 
+def site_searches() -> dict[str, Callable]:
+    """Every supported site, mapped to its package's ``search``."""
+    # Imported here to avoid a circular import: every site package imports from this module.
+    from jobrake import indeed, linkedin
+
+    return {"indeed": indeed.search, "linkedin": linkedin.search}
+
+
 async def scrape(
     site: str,
     *,
@@ -86,9 +95,7 @@ async def scrape(
     in the user cache directory instead of refetching (freshness window:
     ``jobrake.cache.TTL``).
     """
-    from jobrake import indeed, linkedin
-
-    searches = {"indeed": indeed.search, "linkedin": linkedin.search}
+    searches = site_searches()
     if site not in searches:
         raise ValueError(f"unknown site {site!r}; expected one of {sorted(searches)}")
 
