@@ -11,7 +11,7 @@ from jobrake.constants import JobrakeConstants as JBC
 from jobrake.core import make_job
 from jobrake.fetchkit import Fetcher
 
-from .client import SEARCH_URL, _paced_fetch, job_id
+from .client import SEARCH_URL, job_id, paced_fetch
 from .descriptions import fetch_descriptions
 
 logger = logging.getLogger(__name__)
@@ -83,7 +83,7 @@ async def search(
             "f_TPR": f"r{hours_old * 3600}" if hours_old else None,
         }
         query = urlencode({k: v for k, v in params.items() if v is not None})
-        result = await _paced_fetch(fetcher, f"{SEARCH_URL}?{query}")
+        result = await paced_fetch(fetcher, f"{SEARCH_URL}?{query}")
         if not result.ok:
             break
         page = [j for j in parse_cards(result.text) if j["url"] not in seen]

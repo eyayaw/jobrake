@@ -10,7 +10,7 @@ from jobrake.cache import DescriptionCache
 from jobrake.core import html_text
 from jobrake.fetchkit import Fetcher
 
-from .client import DETAIL_URL, _paced_fetch
+from .client import DETAIL_URL, paced_fetch
 
 # One cache per process, lazy, so no file is touched until the first cached fetch.
 CACHE = DescriptionCache()
@@ -51,7 +51,7 @@ async def fetch_descriptions(
     for posting_id in wanted:
         if posting_id in cached:
             continue
-        result = await _paced_fetch(fetcher, f"{DETAIL_URL}/{posting_id}")
+        result = await paced_fetch(fetcher, f"{DETAIL_URL}/{posting_id}")
         if result.ok:
             if not (description := parse_description(result.text)):
                 continue
