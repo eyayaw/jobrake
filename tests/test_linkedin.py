@@ -7,13 +7,15 @@ import pytest
 from fakes import StubFetcher, not_found, ok, rate_limited
 
 from jobrake import linkedin
+from jobrake.cache import DescriptionCache
 from jobrake.fetchkit import TokenBucket
+from jobrake.linkedin import client, descriptions
 
 
 @pytest.fixture
 def unlimited(monkeypatch):
     """Replace the module limiter with one whose burst no test can exhaust."""
-    monkeypatch.setattr(linkedin, "LIMITER", TokenBucket(capacity=10**9, refill_interval=1.0))
+    monkeypatch.setattr(client, "LIMITER", TokenBucket(capacity=10**9, refill_interval=1.0))
 
 
 def linkedin_card(job_id, title="Economist", company="Acme"):
@@ -57,7 +59,7 @@ def test_linkedin_parses_cards_and_dedups(unlimited):
 
 
 def test_linkedin_429_retries_once_then_recovers(unlimited, monkeypatch):
-    monkeypatch.setattr(linkedin, "RETRY_DELAY", 0)
+    monkeypatch.setattr(client, "RETRY_DELAY", 0)
 
     class FlakyOnce(StubFetcher):
         async def fetch(self, url, headers=None):
@@ -75,7 +77,7 @@ def test_linkedin_429_retries_once_then_recovers(unlimited, monkeypatch):
 
 
 def test_linkedin_persistent_429_returns_partial(unlimited, monkeypatch):
-    monkeypatch.setattr(linkedin, "RETRY_DELAY", 0)
+    monkeypatch.setattr(client, "RETRY_DELAY", 0)
     fetcher = StubFetcher({"seeMoreJobPostings": rate_limited()})
     assert asyncio.run(linkedin.search(fetcher, search_term="x", location="Seattle")) == []
     assert len(fetcher.requests) == 2  # the one retry, then give up
@@ -106,7 +108,7 @@ def test_every_request_takes_a_token(monkeypatch):
         async def acquire(self):
             acquired.append(1)
 
-    monkeypatch.setattr(linkedin, "LIMITER", Counting(capacity=10**9, refill_interval=1.0))
+    monkeypatch.setattr(client, "LIMITER", Counting(capacity=10**9, refill_interval=1.0))
     detail = '<div class="show-more-less-html__markup"><p>x</p></div>'
     fetcher = StubFetcher(
         {"seeMoreJobPostings": ok(linkedin_card("111")), "jobPosting/111": ok(detail)}
@@ -163,7 +165,7 @@ def test_search_keeps_empty_description_for_gone_posting(unlimited):
 
 
 def test_fetch_descriptions_skips_persistent_429(unlimited, monkeypatch):
-    monkeypatch.setattr(linkedin, "RETRY_DELAY", 0)
+    monkeypatch.setattr(client, "RETRY_DELAY", 0)
     fetcher = StubFetcher({"jobPosting/": rate_limited()})
     assert asyncio.run(linkedin.fetch_descriptions(fetcher, ["111"])) == {}
     assert len(fetcher.requests) == 2  # the one retry, then move on
@@ -195,7 +197,7 @@ def test_fetch_descriptions_cache_false_refetches(unlimited):
 
 
 def test_fetch_descriptions_transient_miss_is_not_cached(unlimited, monkeypatch):
-    monkeypatch.setattr(linkedin, "RETRY_DELAY", 0)
+    monkeypatch.setattr(client, "RETRY_DELAY", 0)
     fetcher = StubFetcher({"jobPosting/111": rate_limited()})
     assert asyncio.run(linkedin.fetch_descriptions(fetcher, ["111"])) == {}
     fetcher.responses["jobPosting/111"] = ok(DETAIL)
@@ -242,9 +244,7 @@ def test_interrupted_sweep_keeps_paid_results(unlimited, isolated_cache):
 
 def test_broken_cache_still_fetches_and_warns_once(unlimited, tmp_path, monkeypatch, caplog):
     (tmp_path / "blocker").write_text("")
-    monkeypatch.setattr(
-        linkedin, "CACHE", linkedin.DescriptionCache(tmp_path / "blocker" / "x.sqlite3")
-    )
+    monkeypatch.setattr(descriptions, "CACHE", DescriptionCache(tmp_path / "blocker" / "x.sqlite3"))
     fetcher = StubFetcher({"jobPosting/111": ok(DETAIL)})
     with caplog.at_level(logging.WARNING, logger="jobrake.cache"):
         assert asyncio.run(linkedin.fetch_descriptions(fetcher, ["111"])) == {"111": "Role"}
