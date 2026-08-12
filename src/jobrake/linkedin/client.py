@@ -25,7 +25,7 @@ HEADERS = {
 # The server budget is not uniform: search pages 429 under a 4-burst +
 # 2.25s cadence (the sixth request, deterministically), while a steady 3s
 # never does. A longer-horizon limit still yields sporadic 429s on 100+
-# request runs; the retry in _paced_fetch absorbs those. Module-level on
+# request runs; the retry in paced_fetch absorbs those. Module-level on
 # purpose: the budget is per IP, so one bucket per process, shared across
 # all search calls.
 LIMITER = TokenBucket(capacity=2, refill_interval=3.0)
@@ -33,7 +33,7 @@ LIMITER = TokenBucket(capacity=2, refill_interval=3.0)
 RETRY_DELAY = 10.0  # seconds before retrying a 429; still 429 at +5s, clear by ~10s
 
 
-async def _paced_fetch(fetcher: Fetcher, url: str) -> FetchResult:
+async def paced_fetch(fetcher: Fetcher, url: str) -> FetchResult:
     """
     Take a token, fetch, and retry once after a 429.
 
