@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.8.0] — 2026-08-13
+
+Each site scraper is a package now: `jobrake.linkedin` and `jobrake.indeed`
+split into `client` and `search` modules (LinkedIn also `descriptions`), with
+the public names unchanged.
+
+### New
+
+- `site_searches()` maps every supported site to its `search`; `scrape` and
+  the CLI's `--site` choices both draw from it, so a new site registers in
+  one place.
+
+### Changed
+
+- LinkedIn's request pacing is public API: `linkedin.client.paced_fetch`
+  (the former `_paced_fetch`).
+
 ## [0.7.0] — 2026-08-11
 
 Results now land wherever your tools want them: `--output` writes json, jsonl,
@@ -100,6 +117,7 @@ on the private fetchkit package.
 
 The fetchkit transport subset vendored as `jobrake.fetchkit`.
 
+[0.8.0]: https://github.com/eyayaw/jobrake/releases/tag/v0.8.0
 [0.7.0]: https://github.com/eyayaw/jobrake/releases/tag/v0.7.0
 [0.6.0]: https://github.com/eyayaw/jobrake/releases/tag/v0.6.0
 [0.5.0]: https://github.com/eyayaw/jobrake/releases/tag/v0.5.0
