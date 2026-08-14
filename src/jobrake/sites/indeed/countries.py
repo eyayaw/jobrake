@@ -1,4 +1,4 @@
-"""Indeed country editions: name aliases -> (subdomain, API country code)."""
+"""Country editions: name aliases -> (subdomain, API country code)."""
 
 from __future__ import annotations
 

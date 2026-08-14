@@ -2,7 +2,7 @@
 
 import pytest
 
-from jobrake.countries import indeed_domain
+from jobrake.sites.indeed.countries import indeed_domain
 
 
 def test_indeed_domain_aliases_and_api_codes():
