@@ -5,7 +5,7 @@ import json
 
 from fakes import StubFetcher, ok, rate_limited
 
-from jobrake import indeed
+from jobrake.sites import indeed
 
 
 def indeed_payload(keys, cursor=None):

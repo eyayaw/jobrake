@@ -1,12 +1,10 @@
-"""Shared plumbing: job normalization and the per-site dispatch."""
+"""Shared plumbing: job normalization."""
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from datetime import datetime, timezone
 
 from bs4 import BeautifulSoup
-from jobrake.fetchkit import HttpxFetcher
 
 
 def html_text(html: str) -> str:
@@ -55,72 +53,3 @@ def make_job(
 
 # Derived, not declared, so the field list can never drift from the dict shape.
 JOB_FIELDS = tuple(make_job(id="", title="", company="", url="", site="", location=""))
-
-
-def site_searches() -> dict[str, Callable]:
-    """Every supported site, mapped to its package's ``search``."""
-    # Imported here to avoid a circular import: every site package imports from this module.
-    from jobrake import indeed, linkedin
-
-    return {"indeed": indeed.search, "linkedin": linkedin.search}
-
-
-async def scrape(
-    site: str,
-    *,
-    search_term: str,
-    location: str | None = None,
-    country: str | None = None,
-    distance: int | None = None,
-    results_wanted: int = 25,
-    hours_old: int | None = None,
-    fetch_description: bool = False,
-    cache: bool = True,
-    fetcher=None,
-) -> list[dict]:
-    """
-    Scrape one site; returns plain job dicts.
-
-    ``fetcher`` accepts any ``jobrake.fetchkit.Fetcher`` (injected fetchers are
-    not closed here—the caller owns their lifecycle); indeed needs the
-    ``PostFetcher`` variant. The default :class:`HttpxFetcher` qualifies for
-    every site.
-
-    ``country`` is required for indeed, ignored by linkedin.
-    ``location`` is required for linkedin, optional for indeed.
-    ``fetch_description`` costs one extra paced request per job, every call, on linkedin
-    (indeed always includes descriptions); for repeated searches
-    call ``linkedin.fetch_descriptions`` on just the new ids instead.
-    ``cache`` (linkedin) serves still-fresh descriptions from an on-disk cache
-    in the user cache directory instead of refetching (freshness window:
-    ``jobrake.cache.TTL``).
-    """
-    searches = site_searches()
-    if site not in searches:
-        raise ValueError(f"unknown site {site!r}; expected one of {sorted(searches)}")
-
-    owns_fetcher = fetcher is None
-    fetcher = fetcher or HttpxFetcher()
-    kwargs = dict(
-        search_term=search_term,
-        location=location,
-        country=country,
-        distance=distance,
-        results_wanted=results_wanted,
-        hours_old=hours_old,
-        fetch_description=fetch_description,
-        cache=cache,
-    )
-    if site == "linkedin":
-        if location is None:
-            raise ValueError(
-                f"location is required for site='{site}' (pass e.g. 'London, England')"
-            )
-    elif site == "indeed":
-        if country is None:
-            raise ValueError(f"country is required for site='{site}' (pass e.g. 'usa', 'germany')")
-    try:
-        return await searches[site](fetcher, **kwargs)
-    finally:
-        if owns_fetcher:
-            await fetcher.close()

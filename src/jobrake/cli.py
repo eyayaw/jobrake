@@ -8,7 +8,7 @@ from pathlib import Path
 from jobrake import scrape
 
 from .constants import JobrakeConstants as JBC
-from .core import site_searches
+from .sites import site_searchers
 from .io import WRITERS, to_json
 
 logger = logging.getLogger(__name__)
@@ -18,7 +18,7 @@ def main():
     parser = argparse.ArgumentParser(
         description="Search job postings", formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
-    parser.add_argument("--site", "-s", choices=sorted(site_searches()), required=True)
+    parser.add_argument("--site", "-s", choices=sorted(site_searchers()), required=True)
     parser.add_argument("--search-term", "-q", required=True, help="search query")
     parser.add_argument(
         "--location",

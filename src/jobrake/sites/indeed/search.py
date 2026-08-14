@@ -1,4 +1,4 @@
-"""Paging Indeed's GraphQL job search into job dicts."""
+"""Paging the GraphQL job search."""
 
 from __future__ import annotations
 
@@ -103,7 +103,7 @@ async def search(
     cache: bool = True,
 ) -> list[dict]:
     """
-    Page through the GraphQL API into job dicts.
+    Page through the GraphQL API.
 
     This API answers POST alone, hence the ``PostFetcher``. An error result
     or a malformed page ends the search with whatever was collected.

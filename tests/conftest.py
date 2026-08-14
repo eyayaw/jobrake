@@ -3,7 +3,7 @@
 import pytest
 
 from jobrake.cache import DescriptionCache
-from jobrake.linkedin import descriptions
+from jobrake.sites.linkedin import descriptions
 
 
 @pytest.fixture(autouse=True)

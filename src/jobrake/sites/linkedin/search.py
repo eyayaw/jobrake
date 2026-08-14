@@ -1,4 +1,4 @@
-"""Paginating the guest search API into job dicts."""
+"""Paginating the guest search API."""
 
 from __future__ import annotations
 
@@ -20,7 +20,8 @@ MAX_START = 1000  # the guest API stops serving past this offset
 
 
 def parse_cards(html: str) -> list[dict]:
-    """Job dicts (no description) from one guest search page."""
+    """Fields from the cards on one search page."""
+    # The description lives on the posting's own page; see fetch_descriptions.
     soup = BeautifulSoup(html, "html.parser")
     jobs = []
     for card in soup.find_all("div", class_="base-search-card"):
@@ -61,7 +62,7 @@ async def search(
     cache: bool = True,
 ) -> list[dict]:
     """
-    Paginate guest-search job cards into job dicts.
+    Paginate the guest search, extracting each posting's fields.
 
     ``country`` is accepted for signature uniformity across sites and ignored.
 

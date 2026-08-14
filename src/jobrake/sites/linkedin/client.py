@@ -1,4 +1,4 @@
-"""Shared transport for LinkedIn's public endpoints: pacing, headers, posting ids."""
+"""The guest API's shared pieces: URLs, headers, pacing, posting ids."""
 
 from __future__ import annotations
 

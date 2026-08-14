@@ -6,10 +6,10 @@ import logging
 import pytest
 from fakes import StubFetcher, not_found, ok, rate_limited
 
-from jobrake import linkedin
+from jobrake.sites import linkedin
 from jobrake.cache import DescriptionCache
 from jobrake.fetchkit import TokenBucket
-from jobrake.linkedin import client, descriptions
+from jobrake.sites.linkedin import client, descriptions
 
 
 @pytest.fixture
@@ -85,7 +85,7 @@ def test_linkedin_persistent_429_returns_partial(unlimited, monkeypatch):
 
 def test_warns_on_empty_first_page(unlimited, caplog):
     fetcher = StubFetcher({"seeMoreJobPostings": ok("<!DOCTYPE html>\n<!---->")})
-    with caplog.at_level(logging.WARNING, logger="jobrake.linkedin"):
+    with caplog.at_level(logging.WARNING, logger="jobrake.sites.linkedin"):
         jobs = asyncio.run(linkedin.search(fetcher, search_term="x", location="Amsterdam"))
     assert jobs == []
     assert any("location" in record.message for record in caplog.records)
@@ -93,7 +93,7 @@ def test_warns_on_empty_first_page(unlimited, caplog):
 
 def test_no_warning_when_pagination_simply_ends(unlimited, caplog):
     fetcher = StubFetcher({"seeMoreJobPostings": ok(linkedin_card("111"))})
-    with caplog.at_level(logging.WARNING, logger="jobrake.linkedin"):
+    with caplog.at_level(logging.WARNING, logger="jobrake.sites.linkedin"):
         jobs = asyncio.run(
             linkedin.search(fetcher, search_term="x", location="Seattle", results_wanted=5)
         )
