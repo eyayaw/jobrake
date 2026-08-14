@@ -1,15 +1,30 @@
-"""Text and date helpers"""
+"""Text and date helpers."""
 
+import logging
 from datetime import UTC, datetime
 
 from bs4 import BeautifulSoup
 
+logger = logging.getLogger(__name__)
+
 
 def html_text(html: str) -> str:
-    """Plain text from an HTML fragment (descriptions arrive as HTML)."""
+    """Plain text from an HTML fragment."""
     if not html:
         return ""
     return BeautifulSoup(html, "html.parser").get_text(" ", strip=True)
+
+
+def iso_date(value: str | None) -> str:
+    """``YYYY-MM-DD`` from an ISO 8601 date or timestamp; ``""`` if empty."""
+    if not value:
+        return ""
+    try:
+        return datetime.fromisoformat(value).date().isoformat()
+    except ValueError:
+        # Non-ISO input stays visible in the value rather than vanishing.
+        logger.warning("not an ISO 8601 date: %r", value)
+        return value[:10]
 
 
 def epoch_ms_to_date(ms: float | str) -> str:
