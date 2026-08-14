@@ -10,7 +10,7 @@ url, location, description, date (YYYY-MM-DD or ""), site. Inject any ``jobrake.
 to swap transports (indeed needs the ``PostFetcher`` variant).
 """
 
-from jobrake.sites import scrape
 from jobrake.fetchkit import HttpxFetcher
+from jobrake.sites import scrape
 
 __all__ = ["HttpxFetcher", "scrape"]

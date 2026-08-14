@@ -19,6 +19,8 @@ Changelog = "https://github.com/eyayaw/jobrake/blob/main/CHANGELOG.md"
 [dependency-groups]
 dev = [
     "pytest>=8.0",
+    "ruff>=0.16.3",
+    "ty>=0.0.71",
 ]
 
 [build-system]
@@ -31,6 +33,15 @@ packages = ["src/jobrake"]
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+
+[tool.ruff.lint]
+select = [
+    "E4", # pycodestyle: import placement (one per line, at the top)
+    "E7", # pycodestyle: statements (None/True comparisons, bare except, ...)
+    "E9", # pycodestyle: syntax errors
+    "F",  # pyflakes: undefined names, unused imports and variables
+    "I",  # isort: sorted, grouped imports
+]
 
 [project.scripts]
 jobrake = "jobrake.cli:main"

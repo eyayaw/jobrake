@@ -6,9 +6,9 @@ import logging
 import pytest
 from fakes import StubFetcher, not_found, ok, rate_limited
 
-from jobrake.sites import linkedin
 from jobrake.cache import DescriptionCache
 from jobrake.fetchkit import TokenBucket
+from jobrake.sites import linkedin
 from jobrake.sites.linkedin import client, descriptions
 
 

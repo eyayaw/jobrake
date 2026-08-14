@@ -8,8 +8,8 @@ from pathlib import Path
 from jobrake import scrape
 
 from . import defaults
-from .sites import site_searchers
 from .io import WRITERS, to_json
+from .sites import site_searchers
 
 logger = logging.getLogger(__name__)
 
