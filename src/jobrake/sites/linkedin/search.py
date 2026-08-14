@@ -7,9 +7,9 @@ from urllib.parse import urlencode
 
 from bs4 import BeautifulSoup
 
-from jobrake.constants import JobrakeConstants as JBC
-from jobrake.models import make_job
+from jobrake import defaults
 from jobrake.fetchkit import Fetcher
+from jobrake.models import make_job
 
 from .client import SEARCH_URL, job_id, paced_fetch
 from .descriptions import fetch_descriptions
@@ -55,10 +55,10 @@ async def search(
     search_term: str,
     location: str,
     country: str | None = None,
-    distance: int | None = JBC.radius,
-    results_wanted: int = JBC.results_wanted,
-    hours_old: int | None = JBC.hours_old,
-    fetch_description: bool = JBC.fetch_description,
+    distance: int | None = defaults.RADIUS,
+    results_wanted: int = defaults.RESULTS_WANTED,
+    hours_old: int | None = defaults.HOURS_OLD,
+    fetch_description: bool = defaults.FETCH_DESCRIPTION,
     cache: bool = True,
 ) -> list[dict]:
     """

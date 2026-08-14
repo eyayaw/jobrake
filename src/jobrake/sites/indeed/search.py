@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import json
 
-from jobrake.constants import JobrakeConstants as JBC
-from .countries import indeed_domain
+from jobrake import defaults
+from jobrake.fetchkit import PostFetcher
 from jobrake.models import make_job
 from jobrake.utils import epoch_ms_to_date, html_text
-from jobrake.fetchkit import PostFetcher
 
 from .client import API_HEADERS, API_URL
+from .countries import indeed_domain
 
 # jobspy's query, trimmed to the fields we keep. `limit: 100` is the API's page
 # size; pagination continues via pageInfo.nextCursor.
@@ -54,7 +54,7 @@ def build_query(
     return QUERY.format(
         what=f'what: "{escaped}"' if escaped else "",
         location=(
-            f'location: {{ where: "{location}", radius: {distance or JBC.radius}, radiusUnit: {JBC.radius_unit} }}'
+            f'location: {{ where: "{location}", radius: {distance or defaults.RADIUS}, radiusUnit: {defaults.RADIUS_UNIT} }}'
             if location
             else ""
         ),
@@ -97,8 +97,8 @@ async def search(
     search_term: str,
     location: str | None = None,
     country: str,
-    distance: int | None = JBC.radius,
-    results_wanted: int = JBC.results_wanted,
+    distance: int | None = defaults.RADIUS,
+    results_wanted: int = defaults.RESULTS_WANTED,
     hours_old: int | None = None,
     fetch_description: bool = True,
     cache: bool = True,

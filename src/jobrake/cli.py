@@ -7,7 +7,7 @@ from pathlib import Path
 
 from jobrake import scrape
 
-from .constants import JobrakeConstants as JBC
+from . import defaults
 from .sites import site_searchers
 from .io import WRITERS, to_json
 
@@ -31,24 +31,24 @@ def main():
     parser.add_argument(
         "--radius",
         "-r",
-        default=JBC.radius,
+        default=defaults.RADIUS,
         type=int,
         help="radius around the location specified",
     )
     parser.add_argument(
         "--results-wanted",
         "-n",
-        default=JBC.results_wanted,
+        default=defaults.RESULTS_WANTED,
         type=int,
         help="number of unique job postings to fetch",
     )
     parser.add_argument(
-        "--hours-old", "-a", default=JBC.hours_old, type=int, help="age of job posted in hours"
+        "--hours-old", "-a", default=defaults.HOURS_OLD, type=int, help="age of job posted in hours"
     )
     parser.add_argument(
         "--fetch-description",
         "-d",
-        default=JBC.fetch_description,
+        default=defaults.FETCH_DESCRIPTION,
         action="store_true",
         help="fetch the full description of the job post (linkedin only; indeed always includes descriptions)",
     )
