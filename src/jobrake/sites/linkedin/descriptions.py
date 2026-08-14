@@ -23,7 +23,7 @@ def parse_description(html: str) -> str:
     LinkedIn nondeterministically serves a signup page (interstitial) instead of the job page.
     """
     soup = BeautifulSoup(html, "html.parser")
-    div = soup.find("div", class_=lambda c: c and "show-more-less-html__markup" in c)
+    div = soup.find("div", class_=lambda c: bool(c and "show-more-less-html__markup" in c))
     return html_text(div.decode_contents()) if div else ""
 
 
@@ -56,7 +56,7 @@ async def fetch_descriptions(
             if not (description := parse_description(result.text)):
                 continue
             value = description
-        elif result.error.http_status in (404, 410):
+        elif result.error and result.error.http_status in (404, 410):
             value = None
         else:
             continue

@@ -28,7 +28,7 @@ def parse_cards(html: str) -> list[dict]:
         link = card.find("a", class_="base-card__full-link")
         if link is None or not link.get("href"):
             continue
-        url = link["href"].split("?")[0]
+        url = str(link["href"]).split("?")[0]
 
         title_tag = card.find("span", class_="sr-only")
         company_tag = card.find("h4", class_="base-search-card__subtitle")
@@ -42,7 +42,7 @@ def parse_cards(html: str) -> list[dict]:
                 company=company_tag.get_text(strip=True) if company_tag else "",
                 url=url,
                 location=location_tag.get_text(strip=True) if location_tag else "",
-                date=(time_tag.get("datetime") or "") if time_tag else "",
+                date=str(time_tag.get("datetime") or "") if time_tag else "",
                 site="linkedin",
             )
         )

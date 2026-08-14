@@ -42,7 +42,7 @@ query GetJobData {{
 
 def build_query(
     search_term: str,
-    location: str,
+    location: str | None,
     distance: int | None,
     hours_old: int | None,
     cursor: str | None,
