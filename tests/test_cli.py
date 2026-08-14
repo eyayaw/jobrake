@@ -6,7 +6,7 @@ import json
 import pytest
 
 from jobrake import cli
-from jobrake.core import JOB_FIELDS, make_job
+from jobrake.models import JOB_FIELDS, make_job
 
 JOBS = [
     make_job(

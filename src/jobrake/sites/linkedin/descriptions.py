@@ -7,7 +7,7 @@ from collections.abc import Iterable
 from bs4 import BeautifulSoup
 
 from jobrake.cache import DescriptionCache
-from jobrake.core import html_text
+from jobrake.utils import html_text
 from jobrake.fetchkit import Fetcher
 
 from .client import DETAIL_URL, paced_fetch

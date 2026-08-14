@@ -8,7 +8,7 @@ from urllib.parse import urlencode
 from bs4 import BeautifulSoup
 
 from jobrake.constants import JobrakeConstants as JBC
-from jobrake.core import make_job
+from jobrake.models import make_job
 from jobrake.fetchkit import Fetcher
 
 from .client import SEARCH_URL, job_id, paced_fetch

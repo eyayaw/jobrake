@@ -5,8 +5,9 @@ from __future__ import annotations
 import json
 
 from jobrake.constants import JobrakeConstants as JBC
-from jobrake.core import epoch_ms_to_date, html_text, make_job
 from jobrake.countries import indeed_domain
+from jobrake.models import make_job
+from jobrake.utils import epoch_ms_to_date, html_text
 from jobrake.fetchkit import PostFetcher
 
 from .client import API_HEADERS, API_URL

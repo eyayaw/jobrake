@@ -4,7 +4,7 @@ import csv
 import json
 from pathlib import Path
 
-from .core import JOB_FIELDS
+from .models import JOB_FIELDS
 
 
 def to_json(obj: list, **kwargs):

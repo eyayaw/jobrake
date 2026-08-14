@@ -1,6 +1,6 @@
-"""Tests for the shared normalization and text/date helpers."""
+"""Tests for the text/date helpers."""
 
-from jobrake.core import epoch_ms_to_date, html_text
+from jobrake.utils import epoch_ms_to_date, html_text
 
 
 def test_html_text_strips_tags_and_unescapes():
