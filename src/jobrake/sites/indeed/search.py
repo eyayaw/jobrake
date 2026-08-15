@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 
 from jobrake import defaults
 from jobrake.fetchkit import PostFetcher
@@ -11,6 +12,8 @@ from jobrake.utils import epoch_ms_to_date, html_text
 
 from .client import API_HEADERS, API_URL
 from .countries import indeed_domain
+
+logger = logging.getLogger(__name__)
 
 # jobspy's query, trimmed to the fields we keep. `limit: 100` is the API's page
 # size; pagination continues via pageInfo.nextCursor.
@@ -76,6 +79,13 @@ def parse_jobs(data: dict, base_url: str) -> tuple[list[dict], str | None]:
             if part
         )
         employer = job.get("employer") or {}
+        date = ""
+        if published := job.get("datePublished"):
+            try:
+                date = epoch_ms_to_date(published)
+            except ValueError as e:
+                # One posting's bad date costs its own date, not the page.
+                logger.warning("job %s: %s", job["key"], e)
         jobs.append(
             make_job(
                 id=job["key"],
@@ -84,7 +94,7 @@ def parse_jobs(data: dict, base_url: str) -> tuple[list[dict], str | None]:
                 url=f"{base_url}/viewjob?jk={job['key']}",
                 location=location,
                 description=html_text((job.get("description") or {}).get("html", "")),
-                date=epoch_ms_to_date(job.get("datePublished")),
+                date=date,
                 site="indeed",
             )
         )

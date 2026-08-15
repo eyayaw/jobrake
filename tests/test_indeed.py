@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import logging
 
 from fakes import StubFetcher, ok, rate_limited
 
@@ -50,6 +51,17 @@ def test_indeed_parses_and_paginates():
     assert jobs[0]["description"] == "Economist & analyst"
     assert jobs[0]["date"] == "2024-06-01"
     assert len(fetcher.requests) == 2  # stopped when cursor ran out
+
+
+def test_indeed_keeps_a_job_whose_date_is_not_milliseconds(caplog):
+    payload = indeed_payload(["a"])
+    payload["data"]["jobSearch"]["results"][0]["job"]["datePublished"] = 1717200000  # seconds
+    fetcher = StubFetcher({"apis.indeed.com": ok(json.dumps(payload))})
+    with caplog.at_level(logging.WARNING, logger="jobrake.sites.indeed"):
+        jobs = asyncio.run(indeed.search(fetcher, search_term="x", country="usa"))
+    assert jobs[0]["title"] == "Job a"  # the posting survives
+    assert jobs[0]["date"] == ""  # only its date is lost
+    assert any("milliseconds" in record.message for record in caplog.records)
 
 
 def test_indeed_stops_at_results_wanted():
