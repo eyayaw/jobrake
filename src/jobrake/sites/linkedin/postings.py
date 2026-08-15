@@ -4,12 +4,24 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Iterable
 from html import unescape
 
 from bs4 import BeautifulSoup
 
-from jobrake.models import employment_type
+from jobrake.fetchkit import Fetcher
+from jobrake.models import JOB_FIELDS, employment_type
 from jobrake.utils import html_text
+
+from . import client
+from .client import job_id, paced_fetch
+
+# The guest fragment: the same topcard and criteria markup as the job page,
+# ~10x smaller. Requested with ``_l=en_US`` because the canonical page,
+# fetched just before on the posting country's subdomain, plants its locale
+# as a cookie that would localize the fragment too—and en-US is the one
+# locale whose labels and number format the markup parsers understand.
+FRAGMENT_URL = "https://www.linkedin.com/jobs-guest/jobs/api/jobPosting"
 
 
 def _obj(value) -> dict:
@@ -170,3 +182,70 @@ def parse_posting(html: str) -> dict:
         for name, value in source.items()
         if value not in (None, "")
     }
+
+
+def _canonical(url: str) -> str:
+    """The URL form that carries the structured block."""
+    # A trailing slash suppresses it: same page, 200 and full size, no schema.org script.
+    path, sep, query = url.partition("?")
+    return path.rstrip("/") + sep + query
+
+
+async def fetch_postings(
+    fetcher: Fetcher, urls: Iterable[str], *, cache: bool = True
+) -> dict[str, dict | None]:
+    """
+    Full detail per job, from the canonical page at each job's own URL.
+
+    Takes each job's own URL (``/jobs/view/<slug>-<id>``), the one the
+    search cards carry. An id alone reaches a page without the structured
+    block. Duplicate and empty urls are skipped. Never raises.
+
+    Three outcomes per url. A dict of fields means hydrated, partial when
+    the page omits the structured block. ``None`` means the posting is
+    gone (404 or 410): stop asking. Absent from the result means a
+    transient miss (rate-limited past the retry, a network failure, or a
+    page with nothing to parse): safe to try again later. A page without
+    the block costs a second request for the en-US fragment, which
+    renders the labeled markup fields parseable.
+
+    With ``cache`` (the default), postings still fresh on disk are served
+    from it and only the rest cost requests. Cached under the posting id,
+    not the url: the subdomain and slug vary under one posting, the id
+    does not. Each result is saved as it arrives, so an interrupted sweep
+    keeps everything it already paid for.
+    """
+    postings: dict[str, dict | None] = {}
+    wanted = list(dict.fromkeys(u for u in urls if u))
+    ids = {url: job_id(url) for url in wanted}
+    cached = client.CACHE.get("linkedin", [i for i in ids.values() if i]) if cache else {}
+    for url in wanted:
+        if (posting_id := ids[url]) in cached:
+            posting = cached[posting_id]
+            # A cached row may predate the current field set; serve only the
+            # keys the model has so the merge in search cannot raise.
+            if posting is not None:
+                posting = {name: value for name, value in posting.items() if name in JOB_FIELDS}
+            postings[url] = posting
+            continue
+        result = await paced_fetch(fetcher, _canonical(url))
+        if result.ok:
+            if not (posting := parse_posting(result.text)):
+                continue
+            if "application/ld+json" not in result.text and posting_id:
+                # A block-less page arrives localized, hiding the labeled
+                # fields (employment type, salary) from the markup parsers;
+                # the en-US fragment repeats it parseably. One extra request,
+                # only for these postings, then cached like any other.
+                fragment = await paced_fetch(fetcher, f"{FRAGMENT_URL}/{posting_id}?_l=en_US")
+                if fragment.ok:
+                    posting = parse_posting(fragment.text) | posting
+            value = posting
+        elif result.error and result.error.http_status in (404, 410):
+            value = None
+        else:
+            continue
+        postings[url] = value
+        if cache and posting_id:
+            client.CACHE.put("linkedin", {posting_id: value})
+    return postings

@@ -7,11 +7,12 @@ import logging
 import pytest
 from fakes import StubFetcher, not_found, ok, rate_limited
 
-from jobrake.cache import DescriptionCache
+from jobrake.cache import PostingCache
 from jobrake.fetchkit import TokenBucket
 from jobrake.models import JOB_FIELDS
 from jobrake.sites import linkedin
-from jobrake.sites.linkedin import client, descriptions
+from jobrake.sites.linkedin import client
+from jobrake.sites.linkedin.postings import FRAGMENT_URL
 
 
 @pytest.fixture
@@ -111,9 +112,8 @@ def test_every_request_takes_a_token(monkeypatch):
             acquired.append(1)
 
     monkeypatch.setattr(client, "LIMITER", Counting(capacity=10**9, refill_interval=1.0))
-    detail = '<div class="show-more-less-html__markup"><p>x</p></div>'
     fetcher = StubFetcher(
-        {"seeMoreJobPostings": ok(linkedin_card("111")), "jobPosting/111": ok(detail)}
+        {"seeMoreJobPostings": ok(linkedin_card("111")), "jobs/view/111": ok(job_page())}
     )
     asyncio.run(
         linkedin.search(
@@ -123,10 +123,9 @@ def test_every_request_takes_a_token(monkeypatch):
     assert len(acquired) == len(fetcher.requests) == 2
 
 
-def test_linkedin_fetch_description(unlimited):
-    detail = '<div class="show-more-less-html__markup"><p>Great &amp; big role</p></div>'
+def test_search_detail_hydrates_from_the_canonical_page(unlimited):
     fetcher = StubFetcher(
-        {"seeMoreJobPostings": ok(linkedin_card("111")), "jobPosting/111": ok(detail)}
+        {"seeMoreJobPostings": ok(linkedin_card("111")), "jobs/view/111": ok(job_page())}
     )
     jobs = asyncio.run(
         linkedin.search(
@@ -134,80 +133,26 @@ def test_linkedin_fetch_description(unlimited):
         )
     )
     assert jobs[0]["description"] == "Great & big role"
-    assert any("jobPosting/111" in url for url in fetcher.requests)
+    assert jobs[0]["employment_type"] == "full_time"
+    assert jobs[0]["applicants"] == 200
+    assert jobs[0]["title"] == "Economist"  # summary fields survive the merge
 
 
-def test_fetch_descriptions_dedups_and_omits_unhydrated(unlimited):
-    detail = '<div class="show-more-less-html__markup"><p>Role</p></div>'
+def test_search_keeps_the_summary_when_the_posting_is_gone(unlimited):
     fetcher = StubFetcher(
-        {
-            "jobPosting/111": ok(detail),
-            "jobPosting/222": ok("<div>signup wall</div>"),
-            "jobPosting/333": not_found(),
-        }
-    )
-    descriptions = asyncio.run(
-        linkedin.fetch_descriptions(fetcher, ["111", "", "111", "222", "333"])
-    )
-    # 222 fetched but empty: absent, retryable; 333 gone: None, stop asking
-    assert descriptions == {"111": "Role", "333": None}
-    assert len(fetcher.requests) == 3  # duplicates and empty ids cost nothing
-
-
-def test_search_keeps_empty_description_for_gone_posting(unlimited):
-    fetcher = StubFetcher(
-        {"seeMoreJobPostings": ok(linkedin_card("111")), "jobPosting/111": not_found()}
+        {"seeMoreJobPostings": ok(linkedin_card("111")), "jobs/view/111": not_found()}
     )
     jobs = asyncio.run(
         linkedin.search(
             fetcher, search_term="x", location="Seattle", results_wanted=1, fetch_description=True
         )
     )
+    assert jobs[0]["title"] == "Economist"
     assert jobs[0]["description"] == ""
 
 
-def test_fetch_descriptions_skips_persistent_429(unlimited, monkeypatch):
-    monkeypatch.setattr(client, "RETRY_DELAY", 0)
-    fetcher = StubFetcher({"jobPosting/": rate_limited()})
-    assert asyncio.run(linkedin.fetch_descriptions(fetcher, ["111"])) == {}
-    assert len(fetcher.requests) == 2  # the one retry, then move on
-
-
-DETAIL = '<div class="show-more-less-html__markup"><p>Role</p></div>'
-
-
-def test_fetch_descriptions_serves_repeats_from_cache(unlimited):
-    fetcher = StubFetcher({"jobPosting/111": ok(DETAIL)})
-    first = asyncio.run(linkedin.fetch_descriptions(fetcher, ["111"]))
-    again = asyncio.run(linkedin.fetch_descriptions(fetcher, ["111"]))
-    assert first == again == {"111": "Role"}
-    assert len(fetcher.requests) == 1  # the repeat cost nothing
-
-
-def test_fetch_descriptions_caches_tombstones(unlimited):
-    fetcher = StubFetcher({"jobPosting/111": not_found()})
-    assert asyncio.run(linkedin.fetch_descriptions(fetcher, ["111"])) == {"111": None}
-    assert asyncio.run(linkedin.fetch_descriptions(fetcher, ["111"])) == {"111": None}
-    assert len(fetcher.requests) == 1  # gone is gone: never re-asked
-
-
-def test_fetch_descriptions_cache_false_refetches(unlimited):
-    fetcher = StubFetcher({"jobPosting/111": ok(DETAIL)})
-    asyncio.run(linkedin.fetch_descriptions(fetcher, ["111"], cache=False))
-    asyncio.run(linkedin.fetch_descriptions(fetcher, ["111"], cache=False))
-    assert len(fetcher.requests) == 2
-
-
-def test_fetch_descriptions_transient_miss_is_not_cached(unlimited, monkeypatch):
-    monkeypatch.setattr(client, "RETRY_DELAY", 0)
-    fetcher = StubFetcher({"jobPosting/111": rate_limited()})
-    assert asyncio.run(linkedin.fetch_descriptions(fetcher, ["111"])) == {}
-    fetcher.responses["jobPosting/111"] = ok(DETAIL)
-    assert asyncio.run(linkedin.fetch_descriptions(fetcher, ["111"])) == {"111": "Role"}
-
-
-def test_search_reruns_only_fetch_unseen_descriptions(unlimited):
-    responses = {"seeMoreJobPostings": ok(linkedin_card("111")), "jobPosting/111": ok(DETAIL)}
+def test_search_reruns_only_fetch_unseen_postings(unlimited):
+    responses = {"seeMoreJobPostings": ok(linkedin_card("111")), "jobs/view/111": ok(job_page())}
     jobs = asyncio.run(
         linkedin.search(
             StubFetcher(responses),
@@ -227,30 +172,11 @@ def test_search_reruns_only_fetch_unseen_descriptions(unlimited):
             fetch_description=True,
         )
     )
-    assert jobs[0]["description"] == rerun[0]["description"] == "Role"
-    assert not any("jobPosting" in url for url in rerun_fetcher.requests)
+    assert jobs[0]["description"] == rerun[0]["description"] == "Great & big role"
+    assert [url for url in rerun_fetcher.requests if "seeMoreJobPostings" not in url] == []
 
 
-def test_interrupted_sweep_keeps_paid_results(unlimited, isolated_cache):
-    class DiesOnSecond(StubFetcher):
-        async def fetch(self, url, headers=None):
-            if len(self.requests) == 1:
-                raise RuntimeError("interrupted")
-            return await super().fetch(url, headers)
-
-    fetcher = DiesOnSecond({"jobPosting/111": ok(DETAIL)})
-    with pytest.raises(RuntimeError):
-        asyncio.run(linkedin.fetch_descriptions(fetcher, ["111", "222"]))
-    assert isolated_cache.get("linkedin", ["111"]) == {"111": "Role"}
-
-
-def test_broken_cache_still_fetches_and_warns_once(unlimited, tmp_path, monkeypatch, caplog):
-    (tmp_path / "blocker").write_text("")
-    monkeypatch.setattr(descriptions, "CACHE", DescriptionCache(tmp_path / "blocker" / "x.sqlite3"))
-    fetcher = StubFetcher({"jobPosting/111": ok(DETAIL)})
-    with caplog.at_level(logging.WARNING, logger="jobrake.cache"):
-        assert asyncio.run(linkedin.fetch_descriptions(fetcher, ["111"])) == {"111": "Role"}
-    assert len([r for r in caplog.records if "disabled" in r.message]) == 1
+CANONICAL = "https://nl.linkedin.com/jobs/view/economist-at-acme-111"
 
 
 def job_page(apply="offsite", applicants="Over 200 applicants", **overrides):
@@ -282,7 +208,7 @@ def test_parse_posting_omits_what_it_cannot_extract():
     assert fields["expires_at"] == "2026-09-04T08:04:27.000Z"
     assert fields["country_code"] == "NL"
     assert fields["applicants"] == 200
-    # no salary and no experience on this posting: absent, not blank
+    # the posting has no salary and no experience: the keys are absent
     assert "salary_min" not in fields
     assert "experience_months" not in fields
 
@@ -372,7 +298,7 @@ def test_parse_posting_falls_back_to_the_markup_without_the_block():
     assert fields["description"] == "Great & big role"
     assert fields["apply_type"] == "offsite"
     assert fields["applicants"] == 200
-    assert "posted_at" not in fields  # the structured fields stay absent, not blank
+    assert "posted_at" not in fields  # the structured fields stay absent
     # localized labels and number formats must not half-parse into wrong values
     assert "employment_type" not in fields
     assert "salary_min" not in fields
@@ -385,3 +311,119 @@ def test_parse_posting_reads_the_en_us_markup_labels():
     assert (fields["salary_currency"], fields["salary_period"]) == ("AED", "YEAR")
     assert fields["company_url"] == "https://uk.linkedin.com/company/acme"
     assert fields["company_logo"] == "https://media.licdn.com/acme-logo.png"
+
+
+def hydrated(postings, url) -> dict:
+    """The posting's fields; a gone or unfetched posting fails the test."""
+    posting = postings.get(url)
+    assert posting is not None
+    return posting
+
+
+def test_fetch_postings_block_less_page_pulls_the_fragment(unlimited):
+    other = "https://nl.linkedin.com/jobs/view/other-at-acme-444"
+    fetcher = StubFetcher(
+        {
+            "economist-at-acme-111": ok(blockless_page()),
+            "jobPosting/111": ok(en_fragment()),
+            "other-at-acme-444": ok(blockless_page()),  # its fragment errors: no stub
+        }
+    )
+    got = asyncio.run(linkedin.fetch_postings(fetcher, [CANONICAL, other]))
+    assert hydrated(got, CANONICAL)["employment_type"] == "full_time"  # the fragment's contribution
+    assert hydrated(got, CANONICAL)["applicants"] == 200  # the page wins where both speak
+    # page fields survive a failed fragment
+    assert hydrated(got, other)["description"] == "Great & big role"
+    assert "employment_type" not in hydrated(got, other)
+    assert fetcher.requests == [
+        CANONICAL,
+        f"{FRAGMENT_URL}/111?_l=en_US",  # forced locale: the labels must parse
+        other,
+        f"{FRAGMENT_URL}/444?_l=en_US",
+    ]
+    # the rerun serves both from the cache, partial or not
+    fetcher.requests.clear()
+    assert asyncio.run(linkedin.fetch_postings(fetcher, [CANONICAL, other])) == got
+    assert fetcher.requests == []
+
+
+def test_fetch_postings_three_outcomes_and_what_each_costs_again(unlimited, monkeypatch):
+    monkeypatch.setattr(client, "RETRY_DELAY", 0)
+    gone = "https://nl.linkedin.com/jobs/view/gone-at-acme-222"
+    flaky = "https://nl.linkedin.com/jobs/view/flaky-at-acme-333"
+    fetcher = StubFetcher(
+        {
+            "economist-at-acme-111": ok(job_page()),
+            "gone-at": not_found(),
+            "flaky-at": rate_limited(),
+        }
+    )
+    postings = asyncio.run(
+        linkedin.fetch_postings(fetcher, [CANONICAL, "", CANONICAL, gone, flaky])
+    )
+    assert hydrated(postings, CANONICAL)["employment_type"] == "full_time"
+    assert postings[gone] is None  # gone: stop asking
+    assert flaky not in postings  # transient: safe to retry
+    assert sum(1 for u in fetcher.requests if u == CANONICAL) == 1  # deduped
+
+    # A retry: hydrated and gone come from the cache, only the transient is re-asked.
+    fetcher.responses["flaky-at"] = ok(job_page())
+    fetcher.requests.clear()
+    again = asyncio.run(linkedin.fetch_postings(fetcher, [CANONICAL, gone, flaky]))
+    assert hydrated(again, flaky)["employment_type"] == "full_time"
+    assert (again[CANONICAL], again[gone]) == (postings[CANONICAL], None)
+    assert fetcher.requests == [flaky]
+
+
+def test_fetch_postings_drops_a_trailing_slash(unlimited):
+    fetcher = StubFetcher({"economist-at-acme-111": ok(job_page())})
+    got = asyncio.run(linkedin.fetch_postings(fetcher, [CANONICAL + "/"]))
+    assert hydrated(got, CANONICAL + "/")["employment_type"] == "full_time"  # keyed as passed
+    assert fetcher.requests == [CANONICAL]  # fetched without it, or the page omits the block
+
+
+def test_fetch_postings_cache_false_refetches(unlimited):
+    fetcher = StubFetcher({"economist-at-acme-111": ok(job_page())})
+    asyncio.run(linkedin.fetch_postings(fetcher, [CANONICAL], cache=False))
+    asyncio.run(linkedin.fetch_postings(fetcher, [CANONICAL], cache=False))
+    assert len(fetcher.requests) == 2
+
+
+def test_fetch_postings_caches_by_id_not_url(unlimited):
+    # The subdomain and slug vary under one posting; the id does not.
+    fetcher = StubFetcher({"economist-at-acme-111": ok(job_page())})
+    asyncio.run(linkedin.fetch_postings(fetcher, [CANONICAL]))
+    moved = "https://www.linkedin.com/jobs/view/senior-economist-at-acme-111"
+    got = asyncio.run(linkedin.fetch_postings(StubFetcher({}), [moved]))
+    assert hydrated(got, moved)["employment_type"] == "full_time"
+
+
+def test_fetch_postings_drops_unknown_cached_keys(unlimited, isolated_cache):
+    # A cached row from an older schema must not crash the run it is served to.
+    isolated_cache.put("linkedin", {"111": {"description": "Role", "months_of_experience": 36}})
+    got = asyncio.run(linkedin.fetch_postings(StubFetcher({}), [CANONICAL]))
+    assert got[CANONICAL] == {"description": "Role"}
+
+
+def test_interrupted_sweep_keeps_paid_results(unlimited, isolated_cache):
+    class DiesOnSecond(StubFetcher):
+        async def fetch(self, url, headers=None):
+            if len(self.requests) == 1:
+                raise RuntimeError("interrupted")
+            return await super().fetch(url, headers)
+
+    other = "https://nl.linkedin.com/jobs/view/other-at-acme-222"
+    fetcher = DiesOnSecond({"economist-at-acme-111": ok(job_page())})
+    with pytest.raises(RuntimeError):
+        asyncio.run(linkedin.fetch_postings(fetcher, [CANONICAL, other]))
+    assert isolated_cache.get("linkedin", ["111"])["111"]["applicants"] == 200
+
+
+def test_broken_cache_still_fetches_and_warns_once(unlimited, tmp_path, monkeypatch, caplog):
+    (tmp_path / "blocker").write_text("")
+    monkeypatch.setattr(client, "CACHE", PostingCache(tmp_path / "blocker" / "x.sqlite3"))
+    fetcher = StubFetcher({"economist-at-acme-111": ok(job_page())})
+    with caplog.at_level(logging.WARNING, logger="jobrake.cache"):
+        postings = asyncio.run(linkedin.fetch_postings(fetcher, [CANONICAL]))
+    assert hydrated(postings, CANONICAL)["applicants"] == 200
+    assert len([r for r in caplog.records if "disabled" in r.message]) == 1

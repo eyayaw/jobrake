@@ -35,10 +35,11 @@ async def scrape(
 
     ``country`` is required for indeed, ignored by linkedin.
     ``location`` is required for linkedin, optional for indeed.
-    ``fetch_description`` costs one extra paced request per job, every call, on linkedin
-    (indeed always includes descriptions); for repeated searches
-    call ``linkedin.fetch_descriptions`` on just the new ids instead.
-    ``cache`` (linkedin) serves still-fresh descriptions from an on-disk cache
+    ``fetch_description`` (linkedin) hydrates each job from its posting
+    page—the description and every other field the posting states—at one
+    extra paced request per job; indeed's search response already carries
+    everything it knows, so the flag is a no-op there.
+    ``cache`` (linkedin) serves still-fresh postings from an on-disk cache
     in the user cache directory instead of refetching (freshness window:
     ``jobrake.cache.TTL``).
     """

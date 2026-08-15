@@ -12,7 +12,7 @@ from jobrake.fetchkit import Fetcher
 from jobrake.models import make_job
 
 from .client import SEARCH_URL, job_id, paced_fetch
-from .descriptions import fetch_descriptions
+from .postings import fetch_postings
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +21,7 @@ MAX_START = 1000  # the guest API stops serving past this offset
 
 def parse_cards(html: str) -> list[dict]:
     """Fields from the cards on one search page."""
-    # The description lives on the posting's own page; see fetch_descriptions.
+    # The description lives on the posting's own page; see fetch_postings.
     soup = BeautifulSoup(html, "html.parser")
     jobs = []
     for card in soup.find_all("div", class_="base-search-card"):
@@ -106,8 +106,8 @@ async def search(
 
     jobs = jobs[:results_wanted]
     if fetch_description:
-        logger.info("fetching full descriptions for %d jobs...", len(jobs))
-        descriptions = await fetch_descriptions(fetcher, (job["id"] for job in jobs), cache=cache)
-        for job in jobs:
-            job["description"] = descriptions.get(job["id"]) or job["description"]
+        logger.info("fetching posting details for %d jobs...", len(jobs))
+        postings = await fetch_postings(fetcher, (job["url"] for job in jobs), cache=cache)
+        # A posting gone or unreachable between search and hydration keeps its summary fields.
+        jobs = [make_job(**{**job, **(postings.get(job["url"]) or {})}) for job in jobs]
     return jobs

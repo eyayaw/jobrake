@@ -1,14 +1,14 @@
-"""The guest API's shared pieces: URLs, headers, pacing, posting ids."""
+"""The guest API's shared pieces: URLs, headers, pacing, posting ids, the cache."""
 
 from __future__ import annotations
 
 import asyncio
 
+from jobrake.cache import PostingCache
 from jobrake.fetchkit import ErrorCategory, Fetcher, FetchResult, TokenBucket
 
 BASE_URL = "https://www.linkedin.com"
 SEARCH_URL = f"{BASE_URL}/jobs-guest/jobs/api/seeMoreJobPostings/search"
-DETAIL_URL = f"{BASE_URL}/jobs-guest/jobs/api/jobPosting"
 
 HEADERS = {
     "accept": (
@@ -31,6 +31,9 @@ HEADERS = {
 LIMITER = TokenBucket(capacity=2, refill_interval=3.0)
 
 RETRY_DELAY = 10.0  # seconds before retrying a 429; still 429 at +5s, clear by ~10s
+
+# One cache per process, lazy, so no file is touched until the first cached fetch.
+CACHE = PostingCache()
 
 
 async def paced_fetch(fetcher: Fetcher, url: str) -> FetchResult:

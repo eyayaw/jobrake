@@ -1,14 +1,14 @@
-"""Shared fixtures: every test runs against an isolated description cache."""
+"""Shared fixtures: every test runs against an isolated posting cache."""
 
 import pytest
 
-from jobrake.cache import DescriptionCache
-from jobrake.sites.linkedin import descriptions
+from jobrake.cache import PostingCache
+from jobrake.sites.linkedin import client
 
 
 @pytest.fixture(autouse=True)
 def isolated_cache(tmp_path, monkeypatch):
-    """Point the module cache at a per-test file so tests never touch the user's."""
-    cache = DescriptionCache(tmp_path / "descriptions.sqlite3")
-    monkeypatch.setattr(descriptions, "CACHE", cache)
+    """Point the shared cache at a per-test file so tests never touch the user's."""
+    cache = PostingCache(tmp_path / "postings.sqlite3")
+    monkeypatch.setattr(client, "CACHE", cache)
     return cache
