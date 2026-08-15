@@ -147,6 +147,15 @@ def test_indeed_single_bound_salaries():
     )
 
 
+def test_description_scrubs_flattened_stylesheets():
+    # Some ATS pages arrive with their css flattened into the description text.
+    css = ".jobdescription td { padding: 0 5px; } /* sidebar */ h1 { font-size: 14px !important; }"
+    job = parse_one(
+        rich_job(description={"html": css + "<p>Great role.</p><p>Salary range: 40k.</p>"})
+    )
+    assert job["description"] == "Great role.\nSalary range: 40k."
+
+
 def test_indeed_remote_label_matches_exactly():
     # "Remote sensing observations" is a skill, not a workplace
     job = parse_one(rich_job(attributes=[{"label": "Remote sensing observations"}]))

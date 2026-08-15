@@ -11,6 +11,20 @@ def test_html_text_strips_tags_and_unescapes():
     assert html_text("<p>Turner &amp; Townsend</p>") == "Turner & Townsend"
 
 
+def test_html_text_one_line_per_block():
+    html = "<h2>The role</h2><p>Build <b>models</b> daily.</p><ul><li>Ship</li><li>Learn</li></ul>"
+    assert html_text(html) == "The role\nBuild models daily.\nShip\nLearn"
+
+
+def test_html_text_spaces_table_cells():
+    html = "<table><tr><td>Clearance</td><td>None</td></tr><tr><td>Type</td><td>Regular</td></tr></table>"
+    assert html_text(html) == "Clearance None\nType Regular"
+
+
+def test_html_text_drops_style_bodies():
+    assert html_text("<style>p { color: red; }</style><p>Prose stays.</p>") == "Prose stays."
+
+
 def test_epoch_ms_to_iso():
     assert epoch_ms_to_iso(1717200000000) == "2024-06-01T00:00:00+00:00"
 

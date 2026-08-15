@@ -7,12 +7,28 @@ from bs4 import BeautifulSoup
 
 logger = logging.getLogger(__name__)
 
+_BLOCK_TAGS = ("p", "div", "li", "ul", "ol", "h1", "h2", "h3", "h4", "h5", "h6", "table", "tr", "br", )  # fmt: skip
+
 
 def html_text(html: str) -> str:
-    """Plain text from an HTML fragment."""
+    """
+    Plain text from an HTML fragment: one line per block, styling stripped.
+
+    Block-level tags become line breaks; inline tags join seamlessly.
+    Style and script bodies are dropped.
+    """
     if not html:
         return ""
-    return BeautifulSoup(html, "html.parser").get_text(" ", strip=True)
+    soup = BeautifulSoup(html, "html.parser")
+    for tag in soup.find_all(("style", "script")):
+        tag.decompose()
+    for tag in soup.find_all(_BLOCK_TAGS):
+        tag.insert_before("\n")
+        tag.insert_after("\n")
+    for cell in soup.find_all(("td", "th")):
+        cell.insert_after(" ")
+    lines = (" ".join(line.split()) for line in soup.get_text().split("\n"))
+    return "\n".join(line for line in lines if line)
 
 
 def iso_date(value: str | None) -> str:

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 
 from jobrake import defaults
 from jobrake.fetchkit import PostFetcher
@@ -92,6 +93,30 @@ def build_query(
     )
 
 
+# Indeed's ingestion flattens some ATS pages' stylesheets into the description
+# text, beyond the reach of tag-level cleanup. These match CSS rule syntax: a
+# selector, then a {block} holding `property: value` (or nothing, once inner
+# rules are gone). The selector may not cross a line break or a sentence
+# period, keeping prose out of reach.
+_CSS_COMMENT = re.compile(r"/\*.*?\*/", re.DOTALL)
+_CSS_RULE = re.compile(r"(?:[^{}\n.]|\.(?!\s)){0,200}?\{(?:[^{}]*:[^{}]*|\s*)\}")
+
+
+def _scrub_css(text: str) -> str:
+    """Drop the stylesheet text some postings carry in their description."""
+    if "{" not in text:
+        return text
+    text = _CSS_COMMENT.sub(" ", text)
+    while True:
+        # Innermost rules first, so nested @media blocks collapse over the passes.
+        scrubbed = _CSS_RULE.sub(" ", text)
+        if scrubbed == text:
+            break
+        text = scrubbed
+    lines = (" ".join(line.split()) for line in text.split("\n"))
+    return "\n".join(line for line in lines if line)
+
+
 def _timestamp(job: dict, field: str) -> str | None:
     """The job's epoch-milliseconds field as an ISO timestamp; ``None`` if absent or bad."""
     if (ms := job.get(field)) is None:
@@ -131,7 +156,7 @@ def parse_jobs(data: dict, base_url: str) -> tuple[list[dict], str | None]:
                 title=job.get("title", ""),
                 company=employer.get("name") or "",
                 location=location,
-                description=html_text((job.get("description") or {}).get("html", "")),
+                description=_scrub_css(html_text((job.get("description") or {}).get("html", ""))),
                 posted_at=_timestamp(job, "datePublished"),
                 expires_at=_timestamp(job, "expirationDate"),
                 company_url=base_url + company_page if company_page else None,
