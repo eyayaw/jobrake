@@ -8,7 +8,7 @@ import logging
 from jobrake import defaults
 from jobrake.fetchkit import PostFetcher
 from jobrake.models import make_job
-from jobrake.utils import epoch_ms_to_date, html_text
+from jobrake.utils import epoch_ms_to_iso, html_text
 
 from .client import API_HEADERS, API_URL
 from .countries import indeed_domain
@@ -66,6 +66,18 @@ def build_query(
     )
 
 
+def _timestamp(job: dict, field: str) -> str | None:
+    """The job's epoch-milliseconds field as an ISO timestamp; ``None`` if absent or bad."""
+    if (ms := job.get(field)) is None:
+        return None
+    try:
+        return epoch_ms_to_iso(ms)
+    except ValueError as e:
+        # One posting's bad timestamp costs that field, not the page.
+        logger.warning("job %s: %s", job["key"], e)
+        return None
+
+
 def parse_jobs(data: dict, base_url: str) -> tuple[list[dict], str | None]:
     """(jobs, next cursor) from one GraphQL response."""
     search = data["data"]["jobSearch"]
@@ -79,23 +91,16 @@ def parse_jobs(data: dict, base_url: str) -> tuple[list[dict], str | None]:
             if part
         )
         employer = job.get("employer") or {}
-        date = ""
-        if published := job.get("datePublished"):
-            try:
-                date = epoch_ms_to_date(published)
-            except ValueError as e:
-                # One posting's bad date costs its own date, not the page.
-                logger.warning("job %s: %s", job["key"], e)
         jobs.append(
             make_job(
+                site="indeed",
                 id=job["key"],
+                url=f"{base_url}/viewjob?jk={job['key']}",
                 title=job.get("title", ""),
                 company=employer.get("name") or "",
-                url=f"{base_url}/viewjob?jk={job['key']}",
                 location=location,
                 description=html_text((job.get("description") or {}).get("html", "")),
-                date=date,
-                site="indeed",
+                posted_at=_timestamp(job, "datePublished"),
             )
         )
     return jobs, search["pageInfo"].get("nextCursor")

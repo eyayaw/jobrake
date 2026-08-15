@@ -27,17 +27,17 @@ def iso_date(value: str | None) -> str:
         return value[:10]
 
 
-def epoch_ms_to_date(ms: float | str) -> str:
+def epoch_ms_to_iso(ms: float | str) -> str:
     """
-    ``YYYY-MM-DD`` (UTC) from epoch milliseconds.
+    ISO 8601 UTC timestamp from epoch milliseconds.
 
     Raises ``ValueError`` for anything that cannot be epoch milliseconds,
     seconds included: those land in the 1970s, a plausible date and a wrong one.
     """
     try:
-        date = datetime.fromtimestamp(float(ms) / 1000.0, tz=UTC)
+        stamp = datetime.fromtimestamp(float(ms) / 1000.0, tz=UTC)
     except (OSError, OverflowError) as e:
         raise ValueError(f"not epoch milliseconds: {ms!r}") from e
-    if date.year < 2000:
+    if stamp.year < 2000:
         raise ValueError(f"not epoch milliseconds, seconds rather than ms?: {ms!r}")
-    return date.strftime("%Y-%m-%d")
+    return stamp.isoformat()

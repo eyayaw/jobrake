@@ -60,7 +60,8 @@ def test_indeed_keeps_a_job_whose_date_is_not_milliseconds(caplog):
     with caplog.at_level(logging.WARNING, logger="jobrake.sites.indeed"):
         jobs = asyncio.run(indeed.search(fetcher, search_term="x", country="usa"))
     assert jobs[0]["title"] == "Job a"  # the posting survives
-    assert jobs[0]["date"] == ""  # only its date is lost
+    assert jobs[0]["posted_at"] is None  # only its timestamp is lost
+    assert jobs[0]["date"] == ""
     assert any("milliseconds" in record.message for record in caplog.records)
 
 
