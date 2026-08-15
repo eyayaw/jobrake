@@ -1,6 +1,7 @@
 """LinkedIn guest-search parsing and pagination tests."""
 
 import asyncio
+import json
 import logging
 
 import pytest
@@ -8,6 +9,7 @@ from fakes import StubFetcher, not_found, ok, rate_limited
 
 from jobrake.cache import DescriptionCache
 from jobrake.fetchkit import TokenBucket
+from jobrake.models import JOB_FIELDS
 from jobrake.sites import linkedin
 from jobrake.sites.linkedin import client, descriptions
 
@@ -249,3 +251,137 @@ def test_broken_cache_still_fetches_and_warns_once(unlimited, tmp_path, monkeypa
     with caplog.at_level(logging.WARNING, logger="jobrake.cache"):
         assert asyncio.run(linkedin.fetch_descriptions(fetcher, ["111"])) == {"111": "Role"}
     assert len([r for r in caplog.records if "disabled" in r.message]) == 1
+
+
+def job_page(apply="offsite", applicants="Over 200 applicants", **overrides):
+    posting = {
+        "@type": "JobPosting",
+        "description": "&lt;p&gt;Great &amp;amp; big role&lt;/p&gt;",
+        "employmentType": "FULL_TIME",
+        "datePosted": "2026-08-05T08:04:27.000Z",
+        "validThrough": "2026-09-04T08:04:27.000Z",
+        "hiringOrganization": {"sameAs": "https://nl.linkedin.com/company/acme"},
+        "jobLocation": {"address": {"addressCountry": "NL"}, "latitude": 52.37},
+    } | overrides
+    button = (
+        f'<button data-tracking-control-name="public_jobs_apply-link-{apply}"></button>'
+        if apply
+        else ""
+    )
+    return f"""
+    <html><script type="application/ld+json">{json.dumps(posting)}</script>
+    {button}
+    <figcaption class="num-applicants__caption">{applicants}</figcaption></html>"""
+
+
+def test_parse_posting_omits_what_it_cannot_extract():
+    fields = linkedin.parse_posting(job_page())
+    assert fields["description"] == "Great & big role"  # unescaped, then de-tagged
+    assert fields["employment_type"] == "full_time"  # unified across sites
+    assert fields["posted_at"] == "2026-08-05T08:04:27.000Z"  # timestamps kept whole
+    assert fields["expires_at"] == "2026-09-04T08:04:27.000Z"
+    assert fields["country_code"] == "NL"
+    assert fields["applicants"] == 200
+    # no salary and no experience on this posting: absent, not blank
+    assert "salary_min" not in fields
+    assert "experience_months" not in fields
+
+
+def test_parse_posting_speaks_the_model_vocabulary():
+    page = job_page(
+        baseSalary={
+            "currency": "USD",
+            "value": {"minValue": 105000, "maxValue": 135000, "unitText": "YEAR"},
+        },
+        experienceRequirements={"monthsOfExperience": 36},
+        educationRequirements={"credentialCategory": "bachelor degree"},
+        jobLocation={
+            "address": {"addressLocality": "Delft", "addressRegion": "ZH", "addressCountry": "NL"}
+        },
+    )
+    fields = linkedin.parse_posting(page)
+    # every key a parser can emit is a model field, so merging can never raise
+    assert set(fields) <= set(JOB_FIELDS)
+    assert (fields["salary_min"], fields["salary_max"]) == (105000, 135000)
+    assert (fields["salary_currency"], fields["salary_period"]) == ("USD", "YEAR")
+    assert (fields["city"], fields["region"], fields["country_code"]) == ("Delft", "ZH", "NL")
+    assert fields["experience_months"] == 36
+
+
+def test_parse_posting_reads_the_apply_kind():
+    assert linkedin.parse_posting(job_page())["apply_type"] == "offsite"
+    assert linkedin.parse_posting(job_page(apply="onsite"))["apply_type"] == "onsite"
+    # any value the page uses, not only the two we have seen
+    assert linkedin.parse_posting(job_page(apply="whatevernext"))["apply_type"] == "whatevernext"
+    assert "apply_type" not in linkedin.parse_posting(job_page(apply=None))
+
+
+def test_applicant_count_ignores_the_prose_around_it():
+    for caption, expected in (  # every form seen across seven locales
+        ("Be among the first 25 applicants", 25),
+        ("Over 200 applicants", 200),
+        ("114 applicants", 114),
+        ("Wees een van de eerste 25 sollicitanten", 25),  # the prose is localized
+        ("applicants", None),
+    ):
+        fields = linkedin.parse_posting(job_page(applicants=caption))
+        assert fields.get("applicants") == expected
+
+
+def test_parse_posting_survives_schema_variants():
+    # schema.org allows a bare string or a list where an object is typical
+    page = job_page(
+        experienceRequirements="3 years", jobLocation=[{"address": {"addressCountry": "DE"}}]
+    )
+    fields = linkedin.parse_posting(page)
+    assert fields["country_code"] == "DE"
+    assert "experience_months" not in fields
+    assert linkedin.parse_posting("<html><body>signup wall</body></html>") == {}
+
+
+def blockless_page():
+    # A country-level posting: a real job page, localized, no schema.org block.
+    return """
+    <html><div class="show-more-less-html__markup">Great &amp; big role</div>
+    <button data-tracking-control-name="public_jobs_apply-link-offsite"></button>
+    <li class="description__job-criteria-item">
+      <h3 class="description__job-criteria-subheader">Tipo de empleo</h3>
+      <span class="description__job-criteria-text">Jornada completa</span>
+    </li>
+    <div class="salary compensation__salary">756.000,00 AED/año - 924.000,00 AED/año</div>
+    <figcaption class="num-applicants__caption">Over 200 applicants</figcaption></html>"""
+
+
+def en_fragment():
+    # The same posting's www fragment: identical markup in en-US.
+    return """
+    <html><a class="topcard__org-name-link"
+      href="https://uk.linkedin.com/company/acme?trk=public_jobs_topcard-org-name"></a>
+    <img class="artdeco-entity-image" data-delayed-url="https://media.licdn.com/acme-logo.png"/>
+    <div class="show-more-less-html__markup">Great &amp; big role</div>
+    <li class="description__job-criteria-item">
+      <h3 class="description__job-criteria-subheader">Employment type</h3>
+      <span class="description__job-criteria-text">Full-time</span>
+    </li>
+    <div class="salary compensation__salary">AED 756,000.00/yr - AED 924,000.00/yr</div>
+    <figcaption class="num-applicants__caption">109 applicants</figcaption></html>"""
+
+
+def test_parse_posting_falls_back_to_the_markup_without_the_block():
+    fields = linkedin.parse_posting(blockless_page())
+    assert fields["description"] == "Great & big role"
+    assert fields["apply_type"] == "offsite"
+    assert fields["applicants"] == 200
+    assert "posted_at" not in fields  # the structured fields stay absent, not blank
+    # localized labels and number formats must not half-parse into wrong values
+    assert "employment_type" not in fields
+    assert "salary_min" not in fields
+
+
+def test_parse_posting_reads_the_en_us_markup_labels():
+    fields = linkedin.parse_posting(en_fragment())
+    assert fields["employment_type"] == "full_time"
+    assert (fields["salary_min"], fields["salary_max"]) == (756000.0, 924000.0)
+    assert (fields["salary_currency"], fields["salary_period"]) == ("AED", "YEAR")
+    assert fields["company_url"] == "https://uk.linkedin.com/company/acme"
+    assert fields["company_logo"] == "https://media.licdn.com/acme-logo.png"
