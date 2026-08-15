@@ -15,7 +15,15 @@ Pass any ``jobrake.fetchkit.Fetcher`` as ``fetcher=`` to swap transports
 (indeed needs the ``PostFetcher`` variant).
 """
 
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as _get_version
+
 from jobrake.fetchkit import HttpxFetcher
 from jobrake.sites import scrape
 
-__all__ = ["HttpxFetcher", "scrape"]
+try:
+    __version__ = _get_version("jobrake")
+except PackageNotFoundError:
+    __version__ = "0.0.0"
+
+__all__ = ["__version__", "HttpxFetcher", "scrape"]

@@ -5,7 +5,7 @@ import asyncio
 import logging
 from pathlib import Path
 
-from jobrake import scrape
+from jobrake import __version__, scrape
 
 from . import defaults
 from .io import WRITERS, to_json
@@ -18,6 +18,8 @@ def main():
     parser = argparse.ArgumentParser(
         description="Search job postings", formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
+    # action="version" prints and exits before the required arguments are checked.
+    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     parser.add_argument("--site", "-s", choices=sorted(site_searchers()), required=True)
     parser.add_argument("--search-term", "-q", required=True, help="search query")
     parser.add_argument(
