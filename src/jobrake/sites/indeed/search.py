@@ -7,7 +7,7 @@ import logging
 
 from jobrake import defaults
 from jobrake.fetchkit import PostFetcher
-from jobrake.models import make_job
+from jobrake.models import employment_type, make_job
 from jobrake.utils import epoch_ms_to_iso, html_text
 
 from .client import API_HEADERS, API_URL
@@ -15,8 +15,10 @@ from .countries import indeed_domain
 
 logger = logging.getLogger(__name__)
 
-# jobspy's query, trimmed to the fields we keep. `limit: 100` is the API's page
-# size; pagination continues via pageInfo.nextCursor.
+# jobspy's query, trimmed to the fields we keep. `limit: 100` is the API's
+# page size; pagination continues via pageInfo.nextCursor. The salary range
+# is a union type, hence the inline fragments: Range carries both bounds,
+# AtLeast/AtMost one, Exactly a value.
 QUERY = """
 query GetJobData {{
   jobSearch(
@@ -33,14 +35,38 @@ query GetJobData {{
         key
         title
         datePublished
+        expirationDate
         description {{ html }}
-        location {{ city admin1Code countryCode }}
-        employer {{ name }}
+        location {{ city admin1Code countryCode latitude longitude }}
+        employer {{
+          name
+          relativeCompanyPageUrl
+          dossier {{ images {{ squareLogoUrl }} }}
+        }}
+        recruit {{ viewJobUrl }}
+        compensation {{
+          baseSalary {{
+            unitOfWork
+            range {{
+              ... on Range {{ min max }}
+              ... on AtLeast {{ min }}
+              ... on AtMost {{ max }}
+              ... on Exactly {{ value }}
+            }}
+          }}
+          currencyCode
+        }}
+        attributes {{ label }}
       }}
     }}
   }}
 }}
 """
+
+# Indeed mixes employment types into the attributes bag with skills and
+# benefits; these exact labels pick them out. Stable, since the headers pin
+# the en-US locale.
+EMPLOYMENT_TYPES = ("Full-time", "Part-time", "Contract", "Temporary", "Internship", "Per diem")
 
 
 def build_query(
@@ -91,6 +117,12 @@ def parse_jobs(data: dict, base_url: str) -> tuple[list[dict], str | None]:
             if part
         )
         employer = job.get("employer") or {}
+        compensation = job.get("compensation") or {}
+        salary = compensation.get("baseSalary") or {}
+        amount = salary.get("range") or {}
+        exactly = amount.get("value")
+        labels = [attribute["label"] for attribute in job.get("attributes") or []]
+        company_page = employer.get("relativeCompanyPageUrl")
         jobs.append(
             make_job(
                 site="indeed",
@@ -101,6 +133,27 @@ def parse_jobs(data: dict, base_url: str) -> tuple[list[dict], str | None]:
                 location=location,
                 description=html_text((job.get("description") or {}).get("html", "")),
                 posted_at=_timestamp(job, "datePublished"),
+                expires_at=_timestamp(job, "expirationDate"),
+                company_url=base_url + company_page if company_page else None,
+                company_logo=((employer.get("dossier") or {}).get("images") or {}).get(
+                    "squareLogoUrl"
+                ),
+                employment_type=next(
+                    (employment_type(label) for label in labels if label in EMPLOYMENT_TYPES),
+                    None,
+                ),
+                # A Remote tag proves remote; absence proves nothing, so the field stays None.
+                is_remote=True if "Remote" in labels else None,
+                salary_min=amount.get("min", exactly),
+                salary_max=amount.get("max", exactly),
+                salary_currency=compensation.get("currencyCode"),
+                salary_period=salary.get("unitOfWork"),
+                city=loc.get("city"),
+                region=loc.get("admin1Code"),
+                country_code=loc.get("countryCode"),
+                latitude=loc.get("latitude"),
+                longitude=loc.get("longitude"),
+                apply_url=(job.get("recruit") or {}).get("viewJobUrl"),
             )
         )
     return jobs, search["pageInfo"].get("nextCursor")
