@@ -3,7 +3,7 @@
 The job boards shed new postings every day. Bring a rake. 🍂
 
 jobrake (read as "job-rake") is a minimal python package and CLI tool for scraping job postings from LinkedIn and Indeed.
-Repeat searches are cheap: fetched LinkedIn descriptions are cached on disk, so a sweep that took 24 minutes reruns in 2.
+Repeat searches are cheap: fetched LinkedIn postings are cached on disk, so a sweep that took 24 minutes reruns in 2.
 
 > If your name happens to be Jo, read it again: **Jo-brake**—the brake on the job-board doomscroll.
 
@@ -18,7 +18,7 @@ jobrake --site linkedin \
   --radius 100 \
   --hours-old 48 \
   --results-wanted 5 \
-  --fetch-description
+  --detail
 ```
 
 </td>
@@ -91,8 +91,10 @@ jobs = await scrape(
     hours_old=168,
 )
 print(jobs)
-# [{"id", "title", "company", "url", "location", "description", "date", "site"}, ...]
+# [{"site", "id", "url", "title", "company", "location", "date", "description", ...}, ...]
 ```
+
+Every job is the same flat dict, whatever the site and whatever the flags. `site`, `id`, and `url` address the posting; `title`, `company`, `location`, and `date` arrive with every search result (`""` when the site shows nothing). The rest—`description` and the detail fields (`salary_min`, `employment_type`, `applicants`, `apply_url`, ...)—is pulled from the posting itself, `None` when we never got it. Columns mean the same thing on every site. Indeed fills detail from the search response itself; LinkedIn fills it under `--detail | -d`.
 
 ## Locations and countries
 
@@ -108,15 +110,15 @@ The search radius (`--radius` in the cli) is in **kilometers** and defaults to 5
 
 | Site       | Mechanism                     | Notes                                                                                                      |
 | ---------- | ----------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `indeed`   | Mobile-app GraphQL API (POST) | most reliable; full descriptions                                                                           |
-| `linkedin` | Guest search API (HTML cards) | token-bucket pacing (short burst, then ~one request per 3s); optional per-job description fetch, cached on disk, see below |
+| `indeed`   | Mobile-app GraphQL API (POST) | most reliable; full descriptions and detail in the search response                                          |
+| `linkedin` | Guest search API (HTML cards) | token-bucket pacing (short burst, then ~one request per 3s); optional per-job detail fetch, cached on disk, see below |
 
 <details>
 <summary>Glassdoor</summary>
 Unlike jobspy, jobrake does not support Glassdoor. At the time of writing, it was acquired by Indeed and largely serves the same inventory. If it is ever wanted, we could inject a TLS-impersonating fetcher (e.g. one wrapping curl_cffi) for its Cloudflare frontend, but it is not a priority. Raising a PR is welcome, including any other major job board.
 </details>
 
-### LinkedIn: Rate limiting and job descriptions
+### LinkedIn: Rate limiting and posting detail
 
 LinkedIn rate-limits each visitor (per IP): a few requests are allowed immediately, then roughly one every couple of seconds.
 Search pages are limited more strictly than job-detail pages.
@@ -124,12 +126,11 @@ Search pages are limited more strictly than job-detail pages.
 jobrake tracks this limit with its own token bucket and waits before every request until the next one is allowed.
 This makes it as fast as the limit permits without triggering rate limiting. If a 429 slips through anyway, the request is retried once after the limit clears.
 
-Full job descriptions are not included in search results; each one costs an extra request against the same limit. 
-Use `--fetch-description | -d` in the CLI to include them.
+Search results carry only the summary fields; the description and the rest of the detail live on each job's posting page, one extra request per job against the same limit. Use `--detail | -d` in the CLI to fetch them.
 
-Fetched descriptions are cached on disk for a week (in your user cache directory), so repeated runs only pay for postings they have not seen; a posting that is gone (404) is remembered and never refetched. Pass `--no-cache` (or `cache=False`) to bypass the cache.
+Fetched postings are cached on disk for a week (in your user cache directory), so repeated runs only pay for postings they have not seen; a posting that is gone (404) is remembered and never refetched. Pass `--no-cache` (or `cache=False`) to bypass the cache.
 
-Be gentle with the guest API. The cache makes repeats cheap, but the first fetch still costs one request per job: if you only want some of the jobs, list without `-d` and hydrate just the interesting ids with `linkedin.fetch_descriptions(fetcher, ids)`. It maps each id to its text, or to `None` when the posting is gone (404); an id that failed transiently is absent and safe to retry.
+Be gentle with the guest API. The cache makes repeats cheap, but the first fetch still costs one request per job: if you only want some of the jobs, list without `-d` and fetch just the interesting ones with `linkedin.fetch_postings(fetcher, urls)`. It maps each url to the posting's fields, or to `None` when the posting is gone (404); a url that failed transiently is absent and safe to retry.
 
 ## Bring your own fetcher
 
