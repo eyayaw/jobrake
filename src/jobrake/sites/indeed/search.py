@@ -168,7 +168,7 @@ async def search(
     distance: int | None = defaults.RADIUS,
     results_wanted: int = defaults.RESULTS_WANTED,
     hours_old: int | None = None,
-    fetch_description: bool = True,
+    detail: bool = True,
     cache: bool = True,
 ) -> list[dict]:
     """
@@ -176,10 +176,10 @@ async def search(
 
     This API answers POST alone, hence the ``PostFetcher``. An error result
     or a malformed page ends the search with whatever was collected.
-    """
-    # fetch_description: no-op: always included in the GraphQL response
-    # cache: no-op: nothing costs an extra request (one step, unlike linkedin's search -> hydrate details)
 
+    ``detail`` and ``cache`` are accepted and ignored: every field arrives
+    in the search response, and nothing costs an extra request.
+    """
     subdomain, api_code = indeed_domain(country)
     base_url = f"https://{subdomain}.indeed.com"
     headers = {**API_HEADERS, "indeed-co": api_code}

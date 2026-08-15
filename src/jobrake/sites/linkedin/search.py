@@ -58,7 +58,7 @@ async def search(
     distance: int | None = defaults.RADIUS,
     results_wanted: int = defaults.RESULTS_WANTED,
     hours_old: int | None = defaults.HOURS_OLD,
-    fetch_description: bool = defaults.FETCH_DESCRIPTION,
+    detail: bool = defaults.DETAIL,
     cache: bool = True,
 ) -> list[dict]:
     """
@@ -105,7 +105,7 @@ async def search(
         start += len(page)
 
     jobs = jobs[:results_wanted]
-    if fetch_description:
+    if detail:
         logger.info("fetching posting details for %d jobs...", len(jobs))
         postings = await fetch_postings(fetcher, (job["url"] for job in jobs), cache=cache)
         # A posting gone or unreachable between search and hydration keeps its summary fields.

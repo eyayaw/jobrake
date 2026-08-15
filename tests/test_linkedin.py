@@ -116,9 +116,7 @@ def test_every_request_takes_a_token(monkeypatch):
         {"seeMoreJobPostings": ok(linkedin_card("111")), "jobs/view/111": ok(job_page())}
     )
     asyncio.run(
-        linkedin.search(
-            fetcher, search_term="x", location="Seattle", results_wanted=1, fetch_description=True
-        )
+        linkedin.search(fetcher, search_term="x", location="Seattle", results_wanted=1, detail=True)
     )
     assert len(acquired) == len(fetcher.requests) == 2
 
@@ -128,9 +126,7 @@ def test_search_detail_hydrates_from_the_canonical_page(unlimited):
         {"seeMoreJobPostings": ok(linkedin_card("111")), "jobs/view/111": ok(job_page())}
     )
     jobs = asyncio.run(
-        linkedin.search(
-            fetcher, search_term="x", location="Seattle", results_wanted=1, fetch_description=True
-        )
+        linkedin.search(fetcher, search_term="x", location="Seattle", results_wanted=1, detail=True)
     )
     assert jobs[0]["description"] == "Great & big role"
     assert jobs[0]["employment_type"] == "full_time"
@@ -143,9 +139,7 @@ def test_search_keeps_the_summary_when_the_posting_is_gone(unlimited):
         {"seeMoreJobPostings": ok(linkedin_card("111")), "jobs/view/111": not_found()}
     )
     jobs = asyncio.run(
-        linkedin.search(
-            fetcher, search_term="x", location="Seattle", results_wanted=1, fetch_description=True
-        )
+        linkedin.search(fetcher, search_term="x", location="Seattle", results_wanted=1, detail=True)
     )
     assert jobs[0]["title"] == "Economist"
     assert jobs[0]["description"] == ""
@@ -159,7 +153,7 @@ def test_search_reruns_only_fetch_unseen_postings(unlimited):
             search_term="x",
             location="Seattle",
             results_wanted=1,
-            fetch_description=True,
+            detail=True,
         )
     )
     rerun_fetcher = StubFetcher(responses)
@@ -169,7 +163,7 @@ def test_search_reruns_only_fetch_unseen_postings(unlimited):
             search_term="x",
             location="Seattle",
             results_wanted=1,
-            fetch_description=True,
+            detail=True,
         )
     )
     assert jobs[0]["description"] == rerun[0]["description"] == "Great & big role"

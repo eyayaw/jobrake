@@ -21,7 +21,7 @@ async def scrape(
     distance: int | None = None,
     results_wanted: int = 25,
     hours_old: int | None = None,
-    fetch_description: bool = False,
+    detail: bool = False,
     cache: bool = True,
     fetcher=None,
 ) -> list[dict]:
@@ -35,9 +35,9 @@ async def scrape(
 
     ``country`` is required for indeed, ignored by linkedin.
     ``location`` is required for linkedin, optional for indeed.
-    ``fetch_description`` (linkedin) hydrates each job from its posting
-    page—the description and every other field the posting states—at one
-    extra paced request per job; indeed's search response already carries
+    ``detail`` (linkedin) hydrates each job from its posting page, the
+    description and other attributes the page carries, at one extra paced
+    request per job. Indeed's search response already carries
     everything it knows, so the flag is a no-op there.
     ``cache`` (linkedin) serves still-fresh postings from an on-disk cache
     in the user cache directory instead of refetching (freshness window:
@@ -56,7 +56,7 @@ async def scrape(
         distance=distance,
         results_wanted=results_wanted,
         hours_old=hours_old,
-        fetch_description=fetch_description,
+        detail=detail,
         cache=cache,
     )
     if site == "linkedin":

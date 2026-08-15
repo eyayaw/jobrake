@@ -43,19 +43,20 @@ def main():
         help="number of unique job postings to fetch",
     )
     parser.add_argument(
-        "--hours-old", "-a", default=defaults.HOURS_OLD, type=int, help="age of job posted in hours"
+        "--hours-old", "-a", default=defaults.HOURS_OLD, type=int, help="age of postings in hours"
     )
     parser.add_argument(
-        "--fetch-description",
+        "--detail",
         "-d",
-        default=defaults.FETCH_DESCRIPTION,
+        default=defaults.DETAIL,
         action="store_true",
-        help="fetch the full description of the job post (linkedin only; indeed always includes descriptions)",
+        help="fetch each job's posting page for the description and the other detail fields"
+        " (linkedin; indeed's search results already carry them)",
     )
     parser.add_argument(
         "--no-cache",
         action="store_true",
-        help="always refetch descriptions instead of serving cached ones from disk (linkedin)",
+        help="always refetch postings instead of serving cached ones from disk (linkedin)",
     )
     parser.add_argument(
         "--output",
@@ -85,7 +86,7 @@ def main():
                 distance=args.radius,
                 results_wanted=args.results_wanted,
                 hours_old=args.hours_old,
-                fetch_description=args.fetch_description,
+                detail=args.detail,
                 cache=not args.no_cache,
             )
         )
