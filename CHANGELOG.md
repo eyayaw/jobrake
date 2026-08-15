@@ -1,5 +1,44 @@
 # Changelog
 
+## [0.9.0] — 2026-08-15
+
+Jobs now share a single cross-site data model: a field means the same thing
+whichever site a row came from. `site`, `id`, and `url` address the posting;
+`title`, `company`, `location`, and `date` are part of every search result;
+the rest—`description`, salary, employment type, structured location, and
+more—we extract from the posting, null when it was missing from what we
+fetched.
+
+
+### New
+
+- LinkedIn `--detail | -d` fetches each job's posting page and extracts additional attributes:
+  description, salary, employment type, posted and expiry timestamps, location (geo) info, applicant count, apply type, etc.
+- Country-level LinkedIn postings (e.g., "Spain", "EMEA"), whose pages don't carry
+  the structured block, fill from the page markup plus one extra request for the en-US guest fragment.
+- Indeed fills the same fields from the search response it already
+  receives—salary, the employer's own apply URL, company page and logo,
+  employment type, remote, coordinates, and expiry—at the same single
+  request.
+- `linkedin.fetch_postings(fetcher, urls)` fetches postings by their URLs, through the same cache.
+- `employment_type` labels are unified across sites: LinkedIn's `FULL_TIME` and Indeed's `Full-time` both read back `full_time`.
+- `--version` prints the installed version; `jobrake.__version__` carries it for the library.
+
+### Changed
+
+- **Breaking**: `--fetch-description` (`fetch_description`) is now `--detail` (same `-d`); the kwarg is `detail`. The flag fills more than `description`, unlike the old flag.
+- **Breaking**: `site` is required when constructing a `Job`; `(site, id)` identifies a posting globally.
+- The cache stores whole postings (`postings.sqlite3`, keyed by site and posting id).
+The old `descriptions.sqlite3` is abandoned in place, delete it at will.
+- Field order, and with it the csv header, reads identity, summary, detail:
+  `site`, `id`, `url`, `title`, `company`, `location`, `date`, `description`, then the rest.
+- `date` derives from the posting timestamp when the search result offers none.
+
+### Removed
+
+- **Breaking**: `linkedin.fetch_descriptions` and `parse_description`. The
+  fragment they read costs one request, the same as the whole posting, and carries only the description.
+
 ## [0.8.0] — 2026-08-13
 
 Each site scraper is a package now: `jobrake.linkedin` and `jobrake.indeed`
@@ -117,6 +156,7 @@ on the private fetchkit package.
 
 The fetchkit transport subset vendored as `jobrake.fetchkit`.
 
+[0.9.0]: https://github.com/eyayaw/jobrake/releases/tag/v0.9.0
 [0.8.0]: https://github.com/eyayaw/jobrake/releases/tag/v0.8.0
 [0.7.0]: https://github.com/eyayaw/jobrake/releases/tag/v0.7.0
 [0.6.0]: https://github.com/eyayaw/jobrake/releases/tag/v0.6.0
