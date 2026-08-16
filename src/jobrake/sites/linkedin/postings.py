@@ -1,7 +1,5 @@
 """Full posting detail from the schema.org block on a job's canonical page."""
 
-from __future__ import annotations
-
 import json
 import re
 from collections.abc import Iterable
@@ -39,9 +37,15 @@ def _job_posting(soup: BeautifulSoup) -> dict:
             data = json.loads(block.string or "")
         except json.JSONDecodeError:
             continue
-        for item in data if isinstance(data, list) else [data]:
-            if isinstance(item, dict) and item.get("@type") == "JobPosting":
+        queue = data if isinstance(data, list) else [data]
+        for item in queue:
+            if not isinstance(item, dict):
+                continue
+            kind = item.get("@type")
+            if kind == "JobPosting" or isinstance(kind, list) and "JobPosting" in kind:
                 return item
+            graph = item.get("@graph")
+            queue.extend(graph if isinstance(graph, list) else [graph] if graph else [])
     return {}
 
 
@@ -126,19 +130,17 @@ def parse_posting(html: str) -> dict:
     """
     Extract a posting's fields from its canonical page.
 
-    Returns a dict of ``Job`` fields, holding only what we could
-    extract. A page with nothing extractable yields ``{}``.
+    The page markup fills fields absent from the schema.org block; structured values
+    win where both sources speak. A page with nothing extractable yields ``{}``.
 
-    Two sources feed the dict. The page's schema.org JobPosting block
-    carries the structured fields, renamed to the model's names. The
-    page markup fills what the block omits.
-
-    The block is not always there. LinkedIn serves it only when the
-    posting names a city and the request hits the posting country's
-    subdomain. A country-level posting never carries it, on any
-    subdomain. A block-less page yields the markup fields alone.
+    The block is absent when the posting has a country-level location, on any subdomain.
     """
-    soup = BeautifulSoup(html, "html.parser")
+    fields, _ = _parse_posting(BeautifulSoup(html, "html.parser"))
+    return fields
+
+
+def _parse_posting(soup: BeautifulSoup) -> tuple[dict, bool]:
+    """Extract fields and report whether a structured posting block supplied them."""
     posting = _job_posting(soup)
     org = _obj(posting.get("hiringOrganization"))
     place = _obj(posting.get("jobLocation"))
@@ -176,12 +178,13 @@ def parse_posting(html: str) -> dict:
         "applicants": _applicants(soup),
     }
     # The block wins wherever both speak.
-    return {
+    fields = {
         name: value
         for source in (from_markup, from_block)
         for name, value in source.items()
         if value not in (None, "")
     }
+    return fields, bool(posting)
 
 
 def _canonical(url: str) -> str:
@@ -230,9 +233,10 @@ async def fetch_postings(
             continue
         result = await paced_fetch(fetcher, _canonical(url))
         if result.ok:
-            if not (posting := parse_posting(result.text)):
+            posting, structured = _parse_posting(BeautifulSoup(result.text, "html.parser"))
+            if not posting:
                 continue
-            if "application/ld+json" not in result.text and posting_id:
+            if not structured and posting_id:
                 # A block-less page arrives localized, hiding the labeled
                 # fields (employment type, salary) from the markup parsers;
                 # the en-US fragment repeats it parseably. One extra request,

@@ -284,11 +284,21 @@ def test_parse_posting_survives_schema_variants():
     assert "experience_months" not in fields
     assert linkedin.parse_posting("<html><body>signup wall</body></html>") == {}
 
+    graph = {
+        "@graph": [
+            {"@type": "Organization"},
+            {"@type": ["Thing", "JobPosting"], "description": "Role"},
+        ]
+    }
+    page = f'<script type="application/ld+json">{json.dumps(graph)}</script>'
+    assert linkedin.parse_posting(page)["description"] == "Role"
+
 
 def blockless_page():
     # A country-level posting: a real job page, localized, no schema.org block.
     return """
-    <html><div class="show-more-less-html__markup">Great &amp; big role</div>
+    <html><script type="application/ld+json">{"@type": "Organization"}</script>
+    <div class="show-more-less-html__markup">Great &amp; big role</div>
     <button data-tracking-control-name="public_jobs_apply-link-offsite"></button>
     <li class="description__job-criteria-item">
       <h3 class="description__job-criteria-subheader">Tipo de empleo</h3>
