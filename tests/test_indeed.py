@@ -55,7 +55,7 @@ def indeed_payload(keys, cursor=None):
 
 
 def test_indeed_parses_and_paginates():
-    pages = [indeed_payload(["a", "b"], cursor="next"), indeed_payload(["c"])]
+    pages = [indeed_payload(["a", "b"], cursor="next"), indeed_payload(["b", "c"])]
 
     class Paged(StubFetcher):
         async def post(self, url, json_body, headers=None):
@@ -73,6 +73,16 @@ def test_indeed_parses_and_paginates():
     assert jobs[0]["description"] == "Economist & analyst"
     assert jobs[0]["date"] == "2024-06-01"
     assert len(fetcher.requests) == 2  # stopped when cursor ran out
+
+
+def test_indeed_stops_a_repeated_cursor_without_repeating_jobs():
+    page = ok(json.dumps(indeed_payload(["a"], cursor="same")))
+    fetcher = StubFetcher({"apis.indeed.com": page})
+
+    jobs = asyncio.run(indeed.search(fetcher, search_term="x", country="usa", results_wanted=10))
+
+    assert [job["id"] for job in jobs] == ["a"]
+    assert len(fetcher.requests) == 2
 
 
 def test_indeed_keeps_a_job_whose_date_is_not_milliseconds(caplog):

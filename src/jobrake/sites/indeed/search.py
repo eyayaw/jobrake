@@ -209,6 +209,8 @@ async def search(
     headers = {**API_HEADERS, "indeed-co": api_code}
 
     jobs: list[dict] = []
+    seen: set[str] = set()
+    cursors: set[str] = set()
     cursor: str | None = None
     while len(jobs) < results_wanted:
         query = build_query(search_term, location, distance, hours_old, cursor)
@@ -221,7 +223,12 @@ async def search(
             break
         if not page:
             break
-        jobs.extend(page)
-        if not cursor:
+        for job in page:
+            if job["id"] in seen:
+                continue
+            seen.add(job["id"])
+            jobs.append(job)
+        if not cursor or cursor in cursors:
             break
+        cursors.add(cursor)
     return jobs[:results_wanted]
