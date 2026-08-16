@@ -1,6 +1,7 @@
 """Transport result, exception, and HTTP adapter contracts."""
 
 import asyncio
+import math
 
 import httpx
 import pytest
@@ -63,3 +64,9 @@ def test_httpx_fetcher_maps_get_and_post_responses():
     assert post.error is not None
     assert post.error.category is ErrorCategory.SERVER
     assert post.text == "POST"
+
+
+@pytest.mark.parametrize("value", [0, -1, math.nan, math.inf])
+def test_httpx_fetcher_rejects_invalid_timeouts(value):
+    with pytest.raises(ValueError):
+        HttpxFetcher(timeout=value)

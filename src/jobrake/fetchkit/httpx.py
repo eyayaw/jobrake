@@ -1,5 +1,6 @@
 """httpx-backed fetcher."""
 
+import math
 from collections.abc import Awaitable
 
 import httpx
@@ -26,8 +27,9 @@ class HttpxFetcher(BaseFetcher):
         cookies: dict[str, str] | None = None,
         jitter: float = 0.1,
     ):
-        if timeout <= 0:
-            raise ValueError("timeout must be positive")
+        timeout = float(timeout)
+        if not math.isfinite(timeout) or timeout <= 0:
+            raise ValueError("timeout must be finite and positive")
         super().__init__(jitter)
         self.timeout = timeout
         self.follow_redirects = follow_redirects
