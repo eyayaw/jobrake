@@ -52,7 +52,7 @@ def epoch_ms_to_iso(ms: float | str) -> str:
     """
     try:
         stamp = datetime.fromtimestamp(float(ms) / 1000.0, tz=UTC)
-    except (OSError, OverflowError) as e:
+    except (TypeError, ValueError, OSError, OverflowError) as e:
         raise ValueError(f"not epoch milliseconds: {ms!r}") from e
     if stamp.year < 2000:
         raise ValueError(f"not epoch milliseconds, seconds rather than ms?: {ms!r}")
