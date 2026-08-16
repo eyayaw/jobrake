@@ -38,13 +38,13 @@ def test_stale_fields_are_absent_but_tombstones_never_expire(tmp_path):
     assert cache.get("linkedin", ["111", "222"]) == {"222": None}
 
 
-def test_retention_purges_old_rows_on_open(tmp_path):
+def test_retention_purges_fields_but_keeps_tombstones(tmp_path):
     cache = make_cache(tmp_path)
-    cache.put("linkedin", {"111": None})  # even tombstones leave eventually
+    cache.put("linkedin", {"111": POSTING, "222": None})
     age_rows(cache, RETENTION + 1)
     reopened = make_cache(tmp_path)
-    assert reopened.get("linkedin", ["111"]) == {}
-    assert reopened._conn.execute("SELECT count(*) FROM postings").fetchone() == (0,)
+    assert reopened.get("linkedin", ["111", "222"]) == {"222": None}
+    assert reopened._conn.execute("SELECT count(*) FROM postings").fetchone() == (1,)
 
 
 @pytest.mark.parametrize(

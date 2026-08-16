@@ -18,7 +18,7 @@ PACKAGE_NAME = "jobrake"
 CACHE_DB_NAME = "postings.sqlite3"
 
 TTL = 7 * 24 * 3600  # seconds before cached fields go stale (live postings can be edited)
-# Rows older than RETENTION are purged on open, keeping the file from growing forever.
+# Posting fields older than RETENTION are purged on open; tombstones remain authoritative.
 RETENTION = 30 * 24 * 3600
 
 _SCHEMA = """\
@@ -88,7 +88,7 @@ class PostingCache:
                 conn = sqlite3.connect(self.path)
                 conn.execute(_SCHEMA)
                 conn.execute(
-                    "DELETE FROM postings WHERE fetched_at < ?",
+                    "DELETE FROM postings WHERE fields IS NOT NULL AND fetched_at < ?",
                     (time.time() - self.retention,),
                 )
                 conn.commit()
