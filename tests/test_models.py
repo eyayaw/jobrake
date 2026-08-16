@@ -9,6 +9,7 @@ def test_employment_type_is_unified_across_sites():
     assert employment_type("CONTRACTOR") == employment_type("Contract") == "contract"
     assert employment_type("INTERN") == employment_type("Internship") == "internship"
     assert employment_type(None) is None
+    assert employment_type("---") is None
 
 
 def test_date_falls_back_to_the_posting_timestamp():

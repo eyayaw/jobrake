@@ -90,4 +90,4 @@ def employment_type(label: str | None) -> str | None:
     if not label:
         return None
     slug = re.sub(r"[^a-z0-9]+", "_", label.lower()).strip("_")
-    return _EMPLOYMENT_ALIASES.get(slug, slug)
+    return _EMPLOYMENT_ALIASES.get(slug, slug or None)
