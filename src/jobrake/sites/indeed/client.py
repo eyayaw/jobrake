@@ -1,13 +1,9 @@
-"""Endpoint, app key, and headers for Indeed's mobile-app GraphQL API."""
-
-from __future__ import annotations
+"""Endpoint and headers for Indeed's mobile-app GraphQL API."""
 
 API_URL = "https://apis.indeed.com/graphql"
 
-# The public API key baked into Indeed's iOS app—shared by every client of
-# this endpoint (jobspy ships the same one), so it is not a secret. If Indeed
-# rotates it, requests start failing with 401/403; lift the fresh key from the
-# app or jobspy and update this one line.
+# Taken from jobspy
+# Indeed ships this public key in its iOS app, if changed, 401/403 results will be returned.
 INDEED_APP_KEY = "161092c2017b5bbab13edb12461a62d5a833871e7cad6d9d475304573de67ac8"
 
 API_HEADERS = {
@@ -22,3 +18,5 @@ API_HEADERS = {
     ),
     "indeed-app-info": "appv=193.1; appid=com.indeed.jobsearch; osv=16.6.1; os=ios; dtype=phone",
 }
+
+__all__ = ["API_HEADERS", "API_URL", "INDEED_APP_KEY"]

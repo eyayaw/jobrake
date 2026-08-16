@@ -1,7 +1,5 @@
 """Paging the GraphQL job search."""
 
-from __future__ import annotations
-
 import json
 import logging
 import re
@@ -77,18 +75,19 @@ def build_query(
     hours_old: int | None,
     cursor: str | None,
 ) -> str:
-    escaped = search_term.replace('"', '\\"')
     filters = ""
     if hours_old:
         filters = f'filters: {{ date: {{ field: "dateOnIndeed", start: "{hours_old}h" }} }}'
     return QUERY.format(
-        what=f'what: "{escaped}"' if escaped else "",
+        what=f"what: {json.dumps(search_term)}" if search_term else "",
         location=(
-            f'location: {{ where: "{location}", radius: {distance or defaults.RADIUS}, radiusUnit: {defaults.RADIUS_UNIT} }}'
+            f"location: {{ where: {json.dumps(location)}, "
+            f"radius: {defaults.RADIUS if distance is None else distance}, "
+            f"radiusUnit: {defaults.RADIUS_UNIT} }}"
             if location
             else ""
         ),
-        cursor=f'cursor: "{cursor}"' if cursor else "",
+        cursor=f"cursor: {json.dumps(cursor)}" if cursor else "",
         filters=filters,
     )
 
