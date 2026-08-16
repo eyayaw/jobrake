@@ -2,39 +2,41 @@
 
 import asyncio
 
+import pytest
 from fakes import StubFetcher, ok
 
-from jobrake import scrape
+from jobrake import scrape, sites
 
 
-def test_scrape_rejects_unknown_site():
-    try:
-        asyncio.run(scrape("glassdoor", search_term="x"))
-    except ValueError as e:
-        assert "glassdoor" in str(e)
-    else:
-        raise AssertionError("expected ValueError")
+@pytest.mark.parametrize(
+    ("site", "missing"),
+    [("glassdoor", "glassdoor"), ("indeed", "country"), ("linkedin", "location")],
+)
+def test_scrape_rejects_invalid_scope_before_opening_a_fetcher(site, missing, monkeypatch):
+    def must_not_open():
+        raise AssertionError("opened transport before validating arguments")
 
-
-def test_scrape_requires_country_for_indeed():
-    try:
-        asyncio.run(scrape("indeed", search_term="x"))
-    except ValueError as e:
-        assert "country" in str(e)
-    else:
-        raise AssertionError("expected ValueError")
-
-
-def test_scrape_requires_location_for_linkedin():
-    try:
-        asyncio.run(scrape("linkedin", search_term="x"))
-    except ValueError as e:
-        assert "location" in str(e)
-    else:
-        raise AssertionError("expected ValueError")
+    monkeypatch.setattr(sites, "HttpxFetcher", must_not_open)
+    with pytest.raises(ValueError, match=missing):
+        asyncio.run(scrape(site, search_term="x"))
 
 
 def test_scrape_does_not_close_injected_fetcher():
+    closed = []
+
+    class Recording(StubFetcher):
+        def __bool__(self):
+            return False
+
+        async def close(self):
+            closed.append(True)
+
+    fetcher = Recording({"seeMoreJobPostings": ok("")})
+    asyncio.run(scrape("linkedin", search_term="x", location="Seattle", fetcher=fetcher))
+    assert closed == []
+
+
+def test_scrape_closes_its_default_fetcher(monkeypatch):
     closed = []
 
     class Recording(StubFetcher):
@@ -42,5 +44,8 @@ def test_scrape_does_not_close_injected_fetcher():
             closed.append(True)
 
     fetcher = Recording({"seeMoreJobPostings": ok("")})
-    asyncio.run(scrape("linkedin", search_term="x", location="Seattle", fetcher=fetcher))
-    assert closed == []
+    monkeypatch.setattr(sites, "HttpxFetcher", lambda: fetcher)
+
+    asyncio.run(scrape("linkedin", search_term="x", location="Seattle"))
+
+    assert closed == [True]

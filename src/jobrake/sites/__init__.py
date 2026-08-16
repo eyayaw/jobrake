@@ -1,4 +1,4 @@
-"""One package per site, the table of supported sites, and the ``scrape`` entrypoint."""
+"""Supported sites and the public ``scrape`` entrypoint."""
 
 from collections.abc import Callable
 
@@ -26,39 +26,20 @@ async def scrape(
     fetcher=None,
 ) -> list[dict]:
     """
-    Scrape one site; returns plain job dicts.
+    Scrape one site into unified job dicts.
 
     ``fetcher`` accepts any ``jobrake.fetchkit.Fetcher`` (injected fetchers are
     not closed here—the caller owns their lifecycle); indeed needs the
     ``PostFetcher`` variant. The default :class:`HttpxFetcher` qualifies for
     every site.
 
-    ``country`` is required for indeed, ignored by linkedin.
-    ``location`` is required for linkedin, optional for indeed.
-    ``detail`` (linkedin) hydrates each job from its posting page, the
-    description and other attributes the page carries, at one extra paced
-    request per job. Indeed's search response already carries
-    everything it knows, so the flag is a no-op there.
-    ``cache`` (linkedin) serves still-fresh postings from an on-disk cache
-    in the user cache directory instead of refetching (freshness window:
-    ``jobrake.cache.TTL``).
+    Indeed requires ``country``, LinkedIn requires ``location``.
+    In LinkedIn, posting attributes for ``detail`` are hydrated from the posting page, and
+    ``cache`` reuses fresh hydration results.
     """
     searchers = site_searchers()
     if site not in searchers:
         raise ValueError(f"unknown site {site!r}; expected one of {sorted(searchers)}")
-
-    owns_fetcher = fetcher is None
-    fetcher = fetcher or HttpxFetcher()
-    kwargs = dict(
-        search_term=search_term,
-        location=location,
-        country=country,
-        distance=distance,
-        results_wanted=results_wanted,
-        hours_old=hours_old,
-        detail=detail,
-        cache=cache,
-    )
     if site == "linkedin":
         if location is None:
             raise ValueError(
@@ -67,8 +48,22 @@ async def scrape(
     elif site == "indeed":
         if country is None:
             raise ValueError(f"country is required for site='{site}' (pass e.g. 'usa', 'germany')")
+
+    owns_fetcher = fetcher is None
+    if owns_fetcher:
+        fetcher = HttpxFetcher()
+    options = {
+        "search_term": search_term,
+        "location": location,
+        "country": country,
+        "distance": distance,
+        "results_wanted": results_wanted,
+        "hours_old": hours_old,
+        "detail": detail,
+        "cache": cache,
+    }
     try:
-        return await searchers[site](fetcher, **kwargs)
+        return await searchers[site](fetcher, **options)
     finally:
         if owns_fetcher:
             await fetcher.close()
