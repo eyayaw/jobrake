@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.10.0] — 2026-08-18
+
+### Fixed
+
+- `scrape` validates the site and required geographic arguments before creating
+  its default fetcher. Caller-supplied fetchers remain caller-owned even when
+  they define a falsy value.
+- The posting cache preserves gone-posting tombstones during retention cleanup.
+  Invalid stored posting fields and storage failures disable the cache and make
+  subsequent lookups cache misses.
+- Canceled token-bucket waits leave later requests on their expected schedule.
+- `HttpxFetcher` rejects zero, negative, NaN, and infinite timeout values before
+  opening its client.
+- Indeed safely encodes GraphQL search, location, and cursor values and
+  preserves an explicit radius of zero.
+- Indeed deduplicates jobs across pages and terminates pagination when a cursor
+  repeats.
+- LinkedIn deduplicates cards by posting ID and advances pagination by the
+  parsed card count.
+- LinkedIn recognizes `JobPosting` data in JSON-LD graphs and list-valued
+  `@type` fields. Unrelated JSON-LD blocks still allow the blockless-posting
+  fallback.
+- Punctuation-only employment labels resolve to `None`, and invalid
+  epoch-millisecond values receive a consistent `ValueError`.
+
 ## [0.9.0] — 2026-08-15
 
 Jobs now share a single cross-site data model: a field means the same thing
@@ -156,6 +181,7 @@ on the private fetchkit package.
 
 The fetchkit transport subset vendored as `jobrake.fetchkit`.
 
+[0.10.0]: https://github.com/eyayaw/jobrake/releases/tag/v0.10.0
 [0.9.0]: https://github.com/eyayaw/jobrake/releases/tag/v0.9.0
 [0.8.0]: https://github.com/eyayaw/jobrake/releases/tag/v0.8.0
 [0.7.0]: https://github.com/eyayaw/jobrake/releases/tag/v0.7.0

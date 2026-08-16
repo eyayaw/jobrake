@@ -171,7 +171,7 @@ This makes it as fast as the server permits without triggering 429s. If a reques
 
 We extract summary fields from the search results. The description and the rest of attributes live on the job's posting page, so this requires an extra request per job against the same rate limit. Use `--detail | -d` in the CLI to fetch these attributes.
 
-Fetched postings are cached on disk for [a week](https://github.com/eyayaw/jobrake/blob/3645343c56e2e706f81e2582407e9807824c0186/src/jobrake/cache.py#L20) (in your user cache directory), so repeated runs only pay for postings that have not been seen. A posting that is gone (404/410) is remembered and never refetched. Pass `--no-cache` (or `cache=False`) to bypass the cache.
+Fetched postings are cached on disk for a week (see [`TTL`](src/jobrake/cache.py)) in your user cache directory, so repeated runs only pay for postings that have not been seen. A posting that is gone (404/410) is remembered and never refetched. Pass `--no-cache` (or `cache=False`) to bypass the cache.
 
 I advise being gentle with the guest API. Detail fetches cost one paced request per job, so a long list takes its time by design. The cache makes repeats cheap. If you only want some of the jobs, list without `-d` and fetch just the interesting ones with `linkedin.fetch_postings(fetcher, urls)`. It maps each url to the posting's fields, or to `None` when the posting is gone (404/410); a url that failed transiently is absent and safe to retry.
 
