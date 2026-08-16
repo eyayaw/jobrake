@@ -1,4 +1,4 @@
-"""Minimal async fetch layer: the httpx transport, its base contract, and result types."""
+"""Async HTTP transport, result types, and request pacing."""
 
 from .base import BaseFetcher, Fetcher, PostFetcher
 from .httpx import HttpxFetcher

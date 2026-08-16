@@ -1,18 +1,17 @@
-"""Fetcher protocol, shared base implementation, and transport defaults."""
+"""Fetcher protocols and shared base class."""
 
 import asyncio
 import logging
 import math
 import random
-from collections.abc import Awaitable, Callable
-from typing import Protocol
+from collections.abc import Awaitable
+from typing import Protocol, Self
 
 from .types import ErrorCategory, FetchError, FetchResult
 
 logger = logging.getLogger(__name__)
 
-HTTP_TIMEOUT: float = 30.0
-
+HTTP_TIMEOUT = 30.0
 DEFAULT_ACCEPT = "text/html,application/json,*/*"
 DEFAULT_USER_AGENT = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
@@ -21,85 +20,50 @@ DEFAULT_USER_AGENT = (
 
 
 class Fetcher(Protocol):
-    """
-    Protocol for URL fetchers.
+    """A GET transport whose failures are returned as ``FetchResult.error``."""
 
-    A fetcher retrieves content from a URL and reports the outcome as a
-    ``FetchResult``: failures become ``result.error`` rather than exceptions,
-    and retry decisions stay with the caller.
+    async def fetch(self, url: str, headers: dict[str, str] | None = None) -> FetchResult: ...
 
-    Implementations can wrap any HTTP library (httpx, aiohttp, requests, etc.)
-    or browser automation tools (Playwright, Selenium, etc.).
-    """
-
-    async def fetch(self, url: str, headers: dict[str, str] | None = None) -> FetchResult:
-        """
-        Fetch content from a URL.
-
-        Args:
-            url: The URL to fetch
-            headers: Optional per-request headers
-
-        Returns:
-            FetchResult carrying content on success or an error on failure.
-            Never raises exceptions.
-        """
-        ...
-
-    async def close(self) -> None:
-        """Clean up resources (close connections, etc.)."""
-        ...
+    async def close(self) -> None: ...
 
 
 class PostFetcher(Fetcher, Protocol):
-    """A Fetcher that can also POST JSON, e.g., the indeed scraper."""
+    """A fetcher that also supports JSON POST requests."""
 
     async def post(
         self, url: str, json_body: dict, headers: dict[str, str] | None = None
-    ) -> FetchResult:
-        """POST a JSON body, under the same never-raises contract as ``fetch``."""
-        ...
+    ) -> FetchResult: ...
 
 
 class BaseFetcher:
-    """
-    Shared fetcher implementation. Custom transports may subclass this.
+    """Base for transports that map exceptions onto results and add GET jitter."""
 
-    Subclasses implement ``_fetch`` and declare ``network_errors``; the
-    never-raises guarantee, jitter spacing, and error mapping live here.
-    """
-
-    # Transport-specific exceptions that should map to a NETWORK error.
     network_errors: tuple[type[BaseException], ...] = ()
 
     def __init__(self, jitter: float = 0.0):
-        jitter = float(jitter)
-        if jitter < 0 or not math.isfinite(jitter):
+        self.jitter = float(jitter)
+        if not math.isfinite(self.jitter) or self.jitter < 0:
             raise ValueError("jitter must be nonnegative and finite")
-        self.jitter = jitter
 
     async def fetch(self, url: str, headers: dict[str, str] | None = None) -> FetchResult:
-        """Fetch a URL, never raising—failures become FetchResult errors."""
-        if self.jitter > 0:
-            # Small random spacing between requests (anti-fingerprinting).
+        if self.jitter:
             await asyncio.sleep(random.uniform(0, self.jitter))
-        return await self._capture_result(url, lambda: self._fetch(url, headers))
+        return await self._capture_result(url, self._fetch(url, headers))
 
-    async def _capture_result(
-        self,
-        url: str,
-        operation: Callable[[], Awaitable[FetchResult]],
-    ) -> FetchResult:
-        """Run a transport operation under the fetcher's error contract."""
+    async def _capture_result(self, url: str, operation: Awaitable[FetchResult]) -> FetchResult:
         try:
-            return await operation()
-        except Exception as e:
-            if isinstance(e, self.network_errors):
-                category = ErrorCategory.NETWORK
-            else:
-                category = ErrorCategory.UNKNOWN
-            logger.debug("Fetch error for %s: %s", url, e)
-            return FetchResult(url=url, error=FetchError(category, str(e), original_error=e))
+            return await operation
+        except Exception as error:
+            category = (
+                ErrorCategory.NETWORK
+                if isinstance(error, self.network_errors)
+                else ErrorCategory.UNKNOWN
+            )
+            logger.debug("fetch error for %s: %s", url, error)
+            return FetchResult(
+                url=url,
+                error=FetchError(category, str(error), original_error=error),
+            )
 
     async def _fetch(self, url: str, headers: dict[str, str] | None) -> FetchResult:
         raise NotImplementedError
@@ -107,13 +71,18 @@ class BaseFetcher:
     async def close(self) -> None:
         pass
 
-    async def __aenter__(self) -> "BaseFetcher":
+    async def __aenter__(self) -> Self:
         return self
 
-    async def __aexit__(
-        self,
-        exc_type: type[BaseException] | None,
-        exc_val: BaseException | None,
-        exc_tb: object,
-    ) -> None:
+    async def __aexit__(self, *_: object) -> None:
         await self.close()
+
+
+__all__ = [
+    "BaseFetcher",
+    "DEFAULT_ACCEPT",
+    "DEFAULT_USER_AGENT",
+    "Fetcher",
+    "HTTP_TIMEOUT",
+    "PostFetcher",
+]

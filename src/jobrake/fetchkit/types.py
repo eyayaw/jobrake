@@ -1,6 +1,4 @@
-"""Core types for fetch results and errors (stdlib-only by design)."""
-
-from __future__ import annotations
+"""Fetch result and error types."""
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field
@@ -19,7 +17,7 @@ class ErrorCategory(str, Enum):
 
 @dataclass
 class FetchError:
-    """Unified error representation for fetchers."""
+    """A transport or HTTP failure."""
 
     category: ErrorCategory
     message: str
@@ -29,7 +27,7 @@ class FetchError:
 
 @dataclass
 class FetchResult:
-    """Result of a fetch operation."""
+    """Content or an error returned by a fetcher."""
 
     url: str
     status_code: int | None = None
@@ -42,53 +40,24 @@ class FetchResult:
         return self.error is None
 
 
-def build_result(
-    url: str,
-    status_code: int,
-    text: str,
-    headers: Mapping[str, str],
-) -> FetchResult:
-    """
-    Turn an HTTP response into a FetchResult.
-
-    Handles 429 (rate-limited), 4xx/5xx (error), and 2xx/3xx (success).
-    Header keys are normalized to lowercase, so lookups behave the same
-    for every transport. Error results retain the response body for caller
-    inspection.
-    """
-    normalized = {k.lower(): v for k, v in headers.items()}
-
+def build_result(url: str, status_code: int, text: str, headers: Mapping[str, str]) -> FetchResult:
+    """Build a result from an HTTP response, retaining error response bodies."""
+    headers = {name.lower(): value for name, value in headers.items()}
     if status_code < 400:
-        return FetchResult(
-            url=url,
-            status_code=status_code,
-            text=text,
-            headers=normalized,
-        )
-
+        return FetchResult(url, status_code, text, headers)
     if status_code == 429:
-        error = FetchError(
-            ErrorCategory.RATE_LIMITED,
-            f"Rate limited: {status_code}",
-            http_status=429,
-        )
+        category, label = ErrorCategory.RATE_LIMITED, "Rate limited"
     elif status_code >= 500:
-        error = FetchError(
-            ErrorCategory.SERVER,
-            f"Server error: {status_code}",
-            http_status=status_code,
-        )
+        category, label = ErrorCategory.SERVER, "Server error"
     else:
-        error = FetchError(
-            ErrorCategory.CLIENT,
-            f"Client error: {status_code}",
-            http_status=status_code,
-        )
-
+        category, label = ErrorCategory.CLIENT, "Client error"
     return FetchResult(
-        url=url,
-        status_code=status_code,
-        text=text,
-        headers=normalized,
-        error=error,
+        url,
+        status_code,
+        text,
+        headers,
+        FetchError(category, f"{label}: {status_code}", status_code),
     )
+
+
+__all__ = ["ErrorCategory", "FetchError", "FetchResult", "build_result"]
