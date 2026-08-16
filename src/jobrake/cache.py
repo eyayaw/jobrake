@@ -1,6 +1,4 @@
-"""On-disk cache for hydrated postings."""
-
-from __future__ import annotations
+"""Best-effort SQLite cache for hydrated postings."""
 
 import json
 import logging
@@ -16,23 +14,20 @@ logger = logging.getLogger(__name__)
 
 PACKAGE_NAME = "jobrake"
 CACHE_DB_NAME = "postings.sqlite3"
-
-TTL = 7 * 24 * 3600  # seconds before cached fields go stale (live postings can be edited)
-# Posting fields older than RETENTION are purged on open; tombstones remain authoritative.
-RETENTION = 30 * 24 * 3600
-
-_SCHEMA = """\
+TTL = 7 * 24 * 3600  # seconds
+RETENTION = 30 * 24 * 3600  # older will be deleted on startup
+_SCHEMA = """
 CREATE TABLE IF NOT EXISTS postings (
-    site       TEXT NOT NULL,
-    id         TEXT NOT NULL,
-    fields     TEXT, -- JSON of the extracted fields; NULL means the posting is gone (tombstone)
+    site TEXT NOT NULL,
+    id TEXT NOT NULL,
+    fields TEXT,
     fetched_at REAL NOT NULL,
     PRIMARY KEY (site, id)
 )"""
 
 
 def _default_path() -> Path:
-    """The platform user-cache location for the posting database."""
+    """Return the platform user-cache location."""
     match sys.platform:
         case "darwin":
             base = Path.home() / "Library" / "Caches"
@@ -45,18 +40,12 @@ def _default_path() -> Path:
 
 class PostingCache:
     """
-    Best-effort ``(site, id) -> posting fields`` cache backed by sqlite.
+    Store posting fields or gone-posting tombstones under ``(site, id)``.
 
-    Persists the ``fetch_postings`` contract between runs: a dict holds the
-    fields parsed from the posting, NULL is a tombstone (the posting is
-    gone), and an absent row means not fetched yet. Fields older than ``ttl`` are treated as
-    absent, so employer edits are eventually picked up; tombstones never
-    expire, since a removed posting does not come back. Rows older than
-    ``retention`` are deleted when the file is opened.
-
-    Never raises: the first sqlite/OS failure logs a warning and disables
-    the cache for the rest of the process. The worst a broken cache may
-    cost is extra requests.
+    Fields expire after ``ttl`` and leave the cache after ``retention``.
+    Tombstones stay until the cache is deleted because a removed posting does not return.
+    A storage or decoding failure logs once and disables the cache, so cache
+    damage can cost requests but cannot stop a scrape.
     """
 
     def __init__(
@@ -66,16 +55,13 @@ class PostingCache:
         ttl: float = TTL,
         retention: float = RETENTION,
     ):
-        if not math.isfinite(ttl) or ttl <= 0:
+        self.ttl = float(ttl)
+        self.retention = float(retention)
+        if not math.isfinite(self.ttl) or self.ttl <= 0:
             raise ValueError(f"ttl ({ttl}) must be finite and positive")
-        if not math.isfinite(retention) or retention < ttl:
-            raise ValueError(
-                f"retention ({retention}) must be finite and at least ttl ({ttl}),"
-                " or rows would be purged before they go stale"
-            )
+        if not math.isfinite(self.retention) or self.retention < self.ttl:
+            raise ValueError(f"retention ({retention}) must be finite and at least ttl ({ttl})")
         self.path = Path(path) if path else _default_path()
-        self.ttl = ttl
-        self.retention = retention
         self._conn: sqlite3.Connection | None = None
         self._broken = False
 
@@ -85,27 +71,32 @@ class PostingCache:
         if self._conn is None:
             try:
                 self.path.parent.mkdir(parents=True, exist_ok=True)
-                conn = sqlite3.connect(self.path)
-                conn.execute(_SCHEMA)
-                conn.execute(
+                self._conn = sqlite3.connect(self.path)
+                self._conn.execute(_SCHEMA)
+                self._conn.execute(
                     "DELETE FROM postings WHERE fields IS NOT NULL AND fetched_at < ?",
                     (time.time() - self.retention,),
                 )
-                conn.commit()
+                self._conn.commit()
             except (sqlite3.Error, OSError) as error:
                 self._give_up(error)
-                return None
-            self._conn = conn
         return self._conn
 
     def _give_up(self, error: Exception) -> None:
+        if self._broken:
+            return
         self._broken = True
-        self._conn = None
+        if self._conn is not None:
+            try:
+                self._conn.close()
+            except sqlite3.Error:
+                pass
+            self._conn = None
         logger.warning("posting cache disabled (%s): %s", self.path, error)
 
     def get(self, site: str, ids: Iterable[str]) -> dict[str, dict | None]:
-        """Cached entries among ``ids``: fresh fields, or ``None`` for gone postings."""
-        ids = list(ids)
+        """Return fresh cached entries among ``ids``."""
+        ids = list(dict.fromkeys(ids))
         conn = self._connect()
         if conn is None or not ids:
             return {}
@@ -114,37 +105,41 @@ class PostingCache:
                 "SELECT id, fields, fetched_at FROM postings"
                 f" WHERE site = ? AND id IN ({','.join('?' * len(ids))})",
                 [site, *ids],
-            ).fetchall()
-        except (sqlite3.Error, OSError) as error:
+            )
+            stale = time.time() - self.ttl
+            found = {}
+            for posting_id, fields, fetched_at in rows:
+                if fields is None:
+                    found[posting_id] = None
+                elif fetched_at >= stale:
+                    value = json.loads(fields)
+                    if not isinstance(value, dict):
+                        raise ValueError("posting fields are not a JSON object")
+                    found[posting_id] = value
+            return found
+        except (json.JSONDecodeError, OSError, sqlite3.Error, ValueError) as error:
             self._give_up(error)
             return {}
-        stale = time.time() - self.ttl
-        return {
-            pid: None if fields is None else json.loads(fields)
-            for pid, fields, at in rows
-            if fields is None or at >= stale
-        }
 
     def put(self, site: str, postings: dict[str, dict | None]) -> None:
-        """Upsert entries; values follow the ``get`` contract."""
+        """Upsert posting fields or tombstones."""
         conn = self._connect()
         if conn is None or not postings:
             return
-        now = time.time()
         try:
+            now = time.time()
             conn.executemany(
-                "INSERT OR REPLACE INTO postings (site, id, fields, fetched_at)"
-                " VALUES (?, ?, ?, ?)",
-                [
+                "INSERT OR REPLACE INTO postings (site, id, fields, fetched_at) VALUES (?, ?, ?, ?)",
+                (
                     (
                         site,
-                        pid,
+                        posting_id,
                         None if fields is None else json.dumps(fields, ensure_ascii=False),
                         now,
                     )
-                    for pid, fields in postings.items()
-                ],
+                    for posting_id, fields in postings.items()
+                ),
             )
             conn.commit()
-        except (sqlite3.Error, OSError) as error:
+        except (OSError, sqlite3.Error, TypeError, ValueError) as error:
             self._give_up(error)
