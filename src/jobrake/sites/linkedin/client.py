@@ -1,7 +1,5 @@
 """The guest API's shared pieces: URLs, headers, pacing, posting ids, the cache."""
 
-from __future__ import annotations
-
 import asyncio
 
 from jobrake.cache import PostingCache

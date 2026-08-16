@@ -1,7 +1,5 @@
 """Paginating the guest search API."""
 
-from __future__ import annotations
-
 import logging
 from urllib.parse import urlencode
 
@@ -29,6 +27,9 @@ def parse_cards(html: str) -> list[dict]:
         if link is None or not link.get("href"):
             continue
         url = str(link["href"]).split("?")[0]
+        posting_id = job_id(url)
+        if not posting_id:
+            continue
 
         title_tag = card.find("span", class_="sr-only")
         company_tag = card.find("h4", class_="base-search-card__subtitle")
@@ -37,7 +38,7 @@ def parse_cards(html: str) -> list[dict]:
 
         jobs.append(
             make_job(
-                id=job_id(url),
+                id=posting_id,
                 title=title_tag.get_text(strip=True) if title_tag else "",
                 company=company_tag.get_text(strip=True) if company_tag else "",
                 url=url,
@@ -87,7 +88,13 @@ async def search(
         result = await paced_fetch(fetcher, f"{SEARCH_URL}?{query}")
         if not result.ok:
             break
-        page = [j for j in parse_cards(result.text) if j["url"] not in seen]
+        cards = parse_cards(result.text)
+        page = []
+        for job in cards:
+            if job["id"] in seen:
+                continue
+            seen.add(job["id"])
+            page.append(job)
         if not page:
             if start == 0:
                 # An unresolvable location yields an empty 200 identical to a
@@ -100,9 +107,8 @@ async def search(
                     location,
                 )
             break
-        seen.update(j["url"] for j in page)
         jobs.extend(page)
-        start += len(page)
+        start += len(cards)
 
     jobs = jobs[:results_wanted]
     if detail:

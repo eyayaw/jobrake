@@ -44,14 +44,19 @@ def test_job_id_from_url():
     assert linkedin.job_id("https://www.linkedin.com/jobs/search") == ""
 
 
-def test_linkedin_parses_cards_and_dedups(unlimited):
-    html = linkedin_card("111") + linkedin_card("222") + linkedin_card("111")
+def test_linkedin_parses_cards_and_dedups_by_posting_id(unlimited):
+    html = (
+        linkedin_card("role-111")
+        + linkedin_card("222")
+        + linkedin_card("other-111")
+        + linkedin_card("search")
+    )
     fetcher = StubFetcher({"seeMoreJobPostings": ok(html)})
     jobs = asyncio.run(
-        linkedin.search(fetcher, search_term="economist", location="Seattle", results_wanted=2)
+        linkedin.search(fetcher, search_term="economist", location="Seattle", results_wanted=3)
     )
     assert [j["url"] for j in jobs] == [
-        "https://www.linkedin.com/jobs/view/111",
+        "https://www.linkedin.com/jobs/view/role-111",
         "https://www.linkedin.com/jobs/view/222",
     ]
     assert jobs[0]["id"] == "111"
@@ -59,6 +64,27 @@ def test_linkedin_parses_cards_and_dedups(unlimited):
     assert jobs[0]["company"] == "Acme"
     assert jobs[0]["location"] == "Seattle, WA"
     assert jobs[0]["date"] == "2026-08-01"
+
+
+def test_pagination_advances_by_raw_page_size(unlimited):
+    pages = [
+        linkedin_card("111") + linkedin_card("222"),
+        linkedin_card("222") + linkedin_card("333"),
+        linkedin_card("444"),
+    ]
+
+    class Paged(StubFetcher):
+        async def fetch(self, url, headers=None):
+            self.requests.append(url)
+            return ok(pages[len(self.requests) - 1])
+
+    fetcher = Paged({})
+    jobs = asyncio.run(
+        linkedin.search(fetcher, search_term="x", location="Seattle", results_wanted=4)
+    )
+
+    assert [job["id"] for job in jobs] == ["111", "222", "333", "444"]
+    assert "start=4" in fetcher.requests[2]
 
 
 def test_linkedin_429_retries_once_then_recovers(unlimited, monkeypatch):
