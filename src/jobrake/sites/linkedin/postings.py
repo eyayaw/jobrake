@@ -228,7 +228,8 @@ async def fetch_postings(
 
     Takes each job's own URL (``/jobs/view/<slug>-<id>``), the one the
     search cards carry. An id alone reaches a page without the structured
-    block. Duplicate and empty urls are skipped. Never raises.
+    block. Duplicate and empty urls are skipped, and urls that share one
+    posting id share one fetch and one answer. Never raises.
 
     Three outcomes per url. A dict of fields means hydrated, partial when
     the page omits the structured block. ``None`` means the posting is
@@ -247,16 +248,28 @@ async def fetch_postings(
     postings: dict[str, dict | None] = {}
     wanted = list(dict.fromkeys(u for u in urls if u))
     ids = {url: job_id(url) for url in wanted}
-    cached = client.CACHE.get("linkedin", [i for i in ids.values() if i]) if cache else {}
+    # One value per posting id for the whole call, seeded from the cache and
+    # extended as fetches land, so alias urls of one posting share a single
+    # request and a single answer.
+    resolved = client.CACHE.get("linkedin", [i for i in ids.values() if i]) if cache else {}
+    for posting_id, posting in resolved.items():
+        # A cached row may predate the current field set; serve only the
+        # keys the model has so the merge in search cannot raise.
+        if posting is not None:
+            resolved[posting_id] = {
+                name: value for name, value in posting.items() if name in JOB_FIELDS
+            }
+    attempted: set[str] = set()
     for url in wanted:
-        if (posting_id := ids[url]) in cached:
-            posting = cached[posting_id]
-            # A cached row may predate the current field set; serve only the
-            # keys the model has so the merge in search cannot raise.
-            if posting is not None:
-                posting = {name: value for name, value in posting.items() if name in JOB_FIELDS}
-            postings[url] = posting
+        if (posting_id := ids[url]) in resolved:
+            postings[url] = resolved[posting_id]
             continue
+        if posting_id:
+            # One fetch per posting id even when it fails: a transient miss
+            # leaves every alias absent rather than re-spending the pacing.
+            if posting_id in attempted:
+                continue
+            attempted.add(posting_id)
         result = await paced_fetch(fetcher, _canonical(url))
         if result.ok:
             posting, structured = _parse_posting(BeautifulSoup(result.text, "html.parser"))
@@ -276,6 +289,8 @@ async def fetch_postings(
         else:
             continue
         postings[url] = value
-        if cache and posting_id:
-            client.CACHE.put("linkedin", {posting_id: value})
+        if posting_id:
+            resolved[posting_id] = value
+            if cache:
+                client.CACHE.put("linkedin", {posting_id: value})
     return postings

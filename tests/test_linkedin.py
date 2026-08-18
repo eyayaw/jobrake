@@ -510,6 +510,22 @@ def test_fetch_postings_caches_by_id_not_url(unlimited):
     assert hydrated(got, moved)["employment_type"] == "full_time"
 
 
+def test_fetch_postings_hydrates_each_identity_once(unlimited):
+    moved = "https://www.linkedin.com/jobs/view/senior-economist-at-acme-111"
+    fetcher = StubFetcher({"-111": ok(job_page())})
+    got = asyncio.run(linkedin.fetch_postings(fetcher, [CANONICAL, moved], cache=False))
+    assert len(fetcher.requests) == 1  # alias urls share the posting's one fetch
+    assert hydrated(got, CANONICAL) == hydrated(got, moved)
+
+
+def test_fetch_postings_attempts_each_identity_once(unlimited):
+    moved = "https://www.linkedin.com/jobs/view/senior-economist-at-acme-111"
+    fetcher = StubFetcher({"-111": ok("<html><body>signup wall</body></html>")})
+    got = asyncio.run(linkedin.fetch_postings(fetcher, [CANONICAL, moved]))
+    assert got == {}  # nothing parsed: absent, safe to retry later
+    assert len(fetcher.requests) == 1  # but the alias spends no second request now
+
+
 def test_fetch_postings_drops_unknown_cached_keys(unlimited, isolated_cache):
     # A cached row from an older schema must not crash the run it is served to.
     isolated_cache.put("linkedin", {"111": {"description": "Role", "months_of_experience": 36}})
