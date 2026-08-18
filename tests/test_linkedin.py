@@ -331,6 +331,28 @@ def test_parse_posting_survives_schema_variants():
     assert linkedin.parse_posting(page)["description"] == "Role"
 
 
+def test_parse_posting_normalizes_union_valued_fields():
+    page = job_page(
+        description={"@type": "Thing"},
+        employmentType=["FULL_TIME", "CONTRACTOR"],
+        hiringOrganization={
+            "sameAs": ["https://nl.linkedin.com/company/acme"],
+            "logo": {"@type": "ImageObject", "url": "https://media.licdn.com/acme.png"},
+        },
+        jobLocation={
+            "address": {"addressCountry": {"@type": "Country", "name": "US"}},
+            "latitude": "52.37",
+        },
+    )
+    fields = linkedin.parse_posting(page)
+    assert "description" not in fields  # an object is not a description
+    assert fields["employment_type"] == "full_time"  # the first of a list
+    assert fields["company_url"] == "https://nl.linkedin.com/company/acme"
+    assert fields["company_logo"] == "https://media.licdn.com/acme.png"  # unwrapped ImageObject
+    assert fields["country_code"] == "US"  # a Country object's name
+    assert "latitude" not in fields  # only numbers reach the model
+
+
 def blockless_page():
     # A country-level posting: a real job page, localized, no schema.org block.
     return """
@@ -440,6 +462,22 @@ def test_fetch_postings_three_outcomes_and_what_each_costs_again(unlimited, monk
     assert hydrated(again, flaky)["employment_type"] == "full_time"
     assert (again[CANONICAL], again[gone]) == (postings[CANONICAL], None)
     assert fetcher.requests == [flaky]
+
+
+def test_fetch_postings_contains_a_malformed_block_per_posting(unlimited):
+    other = "https://nl.linkedin.com/jobs/view/other-at-acme-222"
+    fetcher = StubFetcher(
+        {
+            "economist-at-acme-111": ok(
+                job_page(description={"@type": "Thing"}, employmentType=["FULL_TIME"])
+            ),
+            "other-at-acme-222": ok(job_page()),
+        }
+    )
+    got = asyncio.run(linkedin.fetch_postings(fetcher, [CANONICAL, other]))
+    assert hydrated(got, CANONICAL)["employment_type"] == "full_time"
+    assert "description" not in hydrated(got, CANONICAL)
+    assert hydrated(got, other)["description"] == "Great & big role"  # hydration went on
 
 
 def test_fetch_postings_drops_a_trailing_slash(unlimited):

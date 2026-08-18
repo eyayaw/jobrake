@@ -30,6 +30,26 @@ def _obj(value) -> dict:
     return value if isinstance(value, dict) else {}
 
 
+def _text_value(value) -> str | None:
+    """One schema.org text value, or ``None``."""
+    if isinstance(value, list):
+        value = value[0] if value else None
+    return value if isinstance(value, str) else None
+
+
+def _number_value(value) -> float | None:
+    """One schema.org numeric value, or ``None``."""
+    if isinstance(value, list):
+        value = value[0] if value else None
+    return value if isinstance(value, int | float) and not isinstance(value, bool) else None
+
+
+def _url(value) -> str | None:
+    """One schema.org URL, bare or wrapped in an object's ``url`` (an ImageObject logo)."""
+    obj = _obj(value)
+    return _text_value(obj.get("url")) if obj else _text_value(value)
+
+
 def _job_posting(soup: BeautifulSoup) -> dict:
     """The page's schema.org ``JobPosting`` block; ``{}`` when the page carries none."""
     for block in soup.find_all("script", type="application/ld+json"):
@@ -42,7 +62,7 @@ def _job_posting(soup: BeautifulSoup) -> dict:
             if not isinstance(item, dict):
                 continue
             kind = item.get("@type")
-            if kind == "JobPosting" or isinstance(kind, list) and "JobPosting" in kind:
+            if kind == "JobPosting" or (isinstance(kind, list) and "JobPosting" in kind):
                 return item
             graph = item.get("@graph")
             queue.extend(graph if isinstance(graph, list) else [graph] if graph else [])
@@ -147,24 +167,30 @@ def _parse_posting(soup: BeautifulSoup) -> tuple[dict, bool]:
     address = _obj(place.get("address"))
     pay = _obj(posting.get("baseSalary"))
     amount = _obj(pay.get("value"))
+    # addressCountry is Text or a Country object carrying its name.
+    country = address.get("addressCountry")
+    # Each field passes its schema.org union's normalizer; invalid
+    # structured values are omitted.
     from_block = {
-        "description": html_text(unescape(posting.get("description") or "")),
-        "employment_type": employment_type(posting.get("employmentType")),
-        "posted_at": posting.get("datePosted"),
-        "expires_at": posting.get("validThrough"),
-        "company_url": org.get("sameAs"),
-        "company_logo": org.get("logo"),
-        "city": address.get("addressLocality"),
-        "region": address.get("addressRegion"),
-        "country_code": address.get("addressCountry"),
-        "latitude": place.get("latitude"),
-        "longitude": place.get("longitude"),
-        "salary_min": amount.get("minValue"),
-        "salary_max": amount.get("maxValue"),
-        "salary_currency": pay.get("currency"),
-        "salary_period": amount.get("unitText"),
-        "experience_months": _obj(posting.get("experienceRequirements")).get("monthsOfExperience"),
-        "education": _obj(posting.get("educationRequirements")).get("credentialCategory"),
+        "description": html_text(unescape(_text_value(posting.get("description")) or "")),
+        "employment_type": employment_type(_text_value(posting.get("employmentType"))),
+        "posted_at": _text_value(posting.get("datePosted")),
+        "expires_at": _text_value(posting.get("validThrough")),
+        "company_url": _text_value(org.get("sameAs")),
+        "company_logo": _url(org.get("logo")),
+        "city": _text_value(address.get("addressLocality")),
+        "region": _text_value(address.get("addressRegion")),
+        "country_code": _text_value(country) or _text_value(_obj(country).get("name")),
+        "latitude": _number_value(place.get("latitude")),
+        "longitude": _number_value(place.get("longitude")),
+        "salary_min": _number_value(amount.get("minValue")),
+        "salary_max": _number_value(amount.get("maxValue")),
+        "salary_currency": _text_value(pay.get("currency")),
+        "salary_period": _text_value(amount.get("unitText")),
+        "experience_months": _number_value(
+            _obj(posting.get("experienceRequirements")).get("monthsOfExperience")
+        ),
+        "education": _text_value(_obj(posting.get("educationRequirements")).get("credentialCategory")),
     }
     # The markup is the only source of apply_type and applicants, and the
     # only source of anything on a block-less page.
@@ -190,7 +216,7 @@ def _parse_posting(soup: BeautifulSoup) -> tuple[dict, bool]:
 def _canonical(url: str) -> str:
     """The URL form that carries the structured block."""
     # A trailing slash suppresses it: same page, 200 and full size, no schema.org script.
-    path, sep, query = url.partition("?")
+    path, sep, query = url.partition("?") # the query mostly empty
     return path.rstrip("/") + sep + query
 
 
