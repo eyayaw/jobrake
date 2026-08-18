@@ -58,6 +58,18 @@ def test_corrupt_json_disables_cache_instead_of_escaping(tmp_path, caplog):
     assert "disabled" in caplog.text
 
 
+def test_corrupt_timestamp_disables_cache_instead_of_escaping(tmp_path, caplog):
+    cache = make_cache(tmp_path)
+    cache.put("linkedin", {"111": POSTING})
+    cache._conn.execute("UPDATE postings SET fetched_at = 'bad'")
+    cache._conn.commit()
+
+    assert cache.get("linkedin", ["111"]) == {}
+    assert cache._broken
+    assert "disabled" in caplog.text
+    assert cache.get("linkedin", ["111"]) == {}  # later lookups miss quietly
+
+
 def test_unserializable_fields_disable_cache(tmp_path):
     cache = make_cache(tmp_path)
 

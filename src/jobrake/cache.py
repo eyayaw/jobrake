@@ -111,13 +111,17 @@ class PostingCache:
             for posting_id, fields, fetched_at in rows:
                 if fields is None:
                     found[posting_id] = None
-                elif fetched_at >= stale:
+                    continue
+                # SQLite's flexible typing lets any value sit in the REAL column.
+                if not isinstance(fetched_at, int | float) or not math.isfinite(fetched_at):
+                    raise ValueError(f"posting fetched_at is not a finite number: {fetched_at!r}")
+                if fetched_at >= stale:
                     value = json.loads(fields)
                     if not isinstance(value, dict):
                         raise ValueError("posting fields are not a JSON object")
                     found[posting_id] = value
             return found
-        except (json.JSONDecodeError, OSError, sqlite3.Error, ValueError) as error:
+        except (json.JSONDecodeError, OSError, sqlite3.Error, TypeError, ValueError) as error:
             self._give_up(error)
             return {}
 
