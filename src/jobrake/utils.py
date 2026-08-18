@@ -31,10 +31,10 @@ def html_text(html: str) -> str:
     return "\n".join(line for line in lines if line)
 
 
-def iso_date(value: str | None) -> str:
-    """``YYYY-MM-DD`` from an ISO 8601 date or timestamp; ``""`` if empty."""
+def iso_date(value: str | None) -> str | None:
+    """``YYYY-MM-DD`` from an ISO 8601 date or timestamp, or ``None`` if absent."""
     if not value:
-        return ""
+        return None
     try:
         return datetime.fromisoformat(value).date().isoformat()
     except ValueError:

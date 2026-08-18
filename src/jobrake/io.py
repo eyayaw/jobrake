@@ -28,8 +28,9 @@ def write_jsonl(jobs: list[dict], path: Path) -> None:
 
 
 def write_csv(jobs: list[dict], path: Path) -> None:
+    """Write every model field, with empty cells for unavailable values."""
     with path.open("w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=JOB_FIELDS)
+        writer = csv.DictWriter(f, fieldnames=JOB_FIELDS, restval="")
         writer.writeheader()
         writer.writerows(jobs)
 

@@ -57,8 +57,12 @@ def test_output_csv_roundtrips_hostile_fields(run_cli, tmp_path, capsys):
     with out.open(newline="", encoding="utf-8") as f:
         rows = list(csv.DictReader(f))
     assert rows[0].keys() == set(JOB_FIELDS)
-    # csv has no null: a None field reads back as empty
-    assert rows == [{k: "" if v is None else str(v) for k, v in job.items()} for job in JOBS]
+    # Unavailable summaries and absent details read back as empty cells.
+    expected = [
+        {name: "" if job.get(name) is None else str(job[name]) for name in JOB_FIELDS}
+        for job in JOBS
+    ]
+    assert rows == expected
     assert capsys.readouterr().out == ""  # the file is the output; stdout stays silent
 
 

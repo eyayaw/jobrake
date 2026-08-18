@@ -1,6 +1,6 @@
 """Tests for the job data model."""
 
-from jobrake.models import employment_type, make_job
+from jobrake.models import IDENTITY_FIELDS, SUMMARY_FIELDS, employment_type, make_job
 
 
 def test_employment_type_is_unified_across_sites():
@@ -10,6 +10,23 @@ def test_employment_type_is_unified_across_sites():
     assert employment_type("INTERN") == employment_type("Internship") == "internship"
     assert employment_type(None) is None
     assert employment_type("---") is None
+
+
+def test_job_dict_keeps_summary_keys_and_omits_unavailable_detail():
+    job = make_job(
+        site="linkedin",
+        id="1",
+        url="u",
+        title="t",
+        company="c",
+        location="   ",
+        description="   ",
+        company_url="   ",
+        salary_min=None,
+    )
+    assert set(job) == {*IDENTITY_FIELDS, *SUMMARY_FIELDS}
+    assert job["location"] is None
+    assert job["date"] is None
 
 
 def test_date_falls_back_to_the_posting_timestamp():

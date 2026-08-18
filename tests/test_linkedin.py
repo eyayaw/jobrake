@@ -9,7 +9,7 @@ from fakes import StubFetcher, not_found, ok, rate_limited
 
 from jobrake.cache import PostingCache
 from jobrake.fetchkit import TokenBucket
-from jobrake.models import JOB_FIELDS
+from jobrake.models import IDENTITY_FIELDS, JOB_FIELDS, SUMMARY_FIELDS
 from jobrake.sites import linkedin
 from jobrake.sites.linkedin import client
 from jobrake.sites.linkedin.postings import FRAGMENT_URL
@@ -64,6 +64,8 @@ def test_linkedin_parses_cards_and_dedups_by_posting_id(unlimited):
     assert jobs[0]["company"] == "Acme"
     assert jobs[0]["location"] == "Seattle, WA"
     assert jobs[0]["date"] == "2026-08-01"
+    # search cards carry no detail fields
+    assert set(jobs[0]) == {*IDENTITY_FIELDS, *SUMMARY_FIELDS}
 
 
 def test_pagination_advances_by_raw_page_size(unlimited):
@@ -168,7 +170,7 @@ def test_search_keeps_the_summary_when_the_posting_is_gone(unlimited):
         linkedin.search(fetcher, search_term="x", location="Seattle", results_wanted=1, detail=True)
     )
     assert jobs[0]["title"] == "Economist"
-    assert jobs[0]["description"] == ""
+    assert "description" not in jobs[0]
 
 
 def test_search_reruns_only_fetch_unseen_postings(unlimited):

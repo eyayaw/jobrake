@@ -94,7 +94,7 @@ jobrake --help
 > "2026-08-15\tSenior Data Scientist - Machine Learning\tGeneral Dynamics Information Technology\thttps://www.indeed.com/viewjob?jk=e422bd4de2737ee7"
 > ```
 
-Or write directly to a file with `--output | -o`; the extension determines the format: use `-o jobs.csv` for CSV, and `-o jobs.json` or `-o jobs.jsonl` for JSON.
+Or write directly to a file with `--output | -o`; the extension determines the format: use `-o jobs.csv` for CSV, and `-o jobs.json` or `-o jobs.jsonl` for JSON. CSV keeps a fixed column for each model field, with empty cells for absent info. JSON and JSONL objects contain only the keys present in each job, i.e., keys with non-None values.
 
 > [!TIP]
 > `-o` replaces the file, so give each run its own; jsonl files then merge with a plain `cat`:
@@ -121,11 +121,8 @@ print(jobs)
 # [{"site", "id", "url", "title", "company", "location", "date", "description", ...}, ...]
 ```
 
-Every job posting uses the same flat dict structure, regardless of the site or selected flags.
-The `site`, `id`, and `url` fields uniquely identify the posting.
-The `title`, `company`, `location`, and `date` fields are extracted from every search result. Missing values are represented by `""`.
-The rest of the fields, `description` and detail fields such as `salary_min`, `employment_type`, and `applicants`, are retrieved from the posting itself. Missing attributes get `None`.
-All fields have the same meaning across sites. Indeed includes the detail fields in the search response, whereas LinkedIn requires the `--detail | -d` flag.
+Every job posting comes back as a flat dict. The `site`, `id`, and `url` fields uniquely identify the posting.
+The `title`, `company`, `location`, and `date` keys are in every job. Each value is `None` when unavailable, so every job has the same seven identity and summary keys. The rest, `description` and detail fields such as `salary_min`, `employment_type`, and `applicants`, are retrieved from the posting itself and appear only where a value is available. An absent detail key does not say why the value is missing: the posting may omit the field, the site may never publish it, or the page may not have been fetched. All fields have the same meaning across sites. Indeed includes the detail fields in the search response, whereas LinkedIn requires the `--detail | -d` flag.
 
 `scrape` creates and closes its own fetcher on every call. Pass your own to reuse one session across searches, or to set timeouts, headers, or cookies.
 

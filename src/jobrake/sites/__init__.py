@@ -28,6 +28,9 @@ async def scrape(
     """
     Scrape one site into unified job dicts.
 
+    Every dict has the identity and summary keys. An unavailable summary value
+    is ``None``. A detail key is present when a value is available.
+
     ``fetcher`` accepts any ``jobrake.fetchkit.Fetcher`` (injected fetchers are
     not closed here—the caller owns their lifecycle); indeed needs the
     ``PostFetcher`` variant. The default :class:`HttpxFetcher` qualifies for

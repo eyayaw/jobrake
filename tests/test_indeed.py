@@ -92,8 +92,8 @@ def test_indeed_keeps_a_job_whose_date_is_not_milliseconds(caplog):
     with caplog.at_level(logging.WARNING, logger="jobrake.sites.indeed"):
         jobs = asyncio.run(indeed.search(fetcher, search_term="x", country="usa"))
     assert jobs[0]["title"] == "Job a"  # the posting survives
-    assert jobs[0]["posted_at"] is None  # only its timestamp is lost
-    assert jobs[0]["date"] == ""
+    assert "posted_at" not in jobs[0]  # only its timestamp is lost
+    assert jobs[0]["date"] is None
     assert any("milliseconds" in record.message for record in caplog.records)
 
 
@@ -157,12 +157,10 @@ def test_indeed_maps_detail_onto_the_model():
     assert (job["latitude"], job["longitude"]) == (42.36, -71.06)
 
 
-def test_indeed_absent_detail_stays_none():
+def test_indeed_omits_the_detail_a_posting_lacks():
     job = parse_one(rich_job(compensation=None, recruit=None, attributes=[], employer=None))
-    assert job["salary_min"] is None
-    assert job["apply_url"] is None
-    assert job["employment_type"] is None
-    assert job["is_remote"] is None  # untagged is not evidence of on-site
+    # untagged is not evidence of on-site
+    assert {"salary_min", "apply_url", "employment_type", "is_remote"}.isdisjoint(job)
 
 
 def test_indeed_single_bound_salaries():
@@ -172,7 +170,9 @@ def test_indeed_single_bound_salaries():
     exactly = rich_job(
         compensation={"baseSalary": {"unitOfWork": "YEAR", "range": {"value": 120000.0}}}
     )
-    assert (parse_one(at_least)["salary_min"], parse_one(at_least)["salary_max"]) == (90000.0, None)
+    one_bound = parse_one(at_least)
+    assert one_bound["salary_min"] == 90000.0
+    assert "salary_max" not in one_bound  # AtLeast carries no upper bound
     assert (parse_one(exactly)["salary_min"], parse_one(exactly)["salary_max"]) == (
         120000.0,
         120000.0,
@@ -191,4 +191,4 @@ def test_description_scrubs_flattened_stylesheets():
 def test_indeed_remote_label_matches_exactly():
     # "Remote sensing observations" is a skill, not a workplace
     job = parse_one(rich_job(attributes=[{"label": "Remote sensing observations"}]))
-    assert job["is_remote"] is None
+    assert "is_remote" not in job
