@@ -73,6 +73,33 @@ def test_httpx_fetcher_rejects_invalid_timeouts(value):
         HttpxFetcher(timeout=value)
 
 
+@pytest.mark.parametrize(
+    ("error", "category"),
+    [
+        (httpx.RemoteProtocolError("server disconnected"), ErrorCategory.NETWORK),
+        (httpx.ProxyError("407 from the proxy"), ErrorCategory.NETWORK),
+        (httpx.UnsupportedProtocol("missing http://"), ErrorCategory.UNKNOWN),
+    ],
+)
+def test_httpx_fetcher_classifies_transport_failures(error, category):
+    async def run():
+        def explode(request):
+            raise error
+
+        fetcher = HttpxFetcher(jitter=0)
+        await fetcher._client.aclose()
+        fetcher._client = httpx.AsyncClient(transport=httpx.MockTransport(explode))
+        try:
+            return await fetcher.fetch("https://example.test")
+        finally:
+            await fetcher.close()
+
+    result = asyncio.run(run())
+    assert result.error is not None
+    assert result.error.category is category
+    assert result.error.original_error is error
+
+
 def test_token_bucket_burst_is_free_then_debt_compounds():
     bucket = TokenBucket(4, 2.0)
     assert [bucket.reserve(0.0) for _ in range(4)] == [0.0] * 4

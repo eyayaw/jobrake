@@ -17,7 +17,15 @@ DEFAULT_HEADERS = {
 class HttpxFetcher(BaseFetcher):
     """GET and JSON POST transport backed by one pooled httpx client."""
 
-    network_errors = (httpx.TimeoutException, httpx.NetworkError)
+    # The operational transport failures: timeouts, sockets, framing, and
+    # proxies. UnsupportedProtocol stays out—a malformed URL is the
+    # caller's error, not the network's.
+    network_errors = (
+        httpx.TimeoutException,
+        httpx.NetworkError,
+        httpx.ProtocolError,
+        httpx.ProxyError,
+    )
 
     def __init__(
         self,
