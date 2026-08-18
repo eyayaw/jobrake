@@ -2,6 +2,7 @@
 
 import json
 import logging
+import math
 import re
 
 from jobrake import defaults
@@ -128,59 +129,103 @@ def _timestamp(job: dict, field: str) -> str | None:
         return None
 
 
+def _dict_value(value) -> dict:
+    """The value if it is a dict, else ``{}``."""
+    return value if isinstance(value, dict) else {}
+
+
+def _string_value(value) -> str | None:
+    """The value if it is a string, else ``None``."""
+    return value if isinstance(value, str) else None
+
+
+def _finite_value(value) -> float | None:
+    """The value if it is a finite number, else ``None``."""
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        return None
+    return value if math.isfinite(value) else None
+
+
+def _parse_job(job: dict, base_url: str) -> dict:
+    """
+    Convert an Indeed job object into a unified job dict.
+
+    The provider key must be a string containing non-whitespace text. It is
+    stripped before use. Other fields are normalized to their model types.
+    A value in the wrong shape is omitted.
+    """
+    key = job["key"].strip() if isinstance(job["key"], str) else ""
+    # Require a nonempty provider key; the model would silently empty a falsy one.
+    if not key:
+        raise TypeError(f"job key {job['key']!r} is blank or not a string")
+    loc = _dict_value(job.get("location"))
+    city = _string_value(loc.get("city"))
+    region = _string_value(loc.get("admin1Code"))
+    country_code = _string_value(loc.get("countryCode"))
+    employer = _dict_value(job.get("employer"))
+    compensation = _dict_value(job.get("compensation"))
+    salary = _dict_value(compensation.get("baseSalary"))
+    amount = _dict_value(salary.get("range"))
+    exactly = _finite_value(amount.get("value"))
+    # Employment types share the attributes bag with skills and benefits.
+    # Malformed entries, or a bag that is not a list, are ignored.
+    attributes = job.get("attributes")
+    labels = [
+        attribute.get("label")
+        for attribute in (attributes if isinstance(attributes, list) else [])
+        if isinstance(attribute, dict) and isinstance(attribute.get("label"), str)
+    ]
+    company_page = _string_value(employer.get("relativeCompanyPageUrl"))
+    dossier = _dict_value(employer.get("dossier"))
+    images = _dict_value(dossier.get("images"))
+    return make_job(
+        site="indeed",
+        id=key,
+        url=f"{base_url}/viewjob?jk={key}",
+        title=_string_value(job.get("title")),
+        company=_string_value(employer.get("name")),
+        location=", ".join(part for part in (city, region, country_code) if part) or None,
+        description=_scrub_css(
+            html_text(_string_value(_dict_value(job.get("description")).get("html")) or "")
+        ),
+        posted_at=_timestamp(job, "datePublished"),
+        expires_at=_timestamp(job, "expirationDate"),
+        company_url=base_url + company_page if company_page else None,
+        company_logo=_string_value(images.get("squareLogoUrl")),
+        employment_type=next(
+            (employment_type(label) for label in labels if label in EMPLOYMENT_TYPES),
+            None,
+        ),
+        # A Remote tag proves remote; absence proves nothing, so the field stays None.
+        is_remote=True if "Remote" in labels else None,
+        salary_min=_finite_value(amount.get("min", exactly)),
+        salary_max=_finite_value(amount.get("max", exactly)),
+        salary_currency=_string_value(compensation.get("currencyCode")),
+        salary_period=_string_value(salary.get("unitOfWork")),
+        city=city,
+        region=region,
+        country_code=country_code,
+        latitude=_finite_value(loc.get("latitude")),
+        longitude=_finite_value(loc.get("longitude")),
+        apply_url=_string_value(_dict_value(job.get("recruit")).get("viewJobUrl")),
+    )
+
+
 def parse_jobs(data: dict, base_url: str) -> tuple[list[dict], str | None]:
     """(jobs, next cursor) from one GraphQL response."""
     search = data["data"]["jobSearch"]
     jobs = []
     for result in search["results"]:
-        job = result["job"]
-        loc = job.get("location") or {}
-        location = ", ".join(
-            part
-            for part in (loc.get("city"), loc.get("admin1Code"), loc.get("countryCode"))
-            if part
-        )
-        employer = job.get("employer") or {}
-        compensation = job.get("compensation") or {}
-        salary = compensation.get("baseSalary") or {}
-        amount = salary.get("range") or {}
-        exactly = amount.get("value")
-        labels = [attribute["label"] for attribute in job.get("attributes") or []]
-        company_page = employer.get("relativeCompanyPageUrl")
-        jobs.append(
-            make_job(
-                site="indeed",
-                id=job["key"],
-                url=f"{base_url}/viewjob?jk={job['key']}",
-                title=job.get("title", ""),
-                company=employer.get("name") or "",
-                location=location,
-                description=_scrub_css(html_text((job.get("description") or {}).get("html", ""))),
-                posted_at=_timestamp(job, "datePublished"),
-                expires_at=_timestamp(job, "expirationDate"),
-                company_url=base_url + company_page if company_page else None,
-                company_logo=((employer.get("dossier") or {}).get("images") or {}).get(
-                    "squareLogoUrl"
-                ),
-                employment_type=next(
-                    (employment_type(label) for label in labels if label in EMPLOYMENT_TYPES),
-                    None,
-                ),
-                # A Remote tag proves remote; absence proves nothing, so the field stays None.
-                is_remote=True if "Remote" in labels else None,
-                salary_min=amount.get("min", exactly),
-                salary_max=amount.get("max", exactly),
-                salary_currency=compensation.get("currencyCode"),
-                salary_period=salary.get("unitOfWork"),
-                city=loc.get("city"),
-                region=loc.get("admin1Code"),
-                country_code=loc.get("countryCode"),
-                latitude=loc.get("latitude"),
-                longitude=loc.get("longitude"),
-                apply_url=(job.get("recruit") or {}).get("viewJobUrl"),
-            )
-        )
-    return jobs, search["pageInfo"].get("nextCursor")
+        try:
+            jobs.append(_parse_job(result["job"], base_url))
+        except (KeyError, TypeError, AttributeError) as error:
+            # Skip the malformed result and keep parsing its siblings.
+            logger.warning("skipping malformed indeed result: %r", error)
+    page_info = search.get("pageInfo")
+    # Missing or invalid pagination metadata ends the search after the
+    # current page; its parsed jobs still count.
+    cursor = page_info.get("nextCursor") if isinstance(page_info, dict) else None
+    return jobs, cursor if isinstance(cursor, str) else None
 
 
 async def search(
@@ -198,8 +243,10 @@ async def search(
     """
     Page through the GraphQL API.
 
-    This API answers POST alone, hence the ``PostFetcher``. An error result
-    or a malformed page ends the search with whatever was collected.
+    This API answers POST alone, via ``PostFetcher``. An error result
+    or a malformed response envelope ends the search with whatever was
+    collected; a job without a usable key is skipped alone, and invalid
+    field values are omitted.
 
     ``detail`` and ``cache`` are accepted and ignored: every field arrives
     in the search response, and nothing costs an extra request.

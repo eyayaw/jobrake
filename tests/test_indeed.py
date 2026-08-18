@@ -3,10 +3,12 @@
 import asyncio
 import json
 import logging
+import math
 
 import pytest
 from fakes import StubFetcher, ok, rate_limited
 
+from jobrake.models import IDENTITY_FIELDS, SUMMARY_FIELDS
 from jobrake.sites import indeed
 from jobrake.sites.indeed.countries import indeed_domain
 
@@ -108,6 +110,61 @@ def test_indeed_error_result_yields_empty():
     assert asyncio.run(indeed.search(fetcher, search_term="x", country="usa")) == []
 
 
+def test_indeed_skips_malformed_results_and_keeps_valid_siblings(caplog):
+    payload = indeed_payload(["a", "b"])
+    results = payload["data"]["jobSearch"]["results"]
+    results[1:1] = [
+        {"job": None},  # the provider sent a null job
+        {"job": {"key": None, "title": "Job null-key"}},  # would become id "" and jk=None
+        {"job": {"key": "", "title": "Job empty-key"}},
+        {"job": {"key": "   ", "title": "Job blank-key"}},
+        {"no-job-key": True},
+    ]
+    fetcher = StubFetcher({"apis.indeed.com": ok(json.dumps(payload))})
+    with caplog.at_level(logging.WARNING, logger="jobrake.sites.indeed"):
+        jobs = asyncio.run(indeed.search(fetcher, search_term="x", country="usa"))
+    assert [job["id"] for job in jobs] == ["a", "b"]
+    assert sum("malformed" in record.message for record in caplog.records) == 5
+
+
+def test_indeed_malformed_later_page_keeps_collected_jobs():
+    pages = [indeed_payload(["a"], cursor="next"), {"data": {"jobSearch": None}}]
+
+    class Paged(StubFetcher):
+        async def post(self, url, json_body, headers=None):
+            self.requests.append(url)
+            return ok(json.dumps(pages[len(self.requests) - 1]))
+
+    fetcher = Paged({})
+    jobs = asyncio.run(indeed.search(fetcher, search_term="x", country="usa", results_wanted=10))
+    assert [job["id"] for job in jobs] == ["a"]
+
+
+@pytest.mark.parametrize(
+    "damage",
+    [
+        lambda job_search: job_search.update(pageInfo="malformed"),
+        lambda job_search: job_search.pop("pageInfo"),
+        lambda job_search: job_search.update(pageInfo=None),
+        lambda job_search: job_search.update(pageInfo={"nextCursor": ["malformed"]}),
+    ],
+    ids=["string", "absent", "null", "list-cursor"],
+)
+def test_indeed_damaged_page_info_ends_the_search_with_the_page_kept(damage):
+    last = indeed_payload(["b"])
+    damage(last["data"]["jobSearch"])
+    pages = [indeed_payload(["a"], cursor="next"), last]
+
+    class Paged(StubFetcher):
+        async def post(self, url, json_body, headers=None):
+            self.requests.append(url)
+            return ok(json.dumps(pages[len(self.requests) - 1]))
+
+    fetcher = Paged({})
+    jobs = asyncio.run(indeed.search(fetcher, search_term="x", country="usa", results_wanted=10))
+    assert [job["id"] for job in jobs] == ["a", "b"]  # both pages parsed; no cursor, so done
+
+
 def rich_job(**overrides):
     return {
         "key": "a",
@@ -192,3 +249,36 @@ def test_indeed_remote_label_matches_exactly():
     # "Remote sensing observations" is a skill, not a workplace
     job = parse_one(rich_job(attributes=[{"label": "Remote sensing observations"}]))
     assert "is_remote" not in job
+
+
+def test_indeed_omits_invalid_detail_values():
+    job = parse_one(
+        rich_job(
+            title={"t": 1},
+            location="Boston",  # a leaf where an object belongs loses the object's fields
+            description="a bare string",
+            employer={"name": ["Acme"], "relativeCompanyPageUrl": {"u": 1}, "dossier": "flat"},
+            recruit=["x"],
+            attributes=7,  # a non-list bag loses the employment fields
+            compensation={
+                "baseSalary": {"unitOfWork": 7, "range": {"min": "38.2", "max": math.nan}},
+                "currencyCode": {"code": "USD"},
+            },
+        )
+    )
+    assert (job["id"], job["url"]) == ("a", "https://www.indeed.com/viewjob?jk=a")
+    assert (job["title"], job["company"], job["location"]) == (None, None, None)
+    # a numeric string is not a number and nan is not finite
+    assert set(job) == {*IDENTITY_FIELDS, *SUMMARY_FIELDS, "posted_at", "expires_at"}
+
+
+def test_indeed_strips_the_job_key():
+    job = parse_one(rich_job(key=" padded "))
+    assert job["id"] == "padded"
+    assert job["url"].endswith("jk=padded")
+
+
+def test_indeed_ignores_malformed_attribute_entries():
+    job = parse_one(rich_job(attributes=[{}, {"label": 3}, "Remote", {"label": "Full-time"}]))
+    assert job["employment_type"] == "full_time"
+    assert "is_remote" not in job  # the bare string is not a Remote tag
