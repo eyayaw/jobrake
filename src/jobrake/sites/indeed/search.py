@@ -8,7 +8,7 @@ import re
 from jobrake import defaults
 from jobrake.fetchkit import PostFetcher
 from jobrake.models import employment_type, make_job
-from jobrake.utils import epoch_ms_to_iso, html_text
+from jobrake.utils import check_hours_old, epoch_ms_to_iso, html_text
 
 from .client import API_HEADERS, API_URL
 from .countries import indeed_domain
@@ -251,6 +251,7 @@ async def search(
     ``detail`` and ``cache`` are accepted and ignored: every field arrives
     in the search response, and nothing costs an extra request.
     """
+    check_hours_old(hours_old)
     subdomain, api_code = indeed_domain(country)
     base_url = f"https://{subdomain}.indeed.com"
     headers = {**API_HEADERS, "indeed-co": api_code}

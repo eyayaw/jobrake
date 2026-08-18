@@ -3,6 +3,7 @@
 from collections.abc import Callable
 
 from jobrake.fetchkit import HttpxFetcher
+from jobrake.utils import check_hours_old
 
 from . import indeed, linkedin
 
@@ -51,6 +52,7 @@ async def scrape(
     elif site == "indeed":
         if country is None:
             raise ValueError(f"country is required for site='{site}' (pass e.g. 'usa', 'germany')")
+    check_hours_old(hours_old)
 
     owns_fetcher = fetcher is None
     if owns_fetcher:

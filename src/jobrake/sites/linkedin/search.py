@@ -8,6 +8,7 @@ from bs4 import BeautifulSoup
 from jobrake import defaults
 from jobrake.fetchkit import Fetcher
 from jobrake.models import make_job
+from jobrake.utils import check_hours_old
 
 from .client import SEARCH_URL, job_id, paced_fetch
 from .postings import fetch_postings
@@ -79,6 +80,7 @@ async def search(
     whatever was collected—the fetch layer reports it as a RATE_LIMITED
     error rather than raising.
     """
+    check_hours_old(hours_old)
     jobs: list[dict] = []
     seen: set[str] = set()
     start = 0

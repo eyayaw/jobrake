@@ -1,5 +1,3 @@
-"""Text and date helpers."""
-
 import logging
 from datetime import UTC, datetime
 
@@ -29,6 +27,12 @@ def html_text(html: str) -> str:
         cell.insert_after(" ")
     lines = (" ".join(line.split()) for line in soup.get_text().split("\n"))
     return "\n".join(line for line in lines if line)
+
+
+def check_hours_old(hours_old: int | None) -> None:
+    """Raise ``ValueError`` unless ``hours_old`` is ``None`` or positive."""
+    if hours_old is not None and hours_old <= 0:
+        raise ValueError(f"hours_old ({hours_old}) must be positive, or None for no age bound")
 
 
 def iso_date(value: str | None) -> str | None:

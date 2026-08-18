@@ -21,6 +21,16 @@ def test_scrape_rejects_invalid_scope_before_opening_a_fetcher(site, missing, mo
         asyncio.run(scrape(site, search_term="x"))
 
 
+@pytest.mark.parametrize("hours_old", [0, -24])
+def test_scrape_rejects_a_nonpositive_age_before_opening_a_fetcher(hours_old, monkeypatch):
+    def must_not_open():
+        raise AssertionError("opened transport before validating arguments")
+
+    monkeypatch.setattr(sites, "HttpxFetcher", must_not_open)
+    with pytest.raises(ValueError, match="hours_old"):
+        asyncio.run(scrape("linkedin", search_term="x", location="Seattle", hours_old=hours_old))
+
+
 def test_scrape_does_not_close_injected_fetcher():
     closed = []
 

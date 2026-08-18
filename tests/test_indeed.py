@@ -105,6 +105,13 @@ def test_indeed_stops_at_results_wanted():
     assert len(jobs) == 2
 
 
+def test_indeed_rejects_a_nonpositive_age():
+    fetcher = StubFetcher({})
+    with pytest.raises(ValueError, match="hours_old"):
+        asyncio.run(indeed.search(fetcher, search_term="x", country="usa", hours_old=0))
+    assert fetcher.requests == []
+
+
 def test_indeed_error_result_yields_empty():
     fetcher = StubFetcher({"apis.indeed.com": rate_limited()})
     assert asyncio.run(indeed.search(fetcher, search_term="x", country="usa")) == []

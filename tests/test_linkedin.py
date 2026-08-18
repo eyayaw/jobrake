@@ -167,6 +167,13 @@ def test_no_warning_when_pagination_simply_ends(unlimited, caplog):
     assert caplog.records == []
 
 
+def test_linkedin_rejects_a_nonpositive_age(unlimited):
+    fetcher = StubFetcher({})
+    with pytest.raises(ValueError, match="hours_old"):
+        asyncio.run(linkedin.search(fetcher, search_term="x", location="Seattle", hours_old=-1))
+    assert fetcher.requests == []
+
+
 def test_every_request_takes_a_token(monkeypatch):
     acquired = []
 
