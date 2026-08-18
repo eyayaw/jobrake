@@ -42,6 +42,15 @@ def test_base_fetcher_maps_transport_exceptions():
     assert isinstance(result.error.original_error, OSError)
 
 
+def test_base_fetcher_lets_cancellation_propagate():
+    class Canceled(BaseFetcher):
+        async def _fetch(self, url, headers):
+            raise asyncio.CancelledError
+
+    with pytest.raises(asyncio.CancelledError):
+        asyncio.run(Canceled().fetch("https://example.test"))
+
+
 def test_httpx_fetcher_maps_get_and_post_responses():
     async def run():
         def respond(request):

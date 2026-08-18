@@ -41,6 +41,10 @@ def not_found() -> FetchResult:
     )
 
 
+def network_down() -> FetchResult:
+    return FetchResult(url="stub", error=FetchError(ErrorCategory.NETWORK, "connection reset"))
+
+
 def rate_limited() -> FetchResult:
     return FetchResult(
         url="stub",

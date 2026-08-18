@@ -6,6 +6,8 @@ import pytest
 from fakes import StubFetcher, ok
 
 from jobrake import scrape, sites
+from jobrake.fetchkit import TokenBucket
+from jobrake.sites.linkedin import client
 
 
 @pytest.mark.parametrize(
@@ -58,4 +60,21 @@ def test_scrape_closes_its_default_fetcher(monkeypatch):
 
     asyncio.run(scrape("linkedin", search_term="x", location="Seattle"))
 
+    assert closed == [True]
+
+
+def test_scrape_closes_its_default_fetcher_after_a_search_failure(monkeypatch):
+    closed = []
+
+    class Dying(StubFetcher):
+        async def fetch(self, url, headers=None):
+            raise RuntimeError("interrupted")
+
+        async def close(self):
+            closed.append(True)
+
+    monkeypatch.setattr(sites, "HttpxFetcher", lambda: Dying({}))
+    monkeypatch.setattr(client, "LIMITER", TokenBucket(capacity=10**9, refill_interval=1.0))
+    with pytest.raises(RuntimeError):
+        asyncio.run(scrape("linkedin", search_term="x", location="Seattle"))
     assert closed == [True]

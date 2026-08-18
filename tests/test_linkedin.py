@@ -5,7 +5,7 @@ import json
 import logging
 
 import pytest
-from fakes import StubFetcher, not_found, ok, rate_limited
+from fakes import StubFetcher, network_down, not_found, ok, rate_limited
 
 from jobrake.cache import PostingCache
 from jobrake.fetchkit import TokenBucket
@@ -147,6 +147,23 @@ def test_linkedin_persistent_429_returns_partial(unlimited, monkeypatch):
     fetcher = StubFetcher({"seeMoreJobPostings": rate_limited()})
     assert asyncio.run(linkedin.search(fetcher, search_term="x", location="Seattle")) == []
     assert len(fetcher.requests) == 2  # the one retry, then give up
+
+
+def test_linkedin_keeps_collected_jobs_after_a_later_page_failure(unlimited):
+    class DownAfterFirst(StubFetcher):
+        async def fetch(self, url, headers=None):
+            if self.requests:
+                self.requests.append(url)
+                return network_down()
+            return await super().fetch(url, headers)
+
+    fetcher = DownAfterFirst(
+        {"seeMoreJobPostings": ok(linkedin_card("111") + linkedin_card("222"))}
+    )
+    jobs = asyncio.run(
+        linkedin.search(fetcher, search_term="x", location="Seattle", results_wanted=5)
+    )
+    assert [j["id"] for j in jobs] == ["111", "222"]  # the first page survives
 
 
 def test_warns_on_empty_first_page(unlimited, caplog):
