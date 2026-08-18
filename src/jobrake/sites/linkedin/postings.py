@@ -229,7 +229,9 @@ async def fetch_postings(
     Takes each job's own URL (``/jobs/view/<slug>-<id>``), the one the
     search cards carry. An id alone reaches a page without the structured
     block. Duplicate and empty urls are skipped, and urls that share one
-    posting id share one fetch and one answer. Never raises.
+    posting id share one fetch and one answer. A failure the fetcher
+    reports as a result costs at most its posting; an exception the
+    fetcher itself raises, cancellation included, propagates.
 
     Three outcomes per url. A dict of fields means hydrated, partial when
     the page omits the structured block. ``None`` means the posting is

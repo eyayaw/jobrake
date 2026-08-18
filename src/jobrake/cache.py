@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 PACKAGE_NAME = "jobrake"
 CACHE_DB_NAME = "postings.sqlite3"
 TTL = 7 * 24 * 3600  # seconds
-RETENTION = 30 * 24 * 3600  # older will be deleted on startup
+RETENTION = 30 * 24 * 3600  # field rows older than this are deleted on startup; tombstones stay
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS postings (
     site TEXT NOT NULL,

@@ -1,4 +1,4 @@
-"""Minimal async LinkedIn and Indeed scrapers into a unified job posting data."""
+"""Minimal async LinkedIn and Indeed scrapers with a unified job posting model."""
 
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _get_version

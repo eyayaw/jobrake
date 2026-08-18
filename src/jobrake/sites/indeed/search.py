@@ -248,8 +248,10 @@ async def search(
     collected; a job without a usable key is skipped alone, and invalid
     field values are omitted.
 
-    ``detail`` and ``cache`` are accepted and ignored: every field arrives
-    in the search response, and nothing costs an extra request.
+    ``detail`` and ``cache`` are accepted and ignored: every field this
+    adapter supports arrives in the search response, and nothing costs an
+    extra request. A job from here omits the unsupported fields
+    (``apply_type``, ``applicants``, ``experience_months``, ``education``).
     """
     check_hours_old(hours_old)
     subdomain, api_code = indeed_domain(country)
