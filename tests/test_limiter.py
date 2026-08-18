@@ -1,4 +1,4 @@
-"""TokenBucket tests: the reserve policy with plain numbers, acquire with real time."""
+"""TokenBucket tests: the reserve policy with plain numbers, acquire with real or stubbed time."""
 
 import asyncio
 import time
@@ -49,7 +49,17 @@ def test_acquire_paces_in_real_time():
     assert asyncio.run(two_acquires()) >= 0.04
 
 
-def test_canceled_acquire_refunds_the_token(monkeypatch):
+def test_survives_successive_event_loops():
+    bucket = TokenBucket(1, 0.001)
+
+    async def contend():
+        await asyncio.gather(bucket.acquire(), bucket.acquire())
+
+    asyncio.run(contend())
+    asyncio.run(contend())
+
+
+def test_canceled_acquire_keeps_the_token(monkeypatch):
     async def canceled_sleep(seconds):
         raise asyncio.CancelledError
 
@@ -62,8 +72,39 @@ def test_canceled_acquire_refunds_the_token(monkeypatch):
             await bucket.acquire()  # owes one refill; canceled mid-wait
         return bucket.reserve(time.monotonic())
 
-    # The canceled waiter's token came back: one refill owed, not two.
+    # Acquire waits before spending, so the canceled waiter took nothing:
+    # one refill owed, not two.
     assert asyncio.run(run()) == pytest.approx(2.0, abs=0.1)
+
+
+def test_canceled_waiter_does_not_delay_its_follower(monkeypatch):
+    real_sleep = asyncio.sleep
+    sleeps = []
+
+    async def controlled_sleep(seconds):
+        sleeps.append(seconds)
+        await asyncio.Future()
+
+    monkeypatch.setattr(asyncio, "sleep", controlled_sleep)
+
+    async def run():
+        bucket = TokenBucket(1, 2.0)
+        await bucket.acquire()
+        canceled = asyncio.create_task(bucket.acquire())
+        follower = asyncio.create_task(bucket.acquire())
+        await real_sleep(0)
+        assert sleeps == pytest.approx([2.0], abs=0.1)
+        canceled.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await canceled
+        await real_sleep(0)
+        # The follower owes the same single refill, on its own schedule.
+        assert sleeps == pytest.approx([2.0, 2.0], abs=0.1)
+        follower.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await follower
+
+    asyncio.run(run())
 
 
 @pytest.mark.parametrize(

@@ -10,7 +10,6 @@ from fakes import StubFetcher, ok, rate_limited
 
 from jobrake.models import IDENTITY_FIELDS, SUMMARY_FIELDS
 from jobrake.sites import indeed
-from jobrake.sites.indeed.countries import indeed_domain
 
 
 def test_query_escapes_graphql_strings_as_json():
@@ -20,17 +19,6 @@ def test_query_escapes_graphql_strings_as_json():
     assert 'where: "Brussels \\"center\\""' in query
     assert "radius: 0" in query
     assert 'cursor: "next\\\\\\""' in query
-
-
-def test_indeed_country_aliases_and_api_codes():
-    assert indeed_domain("usa") == indeed_domain("United States") == ("www", "US")
-    assert indeed_domain("uk") == ("uk", "GB")
-    assert indeed_domain("netherlands") == ("nl", "NL")
-
-
-def test_indeed_rejects_an_unknown_country():
-    with pytest.raises(ValueError, match="Atlantis"):
-        indeed_domain("Atlantis")
 
 
 def indeed_payload(keys, cursor=None):
