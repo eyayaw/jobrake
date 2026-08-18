@@ -68,25 +68,60 @@ def test_linkedin_parses_cards_and_dedups_by_posting_id(unlimited):
     assert set(jobs[0]) == {*IDENTITY_FIELDS, *SUMMARY_FIELDS}
 
 
+class PagedFetcher(StubFetcher):
+    """Serves one canned page per request, in order; an extra request fails the test."""
+
+    def __init__(self, pages):
+        super().__init__({})
+        self.pages = list(pages)
+
+    async def fetch(self, url, headers=None):
+        self.requests.append(url)
+        return ok(self.pages[len(self.requests) - 1])
+
+
 def test_pagination_advances_by_raw_page_size(unlimited):
-    pages = [
-        linkedin_card("111") + linkedin_card("222"),
-        linkedin_card("222") + linkedin_card("333"),
-        linkedin_card("444"),
-    ]
-
-    class Paged(StubFetcher):
-        async def fetch(self, url, headers=None):
-            self.requests.append(url)
-            return ok(pages[len(self.requests) - 1])
-
-    fetcher = Paged({})
+    fetcher = PagedFetcher(
+        [
+            linkedin_card("111") + linkedin_card("222"),
+            linkedin_card("222") + linkedin_card("333"),
+            linkedin_card("444"),
+        ]
+    )
     jobs = asyncio.run(
         linkedin.search(fetcher, search_term="x", location="Seattle", results_wanted=4)
     )
 
     assert [job["id"] for job in jobs] == ["111", "222", "333", "444"]
     assert "start=4" in fetcher.requests[2]
+
+
+def test_pagination_survives_a_duplicate_only_page(unlimited):
+    fetcher = PagedFetcher(
+        [
+            linkedin_card("111") + linkedin_card("222"),
+            linkedin_card("111") + linkedin_card("222"),
+            linkedin_card("333"),
+            "",
+        ]
+    )
+    jobs = asyncio.run(
+        linkedin.search(fetcher, search_term="x", location="Seattle", results_wanted=10)
+    )
+
+    assert [job["id"] for job in jobs] == ["111", "222", "333"]
+    assert "start=4" in fetcher.requests[2]  # overlapped offsets still advance
+
+
+def test_pagination_counts_unparsable_cards_toward_the_offset(unlimited):
+    unparsable = '<div class="base-search-card"><span>no link</span></div>'
+    fetcher = PagedFetcher([linkedin_card("111") + unparsable, ""])
+    jobs = asyncio.run(
+        linkedin.search(fetcher, search_term="x", location="Seattle", results_wanted=10)
+    )
+
+    assert [job["id"] for job in jobs] == ["111"]
+    assert "start=2" in fetcher.requests[1]
 
 
 def test_linkedin_429_retries_once_then_recovers(unlimited, monkeypatch):
@@ -123,12 +158,12 @@ def test_warns_on_empty_first_page(unlimited, caplog):
 
 
 def test_no_warning_when_pagination_simply_ends(unlimited, caplog):
-    fetcher = StubFetcher({"seeMoreJobPostings": ok(linkedin_card("111"))})
+    fetcher = PagedFetcher([linkedin_card("111"), ""])
     with caplog.at_level(logging.WARNING, logger="jobrake.sites.linkedin"):
         jobs = asyncio.run(
             linkedin.search(fetcher, search_term="x", location="Seattle", results_wanted=5)
         )
-    assert [j["id"] for j in jobs] == ["111"]  # second page dedups to empty: normal end
+    assert [j["id"] for j in jobs] == ["111"]  # a card-less page: normal end
     assert caplog.records == []
 
 

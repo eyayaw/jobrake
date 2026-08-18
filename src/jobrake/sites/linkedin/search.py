@@ -19,10 +19,16 @@ MAX_START = 1000  # the guest API stops serving past this offset
 
 def parse_cards(html: str) -> list[dict]:
     """Fields from the cards on one search page."""
+    return _parse_page(html)[0]
+
+
+def _parse_page(html: str) -> tuple[list[dict], int]:
+    """(parsed cards, raw card count) from one search page."""
     # The description lives on the posting's own page; see fetch_postings.
     soup = BeautifulSoup(html, "html.parser")
+    cards = soup.find_all("div", class_="base-search-card")
     jobs = []
-    for card in soup.find_all("div", class_="base-search-card"):
+    for card in cards:
         link = card.find("a", class_="base-card__full-link")
         if link is None or not link.get("href"):
             continue
@@ -39,15 +45,15 @@ def parse_cards(html: str) -> list[dict]:
         jobs.append(
             make_job(
                 id=posting_id,
-                title=title_tag.get_text(strip=True) if title_tag else "",
-                company=company_tag.get_text(strip=True) if company_tag else "",
+                title=title_tag.get_text(strip=True) if title_tag else None,
+                company=company_tag.get_text(strip=True) if company_tag else None,
                 url=url,
-                location=location_tag.get_text(strip=True) if location_tag else "",
-                date=str(time_tag.get("datetime") or "") if time_tag else "",
+                location=location_tag.get_text(strip=True) if location_tag else None,
+                date=time_tag.get("datetime") if time_tag else None,
                 site="linkedin",
             )
         )
-    return jobs
+    return jobs, len(cards)
 
 
 async def search(
@@ -88,14 +94,8 @@ async def search(
         result = await paced_fetch(fetcher, f"{SEARCH_URL}?{query}")
         if not result.ok:
             break
-        cards = parse_cards(result.text)
-        page = []
-        for job in cards:
-            if job["id"] in seen:
-                continue
-            seen.add(job["id"])
-            page.append(job)
-        if not page:
+        cards, raw = _parse_page(result.text)
+        if not raw:
             if start == 0:
                 # An unresolvable location yields an empty 200 identical to a
                 # genuine no-results page; the guest geocoder wants qualified
@@ -107,8 +107,15 @@ async def search(
                     location,
                 )
             break
-        jobs.extend(page)
-        start += len(cards)
+        for job in cards:
+            if job["id"] in seen:
+                continue
+            seen.add(job["id"])
+            jobs.append(job)
+        # Offsets can overlap and single cards can be unparsable, so a page
+        # without new jobs is no proof of the end; only a card-less page is.
+        # The offset advances by the server's own card count.
+        start += raw
 
     jobs = jobs[:results_wanted]
     if detail:
