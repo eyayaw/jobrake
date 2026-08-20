@@ -8,7 +8,7 @@ The job boards shed new postings every day. Bring a rake. 🍂
 <blockquote>
 Read it as "<b>job-rake</b>". Say it fast and it is "<b>job break</b>". (^_~)
 <br><br>
-And if your name happens to be Jo, read it again: <b>Jo-brake</b>—the brake on the job-board doomscroll.
+And if Jo shows up here, read it again: <b>Jo-brake</b>—the brake on the job-board doomscroll.
 </blockquote>
 </td>
 <td valign="top">
@@ -59,20 +59,21 @@ jobrake -s indeed \
   -r 100 \
   -a 48 \
   -n 5
-# -d: # no need, search results contain details
 ```
-
 </td>
 </tr>
 </table>
 
+*NB: `-d` is not needed for Indeed, as search results contain details.*
+
 ## Installation
 
-Install from GitHub (not on PyPI) with [`uv`](https://github.com/astral-sh/uv):
+Jobrake is not on PyPI. Install it from GitHub with
+[`uv`](https://github.com/astral-sh/uv):
 
 ```sh
 uv add git+https://github.com/eyayaw/jobrake
-# or, for the CLI alone:
+# Install as a CLI tool
 uv tool install git+https://github.com/eyayaw/jobrake
 ```
 
@@ -94,10 +95,11 @@ jobrake --help
 > "2026-08-15\tSenior Data Scientist - Machine Learning\tGeneral Dynamics Information Technology\thttps://www.indeed.com/viewjob?jk=e422bd4de2737ee7"
 > ```
 
-Or write directly to a file with `--output | -o`; the extension determines the format: use `-o jobs.csv` for CSV, and `-o jobs.json` or `-o jobs.jsonl` for JSON. CSV keeps a fixed column for each model field, with empty cells for unavailable values. JSON and JSONL keep every identity and summary key while omitting unavailable detail keys.
+Use `--output | -o` to write directly to a file. The extension selects the format. Use `-o jobs.csv` for CSV, `-o jobs.json` for JSON, or `-o jobs.jsonl` for JSONL. CSV keeps a column for every model field, with empty cells for unavailable values. JSON and JSONL keep every identity and summary key while omitting unavailable detail keys.
 
 > [!TIP]
-> `-o` replaces the file, so give each run its own; jsonl files then merge with a plain `cat`:
+> `-o` overwrites files, so give each run its own path.
+> If you choose JSONL files, you can merge files with `cat`:
 >
 > ```sh
 > jobrake ... -o runs/2026-08-10.jsonl   # Monday's run
@@ -183,7 +185,9 @@ asyncio.run(main())
 ````
 </details>
 
-Every job posting comes back as a flat dict. The `site`, `id`, and `url` fields uniquely identify the posting. The `title`, `company`, `location`, and `date` keys are in every job. Each value is `None` when unavailable, so every job has the same seven identity and summary keys. The rest, `description` and detail fields such as `salary_min`, `employment_type`, and `applicants`, are retrieved from the posting itself and appear only where a value is available. An absent detail key does not say why the value is missing: the posting may omit the field, the site may never publish it, or the page may not have been fetched. All (common) fields have the same meaning across sites, and a field only one site publishes appears only in that site's jobs: `apply_type`, `applicants`, `experience_months`, and `education` come from LinkedIn, `is_remote` and `apply_url` from Indeed. Indeed includes the detail fields in the search response, but LinkedIn requires the `--detail | -d` flag.
+Every job posting comes back as a flat dict. The `site`, `id`, and `url` fields identify it. Every job also has `title`, `company`, `location`, and `date`. An unavailable value is `None`, so all jobs have the same seven identity and summary keys.
+
+Detail fields start with `description` and appear only when a value is available. A missing key has no single meaning. The posting may omit the field, the site may not publish it, or the page may not have been fetched. Fields shared by both sites have the same meaning. LinkedIn alone provides `apply_type`, `applicants`, `experience_months`, and `education`. Indeed alone provides `is_remote` and `apply_url`. Indeed gets detail fields in its search response. LinkedIn needs `--detail | -d` to fetch them.
 
 `scrape` creates and closes its own fetcher on every call. Pass your own to reuse one session across searches, or to set timeouts, headers, or cookies.
 
@@ -218,42 +222,42 @@ Every job posting comes back as a flat dict. The `site`, `id`, and `url` fields 
 >
 > nl, us = asyncio.run(main())
 > ```
-> To create a custom fetcher, e.g., around another HTTP client or a browser, subclass `jobrake.fetchkit.BaseFetcher`. Its `fetch` turns any `Exception` the transport raises into an error result. A failed request costs that page and the run continues. Cancellation and exceptions raised outside that boundary propagate.
+> To wrap another HTTP client or a browser, subclass `jobrake.fetchkit.BaseFetcher`. Its `fetch` turns transport exceptions into error results. A failed request costs that page and the run continues. Cancellation and exceptions raised outside that boundary propagate.
 
 ## Locations and countries
 
 Each site has one **required geographic argument**.
 
-- Indeed needs `country` to pick the edition it queries: a name like `germany`, not an ISO code like `de`.
+- Indeed needs `country` to pick the edition it queries. Use a name such as `germany`. The ISO code `de` is rejected.
 
-- LinkedIn needs `location` and ignores `country`. Always make your place names unambiguous, e.g., "Amsterdam, North Holland, Netherlands". A location LinkedIn cannot resolve returns an empty result, with a warning.
+- LinkedIn needs `location` and ignores `country`. Use an unambiguous place name such as "Amsterdam, North Holland, Netherlands". A location LinkedIn cannot resolve returns an empty result with a warning.
 
-The search radius (`--radius` in the cli) is in **kilometers**. The CLI defaults it to 50 and `--hours-old` to 24: postings older than a day are filtered unless you widen it (e.g., `-a 168` for a week). The library's `scrape()` defaults both to `None`: no age filter, and the site's own radius default. See other defaults in [defaults.py](src/jobrake/defaults.py).
+The CLI measures `--radius` in **kilometers** and defaults it to 50. `--hours-old` defaults to 24, which filters postings older than a day. Use `-a 168` for one week. The library's `scrape()` defaults both arguments to `None`. That leaves the age unbounded and uses the site's radius default. See [defaults.py](src/jobrake/defaults.py) for the other defaults.
 
 ## Supported job boards
 
 | Site       | Mechanism                     | Notes                                                                                                      |
 | ---------- | ----------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `indeed`   | Mobile-app GraphQL API (POST) | fast and reliable; full descriptions and detail in the search response                                     |
-| `linkedin` | Guest search API (HTML cards) | token-bucket pacing (short burst, then ~one request per 3s); optional per-job detail fetch, cached on disk |
+| `indeed`   | Mobile-app GraphQL API (POST) | Search results include full descriptions and detail fields.                                           |
+| `linkedin` | Guest search API (HTML cards) | Token-bucket pacing allows a short burst, then about one request per 3s. Detail is optional and cached. |
 
 <details>
 <summary>Glassdoor</summary>
-Unlike jobspy, jobrake does not support Glassdoor. Since July 1, 2026, it is <a href="https://web.archive.org/web/20260704043638/https://www.glassdoor.com/about/">part of Indeed</a> and likely serves the same inventory. It is not a priority, but a PR is welcome—for Glassdoor or any other major job board.
+Unlike jobspy, jobrake does not support Glassdoor. Glassdoor became <a href="https://web.archive.org/web/20260704043638/https://www.glassdoor.com/about/">part of Indeed</a> on July 1, 2026, and likely serves the same inventory. It is not a priority. A PR for Glassdoor or another major job board is welcome.
 </details>
 
-### LinkedIn: Rate limiting and posting detail
+### LinkedIn rate limiting and posting detail
 
 LinkedIn rate-limits each visitor, per IP. A few requests may burst immediately, then roughly one every couple of seconds. Search pages are limited more strictly than job-detail pages.
 
 > [!NOTE]
-> Each jobrake run keeps its own token bucket and waits before every request until the next one is allowed—roughly one request per **three seconds** after a short burst. The bucket counts only its own requests, while LinkedIn's budget covers everything your IP sends, so a second run from the same address draws down the same allowance. A request that still receives a 429 is retried once after the limit clears.
+> Each jobrake run keeps its own token bucket. After a short burst, it allows roughly one request every **three seconds**. The bucket counts only its own requests, while LinkedIn counts everything from your IP. A second run from the same address draws from the same allowance. A request that still receives a 429 is retried once after the limit clears.
 
-We extract summary fields from the search results. The description and the rest of attributes live on the job's posting page, so this requires an extra request per job against the same rate limit. Use `--detail | -d` in the CLI to fetch these attributes.
+We extract summary fields from the search results. The detail fields live on the job's posting page, so this requires an extra request per job against the same rate limit. Use `--detail | -d` in the CLI to fetch them.
 
-Fetched postings are cached on disk for a week (see [`TTL`](src/jobrake/cache.py)) in your user cache directory, so repeated runs only pay for postings that have not been seen. A posting that is gone (404/410) is remembered and skipped on later cached runs. Pass `--no-cache` (or `cache=False`) to bypass the cache.
+Fetched postings stay in your user cache directory for a week. See [`TTL`](src/jobrake/cache.py). Repeated runs request only postings that are missing or stale. The cache remembers a posting after HTTP 404 or 410 and skips it on later runs. Pass `--no-cache` or `cache=False` to bypass the cache.
 
-I advise being gentle with the guest API. Detail fetches cost one paced request per job, so a long list takes its time by design. The cache makes repeats cheap. If you want only some of the jobs, list without `-d` and fetch the interesting ones with `linkedin.fetch_postings(fetcher, urls)`. It maps each URL to the posting's fields or to `None` when the posting is gone (404/410). A URL that failed transiently is absent and safe to retry.
+I advise being gentle with the guest API. Detail fetches cost one paced request per job, so a long list **takes its time by design**. The cache makes repeats cheap. If you want only some of the jobs, list without `-d` and fetch the interesting ones with `linkedin.fetch_postings(fetcher, urls)`. It maps each URL to the posting's fields or to `None` after HTTP 404 or 410. A URL that failed transiently is absent and safe to retry.
 
 ```py
 import asyncio
@@ -261,21 +265,21 @@ from jobrake.sites import linkedin, scrape
 from jobrake.fetchkit import HttpxFetcher
 search_results = asyncio.run(
 scrape(
-    "linkedin", 
+    "linkedin",
     search_term="data scientist",
-    location="amsterdam, netherlands", 
+    location="amsterdam, netherlands",
     results_wanted=10
 ))
-# Inspect the results and keep the interesting ones and fetch the details for those.
+# Fetch details only for the interesting results.
 leads = [job["url"] for job in search_results if not "senior" in (job.get("title") or "").lower()]
 jobs = asyncio.run(linkedin.fetch_postings(HttpxFetcher(), leads))
 ```
 
 ## Credits
 
-jobrake owes a lot to [python-jobspy](https://pypi.org/project/python-jobspy/): the Indeed mobile-app GraphQL endpoint, its public app key, and the LinkedIn guest-search approach were all adapted from it. Thanks.
+jobrake owes a lot to [python-jobspy](https://pypi.org/project/python-jobspy/). The Indeed mobile-app GraphQL endpoint, its public app key, and the LinkedIn guest-search approach came from it. Thanks.
 
 ## Disclaimer
 
 > [!WARNING]
-> Scraping these sites may violate their terms of service. This package is not affiliated with any site it scrapes; check their terms and decide for yourself whether your use complies.
+> Scraping these sites may violate their terms of service. This package is not affiliated with either site. Check their terms and decide whether your use complies.
