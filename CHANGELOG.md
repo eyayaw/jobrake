@@ -1,5 +1,31 @@
 # Changelog
 
+## [0.11.0](https://github.com/eyayaw/jobrake/releases/tag/v0.11.0) (2026-08-20)
+
+### Changed
+
+- **Breaking:** Job dicts retain the seven identity and summary keys, using
+  `None` for unavailable summary values. Detail fields appear only when a
+  value is available.
+
+### Fixed
+
+- Indeed skips malformed results without discarding valid siblings, preserves
+  parsed jobs when pagination metadata is damaged, and omits provider values
+  that do not match the model type.
+- LinkedIn advances pagination by the raw card count, so overlapping pages and
+  unparseable cards do not truncate a search.
+- LinkedIn accepts the structured forms used for employment type, company
+  logos, country, and other schema.org fields; unsupported shapes are omitted.
+- Malformed cache timestamps disable the cache and become misses instead of
+  stopping a scrape.
+- Search entry points reject zero and negative posting-age filters.
+- `HttpxFetcher` classifies protocol and proxy failures as network errors while
+  leaving malformed URLs in the unknown category.
+- LinkedIn fetches each posting ID at most once per detail call, even when
+  several URLs refer to it or its first request fails transiently.
+
+
 ## [0.10.0](https://github.com/eyayaw/jobrake/releases/tag/v0.10.0) (2026-08-18)
 
 ### Fixed
