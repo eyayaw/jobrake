@@ -21,8 +21,8 @@ class Job:
        ``id`` is the site's own identifier, stable but unique only within
        its site; ``(site, id)`` is unique globally.
 
-    2. Summary: ``title``, ``company``, ``location``, and ``date`` are keys in
-       a job dict should have. Each value is ``None`` when unavailable.
+    2. Summary: ``title``, ``company``, ``location``, and ``date`` are present
+       in every job dict. Each value is ``None`` when unavailable.
 
     3. Detail: everything from ``description`` on—attributes a posting
        may contain, extracted when present. ``None`` means no value was

@@ -94,7 +94,7 @@ jobrake --help
 > "2026-08-15\tSenior Data Scientist - Machine Learning\tGeneral Dynamics Information Technology\thttps://www.indeed.com/viewjob?jk=e422bd4de2737ee7"
 > ```
 
-Or write directly to a file with `--output | -o`; the extension determines the format: use `-o jobs.csv` for CSV, and `-o jobs.json` or `-o jobs.jsonl` for JSON. CSV keeps a fixed column for each model field, with empty cells for absent info. JSON and JSONL objects contain only the keys present in each job, i.e., keys with non-None values.
+Or write directly to a file with `--output | -o`; the extension determines the format: use `-o jobs.csv` for CSV, and `-o jobs.json` or `-o jobs.jsonl` for JSON. CSV keeps a fixed column for each model field, with empty cells for unavailable values. JSON and JSONL keep every identity and summary key while omitting unavailable detail keys.
 
 > [!TIP]
 > `-o` replaces the file, so give each run its own; jsonl files then merge with a plain `cat`:
@@ -109,17 +109,23 @@ Or write directly to a file with `--output | -o`; the extension determines the f
 
 ```python
 import asyncio
+import json
+
 from jobrake import scrape
 
-jobs = asyncio.run(
-scrape(
-    "indeed",
-    search_term="economist",
-    country="usa",
-    results_wanted=2,
-    hours_old=24,
-))
-# print(json.dumps(jobs, indent=2))
+
+async def main():
+    jobs = await scrape(
+        "indeed",
+        search_term="economist",
+        country="United States",
+        results_wanted=2,
+        hours_old=24,
+    )
+    print(json.dumps(jobs, indent=2))
+
+
+asyncio.run(main())
 ```
 <details>
 <summary>Expand for the output</summary>
@@ -185,15 +191,34 @@ Every job posting comes back as a flat dict. The `site`, `id`, and `url` fields 
 > ### Custom fetchers
 >
 > ```python
+> import asyncio
+>
+> from jobrake import scrape
 > from jobrake.fetchkit import HttpxFetcher
-> 
-> fetcher = HttpxFetcher(timeout=30)
-> nl = await scrape("linkedin", ..., fetcher=fetcher)
-> us = await scrape("indeed", ..., fetcher=fetcher)
-> await fetcher.close()  # you own the fetcher
+>
+>
+> async def main():
+>     async with HttpxFetcher(timeout=30) as fetcher:
+>         nl = await scrape(
+>             "indeed",
+>             search_term="economist",
+>             location="Amsterdam",
+>             country="Netherlands",
+>             fetcher=fetcher,
+>         )
+>         us = await scrape(
+>             "indeed",
+>             search_term="economist",
+>             location="New York",
+>             country="USA",
+>             fetcher=fetcher,
+>         )
+>         return nl, us
+>
+>
+> nl, us = asyncio.run(main())
 > ```
-> 
-> To create a custom fetcher, e.g., around another HTTP client or a browser, subclass `jobrake.fetchkit.BaseFetcher`. Its `fetch` turns any `Exception` the transport raises into an error result, so a failed request costs that page and the run continues; cancellation propagates, as does anything a fetcher raises outside that boundary.
+> To create a custom fetcher, e.g., around another HTTP client or a browser, subclass `jobrake.fetchkit.BaseFetcher`. Its `fetch` turns any `Exception` the transport raises into an error result. A failed request costs that page and the run continues. Cancellation and exceptions raised outside that boundary propagate.
 
 ## Locations and countries
 
@@ -222,13 +247,13 @@ Unlike jobspy, jobrake does not support Glassdoor. Since July 1, 2026, it is <a 
 LinkedIn rate-limits each visitor, per IP. A few requests may burst immediately, then roughly one every couple of seconds. Search pages are limited more strictly than job-detail pages.
 
 > [!NOTE]
-> Each jobrake run keeps its own token bucket and waits before every request until the next one is allowed—roughly one request per **three seconds** after a short burst. The bucket counts only its own requests, while LinkedIn's budget covers everything your IP sends, so a second run from the same address draws down the same allowance. A rate limited request anyway is retried once after the limit clears.
+> Each jobrake run keeps its own token bucket and waits before every request until the next one is allowed—roughly one request per **three seconds** after a short burst. The bucket counts only its own requests, while LinkedIn's budget covers everything your IP sends, so a second run from the same address draws down the same allowance. A request that still receives a 429 is retried once after the limit clears.
 
 We extract summary fields from the search results. The description and the rest of attributes live on the job's posting page, so this requires an extra request per job against the same rate limit. Use `--detail | -d` in the CLI to fetch these attributes.
 
 Fetched postings are cached on disk for a week (see [`TTL`](src/jobrake/cache.py)) in your user cache directory, so repeated runs only pay for postings that have not been seen. A posting that is gone (404/410) is remembered and skipped on later cached runs. Pass `--no-cache` (or `cache=False`) to bypass the cache.
 
-I advise being gentle with the guest API and do not tinker with the rate limiting (you can try AIMD over the token bucket or proxies if you wish). Detail fetches cost one paced request per job, so a long list takes its time by design. The cache makes repeats cheap. It maps each url to the posting's fields, or to `None` when the posting is gone (404/410); a url that failed transiently is absent and safe to retry. If you only want some of the jobs, list without `-d` and fetch just the interesting ones with `linkedin.fetch_postings(fetcher, urls)`. 
+I advise being gentle with the guest API. Detail fetches cost one paced request per job, so a long list takes its time by design. The cache makes repeats cheap. If you want only some of the jobs, list without `-d` and fetch the interesting ones with `linkedin.fetch_postings(fetcher, urls)`. It maps each URL to the posting's fields or to `None` when the posting is gone (404/410). A URL that failed transiently is absent and safe to retry.
 
 ```py
 import asyncio
@@ -241,8 +266,8 @@ scrape(
     location="amsterdam, netherlands", 
     results_wanted=10
 ))
-# Inspect the results and keep only the roles that are good fit and fetch the details for those.
-leads = [job["url"] for job in search_results if not "senior" in job.get("title").lower()]
+# Inspect the results and keep the interesting ones and fetch the details for those.
+leads = [job["url"] for job in search_results if not "senior" in (job.get("title") or "").lower()]
 jobs = asyncio.run(linkedin.fetch_postings(HttpxFetcher(), leads))
 ```
 

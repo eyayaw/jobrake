@@ -190,7 +190,9 @@ def _parse_posting(soup: BeautifulSoup) -> tuple[dict, bool]:
         "experience_months": _number_value(
             _obj(posting.get("experienceRequirements")).get("monthsOfExperience")
         ),
-        "education": _text_value(_obj(posting.get("educationRequirements")).get("credentialCategory")),
+        "education": _text_value(
+            _obj(posting.get("educationRequirements")).get("credentialCategory")
+        ),
     }
     # The markup is the only source of apply_type and applicants, and the
     # only source of anything on a block-less page.
@@ -216,7 +218,7 @@ def _parse_posting(soup: BeautifulSoup) -> tuple[dict, bool]:
 def _canonical(url: str) -> str:
     """The URL form that carries the structured block."""
     # A trailing slash suppresses it: same page, 200 and full size, no schema.org script.
-    path, sep, query = url.partition("?") # the query mostly empty
+    path, sep, query = url.partition("?")  # the query mostly empty
     return path.rstrip("/") + sep + query
 
 
