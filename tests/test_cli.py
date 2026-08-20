@@ -1,4 +1,4 @@
-"""CLI output tests: stdout stays pure JSON; ``-o`` writes files by extension."""
+"""CLI output tests for stdout and files selected by extension."""
 
 import csv
 import json
@@ -63,7 +63,7 @@ def test_output_csv_roundtrips_hostile_fields(run_cli, tmp_path, capsys):
         for job in JOBS
     ]
     assert rows == expected
-    assert capsys.readouterr().out == ""  # the file is the output; stdout stays silent
+    assert capsys.readouterr().out == ""  # File output leaves stdout silent.
 
 
 def test_output_jsonl_one_object_per_line(run_cli, tmp_path):

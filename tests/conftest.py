@@ -1,4 +1,4 @@
-"""Shared fixtures: every test runs against an isolated posting cache."""
+"""Fixtures that give every test an isolated posting cache."""
 
 import pytest
 

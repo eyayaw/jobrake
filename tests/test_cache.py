@@ -1,4 +1,4 @@
-"""PostingCache unit tests: contract, expiry, and the never-raise posture."""
+"""PostingCache tests for stored fields, expiry, and corrupt data."""
 
 import math
 

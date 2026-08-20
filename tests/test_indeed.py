@@ -157,7 +157,7 @@ def test_indeed_damaged_page_info_ends_the_search_with_the_page_kept(damage):
 
     fetcher = Paged({})
     jobs = asyncio.run(indeed.search(fetcher, search_term="x", country="usa", results_wanted=10))
-    assert [job["id"] for job in jobs] == ["a", "b"]  # both pages parsed; no cursor, so done
+    assert [job["id"] for job in jobs] == ["a", "b"]  # Both pages survive the bad cursor.
 
 
 def rich_job(**overrides):

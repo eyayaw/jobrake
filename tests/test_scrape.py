@@ -1,4 +1,4 @@
-"""Dispatcher tests: site routing and fetcher lifecycle."""
+"""Site-routing and fetcher-lifecycle tests for ``scrape``."""
 
 import asyncio
 

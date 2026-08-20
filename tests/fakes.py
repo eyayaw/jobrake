@@ -1,10 +1,10 @@
-"""Shared test fakes: canned FetchResults, no network."""
+"""Shared network-free fakes that return canned FetchResults."""
 
 from jobrake.fetchkit import ErrorCategory, FetchError, FetchResult
 
 
 class StubFetcher:
-    """Serves canned FetchResults by URL substring; records every request."""
+    """Serve canned FetchResults by URL substring and record every request."""
 
     def __init__(self, responses: dict[str, FetchResult]):
         self.responses = responses

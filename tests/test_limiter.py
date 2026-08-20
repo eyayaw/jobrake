@@ -1,4 +1,6 @@
-"""TokenBucket tests: the reserve policy with plain numbers, acquire with real or stubbed time."""
+"""
+TokenBucket reservation and acquisition tests with real and stubbed clocks.
+"""
 
 import asyncio
 import time
@@ -11,7 +13,7 @@ from jobrake.fetchkit import TokenBucket
 def test_burst_is_free_then_debt_compounds():
     bucket = TokenBucket(4, 2.0)
     assert [bucket.reserve(0.0) for _ in range(4)] == [0.0] * 4
-    # Empty: the 5th caller owes one refill, the 6th two.
+    # Once empty, the fifth caller owes one refill and the sixth owes two.
     assert bucket.reserve(0.0) == 2.0
     assert bucket.reserve(0.0) == 4.0
 
@@ -26,7 +28,7 @@ def test_idle_refill_caps_at_capacity():
 def test_partial_refill_charges_the_shortfall():
     bucket = TokenBucket(1, 2.0)
     assert bucket.reserve(0.0) == 0.0
-    # Half a token back after 1s; the missing half costs 1s.
+    # One second restores half a token, leaving one second to wait.
     assert bucket.reserve(1.0) == 1.0
 
 
@@ -45,7 +47,7 @@ def test_acquire_paces_in_real_time():
         await bucket.acquire()
         return time.monotonic() - start
 
-    # Lower bound only: the second acquire owes roughly one refill.
+    # Check the lower bound because the second acquire owes roughly one refill.
     assert asyncio.run(two_acquires()) >= 0.04
 
 
@@ -67,13 +69,13 @@ def test_canceled_acquire_keeps_the_token(monkeypatch):
 
     async def run():
         bucket = TokenBucket(1, 2.0)
-        await bucket.acquire()  # burst token, no sleep
+        await bucket.acquire()  # The burst token needs no sleep.
         with pytest.raises(asyncio.CancelledError):
-            await bucket.acquire()  # owes one refill; canceled mid-wait
+            await bucket.acquire()  # Cancellation lands during the refill wait.
         return bucket.reserve(time.monotonic())
 
-    # Acquire waits before spending, so the canceled waiter took nothing:
-    # one refill owed, not two.
+    # Acquire spends after waiting. The canceled waiter took nothing, so the
+    # bucket owes one refill.
     assert asyncio.run(run()) == pytest.approx(2.0, abs=0.1)
 
 

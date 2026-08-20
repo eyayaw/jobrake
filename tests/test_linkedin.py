@@ -69,7 +69,7 @@ def test_linkedin_parses_cards_and_dedups_by_posting_id(unlimited):
 
 
 class PagedFetcher(StubFetcher):
-    """Serves one canned page per request, in order; an extra request fails the test."""
+    """Serve one canned page per request and fail on an extra request."""
 
     def __init__(self, pages):
         super().__init__({})
@@ -427,7 +427,7 @@ def test_parse_posting_reads_the_en_us_markup_labels():
 
 
 def hydrated(postings, url) -> dict:
-    """The posting's fields; a gone or unfetched posting fails the test."""
+    """Return posting fields and fail for a gone or unfetched posting."""
     posting = postings.get(url)
     assert posting is not None
     return posting
@@ -519,7 +519,7 @@ def test_fetch_postings_cache_false_refetches(unlimited):
 
 
 def test_fetch_postings_caches_by_id_not_url(unlimited):
-    # The subdomain and slug vary under one posting; the id does not.
+    # One posting may change subdomain or slug while keeping its ID.
     fetcher = StubFetcher({"economist-at-acme-111": ok(job_page())})
     asyncio.run(linkedin.fetch_postings(fetcher, [CANONICAL]))
     moved = "https://www.linkedin.com/jobs/view/senior-economist-at-acme-111"
