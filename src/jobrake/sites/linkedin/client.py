@@ -1,4 +1,4 @@
-"""The guest API's shared pieces: URLs, headers, pacing, posting ids, the cache."""
+"""Shared guest API URLs, headers, pacing, posting IDs, and cache."""
 
 import asyncio
 
@@ -20,15 +20,15 @@ HEADERS = {
     ),
 }
 
-# The server budget is not uniform: search pages 429 under a 4-burst +
-# 2.25s cadence (the sixth request, deterministically), while a steady 3s
-# never does. A longer-horizon limit still yields sporadic 429s on 100+
-# request runs; the retry in paced_fetch absorbs those. Module-level on
-# purpose: the budget is per IP, so one bucket per process, shared across
-# all search calls.
+# In testing, the sixth search request returned 429 after a four-request burst
+# when requests were 2.25 seconds apart. Three seconds between requests avoided
+# that limit. Longer runs can still hit another rate limit, so paced_fetch
+# retries once. The module-level bucket coordinates calls in this process;
+# LinkedIn applies the budget per IP.
 LIMITER = TokenBucket(capacity=2, refill_interval=3.0)
 
-RETRY_DELAY = 10.0  # seconds before retrying a 429; still 429 at +5s, clear by ~10s
+# A 429 remains after five seconds and clears around ten.
+RETRY_DELAY = 10.0
 
 # One cache per process, lazy, so no file is touched until the first cached fetch.
 CACHE = PostingCache()
@@ -38,10 +38,9 @@ async def paced_fetch(fetcher: Fetcher, url: str) -> FetchResult:
     """
     Take a token, fetch, and retry once after a 429.
 
-    A 429 despite our pacing means someone else on this IP is spending the
-    server's bucket; it refills within seconds, so one retry usually lands.
-    A still-rate-limited result is returned as-is—give-up decisions stay
-    with the caller.
+    A 429 despite this pacing indicates other traffic from the same IP. The
+    server bucket usually refills within seconds. The caller receives a second
+    rate-limited result unchanged and decides whether to stop.
     """
     await LIMITER.acquire()
     result = await fetcher.fetch(url, headers=HEADERS)
@@ -53,7 +52,7 @@ async def paced_fetch(fetcher: Fetcher, url: str) -> FetchResult:
 
 
 def job_id(url: str) -> str:
-    """Numeric posting id from a ``/jobs/view/<sluggified-title>-<id>`` URL; ``""`` when absent."""
+    """Return the numeric ID in a job URL, or ``""`` when it has no numeric suffix."""
     slug = url.split("?")[0].rstrip("/").rsplit("/", 1)[-1]
     tail = slug.rsplit("-", 1)[-1]
     return tail if tail.isdigit() else ""

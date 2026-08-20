@@ -10,10 +10,10 @@ _BLOCK_TAGS = ("p", "div", "li", "ul", "ol", "h1", "h2", "h3", "h4", "h5", "h6",
 
 def html_text(html: str) -> str:
     """
-    Plain text from an HTML fragment: one line per block, styling stripped.
+    Plain text from an HTML fragment, with one line per block.
 
-    Block-level tags become line breaks; inline tags join seamlessly.
-    Style and script bodies are dropped.
+    Block tags become line breaks. Inline tags join without spaces. Style and
+    script bodies are dropped.
     """
     if not html:
         return ""
@@ -51,8 +51,8 @@ def epoch_ms_to_iso(ms: float | str) -> str:
     """
     ISO 8601 UTC timestamp from epoch milliseconds.
 
-    Raises ``ValueError`` for anything that cannot be epoch milliseconds,
-    seconds included: those land in the 1970s, a plausible date and a wrong one.
+    Raises ``ValueError`` for values that cannot be epoch milliseconds. Epoch
+    seconds land in the 1970s, so they are rejected too.
     """
     try:
         stamp = datetime.fromtimestamp(float(ms) / 1000.0, tz=UTC)

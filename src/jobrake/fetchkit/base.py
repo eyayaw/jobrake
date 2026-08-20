@@ -20,7 +20,7 @@ DEFAULT_USER_AGENT = (
 
 
 class Fetcher(Protocol):
-    """A GET transport whose failures are returned as ``FetchResult.error``."""
+    """A GET transport that returns failures in ``FetchResult.error``."""
 
     async def fetch(self, url: str, headers: dict[str, str] | None = None) -> FetchResult: ...
 

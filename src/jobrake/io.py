@@ -1,4 +1,4 @@
-"""Writers for scraped jobs: one function per output format."""
+"""One writer for each scraped-job output format."""
 
 import csv
 import json

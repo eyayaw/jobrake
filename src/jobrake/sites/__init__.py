@@ -32,26 +32,23 @@ async def scrape(
     Every dict has the identity and summary keys. An unavailable summary value
     is ``None``. A detail key is present when a value is available.
 
-    ``fetcher`` accepts any ``jobrake.fetchkit.Fetcher`` (injected fetchers are
-    not closed here—the caller owns their lifecycle); indeed needs the
-    ``PostFetcher`` variant. The default :class:`HttpxFetcher` qualifies for
-    every site.
+    LinkedIn accepts a ``jobrake.fetchkit.Fetcher``. Indeed requires the
+    ``PostFetcher`` variant. The caller owns an injected fetcher, so ``scrape``
+    leaves it open. The default :class:`HttpxFetcher` works for every site.
 
-    Indeed requires ``country``, LinkedIn requires ``location``.
-    In LinkedIn, posting attributes for ``detail`` are hydrated from the posting page, and
-    ``cache`` reuses fresh hydration results.
+    Indeed requires ``country``. LinkedIn requires ``location``. For LinkedIn,
+    ``detail`` fetches fields from each posting page and ``cache`` reuses
+    fresh results.
     """
     searchers = site_searchers()
     if site not in searchers:
-        raise ValueError(f"unknown site {site!r}; expected one of {sorted(searchers)}")
+        raise ValueError(f"unknown site {site!r}. Expected one of {sorted(searchers)}")
     if site == "linkedin":
         if location is None:
-            raise ValueError(
-                f"location is required for site='{site}' (pass e.g. 'London, England')"
-            )
+            raise ValueError(f"location is required for site='{site}'. Try 'London, England'")
     elif site == "indeed":
         if country is None:
-            raise ValueError(f"country is required for site='{site}' (pass e.g. 'usa', 'germany')")
+            raise ValueError(f"country is required for site='{site}'. Try 'usa' or 'germany'")
     check_hours_old(hours_old)
 
     owns_fetcher = fetcher is None

@@ -15,10 +15,10 @@ from .countries import indeed_domain
 
 logger = logging.getLogger(__name__)
 
-# jobspy's query, trimmed to the fields we keep. `limit: 100` is the API's
-# page size; pagination continues via pageInfo.nextCursor. The salary range
-# is a union type, hence the inline fragments: Range carries both bounds,
-# AtLeast/AtMost one, Exactly a value.
+# jobspy's query, trimmed to the fields we keep. `limit: 100` sets the API page
+# size. Pagination continues through pageInfo.nextCursor. The salary range is a
+# union. Range carries both bounds, AtLeast and AtMost carry one, and Exactly
+# carries one value.
 QUERY = """
 query GetJobData {{
   jobSearch(
@@ -64,8 +64,7 @@ query GetJobData {{
 """
 
 # Indeed mixes employment types into the attributes bag with skills and
-# benefits; these exact labels pick them out. Stable, since the headers pin
-# the en-US locale.
+# benefits. These labels pick them out. The headers pin the en-US locale.
 EMPLOYMENT_TYPES = ("Full-time", "Part-time", "Contract", "Temporary", "Internship", "Per diem")
 
 
@@ -118,7 +117,7 @@ def _scrub_css(text: str) -> str:
 
 
 def _timestamp(job: dict, field: str) -> str | None:
-    """The job's epoch-milliseconds field as an ISO timestamp; ``None`` if absent or bad."""
+    """Convert one epoch-millisecond job field to ISO 8601, or return ``None``."""
     if (ms := job.get(field)) is None:
         return None
     try:
@@ -155,7 +154,7 @@ def _parse_job(job: dict, base_url: str) -> dict:
     A value in the wrong shape is omitted.
     """
     key = job["key"].strip() if isinstance(job["key"], str) else ""
-    # Require a nonempty provider key; the model would silently empty a falsy one.
+    # The provider key becomes both the job ID and the URL's ``jk`` parameter.
     if not key:
         raise TypeError(f"job key {job['key']!r} is blank or not a string")
     loc = _dict_value(job.get("location"))
@@ -212,7 +211,7 @@ def _parse_job(job: dict, base_url: str) -> dict:
 
 
 def parse_jobs(data: dict, base_url: str) -> tuple[list[dict], str | None]:
-    """(jobs, next cursor) from one GraphQL response."""
+    """Return jobs and the next cursor from one GraphQL response."""
     search = data["data"]["jobSearch"]
     jobs = []
     for result in search["results"]:
@@ -222,8 +221,8 @@ def parse_jobs(data: dict, base_url: str) -> tuple[list[dict], str | None]:
             # Skip the malformed result and keep parsing its siblings.
             logger.warning("skipping malformed indeed result: %r", error)
     page_info = search.get("pageInfo")
-    # Missing or invalid pagination metadata ends the search after the
-    # current page; its parsed jobs still count.
+    # Missing or invalid pagination metadata ends the search after this page.
+    # Keep the jobs already parsed from it.
     cursor = page_info.get("nextCursor") if isinstance(page_info, dict) else None
     return jobs, cursor if isinstance(cursor, str) else None
 
@@ -243,15 +242,14 @@ async def search(
     """
     Page through the GraphQL API.
 
-    This API answers POST alone, via ``PostFetcher``. An error result
-    or a malformed response envelope ends the search with whatever was
-    collected; a job without a usable key is skipped alone, and invalid
-    field values are omitted.
+    This API accepts POST through ``PostFetcher``. An error result or malformed
+    response envelope ends the search with the jobs already collected. A bad
+    job key drops that job. An invalid field drops that field.
 
-    ``detail`` and ``cache`` are accepted and ignored: every field this
-    adapter supports arrives in the search response, and nothing costs an
-    extra request. A job from here omits the unsupported fields
-    (``apply_type``, ``applicants``, ``experience_months``, ``education``).
+    ``detail`` and ``cache`` are accepted and ignored. Every field this adapter
+    supports arrives in the search response, and nothing costs an extra
+    request. The unsupported fields are ``apply_type``, ``applicants``,
+    ``experience_months``, and ``education``.
     """
     check_hours_old(hours_old)
     subdomain, api_code = indeed_domain(country)

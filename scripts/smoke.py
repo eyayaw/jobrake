@@ -1,4 +1,4 @@
-"""Live smoke: one query per site, sequential, polite. Run: uv run scripts/smoke.py"""
+"""Query each site once, in sequence, with ``uv run scripts/smoke.py``."""
 
 import asyncio
 

@@ -17,9 +17,8 @@ DEFAULT_HEADERS = {
 class HttpxFetcher(BaseFetcher):
     """GET and JSON POST transport backed by one pooled httpx client."""
 
-    # The operational transport failures: timeouts, sockets, framing, and
-    # proxies. UnsupportedProtocol stays out—a malformed URL is the
-    # caller's error, not the network's.
+    # Timeouts, sockets, framing, and proxies are operational network failures.
+    # UnsupportedProtocol identifies a malformed caller URL and stays UNKNOWN.
     network_errors = (
         httpx.TimeoutException,
         httpx.NetworkError,

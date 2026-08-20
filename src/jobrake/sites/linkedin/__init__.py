@@ -1,4 +1,4 @@
-"""LinkedIn via the guest search API (HTML job cards, no login)."""
+"""LinkedIn through the login-free guest API and its HTML job cards."""
 
 from .client import BASE_URL, CACHE, HEADERS, LIMITER, RETRY_DELAY, SEARCH_URL, job_id
 from .postings import FRAGMENT_URL, fetch_postings, parse_posting

@@ -1,4 +1,4 @@
-"""A cli entrypoint to jobrake."""
+"""The jobrake CLI."""
 
 import argparse
 import asyncio
@@ -18,7 +18,7 @@ def main():
     parser = argparse.ArgumentParser(
         description="Search job postings", formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
-    # action="version" prints and exits before the required arguments are checked.
+    # The version action exits before argparse checks required arguments.
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     parser.add_argument("--site", "-s", choices=sorted(site_searchers()), required=True)
     parser.add_argument("--search-term", "-q", required=True, help="search query")
@@ -52,8 +52,8 @@ def main():
         "-d",
         default=defaults.DETAIL,
         action="store_true",
-        help="fetch each job's posting page for the description and the other detail fields"
-        " (linkedin; indeed's search results already carry them)",
+        help="fetch each LinkedIn posting page for its description and other detail fields. "
+        "Indeed search results already contain them",
     )
     parser.add_argument(
         "--no-cache",
@@ -68,14 +68,14 @@ def main():
     )
 
     args = parser.parse_args()
-    # Reject a bad extension upfront (before the scrape, not after paying for it)
+    # Reject a bad extension before the scrape spends any requests.
     if args.output is not None and args.output.suffix not in WRITERS:
         parser.error(
-            f"unsupported output extension {args.output.suffix!r} (use {' or '.join(WRITERS)})"
+            f"unsupported output extension {args.output.suffix!r}. Use {' or '.join(WRITERS)}"
         )
     # Progress and warnings go to stderr, stdout stays pure JSON for piping.
-    # Root stays at WARNING so chatty dependencies (httpx logs every request at INFO) are muted,
-    # only our own loggers speak at INFO.
+    # The WARNING root level mutes dependencies such as httpx, which logs every
+    # request at INFO. Only jobrake logs progress at INFO.
     logging.basicConfig(level=logging.WARNING, format="%(levelname)s [%(name)s] %(message)s")
     logging.getLogger("jobrake").setLevel(logging.INFO)
     try:

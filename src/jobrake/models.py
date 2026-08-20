@@ -1,4 +1,4 @@
-"""The data model for job postings: the same fields from every site."""
+"""One job-posting model shared by every site."""
 
 import re
 from dataclasses import asdict, dataclass, fields
@@ -12,22 +12,19 @@ SUMMARY_FIELDS = ("title", "company", "location", "date")
 @dataclass(kw_only=True, slots=True)
 class Job:
     """
-    Fields from a job posting, normalized across sites:
-    a field means the same thing regardless of which site it came from.
-
-    Three groups, by what is guaranteed.
+    A job posting with field names shared across sites.
 
     1. Identity: ``site``, ``id``, and ``url`` identify the job posting.
        ``id`` is the site's own identifier, stable but unique only within
-       its site; ``(site, id)`` is unique globally.
+       its site. ``(site, id)`` is unique globally.
 
     2. Summary: ``title``, ``company``, ``location``, and ``date`` are present
        in every job dict. Each value is ``None`` when unavailable.
 
-    3. Detail: everything from ``description`` on—attributes a posting
-       may contain, extracted when present. ``None`` means no value was
-       found: the posting omitted it, the site never provides it, or the
-       page was not fetched. The job dict omits those fields.
+    3. Detail: fields from ``description`` onward come from the posting when
+       available. The model stores an unavailable detail as ``None``, and the
+       job dict omits it. The posting may omit the value, the site may not
+       provide it, or the page may not have been fetched.
     """
 
     # Identity ----
@@ -73,7 +70,7 @@ class Job:
             value = getattr(self, name)
             if isinstance(value, str):
                 setattr(self, name, value.strip() or None)
-        # The search result's date wins; posted_at fills in when the site gave none.
+        # Prefer the search date. Fall back to the posting timestamp.
         self.date = iso_date(self.date or self.posted_at)
 
 
@@ -90,8 +87,8 @@ def make_job(**scraped) -> dict:
     }
 
 
-# Derived, not declared, so the field lists can never drift from ``Job``.
-# ``JOB_FIELDS`` lists every model field. The CSV writer uses it for columns.
+# Derive the field lists from ``Job`` so they stay in sync.
+# The CSV writer uses ``JOB_FIELDS`` for its columns.
 JOB_FIELDS = tuple(f.name for f in fields(Job))
 DETAIL_FIELDS = tuple(n for n in JOB_FIELDS if n not in IDENTITY_FIELDS + SUMMARY_FIELDS)
 
@@ -100,7 +97,7 @@ _EMPLOYMENT_ALIASES = {"contractor": "contract", "intern": "internship"}
 
 
 def employment_type(label: str | None) -> str | None:
-    """A site's employment-type label in the unified form (``FULL_TIME`` -> ``full_time``)."""
+    """Normalize a site's employment label, such as ``FULL_TIME`` to ``full_time``."""
     if not label:
         return None
     slug = re.sub(r"[^a-z0-9]+", "_", label.lower()).strip("_")

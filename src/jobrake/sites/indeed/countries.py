@@ -1,4 +1,4 @@
-"""Country editions: name aliases -> (subdomain, API country code)."""
+"""Indeed country editions and their name aliases."""
 
 # Ported from jobspy's Country enum, keeping only what Indeed needs. A value
 # is the subdomain; where the API code differs it is "subdomain:code".
@@ -30,12 +30,12 @@ _INDEED = {
 
 
 def indeed_domain(country: str) -> tuple[str, str]:
-    """(subdomain, API country code) for an Indeed country edition."""
+    """Return the subdomain and API code for an Indeed country edition."""
     try:
         value = _INDEED[country.strip().lower()]
     except KeyError:
         raise ValueError(
-            f"unknown Indeed country {country!r}; one of {', '.join(sorted(_INDEED))}"
+            f"unknown Indeed country {country!r}. Choose one of {', '.join(sorted(_INDEED))}"
         ) from None
     subdomain, _, code = value.partition(":")
     return subdomain, (code or subdomain).upper()

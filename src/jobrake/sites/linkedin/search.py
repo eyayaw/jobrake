@@ -19,13 +19,14 @@ MAX_START = 1000  # the guest API stops serving past this offset
 
 
 def parse_cards(html: str) -> list[dict]:
-    """Fields from the cards on one search page."""
+    """Return summary fields from the cards on one search page."""
     return _parse_page(html)[0]
 
 
 def _parse_page(html: str) -> tuple[list[dict], int]:
-    """(parsed cards, raw card count) from one search page."""
-    # The description lives on the posting's own page; see fetch_postings.
+    """Return parsed cards and the raw card count for one search page."""
+    # Search cards contain only summary fields. fetch_postings() reads the
+    # detail fields from each posting page.
     soup = BeautifulSoup(html, "html.parser")
     cards = soup.find_all("div", class_="base-search-card")
     jobs = []
@@ -74,11 +75,10 @@ async def search(
 
     ``country`` is accepted for signature uniformity across sites and ignored.
 
-    Every request first takes a token from ``LIMITER``, so bursts ride the
-    bucket and sustained fetching settles onto its refill rate. A 429 is
-    retried once after ``RETRY_DELAY``; if it persists, the search ends with
-    whatever was collected—the fetch layer reports it as a RATE_LIMITED
-    error rather than raising.
+    Every request first takes a token from ``LIMITER``. The bucket allows a
+    short burst, then spaces requests at its refill rate. A 429 is retried once
+    after ``RETRY_DELAY``. A second 429 ends the search with the jobs already
+    collected because the fetch layer returns a RATE_LIMITED error.
     """
     check_hours_old(hours_old)
     jobs: list[dict] = []
@@ -99,12 +99,12 @@ async def search(
         cards, raw = _parse_page(result.text)
         if not raw:
             if start == 0:
-                # An unresolvable location yields an empty 200 identical to a
-                # genuine no-results page; the guest geocoder wants qualified
-                # names ("Berlin" works, bare "Amsterdam" does not).
+                # An unresolvable location and a genuine no-results page both
+                # return an empty 200. The guest geocoder often needs a region
+                # and country. "Berlin" works, while bare "Amsterdam" does not.
                 logger.warning(
-                    "linkedin returned an empty first page for location=%r; "
-                    "if results were expected, try a qualified location like "
+                    "linkedin returned no jobs for location=%r. "
+                    "A location without its region and country may not resolve; try "
                     "'Amsterdam, North Holland, Netherlands'",
                     location,
                 )
@@ -114,15 +114,14 @@ async def search(
                 continue
             seen.add(job["id"])
             jobs.append(job)
-        # Offsets can overlap and single cards can be unparsable, so a page
-        # without new jobs is no proof of the end; only a card-less page is.
-        # The offset advances by the server's own card count.
+        # Offsets can overlap, and some cards cannot be parsed. Only a page
+        # without cards marks the end. Advance by the server's own card count.
         start += raw
 
     jobs = jobs[:results_wanted]
     if detail:
         logger.info("fetching posting details for %d jobs...", len(jobs))
         postings = await fetch_postings(fetcher, (job["url"] for job in jobs), cache=cache)
-        # A posting gone or unreachable between search and hydration keeps its summary fields.
+        # Keep summary fields when a posting disappears or fails during hydration.
         jobs = [make_job(**{**job, **(postings.get(job["url"]) or {})}) for job in jobs]
     return jobs
