@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.12.0](https://github.com/eyayaw/jobrake/releases/tag/v0.12.0) (2026-08-21)
+
+### Added
+
+- `--format | -f` selects the output format: `json`, `jsonl`, or `csv`. It
+  replaces the default JSON on stdout and overrides the `--output` extension.
+- `jobrake.io.to_jsonl` and `to_csv` render a job list to a string, alongside
+  `to_json`.
+
+### Changed
+
+- JSON output is compact regardless of result count.
+
+### Removed
+
+- **Breaking:** the `jobrake.io` path writers `write_json`, `write_jsonl`, and
+  `write_csv`. Render with a `to_*` function and write the returned string to
+  a file or stream.
+
+### Fixed
+
+- A closed pipe detected while writing to stdout (`jobrake ... | head`) ends
+  the run quietly with exit code 1 instead of a `BrokenPipeError` traceback.
+
 ## [0.11.0](https://github.com/eyayaw/jobrake/releases/tag/v0.11.0) (2026-08-20)
 
 ### Changed
