@@ -95,7 +95,11 @@ jobrake --help
 > "2026-08-15\tSenior Data Scientist - Machine Learning\tGeneral Dynamics Information Technology\thttps://www.indeed.com/viewjob?jk=e422bd4de2737ee7"
 > ```
 
-Use `--output | -o` to write directly to a file. The extension selects the format. Use `-o jobs.csv` for CSV, `-o jobs.json` for JSON, or `-o jobs.jsonl` for JSONL. CSV keeps a column for every model field, with empty cells for unavailable values. JSON and JSONL keep every identity and summary key while omitting unavailable detail keys.
+By default, results go to stdout as JSON. Use `--format | -f` to select `json`, `jsonl`, or `csv`.
+
+Use `--output | -o` to write directly to a file. Jobrake infers the format from the extension, i.e.,  `-o jobs.csv` for CSV. An explicit `--format` overrides the extension.
+
+CSV keeps a column for every model field, with empty cells for unavailable values. JSON and JSONL keep every identity and summary key while omitting unavailable detail keys.
 
 > [!TIP]
 > `-o` overwrites files, so give each run its own path.

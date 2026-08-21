@@ -1,7 +1,9 @@
-"""CLI output tests for stdout and files selected by extension."""
+"""CLI output tests for stdout and files, with explicit and inferred formats."""
 
 import csv
 import json
+import os
+import sys
 
 import pytest
 
@@ -41,7 +43,7 @@ def run_cli(monkeypatch):
 
     def run(*argv):
         monkeypatch.setattr("sys.argv", ["jobrake", "-s", "indeed", "-q", "x", "-c", "usa", *argv])
-        cli.main()
+        return cli.main()
 
     return run
 
@@ -49,6 +51,14 @@ def run_cli(monkeypatch):
 def test_default_output_is_json_on_stdout(run_cli, capsys):
     run_cli()
     assert json.loads(capsys.readouterr().out) == JOBS
+
+
+def test_format_selects_stdout_and_overrides_output_extension(run_cli, capsys, tmp_path):
+    run_cli("--format", "jsonl")
+    assert [json.loads(line) for line in capsys.readouterr().out.splitlines()] == JOBS
+    out = tmp_path / "jobs.txt"
+    run_cli("--format", "jsonl", "-o", str(out))
+    assert [json.loads(line) for line in out.read_text(encoding="utf-8").splitlines()] == JOBS
 
 
 def test_output_csv_roundtrips_hostile_fields(run_cli, tmp_path, capsys):
@@ -78,6 +88,14 @@ def test_output_json_writes_file(run_cli, tmp_path):
     out = tmp_path / "jobs.json"
     run_cli("-o", str(out))
     assert json.loads(out.read_text(encoding="utf-8")) == JOBS
+
+
+def test_closed_pipe_ends_quietly(run_cli, monkeypatch):
+    read_end, write_end = os.pipe()
+    os.close(read_end)
+    with open(write_end, "w") as stdout:
+        monkeypatch.setattr(sys, "stdout", stdout)
+        assert run_cli() == 1
 
 
 def test_unknown_extension_fails_before_scraping(run_cli, monkeypatch, tmp_path):
