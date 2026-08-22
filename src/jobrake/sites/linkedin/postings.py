@@ -1,6 +1,7 @@
 """Full posting detail from the schema.org block on a job's canonical page."""
 
 import json
+import math
 import re
 from collections.abc import Iterable
 from html import unescape
@@ -37,10 +38,18 @@ def _text_value(value) -> str | None:
 
 
 def _number_value(value) -> float | None:
-    """Return the first schema.org numeric value, or ``None``."""
+    """Return the first finite schema.org numeric value, or ``None``."""
     if isinstance(value, list):
         value = value[0] if value else None
-    return value if isinstance(value, int | float) and not isinstance(value, bool) else None
+    # json.loads admits NaN and the infinities, which strict JSON output
+    # forbids. Only finite numbers become fields.
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        return None
+    try:
+        return value if math.isfinite(value) else None
+    except OverflowError:
+        # An integer beyond float range is no usable field value.
+        return None
 
 
 def _url(value) -> str | None:
@@ -104,9 +113,14 @@ def _salary(soup: BeautifulSoup) -> dict:
     (currency, low, period), (currency_2, high, period_2) = bounds
     if (currency, period) != (currency_2, period_2):
         return {}
+    salary_min = float(low.replace(",", ""))
+    salary_max = float(high.replace(",", ""))
+    # A digit run past float range converts to infinity rather than raising.
+    if not (math.isfinite(salary_min) and math.isfinite(salary_max)):
+        return {}
     return {
-        "salary_min": float(low.replace(",", "")),
-        "salary_max": float(high.replace(",", "")),
+        "salary_min": salary_min,
+        "salary_max": salary_max,
         "salary_currency": currency,
         "salary_period": _SALARY_PERIODS[period],
     }

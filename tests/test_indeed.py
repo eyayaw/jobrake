@@ -291,14 +291,18 @@ def test_indeed_omits_invalid_detail_values():
             recruit=["x"],
             attributes=7,  # a non-list bag loses the employment fields
             compensation={
-                "baseSalary": {"unitOfWork": 7, "range": {"min": "38.2", "max": math.nan}},
+                "baseSalary": {
+                    "unitOfWork": 7,
+                    "range": {"min": "38.2", "max": math.nan, "value": 10**1000},
+                },
                 "currencyCode": {"code": "USD"},
             },
         )
     )
     assert (job["id"], job["url"]) == ("a", "https://www.indeed.com/viewjob?jk=a")
     assert (job["title"], job["company"], job["location"]) == (None, None, None)
-    # a numeric string is not a number and nan is not finite
+    # a numeric string, nan, and an integer beyond float range each cost
+    # only their field
     assert set(job) == {*IDENTITY_FIELDS, *SUMMARY_FIELDS, "posted_at", "expires_at"}
 
 

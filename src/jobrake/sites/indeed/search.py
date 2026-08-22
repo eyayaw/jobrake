@@ -152,7 +152,11 @@ def _finite_value(value) -> float | None:
     """The value if it is a finite number, else ``None``."""
     if isinstance(value, bool) or not isinstance(value, int | float):
         return None
-    return value if math.isfinite(value) else None
+    try:
+        return value if math.isfinite(value) else None
+    except OverflowError:
+        # An integer beyond float range is no usable field value.
+        return None
 
 
 def _parse_job(job: dict, base_url: str) -> dict:

@@ -324,6 +324,22 @@ def test_parse_posting_speaks_the_model_vocabulary():
     assert fields["experience_months"] == 36
 
 
+def test_parse_posting_drops_nonfinite_numbers():
+    page = job_page(
+        jobLocation={"latitude": float("nan"), "longitude": float("inf")},
+        baseSalary={"currency": "USD", "value": {"minValue": float("-inf"), "maxValue": 135000}},
+        # an integer beyond float range costs only its field
+        experienceRequirements={"monthsOfExperience": 10**1000},
+    )
+    fields = linkedin.parse_posting(page)
+    assert not {"latitude", "longitude", "salary_min", "experience_months"} & set(fields)
+    assert fields["salary_max"] == 135000
+    # a markup salary with enough digits converts to infinity: both bounds out
+    huge = "9" * 400
+    topcard = f'<div class="compensation__salary">USD {huge}/yr - USD {huge}/yr</div>'
+    assert "salary_min" not in linkedin.parse_posting(topcard)
+
+
 def test_parse_posting_reads_the_apply_kind():
     assert linkedin.parse_posting(job_page())["apply_type"] == "offsite"
     assert linkedin.parse_posting(job_page(apply="onsite"))["apply_type"] == "onsite"
