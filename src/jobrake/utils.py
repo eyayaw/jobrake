@@ -35,6 +35,18 @@ def check_hours_old(hours_old: int | None) -> None:
         raise ValueError(f"hours_old ({hours_old}) must be positive, or None for no age bound")
 
 
+def check_results_wanted(results_wanted: int) -> None:
+    """Raise ``ValueError`` unless ``results_wanted`` is positive."""
+    if results_wanted <= 0:
+        raise ValueError(f"results_wanted ({results_wanted}) must be positive")
+
+
+def check_distance(distance: int | None) -> None:
+    """Raise ``ValueError`` unless ``distance`` is ``None``, zero, or positive."""
+    if distance is not None and distance < 0:
+        raise ValueError(f"distance ({distance}) must be zero or more")
+
+
 def iso_date(value: str | None) -> str | None:
     """``YYYY-MM-DD`` from an ISO 8601 date or timestamp, or ``None`` if absent."""
     if not value:

@@ -93,10 +93,18 @@ def test_indeed_stops_at_results_wanted():
     assert len(jobs) == 2
 
 
-def test_indeed_rejects_a_nonpositive_age():
+@pytest.mark.parametrize(
+    ("bad", "match"),
+    [
+        ({"hours_old": 0}, "hours_old"),
+        ({"results_wanted": 0}, "results_wanted"),
+        ({"distance": -1}, "distance"),
+    ],
+)
+def test_indeed_rejects_bad_arguments_before_any_request(bad, match):
     fetcher = StubFetcher({})
-    with pytest.raises(ValueError, match="hours_old"):
-        asyncio.run(indeed.search(fetcher, search_term="x", country="usa", hours_old=0))
+    with pytest.raises(ValueError, match=match):
+        asyncio.run(indeed.search(fetcher, search_term="x", country="usa", **bad))
     assert fetcher.requests == []
 
 

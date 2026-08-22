@@ -3,7 +3,7 @@
 from collections.abc import Callable
 
 from jobrake.fetchkit import HttpxFetcher
-from jobrake.utils import check_hours_old
+from jobrake.utils import check_distance, check_hours_old, check_results_wanted
 
 from . import indeed, linkedin
 
@@ -44,11 +44,13 @@ async def scrape(
     if site not in searchers:
         raise ValueError(f"unknown site {site!r}. Expected one of {sorted(searchers)}")
     if site == "linkedin":
-        if location is None:
+        if location is None or not location.strip():
             raise ValueError(f"location is required for site='{site}'. Try 'London, England'")
     elif site == "indeed":
         if country is None:
             raise ValueError(f"country is required for site='{site}'. Try 'usa' or 'germany'")
+    check_results_wanted(results_wanted)
+    check_distance(distance)
     check_hours_old(hours_old)
 
     owns_fetcher = fetcher is None

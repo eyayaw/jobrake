@@ -11,26 +11,33 @@ from jobrake.sites.linkedin import client
 
 
 @pytest.mark.parametrize(
-    ("site", "missing"),
-    [("glassdoor", "glassdoor"), ("indeed", "country"), ("linkedin", "location")],
+    ("site", "kwargs", "match"),
+    [
+        ("glassdoor", {}, "glassdoor"),
+        ("indeed", {}, "country"),
+        ("linkedin", {}, "location"),
+        ("linkedin", {"location": "   "}, "location"),
+        ("linkedin", {"location": "Seattle", "results_wanted": 0}, "results_wanted"),
+        ("linkedin", {"location": "Seattle", "distance": -1}, "distance"),
+        ("linkedin", {"location": "Seattle", "hours_old": 0}, "hours_old"),
+    ],
 )
-def test_scrape_rejects_invalid_scope_before_opening_a_fetcher(site, missing, monkeypatch):
+def test_scrape_rejects_bad_arguments_before_opening_a_fetcher(site, kwargs, match, monkeypatch):
     def must_not_open():
         raise AssertionError("opened transport before validating arguments")
 
     monkeypatch.setattr(sites, "HttpxFetcher", must_not_open)
-    with pytest.raises(ValueError, match=missing):
-        asyncio.run(scrape(site, search_term="x"))
+    with pytest.raises(ValueError, match=match):
+        asyncio.run(scrape(site, search_term="x", **kwargs))
 
 
-@pytest.mark.parametrize("hours_old", [0, -24])
-def test_scrape_rejects_a_nonpositive_age_before_opening_a_fetcher(hours_old, monkeypatch):
-    def must_not_open():
-        raise AssertionError("opened transport before validating arguments")
-
-    monkeypatch.setattr(sites, "HttpxFetcher", must_not_open)
-    with pytest.raises(ValueError, match="hours_old"):
-        asyncio.run(scrape("linkedin", search_term="x", location="Seattle", hours_old=hours_old))
+def test_scrape_accepts_an_explicit_zero_distance(monkeypatch):
+    monkeypatch.setattr(client, "LIMITER", TokenBucket(capacity=10**9, refill_interval=1.0))
+    fetcher = StubFetcher({"seeMoreJobPostings": ok("")})
+    asyncio.run(
+        scrape("linkedin", search_term="x", location="Seattle", distance=0, fetcher=fetcher)
+    )
+    assert len(fetcher.requests) == 1
 
 
 def test_scrape_does_not_close_injected_fetcher():

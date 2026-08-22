@@ -8,7 +8,13 @@ import re
 from jobrake import defaults
 from jobrake.fetchkit import PostFetcher
 from jobrake.models import employment_type, make_job
-from jobrake.utils import check_hours_old, epoch_ms_to_iso, html_text
+from jobrake.utils import (
+    check_distance,
+    check_hours_old,
+    check_results_wanted,
+    epoch_ms_to_iso,
+    html_text,
+)
 
 from .client import API_HEADERS, API_URL
 from .countries import indeed_domain
@@ -251,6 +257,8 @@ async def search(
     request. The unsupported fields are ``apply_type``, ``applicants``,
     ``experience_months``, and ``education``.
     """
+    check_results_wanted(results_wanted)
+    check_distance(distance)
     check_hours_old(hours_old)
     subdomain, api_code = indeed_domain(country)
     base_url = f"https://{subdomain}.indeed.com"

@@ -8,7 +8,7 @@ from bs4 import BeautifulSoup
 from jobrake import defaults
 from jobrake.fetchkit import Fetcher
 from jobrake.models import make_job
-from jobrake.utils import check_hours_old
+from jobrake.utils import check_distance, check_hours_old, check_results_wanted
 
 from .client import SEARCH_URL, job_id, paced_fetch
 from .postings import fetch_postings
@@ -80,6 +80,12 @@ async def search(
     after ``RETRY_DELAY``. A second 429 ends the search with the jobs already
     collected because the fetch layer returns a RATE_LIMITED error.
     """
+    if not location.strip():
+        raise ValueError(
+            f"location {location!r} is blank. Try 'Amsterdam, North Holland, Netherlands'"
+        )
+    check_results_wanted(results_wanted)
+    check_distance(distance)
     check_hours_old(hours_old)
     jobs: list[dict] = []
     seen: set[str] = set()

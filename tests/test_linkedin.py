@@ -184,10 +184,19 @@ def test_no_warning_when_pagination_simply_ends(unlimited, caplog):
     assert caplog.records == []
 
 
-def test_linkedin_rejects_a_nonpositive_age(unlimited):
+@pytest.mark.parametrize(
+    ("kwargs", "match"),
+    [
+        ({"location": "Seattle", "hours_old": -1}, "hours_old"),
+        ({"location": "Seattle", "results_wanted": -5}, "results_wanted"),
+        ({"location": "Seattle", "distance": -1}, "distance"),
+        ({"location": "   "}, "location"),
+    ],
+)
+def test_linkedin_rejects_bad_arguments_before_any_request(kwargs, match):
     fetcher = StubFetcher({})
-    with pytest.raises(ValueError, match="hours_old"):
-        asyncio.run(linkedin.search(fetcher, search_term="x", location="Seattle", hours_old=-1))
+    with pytest.raises(ValueError, match=match):
+        asyncio.run(linkedin.search(fetcher, search_term="x", **kwargs))
     assert fetcher.requests == []
 
 
