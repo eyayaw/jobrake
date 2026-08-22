@@ -76,9 +76,10 @@ async def search(
     ``country`` is accepted for signature uniformity across sites and ignored.
 
     Every request first takes a token from ``LIMITER``. The bucket allows a
-    short burst, then spaces requests at its refill rate. A 429 is retried once
-    after ``RETRY_DELAY``. A second 429 ends the search with the jobs already
-    collected because the fetch layer returns a RATE_LIMITED error.
+    short burst, then spaces requests at its refill rate. A 429 is retried
+    once, waiting ``RETRY_DELAY`` or the response's seconds-form Retry-After;
+    an ask beyond ``MAX_RETRY_DELAY`` skips the retry. A 429 that stands ends
+    the search with the jobs already collected.
     """
     if not location.strip():
         raise ValueError(

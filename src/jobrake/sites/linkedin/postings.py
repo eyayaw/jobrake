@@ -1,6 +1,7 @@
 """Full posting detail from the schema.org block on a job's canonical page."""
 
 import json
+import logging
 import math
 import re
 from collections.abc import Iterable
@@ -13,7 +14,9 @@ from jobrake.models import JOB_FIELDS, employment_type
 from jobrake.utils import html_text
 
 from . import client
-from .client import job_id, paced_fetch
+from .client import job_id, paced_fetch, rate_limited
+
+logger = logging.getLogger(__name__)
 
 # The guest fragment has the same topcard and criteria markup as the job page
 # at about a tenth of the size. The canonical page sets a locale cookie from
@@ -247,8 +250,11 @@ async def fetch_postings(
     An ID alone reaches a page without the structured block. Duplicate and
     empty URLs are skipped. URLs for the same posting ID share one fetch and
     reuse its result. A failure returned in ``FetchResult`` costs at most that
-    posting. Exceptions raised by the fetcher propagate, including
-    cancellation.
+    posting, except a rate limit that survives the paced retry, which ends
+    hydration and leaves the remaining URLs absent. When the fragment request
+    is the limited one, the canonical page's partial fields are kept and
+    cached before the stop. Exceptions raised by the fetcher propagate,
+    including cancellation.
 
     Each URL has three possible outcomes. A field dict contains the parsed
     posting, which may be partial when the page omits the structured block.
@@ -260,7 +266,7 @@ async def fetch_postings(
     With ``cache``, fresh postings come from disk. Only missing or stale IDs
     trigger requests. Cache keys use the posting ID because its subdomain and
     slug can change.
-    Each result is saved as it arrives, so an interrupted sweep keeps every
+    Each result is saved as it arrives, so an interruption keeps every
     completed fetch.
     """
     postings: dict[str, dict | None] = {}
@@ -276,6 +282,16 @@ async def fetch_postings(
             resolved[posting_id] = {
                 name: value for name, value in posting.items() if name in JOB_FIELDS
             }
+
+    def stop_warning() -> None:
+        logger.warning(
+            "linkedin is rate limiting this IP; stopping detail hydration "
+            "with %d of %d postings resolved. Wait a while, then rerun to "
+            "fill in the rest",
+            len(postings),
+            len(wanted),
+        )
+
     attempted: set[str] = set()
     for url in wanted:
         if (posting_id := ids[url]) in resolved:
@@ -287,8 +303,9 @@ async def fetch_postings(
             if posting_id in attempted:
                 continue
             attempted.add(posting_id)
+        fragment_rate_limited = False
         result = await paced_fetch(fetcher, _canonical(url))
-        if result.ok:
+        if result.error is None:
             posting, structured = _parse_posting(BeautifulSoup(result.text, "html.parser"))
             if not posting:
                 continue
@@ -297,11 +314,21 @@ async def fetch_postings(
                 # salary labels may not parse. Fetch the en-US fragment once
                 # for those fields, then cache the combined result.
                 fragment = await paced_fetch(fetcher, f"{FRAGMENT_URL}/{posting_id}?_l=en_US")
-                if fragment.ok:
+                if fragment.error is None:
                     posting = parse_posting(fragment.text) | posting
+                elif rate_limited(fragment):
+                    # Cache the canonical fields before ending hydration.
+                    fragment_rate_limited = True
             value = posting
-        elif result.error and result.error.http_status in (404, 410):
+        elif result.error.http_status in (404, 410):
             value = None
+        elif rate_limited(result):
+            # The retry inside paced_fetch already waited and failed. The
+            # limit belongs to the IP, so the next posting would fare no
+            # better; spending a wait per posting turns one block into a
+            # stall over the whole list. Postings not yet asked stay absent.
+            stop_warning()
+            break
         else:
             continue
         postings[url] = value
@@ -309,4 +336,7 @@ async def fetch_postings(
             resolved[posting_id] = value
             if cache:
                 client.CACHE.put("linkedin", {posting_id: value})
+        if fragment_rate_limited:
+            stop_warning()
+            break
     return postings

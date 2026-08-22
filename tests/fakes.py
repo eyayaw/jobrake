@@ -15,7 +15,11 @@ class StubFetcher:
         for fragment, result in self.responses.items():
             if fragment in url:
                 return FetchResult(
-                    url=url, status_code=result.status_code, text=result.text, error=result.error
+                    url=url,
+                    status_code=result.status_code,
+                    text=result.text,
+                    headers=result.headers,
+                    error=result.error,
                 )
         return FetchResult(url=url, error=FetchError(ErrorCategory.CLIENT, "no stub"))
 
@@ -45,9 +49,10 @@ def network_down() -> FetchResult:
     return FetchResult(url="stub", error=FetchError(ErrorCategory.NETWORK, "connection reset"))
 
 
-def rate_limited() -> FetchResult:
+def rate_limited(headers: dict[str, str] | None = None) -> FetchResult:
     return FetchResult(
         url="stub",
         status_code=429,
+        headers=headers or {},
         error=FetchError(ErrorCategory.RATE_LIMITED, "Rate limited: 429", http_status=429),
     )

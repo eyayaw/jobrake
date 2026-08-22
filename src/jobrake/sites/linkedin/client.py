@@ -5,6 +5,12 @@ import asyncio
 from jobrake.cache import PostingCache
 from jobrake.fetchkit import ErrorCategory, Fetcher, FetchResult, TokenBucket
 
+
+def rate_limited(result: FetchResult) -> bool:
+    """Whether this result is a 429."""
+    return result.error is not None and result.error.category is ErrorCategory.RATE_LIMITED
+
+
 BASE_URL = "https://www.linkedin.com"
 SEARCH_URL = f"{BASE_URL}/jobs-guest/jobs/api/seeMoreJobPostings/search"
 
@@ -27,8 +33,22 @@ HEADERS = {
 # LinkedIn applies the budget per IP.
 LIMITER = TokenBucket(capacity=2, refill_interval=3.0)
 
-# A 429 remains after five seconds and clears around ten.
+# A 429 remains after five seconds and clears around ten. A seconds-form
+# Retry-After takes precedence. jobrake will not wait longer than a minute:
+# past that, the 429 goes back to the caller unretried.
 RETRY_DELAY = 10.0
+MAX_RETRY_DELAY = 60.0
+
+
+def _retry_delay(result: FetchResult) -> float | None:
+    """The wait before the one retry, or ``None`` when Retry-After exceeds ``MAX_RETRY_DELAY``."""
+    value = result.headers.get("retry-after", "")
+    # Unicode digits such as "²" pass isdigit but not float().
+    if not (value.isascii() and value.isdigit()):
+        return RETRY_DELAY
+    seconds = float(value)
+    return seconds if seconds <= MAX_RETRY_DELAY else None
+
 
 # One cache per process, lazy, so no file is touched until the first cached fetch.
 CACHE = PostingCache()
@@ -39,13 +59,18 @@ async def paced_fetch(fetcher: Fetcher, url: str) -> FetchResult:
     Take a token, fetch, and retry once after a 429.
 
     A 429 despite this pacing indicates other traffic from the same IP. The
-    server bucket usually refills within seconds. The caller receives a second
-    rate-limited result unchanged and decides whether to stop.
+    server bucket usually refills within seconds. A seconds-form Retry-After
+    sets the wait; one asking for more than ``MAX_RETRY_DELAY`` skips the
+    retry. A retry that is limited again, or a skipped one, hands the caller
+    the rate-limited result to decide whether to stop.
     """
     await LIMITER.acquire()
     result = await fetcher.fetch(url, headers=HEADERS)
-    if result.error and result.error.category is ErrorCategory.RATE_LIMITED:
-        await asyncio.sleep(RETRY_DELAY)
+    if rate_limited(result):
+        delay = _retry_delay(result)
+        if delay is None:
+            return result
+        await asyncio.sleep(delay)
         await LIMITER.acquire()
         result = await fetcher.fetch(url, headers=HEADERS)
     return result

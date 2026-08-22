@@ -124,29 +124,56 @@ def test_pagination_counts_unparsable_cards_toward_the_offset(unlimited):
     assert "start=2" in fetcher.requests[1]
 
 
-def test_linkedin_429_retries_once_then_recovers(unlimited, monkeypatch):
-    monkeypatch.setattr(client, "RETRY_DELAY", 0)
-
-    class FlakyOnce(StubFetcher):
-        async def fetch(self, url, headers=None):
-            if not self.requests:
-                self.requests.append(url)
-                return rate_limited()
-            return await super().fetch(url, headers)
-
-    fetcher = FlakyOnce({"seeMoreJobPostings": ok(linkedin_card("111"))})
-    jobs = asyncio.run(
-        linkedin.search(fetcher, search_term="x", location="Seattle", results_wanted=1)
-    )
-    assert [j["id"] for j in jobs] == ["111"]
-    assert len(fetcher.requests) == 2
-
-
 def test_linkedin_persistent_429_returns_partial(unlimited, monkeypatch):
     monkeypatch.setattr(client, "RETRY_DELAY", 0)
     fetcher = StubFetcher({"seeMoreJobPostings": rate_limited()})
     assert asyncio.run(linkedin.search(fetcher, search_term="x", location="Seattle")) == []
     assert len(fetcher.requests) == 2  # the one retry, then give up
+
+
+def test_paced_fetch_retry_after_policy(unlimited, monkeypatch):
+    sleeps = []
+
+    async def recording_sleep(seconds):
+        sleeps.append(seconds)
+
+    monkeypatch.setattr(client.asyncio, "sleep", recording_sleep)
+
+    class FlakyOnce(StubFetcher):
+        def __init__(self, responses, first):
+            super().__init__(responses)
+            self.first = first
+
+        async def fetch(self, url, headers=None):
+            if not self.requests:
+                self.requests.append(url)
+                return self.first
+            return await super().fetch(url, headers)
+
+    fetcher = FlakyOnce({"linkedin.com": ok("hi")}, rate_limited({"retry-after": "42"}))
+    result = asyncio.run(client.paced_fetch(fetcher, "https://www.linkedin.com/x"))
+    assert result.ok
+    assert sleeps == [42.0]  # the server's ask
+
+    # an ask beyond MAX_RETRY_DELAY returns the 429 without a retry
+    fetcher = StubFetcher({"linkedin.com": rate_limited({"retry-after": "600"})})
+    result = asyncio.run(client.paced_fetch(fetcher, "https://www.linkedin.com/x"))
+    assert not result.ok
+    assert len(fetcher.requests) == 1
+    assert sleeps == [42.0]
+
+    # a date-form header falls back to the default delay
+    date = rate_limited({"retry-after": "Wed, 21 Oct 2026 07:28:00 GMT"})
+    fetcher = FlakyOnce({"linkedin.com": ok("hi")}, date)
+    result = asyncio.run(client.paced_fetch(fetcher, "https://www.linkedin.com/x"))
+    assert result.ok
+    assert sleeps == [42.0, client.RETRY_DELAY]
+
+    # so does a Unicode digit, which passes isdigit but not float()
+    fetcher = FlakyOnce({"linkedin.com": ok("hi")}, rate_limited({"retry-after": "²"}))
+    result = asyncio.run(client.paced_fetch(fetcher, "https://www.linkedin.com/x"))
+    assert result.ok
+    assert sleeps == [42.0, client.RETRY_DELAY, client.RETRY_DELAY]
 
 
 def test_linkedin_keeps_collected_jobs_after_a_later_page_failure(unlimited):
@@ -511,6 +538,38 @@ def test_fetch_postings_three_outcomes_and_what_each_costs_again(unlimited, monk
     assert hydrated(again, flaky)["employment_type"] == "full_time"
     assert (again[CANONICAL], again[gone]) == (postings[CANONICAL], None)
     assert fetcher.requests == [flaky]
+
+
+def test_fetch_postings_stops_hydration_when_the_429_retry_also_fails(
+    unlimited, caplog, monkeypatch
+):
+    monkeypatch.setattr(client, "RETRY_DELAY", 0)
+    other = "https://nl.linkedin.com/jobs/view/other-at-acme-222"
+    fetcher = StubFetcher({"linkedin.com": rate_limited()})
+    with caplog.at_level(logging.WARNING, logger="jobrake.sites.linkedin"):
+        got = asyncio.run(linkedin.fetch_postings(fetcher, [CANONICAL, other]))
+    assert got == {}  # nothing hydrated, everything retryable later
+    assert len(fetcher.requests) == 2  # one posting's try and retry; the rest spared
+    assert any("rate limiting" in record.message for record in caplog.records)
+
+    # a persistently limited fragment stops hydration too, after the partial
+    # canonical fields are kept
+    fetcher = StubFetcher(
+        {
+            "economist-at-acme-111": ok(blockless_page()),
+            "jobPosting/111": rate_limited(),
+        }
+    )
+    got = asyncio.run(linkedin.fetch_postings(fetcher, [CANONICAL, other]))
+    assert hydrated(got, CANONICAL)["description"] == "Great & big role"
+    assert other not in got  # spared the futile canonical attempt
+    fragment = f"{FRAGMENT_URL}/111?_l=en_US"
+    assert fetcher.requests == [CANONICAL, fragment, fragment]  # fragment try and retry
+    # the partial was cached before the stop: a rerun spends nothing on it
+    fetcher.requests.clear()
+    again = asyncio.run(linkedin.fetch_postings(fetcher, [CANONICAL]))
+    assert again[CANONICAL] == got[CANONICAL]
+    assert fetcher.requests == []
 
 
 def test_fetch_postings_contains_a_malformed_block_per_posting(unlimited):
