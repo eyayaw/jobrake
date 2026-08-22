@@ -21,16 +21,16 @@ from .countries import indeed_domain
 
 logger = logging.getLogger(__name__)
 
-# jobspy's query, trimmed to the fields we keep. `limit: 100` sets the API page
-# size. Pagination continues through pageInfo.nextCursor. The salary range is a
-# union. Range carries both bounds, AtLeast and AtMost carry one, and Exactly
-# carries one value.
+# jobspy's query, trimmed to the fields we keep. `limit` sets the API page
+# size, up to the API's maximum of 100. Pagination continues through
+# pageInfo.nextCursor. The salary range is a union. Range carries both bounds,
+# AtLeast and AtMost carry one, and Exactly carries one value.
 QUERY = """
 query GetJobData {{
   jobSearch(
     {what}
     {location}
-    limit: 100
+    limit: {limit}
     {cursor}
     sort: RELEVANCE
     {filters}
@@ -80,11 +80,15 @@ def build_query(
     distance: int | None,
     hours_old: int | None,
     cursor: str | None,
+    limit: int = 100,
 ) -> str:
+    if limit <= 0:
+        raise ValueError(f"limit ({limit}) must be positive")
     filters = ""
     if hours_old:
         filters = f'filters: {{ date: {{ field: "dateOnIndeed", start: "{hours_old}h" }} }}'
     return QUERY.format(
+        limit=min(100, limit),
         what=f"what: {json.dumps(search_term)}" if search_term else "",
         location=(
             f"location: {{ where: {json.dumps(location)}, "
@@ -248,9 +252,10 @@ async def search(
     """
     Page through the GraphQL API.
 
-    This API accepts POST through ``PostFetcher``. An error result or malformed
-    response envelope ends the search with the jobs already collected. A bad
-    job key drops that job. An invalid field drops that field.
+    This API accepts POST through ``PostFetcher``. Each page requests only the
+    remaining need, up to the API's 100-posting maximum. An error result or
+    malformed response envelope ends the search with the jobs already
+    collected. A bad job key drops that job. An invalid field drops that field.
 
     ``detail`` and ``cache`` are accepted and ignored. Every field this adapter
     supports arrives in the search response, and nothing costs an extra
@@ -269,7 +274,10 @@ async def search(
     cursors: set[str] = set()
     cursor: str | None = None
     while len(jobs) < results_wanted:
-        query = build_query(search_term, location, distance, hours_old, cursor)
+        # Ask for the remaining need. Cross-page duplicates may leave a page
+        # under-filled, and the cursor loop then pulls another.
+        limit = results_wanted - len(jobs)
+        query = build_query(search_term, location, distance, hours_old, cursor, limit=limit)
         result = await fetcher.post(API_URL, {"query": query}, headers=headers)
         if not result.ok:
             break

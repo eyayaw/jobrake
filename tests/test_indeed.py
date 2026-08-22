@@ -87,6 +87,33 @@ def test_indeed_keeps_a_job_whose_date_is_not_milliseconds(caplog):
     assert any("milliseconds" in record.message for record in caplog.records)
 
 
+def test_indeed_asks_each_page_only_for_the_remaining_need():
+    pages = [indeed_payload(["a", "b"], cursor="next"), indeed_payload(["c"])]
+
+    class Paged(StubFetcher):
+        def __init__(self):
+            super().__init__({})
+            self.queries = []
+
+        async def post(self, url, json_body, headers=None):
+            self.requests.append(url)
+            self.queries.append(json_body["query"])
+            return ok(json.dumps(pages[len(self.requests) - 1]))
+
+    fetcher = Paged()
+    jobs = asyncio.run(indeed.search(fetcher, search_term="x", country="usa", results_wanted=3))
+    assert len(jobs) == 3
+    assert "limit: 3" in fetcher.queries[0]
+    assert "limit: 1" in fetcher.queries[1]
+
+
+def test_build_query_bounds_the_page_limit():
+    # the API caps a page at 100, however large the remaining need
+    assert "limit: 100" in indeed.build_query("x", None, None, None, None, limit=250)
+    with pytest.raises(ValueError, match="limit"):
+        indeed.build_query("x", None, None, None, None, limit=0)
+
+
 def test_indeed_stops_at_results_wanted():
     fetcher = StubFetcher({"apis.indeed.com": ok(json.dumps(indeed_payload(["a", "b", "c"])))})
     jobs = asyncio.run(indeed.search(fetcher, search_term="x", country="usa", results_wanted=2))
