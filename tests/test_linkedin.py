@@ -1,6 +1,7 @@
 """LinkedIn guest-search parsing and pagination tests."""
 
 import asyncio
+import importlib
 import json
 import logging
 
@@ -124,11 +125,13 @@ def test_pagination_counts_unparsable_cards_toward_the_offset(unlimited):
     assert "start=2" in fetcher.requests[1]
 
 
-def test_linkedin_persistent_429_returns_partial(unlimited, monkeypatch):
+def test_linkedin_persistent_429_returns_partial(unlimited, caplog, monkeypatch):
     monkeypatch.setattr(client, "RETRY_DELAY", 0)
     fetcher = StubFetcher({"seeMoreJobPostings": rate_limited()})
-    assert asyncio.run(linkedin.search(fetcher, search_term="x", location="Seattle")) == []
+    with caplog.at_level(logging.WARNING, logger="jobrake.sites.linkedin"):
+        assert asyncio.run(linkedin.search(fetcher, search_term="x", location="Seattle")) == []
     assert len(fetcher.requests) == 2  # the one retry, then give up
+    assert any("429" in record.message for record in caplog.records)
 
 
 def test_paced_fetch_retry_after_policy(unlimited, monkeypatch):
@@ -199,6 +202,19 @@ def test_warns_on_empty_first_page(unlimited, caplog):
         jobs = asyncio.run(linkedin.search(fetcher, search_term="x", location="Amsterdam"))
     assert jobs == []
     assert any("location" in record.message for record in caplog.records)
+
+
+def test_warns_when_the_offset_cap_cuts_a_search_short(unlimited, caplog, monkeypatch):
+    # linkedin.search is the exported function, so import its module directly
+    search_module = importlib.import_module("jobrake.sites.linkedin.search")
+    monkeypatch.setattr(search_module, "MAX_START", 2)
+    fetcher = PagedFetcher([linkedin_card("111"), linkedin_card("222")])
+    with caplog.at_level(logging.WARNING, logger="jobrake.sites.linkedin"):
+        jobs = asyncio.run(
+            linkedin.search(fetcher, search_term="x", location="Seattle", results_wanted=5)
+        )
+    assert [j["id"] for j in jobs] == ["111", "222"]
+    assert any("offset" in record.message for record in caplog.records)
 
 
 def test_no_warning_when_pagination_simply_ends(unlimited, caplog):
@@ -352,6 +368,8 @@ def test_parse_posting_speaks_the_model_vocabulary():
 
 
 def test_parse_posting_drops_nonfinite_numbers():
+    # json.loads admits these constants, and json.dumps would write them back
+    # out as invalid JSON
     page = job_page(
         jobLocation={"latitude": float("nan"), "longitude": float("inf")},
         baseSalary={"currency": "USD", "value": {"minValue": float("-inf"), "maxValue": 135000}},
@@ -619,12 +637,14 @@ def test_fetch_postings_hydrates_each_identity_once(unlimited):
     assert hydrated(got, CANONICAL) == hydrated(got, moved)
 
 
-def test_fetch_postings_attempts_each_identity_once(unlimited):
+def test_fetch_postings_attempts_each_identity_once(unlimited, caplog):
     moved = "https://www.linkedin.com/jobs/view/senior-economist-at-acme-111"
     fetcher = StubFetcher({"-111": ok("<html><body>signup wall</body></html>")})
-    got = asyncio.run(linkedin.fetch_postings(fetcher, [CANONICAL, moved]))
+    with caplog.at_level(logging.WARNING, logger="jobrake.sites.linkedin"):
+        got = asyncio.run(linkedin.fetch_postings(fetcher, [CANONICAL, moved]))
     assert got == {}  # nothing parsed: absent, safe to retry later
     assert len(fetcher.requests) == 1  # but the alias spends no second request now
+    assert any("no fields" in record.message for record in caplog.records)
 
 
 def test_fetch_postings_drops_unknown_cached_keys(unlimited, isolated_cache):
@@ -634,7 +654,7 @@ def test_fetch_postings_drops_unknown_cached_keys(unlimited, isolated_cache):
     assert got[CANONICAL] == {"description": "Role"}
 
 
-def test_interrupted_sweep_keeps_paid_results(unlimited, isolated_cache):
+def test_interrupted_hydration_keeps_paid_results(unlimited, isolated_cache):
     class DiesOnSecond(StubFetcher):
         async def fetch(self, url, headers=None):
             if len(self.requests) == 1:

@@ -308,6 +308,11 @@ async def fetch_postings(
         if result.error is None:
             posting, structured = _parse_posting(BeautifulSoup(result.text, "html.parser"))
             if not posting:
+                logger.warning(
+                    "posting %s: the page yielded no fields, possibly a signup "
+                    "wall or changed markup; a rerun retries it",
+                    url,
+                )
                 continue
             if not structured and posting_id:
                 # A blockless page arrives localized, so its employment and
@@ -319,6 +324,13 @@ async def fetch_postings(
                 elif rate_limited(fragment):
                     # Cache the canonical fields before ending hydration.
                     fragment_rate_limited = True
+                else:
+                    logger.warning(
+                        "posting %s: fragment fetch failed (%s); keeping the "
+                        "partial canonical fields",
+                        posting_id,
+                        fragment.error.message,
+                    )
             value = posting
         elif result.error.http_status in (404, 410):
             value = None
@@ -330,6 +342,7 @@ async def fetch_postings(
             stop_warning()
             break
         else:
+            logger.warning("posting %s: %s; skipped, a rerun retries it", url, result.error.message)
             continue
         postings[url] = value
         if posting_id:

@@ -80,6 +80,10 @@ async def search(
     once, waiting ``RETRY_DELAY`` or the response's seconds-form Retry-After;
     an ask beyond ``MAX_RETRY_DELAY`` skips the retry. A 429 that stands ends
     the search with the jobs already collected.
+
+    The guest API serves about ten cards per page and nothing past offset
+    ``MAX_START``, so one search reaches at most ~1,000 cards however large
+    ``results_wanted`` is.
     """
     if not location.strip():
         raise ValueError(
@@ -101,7 +105,12 @@ async def search(
         }
         query = urlencode({k: v for k, v in params.items() if v is not None})
         result = await paced_fetch(fetcher, f"{SEARCH_URL}?{query}")
-        if not result.ok:
+        if result.error:
+            logger.warning(
+                "linkedin search stopped by %s; keeping the %d jobs already collected",
+                result.error.message,
+                len(jobs),
+            )
             break
         cards, raw = _parse_page(result.text)
         if not raw:
@@ -125,6 +134,15 @@ async def search(
         # without cards marks the end. Advance by the server's own card count.
         start += raw
 
+    if len(jobs) < results_wanted and start >= MAX_START:
+        logger.warning(
+            "linkedin's guest search serves nothing past offset %d; returning "
+            "%d of the %d jobs requested. Narrow the search to reach more of "
+            "its inventory",
+            MAX_START,
+            len(jobs),
+            results_wanted,
+        )
     jobs = jobs[:results_wanted]
     if detail:
         logger.info("fetching posting details for %d jobs...", len(jobs))

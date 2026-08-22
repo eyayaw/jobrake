@@ -257,9 +257,10 @@ async def search(
     Page through the GraphQL API.
 
     This API accepts POST through ``PostFetcher``. Each page requests only the
-    remaining need, up to the API's 100-posting maximum. An error result or
-    malformed response envelope ends the search with the jobs already
-    collected. A bad job key drops that job. An invalid field drops that field.
+    remaining need, up to the API's 100-posting maximum. Requests are not
+    paced or retried. An error result or malformed response envelope ends the
+    search with a warning and the jobs already collected. A bad job key drops
+    that job. An invalid field drops that field.
 
     ``detail`` and ``cache`` are accepted and ignored. Every field this adapter
     supports arrives in the search response, and nothing costs an extra
@@ -283,11 +284,22 @@ async def search(
         limit = results_wanted - len(jobs)
         query = build_query(search_term, location, distance, hours_old, cursor, limit=limit)
         result = await fetcher.post(API_URL, {"query": query}, headers=headers)
-        if not result.ok:
+        if result.error:
+            logger.warning(
+                "indeed search stopped by %s; keeping the %d jobs already collected",
+                result.error.message,
+                len(jobs),
+            )
             break
         try:
             page, cursor = parse_jobs(json.loads(result.text), base_url)
-        except (json.JSONDecodeError, KeyError, TypeError):
+        except (json.JSONDecodeError, KeyError, TypeError) as error:
+            logger.warning(
+                "indeed sent a response this version cannot read (%r), likely an API "
+                "change; keeping the %d jobs already collected",
+                error,
+                len(jobs),
+            )
             break
         if not page:
             break
