@@ -47,6 +47,15 @@ def test_retention_purges_fields_but_keeps_tombstones(tmp_path):
     assert reopened._conn.execute("SELECT count(*) FROM postings").fetchone() == (1,)
 
 
+def test_nonfinite_row_is_a_miss_without_disabling_the_cache(tmp_path):
+    # json.dumps writes NaN by default, so rows predating the finite-number
+    # rule can carry it. Such a row must miss, and only that row.
+    cache = make_cache(tmp_path)
+    cache.put("linkedin", {"111": {"salary_min": float("nan")}, "222": POSTING})
+    assert cache.get("linkedin", ["111", "222"]) == {"222": POSTING}
+    assert not cache._broken
+
+
 def test_corrupt_json_disables_cache_instead_of_escaping(tmp_path, caplog):
     cache = make_cache(tmp_path)
     cache.put("linkedin", {"111": POSTING})

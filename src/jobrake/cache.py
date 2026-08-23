@@ -27,6 +27,14 @@ CREATE TABLE IF NOT EXISTS postings (
 )"""
 
 
+class _NonstandardConstant(Exception):
+    """A cached row carries NaN or an infinity, which strict JSON forbids."""
+
+
+def _reject_constant(name: str):
+    raise _NonstandardConstant(name)
+
+
 def _default_path() -> Path:
     """Return the platform user-cache location."""
     match sys.platform:
@@ -117,7 +125,11 @@ class PostingCache:
                 if not isinstance(fetched_at, int | float) or not math.isfinite(fetched_at):
                     raise ValueError(f"posting fetched_at is not a finite number: {fetched_at!r}")
                 if fetched_at >= stale:
-                    value = json.loads(fields)
+                    try:
+                        value = json.loads(fields, parse_constant=_reject_constant)
+                    except _NonstandardConstant:
+                        # Treat nonstandard numeric constants as a cache miss. A successful refetch replaces the row.
+                        continue
                     if not isinstance(value, dict):
                         raise ValueError("posting fields are not a JSON object")
                     found[posting_id] = value
