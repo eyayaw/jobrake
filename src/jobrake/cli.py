@@ -1,4 +1,4 @@
-"""The jobrake CLI."""
+"""Command-line search and output dispatch."""
 
 import argparse
 import asyncio
@@ -16,7 +16,13 @@ from .sites import site_searchers
 logger = logging.getLogger(__name__)
 
 
-def main():
+def main() -> int | None:
+    """
+    Scrape from command-line arguments and write the selected format.
+
+    Returns:
+        ``1`` when a downstream stdout reader closes early. Normal completion returns ``None``.
+    """
     parser = argparse.ArgumentParser(
         description="Search job postings", formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )

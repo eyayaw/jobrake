@@ -1,4 +1,4 @@
-"""Default values for the search arguments shared by the CLI and the sites."""
+"""Search defaults shared by the CLI and provider adapters."""
 
 HOURS_OLD: int | None = 24
 RESULTS_WANTED: int = 25

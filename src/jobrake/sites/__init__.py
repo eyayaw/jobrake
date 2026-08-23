@@ -2,14 +2,14 @@
 
 from collections.abc import Callable
 
-from jobrake.fetchkit import HttpxFetcher
+from jobrake.fetchkit import Fetcher, HttpxFetcher
 from jobrake.utils import check_distance, check_hours_old, check_results_wanted
 
 from . import indeed, linkedin
 
 
 def site_searchers() -> dict[str, Callable]:
-    """Every supported site, mapped to its package's ``search``."""
+    """Map supported site names to their search entrypoints."""
     return {"indeed": indeed.search, "linkedin": linkedin.search}
 
 
@@ -24,21 +24,22 @@ async def scrape(
     hours_old: int | None = None,
     detail: bool = False,
     cache: bool = True,
-    fetcher=None,
+    fetcher: Fetcher | None = None,
 ) -> list[dict]:
     """
-    Scrape one site into unified job dicts.
+    Route a search through one provider.
 
-    Every dict has the identity and summary keys. An unavailable summary value
-    is ``None``. A detail key is present when a value is available.
+    Indeed requires ``country``. LinkedIn requires a nonblank ``location``.
+    ``detail`` and ``cache`` affect LinkedIn only. Every returned dictionary
+    has the shared identity and summary keys, with available detail fields added.
 
-    LinkedIn accepts a ``jobrake.fetchkit.Fetcher``. Indeed requires the
-    ``PostFetcher`` variant. The caller owns an injected fetcher, so ``scrape``
-    leaves it open. The default :class:`HttpxFetcher` works for every site.
+    An injected fetcher remains open and belongs to the caller. Indeed requires
+    one with JSON POST support. Without an injected fetcher, ``scrape`` creates
+    and closes an ``HttpxFetcher``.
 
-    Indeed requires ``country``. LinkedIn requires ``location``. For LinkedIn,
-    ``detail`` fetches fields from each posting page and ``cache`` reuses
-    fresh results.
+    Raises:
+        ValueError: A site is unknown, a required location or country is
+            missing, or a numeric search argument is outside its valid range.
     """
     searchers = site_searchers()
     if site not in searchers:

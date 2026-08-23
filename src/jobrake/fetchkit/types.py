@@ -6,7 +6,7 @@ from enum import Enum
 
 
 class ErrorCategory(str, Enum):
-    """Coarse classification of fetch failures."""
+    """Failure categories used by retry and reporting code."""
 
     NETWORK = "network"
     SERVER = "server"
@@ -17,7 +17,15 @@ class ErrorCategory(str, Enum):
 
 @dataclass
 class FetchError:
-    """A transport or HTTP failure."""
+    """
+    A mapped transport or HTTP failure.
+
+    Attributes:
+        category: Broad cause used by retry and reporting code.
+        message: Human-readable context from the transport or HTTP status.
+        http_status: Response status, or ``None`` when no response arrived.
+        original_error: Exception captured from the transport, when available.
+    """
 
     category: ErrorCategory
     message: str
@@ -27,7 +35,19 @@ class FetchError:
 
 @dataclass
 class FetchResult:
-    """Content or an error returned by a fetcher."""
+    """
+    Response content or a mapped failure.
+
+    HTTP error bodies remain available in ``text``. Transport failures have no
+    status code and retain their exception in ``error.original_error``.
+
+    Attributes:
+        url: Final response URL, or the requested URL when no response arrived.
+        status_code: HTTP status when a response arrived.
+        text: Response body for successful and HTTP-error responses.
+        headers: Response headers, normalized to lowercase by ``build_result``.
+        error: Failure details, or ``None`` after a successful request.
+    """
 
     url: str
     status_code: int | None = None
@@ -37,11 +57,17 @@ class FetchResult:
 
     @property
     def ok(self) -> bool:
+        """Whether the request completed without a mapped failure."""
         return self.error is None
 
 
 def build_result(url: str, status_code: int, text: str, headers: Mapping[str, str]) -> FetchResult:
-    """Build a result from an HTTP response, retaining error response bodies."""
+    """
+    Convert an HTTP response into the transport-neutral result model.
+
+    Status 429 is rate limited, other 4xx statuses are client failures, and
+    5xx statuses are server failures. Error response bodies are retained.
+    """
     headers = {name.lower(): value for name, value in headers.items()}
     if status_code < 400:
         return FetchResult(url, status_code, text, headers)

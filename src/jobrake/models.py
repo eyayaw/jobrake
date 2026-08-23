@@ -1,4 +1,4 @@
-"""One job-posting model shared by every site."""
+"""Normalized job fields shared by the provider adapters."""
 
 import re
 from dataclasses import asdict, dataclass, fields
@@ -12,19 +12,16 @@ SUMMARY_FIELDS = ("title", "company", "location", "date")
 @dataclass(kw_only=True, slots=True)
 class Job:
     """
-    A job posting with field names shared across sites.
+    A provider posting normalized to shared field names.
 
-    1. Identity: ``site``, ``id``, and ``url`` identify the job posting.
-       ``id`` is the site's own identifier, stable but unique only within
-       its site. ``(site, id)`` is unique globally.
+    Identity strings are stripped. Blank summary and detail strings become
+    ``None``. ``date`` prefers the search result's date and falls back to the
+    calendar date in ``posted_at``.
 
-    2. Summary: ``title``, ``company``, ``location``, and ``date`` are present
-       in every job dict. Each value is ``None`` when unavailable.
-
-    3. Detail: fields from ``description`` onward come from the posting when
-       available. The model stores an unavailable detail as ``None``, and the
-       job dict omits it. The posting may omit the value, the site may not
-       provide it, or the page may not have been fetched.
+    Attributes:
+        id: Provider-owned identifier. The pair ``(site, id)`` is globally unique.
+        date: Posting date without a time component.
+        is_remote: ``True`` when confirmed remote and ``None`` when unknown.
     """
 
     # Identity ----
@@ -60,6 +57,7 @@ class Job:
     education: str | None = None
 
     def __post_init__(self):
+        """Normalize strings and derive the calendar date."""
         for name in IDENTITY_FIELDS:
             setattr(self, name, (getattr(self, name) or "").strip())
         for name in SUMMARY_FIELDS:
@@ -76,10 +74,13 @@ class Job:
 
 def make_job(**scraped) -> dict:
     """
-    Normalize scraped fields into the job dict.
+    Build the public job dictionary from provider fields.
 
     Identity and summary keys are always present. An unavailable summary value
     is ``None``. A detail key whose value is ``None`` is omitted.
+
+    Raises:
+        TypeError: A required field is missing or an unknown field is supplied.
     """
     job = asdict(Job(**scraped))
     return {
@@ -97,7 +98,7 @@ _EMPLOYMENT_ALIASES = {"contractor": "contract", "intern": "internship"}
 
 
 def employment_type(label: str | None) -> str | None:
-    """Normalize a site's employment label, such as ``FULL_TIME`` to ``full_time``."""
+    """Normalize a provider's employment label for the shared model."""
     if not label:
         return None
     slug = re.sub(r"[^a-z0-9]+", "_", label.lower()).strip("_")

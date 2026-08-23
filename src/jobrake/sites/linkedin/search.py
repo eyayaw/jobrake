@@ -1,4 +1,4 @@
-"""Paginating the guest search API."""
+"""LinkedIn guest-search parsing and pagination."""
 
 import logging
 from gettext import ngettext
@@ -20,12 +20,16 @@ MAX_START = 1000  # the guest API stops serving past this offset
 
 
 def parse_cards(html: str) -> list[dict]:
-    """Return summary fields from the cards on one search page."""
+    """
+    Parse summaries in card order.
+
+    Cards without a URL or numeric posting ID are omitted.
+    """
     return _parse_page(html)[0]
 
 
 def _parse_page(html: str) -> tuple[list[dict], int]:
-    """Return parsed cards and the raw card count for one search page."""
+    """Parse job summaries while retaining the provider's raw card count."""
     # Search cards contain only summary fields. fetch_postings() reads the
     # detail fields from each posting page.
     soup = BeautifulSoup(html, "html.parser")
@@ -72,19 +76,22 @@ async def search(
     cache: bool = True,
 ) -> list[dict]:
     """
-    Paginate the guest search, extracting each posting's fields.
+    Search LinkedIn's login-free guest endpoint.
 
-    ``country`` is accepted for signature uniformity across sites and ignored.
+    ``location`` must be nonblank and works best with a region and country.
+    Distance is sent unchanged, and ``None`` omits it. When ``hours_old`` is
+    ``None``, LinkedIn omits the ``f_TPR`` filter. ``country`` is accepted for
+    the common provider call and ignored. ``detail`` hydrates posting pages,
+    with ``cache`` controlling their reuse. The caller owns ``fetcher``.
 
-    Every request first takes a token from ``LIMITER``. The bucket allows a
-    short burst, then spaces requests at its refill rate. A 429 is retried
-    once, waiting ``RETRY_DELAY`` or the response's seconds-form Retry-After;
-    an ask beyond ``MAX_RETRY_DELAY`` skips the retry. A 429 that stands ends
-    the search with the jobs already collected.
+    Search requests share the process-wide limiter. A persistent 429 ends the
+    search with the jobs already collected. The guest endpoint serves about
+    ten cards per page and stops at offset ``MAX_START``, limiting one search
+    to roughly 1,000 cards. Results retain guest-search order and stop at
+    ``results_wanted``.
 
-    The guest API serves about ten cards per page and nothing past offset
-    ``MAX_START``, so one search reaches at most ~1,000 cards however large
-    ``results_wanted`` is.
+    Raises:
+        ValueError: Location is blank or a numeric search argument is outside its valid range.
     """
     if not location.strip():
         raise ValueError(

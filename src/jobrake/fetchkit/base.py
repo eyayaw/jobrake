@@ -20,32 +20,52 @@ DEFAULT_USER_AGENT = (
 
 
 class Fetcher(Protocol):
-    """A GET transport that returns failures in ``FetchResult.error``."""
+    """A GET transport that returns mapped failures in ``FetchResult.error``."""
 
-    async def fetch(self, url: str, headers: dict[str, str] | None = None) -> FetchResult: ...
+    async def fetch(self, url: str, headers: dict[str, str] | None = None) -> FetchResult:
+        """Fetch one URL. Cancellation and unexpected exceptions may propagate."""
+        ...
 
     async def close(self) -> None: ...
 
 
 class PostFetcher(Fetcher, Protocol):
-    """A fetcher that also supports JSON POST requests."""
+    """A fetcher with JSON POST support."""
 
     async def post(
         self, url: str, json_body: dict, headers: dict[str, str] | None = None
-    ) -> FetchResult: ...
+    ) -> FetchResult:
+        """Post JSON. Cancellation and unexpected exceptions may propagate."""
+        ...
 
 
 class BaseFetcher:
-    """Base for transports that map exceptions onto results and add GET jitter."""
+    """
+    Base class for exception mapping and optional GET jitter.
+
+    Subclasses implement ``_fetch`` and list the exception classes that belong
+    to ``ErrorCategory.NETWORK``. Other ordinary exceptions become
+    ``ErrorCategory.UNKNOWN``. Cancellation propagates.
+
+    Attributes:
+        jitter: Maximum random delay in seconds before each GET request.
+    """
 
     network_errors: tuple[type[BaseException], ...] = ()
 
-    def __init__(self, jitter: float = 0.0):
+    def __init__(self, jitter: float = 0.0) -> None:
+        """
+        Configure the maximum random delay in seconds before each GET request.
+
+        Raises:
+            ValueError: ``jitter`` is negative or non-finite.
+        """
         self.jitter = float(jitter)
         if not math.isfinite(self.jitter) or self.jitter < 0:
             raise ValueError("jitter must be nonnegative and finite")
 
     async def fetch(self, url: str, headers: dict[str, str] | None = None) -> FetchResult:
+        """Delay a GET by up to ``jitter`` seconds, then capture request exceptions."""
         if self.jitter:
             await asyncio.sleep(random.uniform(0, self.jitter))
         return await self._capture_result(url, self._fetch(url, headers))

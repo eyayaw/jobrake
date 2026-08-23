@@ -30,7 +30,15 @@ _INDEED = {
 
 
 def indeed_domain(country: str) -> tuple[str, str]:
-    """Return the subdomain and API code for an Indeed country edition."""
+    """
+    Resolve a country name or alias to an Indeed edition.
+
+    Returns:
+        The website subdomain and uppercase API country code.
+
+    Raises:
+        ValueError: The country name or alias is unknown.
+    """
     try:
         value = _INDEED[country.strip().lower()]
     except KeyError:

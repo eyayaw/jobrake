@@ -1,4 +1,4 @@
-"""Full posting detail from the schema.org block on a job's canonical page."""
+"""LinkedIn posting details from schema.org data and page markup."""
 
 import json
 import logging
@@ -25,23 +25,21 @@ logger = logging.getLogger(__name__)
 FRAGMENT_URL = "https://www.linkedin.com/jobs-guest/jobs/api/jobPosting"
 
 
+# schema.org fields may be a scalar, a list, or a value in the wrong shape.
+# For list-valued fields, LinkedIn's first item is the one we use.
 def _obj(value) -> dict:
-    """Return the first schema.org object, or ``{}``."""
-    # A field can arrive as an object, a list of them, or a bare string.
     if isinstance(value, list):
         value = value[0] if value else None
     return value if isinstance(value, dict) else {}
 
 
 def _text_value(value) -> str | None:
-    """Return the first schema.org text value, or ``None``."""
     if isinstance(value, list):
         value = value[0] if value else None
     return value if isinstance(value, str) else None
 
 
 def _number_value(value) -> float | None:
-    """Return the first finite schema.org numeric value, or ``None``."""
     if isinstance(value, list):
         value = value[0] if value else None
     # json.loads admits NaN and the infinities, which strict JSON output
@@ -56,13 +54,13 @@ def _number_value(value) -> float | None:
 
 
 def _url(value) -> str | None:
-    """Return one schema.org URL, either bare or wrapped in an object's ``url``."""
+    """Unwrap a bare schema.org URL or an object's ``url`` field."""
     obj = _obj(value)
     return _text_value(obj.get("url")) if obj else _text_value(value)
 
 
 def _job_posting(soup: BeautifulSoup) -> dict:
-    """Return the page's schema.org ``JobPosting`` block or ``{}``."""
+    """Find the first ``JobPosting`` in page JSON-LD or an ``@graph``."""
     for block in soup.find_all("script", type="application/ld+json"):
         try:
             data = json.loads(block.string or "")
@@ -81,13 +79,12 @@ def _job_posting(soup: BeautifulSoup) -> dict:
 
 
 def _description(soup: BeautifulSoup) -> str:
-    """Return description text from the page markup or ``""``."""
     div = soup.find("div", class_=lambda c: bool(c and "show-more-less-html__markup" in c))
     return html_text(div.decode_contents()) if div else ""
 
 
 def _criteria(soup: BeautifulSoup) -> dict[str, str]:
-    """Map each criteria label to its value."""
+    """Index LinkedIn criteria rows by their displayed labels."""
     pairs = {}
     for item in soup.select(".description__job-criteria-item"):
         label = item.select_one(".description__job-criteria-subheader")
@@ -103,11 +100,10 @@ _SALARY_PERIODS = {"yr": "YEAR", "mo": "MONTH", "wk": "WEEK", "day": "DAY", "hr"
 
 def _salary(soup: BeautifulSoup) -> dict:
     """
-    Salary fields from the topcard text: ``AED 756,000.00/yr - AED 924,000.00/yr``.
+    Parse a two-bound en-US salary range from topcard markup.
 
-    Only the en-US rendering with a currency code parses. It must contain two
-    bounds with the same currency and period. Localized formats, currency
-    symbols, and single bounds yield ``{}``. A wrong number is worse than none.
+    Both bounds must use the same currency code and supported period. Currency
+    symbols, localized formats, single bounds, and unreadable numbers yield ``{}``.
     """
     node = soup.select_one(".compensation__salary")
     bounds = _SALARY_BOUND.findall(node.get_text()) if node else []
@@ -134,7 +130,7 @@ def _salary(soup: BeautifulSoup) -> dict:
 
 
 def _company(soup: BeautifulSoup) -> dict:
-    """Return the company link and logo from the topcard."""
+    """Extract company URL and logo fields from topcard markup."""
     link = soup.select_one("a.topcard__org-name-link")
     logo = soup.select_one("img.artdeco-entity-image")
     # Drop tracking params
@@ -145,11 +141,7 @@ def _company(soup: BeautifulSoup) -> dict:
 
 
 def _apply_type(soup: BeautifulSoup) -> str | None:
-    """
-    Return where the apply button leads.
-
-    ``"onsite"`` is LinkedIn's form. ``"offsite"`` is the employer's site.
-    """
+    """Use ``onsite`` for LinkedIn forms and ``offsite`` for employer forms."""
     for element in soup.select("[data-tracking-control-name*='apply-link-']"):
         if found := re.search(r"apply-link-([a-z]+)", str(element["data-tracking-control-name"])):
             return found.group(1)
@@ -157,7 +149,6 @@ def _apply_type(soup: BeautifulSoup) -> str | None:
 
 
 def _applicants(soup: BeautifulSoup) -> int | None:
-    """Return the applicant count quoted on the page."""
     # The prose around it is localized, but the number is not.
     # LinkedIn displays counts above 200 as "Over 200", so no thousands
     # separator appears.
@@ -168,11 +159,11 @@ def _applicants(soup: BeautifulSoup) -> int | None:
 
 def parse_posting(html: str) -> dict:
     """
-    Extract a posting's fields from its canonical page.
+    Extract model detail fields from a canonical posting page.
 
     Page markup fills fields absent from the schema.org block. Structured
     values win when both sources provide a field. A page with nothing
-    extractable yields ``{}``.
+    extractable yields ``{}``. Unsupported or malformed values are omitted.
     """
     # LinkedIn omits the structured block for country-level postings on every
     # subdomain.
@@ -181,7 +172,7 @@ def parse_posting(html: str) -> dict:
 
 
 def _parse_posting(soup: BeautifulSoup) -> tuple[dict, bool]:
-    """Return fields and whether the page contained a schema.org posting block."""
+    """Extract detail fields and report whether structured data was present."""
     posting = _job_posting(soup)
     org = _obj(posting.get("hiringOrganization"))
     place = _obj(posting.get("jobLocation"))
@@ -238,7 +229,7 @@ def _parse_posting(soup: BeautifulSoup) -> tuple[dict, bool]:
 
 
 def _canonical(url: str) -> str:
-    """Return the URL form that carries the structured block."""
+    """Remove the trailing slash that suppresses LinkedIn's structured block."""
     # A trailing slash returns the same full page without its schema.org script.
     path, sep, query = url.partition("?")
     return path.rstrip("/") + sep + query
@@ -248,30 +239,21 @@ async def fetch_postings(
     fetcher: Fetcher, urls: Iterable[str], *, cache: bool = True
 ) -> dict[str, dict | None]:
     """
-    Fetch full detail from the canonical page at each job's own URL.
+    Fetch LinkedIn detail fields for a collection of posting URLs.
 
-    Pass each job's own ``/jobs/view/<slug>-<id>`` URL from the search cards.
-    An ID alone reaches a page without the structured block. Duplicate and
-    empty URLs are skipped. URLs for the same posting ID share one fetch and
-    reuse its result. A failure returned in ``FetchResult`` costs at most that
-    posting, except a rate limit still in force after the retry policy, which
-    stops further requests; the remaining URLs still take cached and already
-    resolved values, and the rest stay absent for a later call. When the
-    fragment request is the limited one, the canonical page's partial fields
-    are kept and cached before the stop. Exceptions raised by the fetcher
-    propagate, including cancellation.
+    URLs sharing a numeric posting ID share one hydration attempt and result.
+    A page with fields but no structured block costs one en-US fragment request
+    for the remaining fields when the URL has a numeric ID. A persistent 429
+    stops further requests while retaining cached and completed results. Other
+    transient failures leave that URL absent so a later call can retry it.
+    Fetcher exceptions and cancellation propagate. Empty and duplicate URLs
+    are ignored. The cache stores only numeric identities. URLs without one are
+    fetched on every call. The supplied transport remains open.
 
-    Each URL has three possible outcomes. A field dict contains the parsed
-    posting, which may be partial when the page omits the structured block.
-    ``None`` means a 404 or 410 confirmed the posting is gone. A URL
-    absent from the result had a transient failure or nothing parseable, so a
-    later call may retry it. A page without the block costs a second request
-    for the en-US fragment, whose labels and numbers the markup parser knows.
-
-    With ``cache``, fresh postings come from disk. Missing or stale IDs
-    trigger requests. URLs without an ID are fetched every time.
-    Cache keys use the posting ID because its subdomain and slug can change.
-    Each result is saved as it arrives, so an interruption keeps every completed fetch.
+    Returns:
+        Results keyed by the supplied URLs. A field dictionary may be partial.
+        ``None`` records a confirmed 404 or 410. Missing keys represent
+        retryable failures or pages with nothing parseable.
     """
     wanted = list(dict.fromkeys(u for u in urls if u))
     ids = {url: job_id(url) for url in wanted}

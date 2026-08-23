@@ -30,11 +30,17 @@ build-backend = "uv_build"
 [tool.uv_build.targets.wheel]
 packages = ["src/jobrake"]
 
+[project.scripts]
+jobrake = "jobrake.cli:main"
+
 [tool.ruff]
 line-length = 100
 target-version = "py311"
 
+# NumPy-style multiline openings with Google-style sections.
 [tool.ruff.lint]
+extend-select = ["D", "D213"]
+ignore = ["D102", "D105", "D212"]
 select = [
     "E4", # pycodestyle: import placement (one per line, at the top)
     "E7", # pycodestyle: statements (None/True comparisons, bare except, ...)
@@ -43,5 +49,9 @@ select = [
     "I",  # isort: sorted, grouped imports
 ]
 
-[project.scripts]
-jobrake = "jobrake.cli:main"
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+"scripts/**" = ["D"]
+"tests/**" = ["D"]

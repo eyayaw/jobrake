@@ -1,3 +1,5 @@
+"""Shared parsing and search-argument helpers."""
+
 import logging
 from datetime import UTC, datetime
 
@@ -10,10 +12,10 @@ _BLOCK_TAGS = ("p", "div", "li", "ul", "ol", "h1", "h2", "h3", "h4", "h5", "h6",
 
 def html_text(html: str) -> str:
     """
-    Plain text from an HTML fragment, with one line per block.
+    Extract readable text from an HTML fragment.
 
     Block tags become line breaks. Inline tags join without spaces. Style and
-    script bodies are dropped.
+    script bodies and empty lines are omitted.
     """
     if not html:
         return ""
@@ -30,25 +32,30 @@ def html_text(html: str) -> str:
 
 
 def check_hours_old(hours_old: int | None) -> None:
-    """Raise ``ValueError`` unless ``hours_old`` is ``None`` or positive."""
+    """Require a positive posting-age bound when one is supplied."""
     if hours_old is not None and hours_old <= 0:
         raise ValueError(f"hours_old ({hours_old}) must be positive, or None for no age bound")
 
 
 def check_results_wanted(results_wanted: int) -> None:
-    """Raise ``ValueError`` unless ``results_wanted`` is positive."""
+    """Require at least one requested result."""
     if results_wanted <= 0:
         raise ValueError(f"results_wanted ({results_wanted}) must be positive")
 
 
 def check_distance(distance: int | None) -> None:
-    """Raise ``ValueError`` unless ``distance`` is ``None``, zero, or positive."""
+    """Accept an omitted or nonnegative search radius."""
     if distance is not None and distance < 0:
         raise ValueError(f"distance ({distance}) must be zero or more")
 
 
 def iso_date(value: str | None) -> str | None:
-    """``YYYY-MM-DD`` from an ISO 8601 date or timestamp, or ``None`` if absent."""
+    """
+    Reduce an ISO 8601 date or timestamp to its calendar date.
+
+    Empty input returns ``None``. Unparseable text logs a warning and remains
+    visible as its first ten characters.
+    """
     if not value:
         return None
     try:
@@ -61,10 +68,12 @@ def iso_date(value: str | None) -> str | None:
 
 def epoch_ms_to_iso(ms: float | str) -> str:
     """
-    ISO 8601 UTC timestamp from epoch milliseconds.
+    Convert epoch milliseconds to an ISO 8601 UTC timestamp.
 
-    Raises ``ValueError`` for values that cannot be epoch milliseconds. Epoch
-    seconds land in the 1970s, so they are rejected too.
+    Values resolving before the year 2000 are treated as likely epoch seconds.
+
+    Raises:
+        ValueError: The value is invalid, out of range, or likely expressed in seconds.
     """
     try:
         stamp = datetime.fromtimestamp(float(ms) / 1000.0, tz=UTC)

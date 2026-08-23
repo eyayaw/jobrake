@@ -1,6 +1,4 @@
-"""
-TokenBucket reservation and acquisition tests with real and stubbed clocks.
-"""
+"""Token-bucket reservation and acquisition with real and stubbed clocks."""
 
 import asyncio
 import time

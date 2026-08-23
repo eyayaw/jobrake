@@ -1,4 +1,4 @@
-"""Paging the GraphQL job search."""
+"""Indeed GraphQL query construction, parsing, and pagination."""
 
 import json
 import logging
@@ -84,6 +84,7 @@ def build_query(
     hours_old: int | None,
     cursor: str | None,
 ) -> str:
+    """Build an Indeed query with a cursor-bound page size of 100."""
     filters = ""
     if hours_old:
         filters = f'filters: {{ date: {{ field: "dateOnIndeed", start: "{hours_old}h" }} }}'
@@ -111,7 +112,7 @@ _CSS_RULE = re.compile(r"(?:[^{}\n.]|\.(?!\s)){0,200}?\{(?:[^{}]*:[^{}]*|\s*)\}"
 
 
 def _scrub_css(text: str) -> str:
-    """Drop the stylesheet text some postings carry in their description."""
+    """Remove CSS rules flattened into some posting descriptions."""
     if "{" not in text:
         return text
     text = _CSS_COMMENT.sub(" ", text)
@@ -126,7 +127,7 @@ def _scrub_css(text: str) -> str:
 
 
 def _timestamp(job: dict, field: str) -> str | None:
-    """Convert one epoch-millisecond job field to ISO 8601, or return ``None``."""
+    """Read an epoch-millisecond field, logging and dropping invalid values."""
     if (ms := job.get(field)) is None:
         return None
     try:
@@ -138,17 +139,14 @@ def _timestamp(job: dict, field: str) -> str | None:
 
 
 def _dict_value(value) -> dict:
-    """The value if it is a dict, else ``{}``."""
     return value if isinstance(value, dict) else {}
 
 
 def _string_value(value) -> str | None:
-    """The value if it is a string, else ``None``."""
     return value if isinstance(value, str) else None
 
 
 def _finite_value(value) -> float | None:
-    """The value if it is a finite number, else ``None``."""
     if isinstance(value, bool) or not isinstance(value, int | float):
         return None
     try:
@@ -159,13 +157,7 @@ def _finite_value(value) -> float | None:
 
 
 def _parse_job(job: dict, base_url: str) -> dict:
-    """
-    Convert an Indeed job object into a unified job dict.
-
-    The provider key must be a string containing non-whitespace text. It is
-    stripped before use. Other fields are normalized to their model types.
-    A value in the wrong shape is omitted.
-    """
+    """Normalize one Indeed result into the shared job model."""
     key = job["key"].strip() if isinstance(job["key"], str) else ""
     # The provider key becomes both the job ID and the URL's ``jk`` parameter.
     if not key:
@@ -224,7 +216,7 @@ def _parse_job(job: dict, base_url: str) -> dict:
 
 
 def _graphql_error_message(payload: object) -> str | None:
-    """The first GraphQL error message in a response envelope, or ``None``."""
+    """Read the first string message from a GraphQL error envelope."""
     errors = payload.get("errors") if isinstance(payload, dict) else None
     for error in errors if isinstance(errors, list) else []:
         if isinstance(error, dict) and isinstance(error.get("message"), str):
@@ -233,7 +225,19 @@ def _graphql_error_message(payload: object) -> str | None:
 
 
 def parse_jobs(data: dict, base_url: str) -> tuple[list[dict], str | None, int]:
-    """Return jobs, the next cursor, and the raw result count from one GraphQL response."""
+    """
+    Parse one GraphQL page while isolating malformed results.
+
+    ``base_url`` supplies the origin for posting and company links.
+
+    Returns:
+        Parsed jobs, a usable next cursor, and the provider's raw result count.
+        The raw count includes malformed results so pagination still advances.
+
+    Raises:
+        KeyError: The response lacks required search data.
+        TypeError: The response envelope has an unreadable shape.
+    """
     search = data["data"]["jobSearch"]
     results = search["results"]
     jobs = []
@@ -263,21 +267,22 @@ async def search(
     cache: bool = True,
 ) -> list[dict]:
     """
-    Page through the GraphQL API.
+    Search one Indeed country edition through its GraphQL API.
 
-    This API accepts POST through ``PostFetcher``. The query asks for pages of
-    up to 100 jobs in relevance order, which the result list preserves, and
-    ``results_wanted`` controls how many are returned. Any positive count is
-    valid; a nonmultiple of 100 leaves part of the final fetched page unused.
-    Requests are not paced or retried. An error result, a GraphQL error
-    without usable data, or a malformed response envelope ends the search
-    with a warning and the jobs already collected. A bad job key drops that
-    job. An invalid field drops that field.
+    ``country`` selects the edition. Distance is measured in kilometers.
+    ``None`` uses the standard radius. ``detail`` and ``cache`` are accepted
+    for the common provider call but do not change Indeed searches. The caller
+    retains ownership of ``fetcher``.
 
-    ``detail`` and ``cache`` are accepted and ignored. Every field this adapter
-    supports arrives in the search response, and nothing costs an extra
-    request. The unsupported fields are ``apply_type``, ``applicants``,
-    ``experience_months``, and ``education``.
+    Each request asks for 100 jobs in relevance order. The returned list keeps
+    that order and trims the final page to ``results_wanted``. Requests are
+    neither paced nor retried. A transport failure, provider error without
+    usable data, or unreadable response ends the search with a warning and the
+    jobs already collected. A malformed result costs only that result. An
+    invalid field costs only that field.
+
+    Raises:
+        ValueError: The country is unknown or a numeric search argument is outside its valid range.
     """
     check_results_wanted(results_wanted)
     check_distance(distance)

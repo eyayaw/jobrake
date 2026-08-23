@@ -15,7 +15,7 @@ DEFAULT_HEADERS = {
 
 
 class HttpxFetcher(BaseFetcher):
-    """GET and JSON POST transport backed by one pooled httpx client."""
+    """A pooled httpx transport for GET and JSON POST requests."""
 
     # Timeouts, sockets, framing, and proxies are operational network failures.
     # UnsupportedProtocol identifies a malformed caller URL and stays UNKNOWN.
@@ -33,7 +33,18 @@ class HttpxFetcher(BaseFetcher):
         follow_redirects: bool = True,
         cookies: dict[str, str] | None = None,
         jitter: float = 0.1,
-    ):
+    ) -> None:
+        """
+        Configure the pooled client and GET pacing.
+
+        ``timeout`` applies to each network operation. Headers override the
+        browser-like defaults, and cookies seed the client session. Responses
+        report the final URL when redirects are enabled. ``jitter`` delays GET
+        requests only. Both time values are in seconds.
+
+        Raises:
+            ValueError: ``timeout`` or ``jitter`` is outside its valid range.
+        """
         timeout = float(timeout)
         if not math.isfinite(timeout) or timeout <= 0:
             raise ValueError("timeout must be finite and positive")
@@ -56,6 +67,7 @@ class HttpxFetcher(BaseFetcher):
     async def post(
         self, url: str, json_body: dict, headers: dict[str, str] | None = None
     ) -> FetchResult:
+        """Send JSON without GET jitter and capture request exceptions."""
         operation = self._client.post(url, json=json_body, headers=headers)
         return await self._capture_result(url, self._response(operation))
 

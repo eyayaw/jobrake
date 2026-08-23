@@ -7,7 +7,7 @@ from jobrake.fetchkit import ErrorCategory, Fetcher, FetchResult, TokenBucket
 
 
 def rate_limited(result: FetchResult) -> bool:
-    """Whether this result is a 429."""
+    """Check for a rate-limited error."""
     return result.error is not None and result.error.category is ErrorCategory.RATE_LIMITED
 
 
@@ -41,7 +41,7 @@ MAX_RETRY_DELAY = 60.0
 
 
 def _retry_delay(result: FetchResult) -> float | None:
-    """The wait before the one retry, or ``None`` when Retry-After exceeds ``MAX_RETRY_DELAY``."""
+    """Choose a retry delay within the local wait limit."""
     value = result.headers.get("retry-after", "")
     # Unicode digits such as "²" pass isdigit but not float().
     if not (value.isascii() and value.isdigit()):
@@ -56,13 +56,13 @@ CACHE = PostingCache()
 
 async def paced_fetch(fetcher: Fetcher, url: str) -> FetchResult:
     """
-    Take a token, fetch, and retry once after a 429.
+    Pace one LinkedIn request and retry a 429 within the wait limit.
 
-    A 429 despite this pacing indicates other traffic from the same IP. The
-    server bucket usually refills within seconds. A seconds-form Retry-After
-    sets the wait; one asking for more than ``MAX_RETRY_DELAY`` skips the
-    retry. A retry that is limited again, or a skipped one, hands the caller
-    the rate-limited result to decide whether to stop.
+    A seconds-form ``Retry-After`` sets the wait. A missing or unreadable value
+    uses ``RETRY_DELAY``. A delay above ``MAX_RETRY_DELAY`` skips the retry. A
+    persistent 429 is returned for the caller to decide whether the larger
+    operation should stop. Both attempts use the supplied transport, which
+    remains open afterward.
     """
     await LIMITER.acquire()
     result = await fetcher.fetch(url, headers=HEADERS)
@@ -77,7 +77,7 @@ async def paced_fetch(fetcher: Fetcher, url: str) -> FetchResult:
 
 
 def job_id(url: str) -> str:
-    """Return the numeric ID in a job URL, or ``""`` when it has no numeric suffix."""
+    """Extract a numeric posting ID, using ``""`` when the URL has none."""
     slug = url.split("?")[0].rstrip("/").rsplit("/", 1)[-1]
     tail = slug.rsplit("-", 1)[-1]
     return tail if tail.isdigit() else ""

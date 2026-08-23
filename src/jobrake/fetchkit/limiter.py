@@ -6,9 +6,19 @@ import time
 
 
 class TokenBucket:
-    """Allow an initial burst, then space calls at one per refill interval."""
+    """A token bucket with an initial burst and interval-based refills."""
 
-    def __init__(self, capacity: float, refill_interval: float):
+    def __init__(self, capacity: float, refill_interval: float) -> None:
+        """
+        Create a full bucket.
+
+        Args:
+            capacity: Tokens available for the initial burst.
+            refill_interval: Seconds required to restore one token.
+
+        Raises:
+            ValueError: Capacity is below one, an interval is not positive, or either value is non-finite.
+        """
         self.capacity = float(capacity)
         self.refill_interval = float(refill_interval)
         if not math.isfinite(self.capacity) or self.capacity < 1:
@@ -27,13 +37,26 @@ class TokenBucket:
         self._stamp = now
 
     def reserve(self, now: float) -> float:
-        """Take one token and return the wait owed before using it."""
+        """
+        Reserve one token without sleeping.
+
+        Args:
+            now: Current monotonic time in seconds.
+
+        Returns:
+            Seconds the caller owes before using the reservation.
+        """
         self._refill(now)
         wait = max(0.0, (1.0 - self._level) * self.refill_interval)
         self._level -= 1.0
         return wait
 
     async def acquire(self) -> None:
+        """
+        Wait for and consume one token.
+
+        Concurrent callers are serialized. Cancellation while waiting spends no token.
+        """
         loop = asyncio.get_running_loop()
         if self._loop is not loop:
             self._loop = loop

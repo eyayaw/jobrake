@@ -6,6 +6,7 @@ from jobrake import scrape
 
 
 async def main():
+    """Run one small search per provider and print representative fields."""
     for site in ("indeed", "linkedin"):
         try:
             jobs = await scrape(

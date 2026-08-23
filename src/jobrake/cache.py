@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS postings (
 
 
 class _NonstandardConstant(Exception):
-    """A cached row carries NaN or an infinity, which strict JSON forbids."""
+    """A nonstandard JSON number treated as a row-level cache miss."""
 
 
 def _reject_constant(name: str):
@@ -36,7 +36,6 @@ def _reject_constant(name: str):
 
 
 def _default_path() -> Path:
-    """Return the platform user-cache location."""
     match sys.platform:
         case "darwin":
             base = Path.home() / "Library" / "Caches"
@@ -49,12 +48,17 @@ def _default_path() -> Path:
 
 class PostingCache:
     """
-    Store posting fields or gone-posting tombstones under ``(site, id)``.
+    A best-effort cache for posting fields and gone-posting tombstones.
 
-    Fields expire after ``ttl`` and leave the cache after ``retention``.
-    Tombstones stay until the cache is deleted because a removed posting does not return.
-    A storage or decoding failure logs once and disables the cache, so cache
-    damage can cost requests but cannot stop a scrape.
+    Entries are keyed by ``(site, id)``. Field rows expire after ``ttl`` seconds
+    and are deleted after ``retention`` seconds. Tombstones remain until the
+    database is deleted. A storage or decoding failure logs once and disables
+    this instance. Callers receive misses and continue scraping.
+
+    Attributes:
+        path: SQLite database path. The cache opens it on first access.
+        ttl: Seconds a field row remains fresh.
+        retention: Seconds a field row remains on disk.
     """
 
     def __init__(
@@ -63,7 +67,15 @@ class PostingCache:
         *,
         ttl: float = TTL,
         retention: float = RETENTION,
-    ):
+    ) -> None:
+        """
+        Configure lazy storage and field-row lifetimes.
+
+        ``None`` selects the platform user-cache directory for ``path``.
+
+        Raises:
+            ValueError: A lifetime is non-finite, ``ttl`` is not positive, or ``retention`` is lt ``ttl``.
+        """
         self.ttl = float(ttl)
         self.retention = float(retention)
         if not math.isfinite(self.ttl) or self.ttl <= 0:
@@ -104,7 +116,13 @@ class PostingCache:
         logger.warning("posting cache disabled (%s): %s", self.path, error)
 
     def get(self, site: str, ids: Iterable[str]) -> dict[str, dict | None]:
-        """Return fresh cached entries among ``ids``."""
+        """
+        Read fresh fields and tombstones for the requested IDs.
+
+        A ``None`` value is a gone-posting tombstone. Missing keys are stale,
+        absent, or malformed rows. Storage and decoding failures disable the
+        cache and return an empty mapping.
+        """
         ids = list(dict.fromkeys(ids))
         conn = self._connect()
         if conn is None or not ids:
@@ -139,7 +157,12 @@ class PostingCache:
             return {}
 
     def put(self, site: str, postings: dict[str, dict | None]) -> None:
-        """Upsert posting fields or tombstones."""
+        """
+        Store field dictionaries and gone-posting tombstones.
+
+        ``None`` records a confirmed 404 or 410. Storage or serialization
+        failures log once and disable this cache instance.
+        """
         conn = self._connect()
         if conn is None or not postings:
             return
