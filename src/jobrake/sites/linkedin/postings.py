@@ -116,8 +116,12 @@ def _salary(soup: BeautifulSoup) -> dict:
     (currency, low, period), (currency_2, high, period_2) = bounds
     if (currency, period) != (currency_2, period_2):
         return {}
-    salary_min = float(low.replace(",", ""))
-    salary_max = float(high.replace(",", ""))
+    try:
+        salary_min = float(low.replace(",", ""))
+        salary_max = float(high.replace(",", ""))
+    except ValueError:
+        # The regex admits comma-only bounds, which float() rejects.
+        return {}
     # A digit run past float range converts to infinity rather than raising.
     if not (math.isfinite(salary_min) and math.isfinite(salary_max)):
         return {}

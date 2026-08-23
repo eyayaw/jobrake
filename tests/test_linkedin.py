@@ -383,6 +383,9 @@ def test_parse_posting_drops_nonfinite_numbers():
     huge = "9" * 400
     topcard = f'<div class="compensation__salary">USD {huge}/yr - USD {huge}/yr</div>'
     assert "salary_min" not in linkedin.parse_posting(topcard)
+    # comma-only bounds match the salary pattern but hold no number
+    comma = '<div class="compensation__salary">USD ,/yr - USD ,/yr</div>'
+    assert linkedin.parse_posting(comma) == {}
 
 
 def test_parse_posting_reads_the_apply_kind():
