@@ -87,8 +87,10 @@ def test_indeed_keeps_a_job_whose_date_is_not_milliseconds(caplog):
     assert any("milliseconds" in record.message for record in caplog.records)
 
 
-def test_indeed_asks_each_page_only_for_the_remaining_need():
-    pages = [indeed_payload(["a", "b"], cursor="next"), indeed_payload(["c"])]
+def test_indeed_requests_full_pages_throughout_a_cursor_chain():
+    # Indeed binds the page size to its cursor and rejects a changed limit
+    # with BAD_USER_INPUT, so every request in a chain asks for a full page.
+    pages = [indeed_payload(["a", "b"], cursor="next"), indeed_payload(["b", "c", "d"])]
 
     class Paged(StubFetcher):
         def __init__(self):
@@ -102,16 +104,36 @@ def test_indeed_asks_each_page_only_for_the_remaining_need():
 
     fetcher = Paged()
     jobs = asyncio.run(indeed.search(fetcher, search_term="x", country="usa", results_wanted=3))
-    assert len(jobs) == 3
-    assert "limit: 3" in fetcher.queries[0]
-    assert "limit: 1" in fetcher.queries[1]
+    # The second page overlaps the first, the limit stays at 100, and the
+    # final slice returns three unique jobs.
+    assert [job["id"] for job in jobs] == ["a", "b", "c"]
+    assert all("limit: 100" in query for query in fetcher.queries)
+    assert len(fetcher.queries) == 2
 
 
-def test_build_query_bounds_the_page_limit():
-    # the API caps a page at 100, however large the remaining need
-    assert "limit: 100" in indeed.build_query("x", None, None, None, None, limit=250)
-    with pytest.raises(ValueError, match="limit"):
-        indeed.build_query("x", None, None, None, None, limit=0)
+def test_indeed_graphql_error_reports_the_provider_message(caplog):
+    rejected = {
+        "data": None,
+        "errors": [{"message": "BAD_USER_INPUT: Requested limit modified during pagination"}],
+    }
+    pages = [indeed_payload(["a"], cursor="next"), rejected]
+
+    class Paged(StubFetcher):
+        async def post(self, url, json_body, headers=None):
+            self.requests.append(url)
+            return ok(json.dumps(pages[len(self.requests) - 1]))
+
+    fetcher = Paged({})
+    with caplog.at_level(logging.WARNING, logger="jobrake.sites.indeed"):
+        jobs = asyncio.run(
+            indeed.search(fetcher, search_term="x", country="usa", results_wanted=10)
+        )
+    assert [job["id"] for job in jobs] == ["a"]  # earlier pages survive
+    # The warning carries the provider's message and the retained-job count.
+    assert any(
+        "BAD_USER_INPUT" in record.message and "the 1 job already" in record.message
+        for record in caplog.records
+    )
 
 
 def test_indeed_stops_at_results_wanted():

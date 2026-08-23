@@ -4,6 +4,7 @@ import json
 import logging
 import math
 import re
+from gettext import ngettext
 
 from jobrake import defaults
 from jobrake.fetchkit import PostFetcher
@@ -21,16 +22,18 @@ from .countries import indeed_domain
 
 logger = logging.getLogger(__name__)
 
-# jobspy's query, trimmed to the fields we keep. `limit` sets the API page
-# size, up to the API's maximum of 100. Pagination continues through
-# pageInfo.nextCursor. The salary range is a union. Range carries both bounds,
-# AtLeast and AtMost carry one, and Exactly carries one value.
+# jobspy's query, trimmed to the fields we keep. `limit: 100` sets the API
+# page size and must stay identical on every request of a cursor chain:
+# Indeed binds the size to its cursor and rejects a changed value with
+# BAD_USER_INPUT. Pagination continues through pageInfo.nextCursor. The salary
+# range is a union. Range carries both bounds, AtLeast and AtMost carry one,
+# and Exactly carries one value.
 QUERY = """
 query GetJobData {{
   jobSearch(
     {what}
     {location}
-    limit: {limit}
+    limit: 100
     {cursor}
     sort: RELEVANCE
     {filters}
@@ -80,15 +83,11 @@ def build_query(
     distance: int | None,
     hours_old: int | None,
     cursor: str | None,
-    limit: int = 100,
 ) -> str:
-    if limit <= 0:
-        raise ValueError(f"limit ({limit}) must be positive")
     filters = ""
     if hours_old:
         filters = f'filters: {{ date: {{ field: "dateOnIndeed", start: "{hours_old}h" }} }}'
     return QUERY.format(
-        limit=min(100, limit),
         what=f"what: {json.dumps(search_term)}" if search_term else "",
         location=(
             f"location: {{ where: {json.dumps(location)}, "
@@ -224,6 +223,15 @@ def _parse_job(job: dict, base_url: str) -> dict:
     )
 
 
+def _graphql_error_message(payload: object) -> str | None:
+    """The first GraphQL error message in a response envelope, or ``None``."""
+    errors = payload.get("errors") if isinstance(payload, dict) else None
+    for error in errors if isinstance(errors, list) else []:
+        if isinstance(error, dict) and isinstance(error.get("message"), str):
+            return error["message"]
+    return None
+
+
 def parse_jobs(data: dict, base_url: str) -> tuple[list[dict], str | None, int]:
     """Return jobs, the next cursor, and the raw result count from one GraphQL response."""
     search = data["data"]["jobSearch"]
@@ -257,11 +265,14 @@ async def search(
     """
     Page through the GraphQL API.
 
-    This API accepts POST through ``PostFetcher``. Each page requests only the
-    remaining need, up to the API's 100-posting maximum. Requests are not
-    paced or retried. An error result or malformed response envelope ends the
-    search with a warning and the jobs already collected. A bad job key drops
-    that job. An invalid field drops that field.
+    This API accepts POST through ``PostFetcher``. The query asks for pages of
+    up to 100 jobs in relevance order, which the result list preserves, and
+    ``results_wanted`` controls how many are returned. Any positive count is
+    valid; a nonmultiple of 100 leaves part of the final fetched page unused.
+    Requests are not paced or retried. An error result, a GraphQL error
+    without usable data, or a malformed response envelope ends the search
+    with a warning and the jobs already collected. A bad job key drops that
+    job. An invalid field drops that field.
 
     ``detail`` and ``cache`` are accepted and ignored. Every field this adapter
     supports arrives in the search response, and nothing costs an extra
@@ -280,27 +291,36 @@ async def search(
     cursors: set[str] = set()
     cursor: str | None = None
     while len(jobs) < results_wanted:
-        # Ask for the remaining need. Cross-page duplicates may leave a page
-        # under-filled, and the cursor loop then pulls another.
-        limit = results_wanted - len(jobs)
-        query = build_query(search_term, location, distance, hours_old, cursor, limit=limit)
+        query = build_query(search_term, location, distance, hours_old, cursor)
         result = await fetcher.post(API_URL, {"query": query}, headers=headers)
         if result.error:
             logger.warning(
-                "indeed search stopped by %s; keeping the %d jobs already collected",
+                "indeed search stopped by %s; keeping the %s already collected",
                 result.error.message,
-                len(jobs),
+                ngettext("%d job", "%d jobs", len(jobs)) % len(jobs),
             )
             break
+        payload = None
         try:
-            page, cursor, raw = parse_jobs(json.loads(result.text), base_url)
+            payload = json.loads(result.text)
+            page, cursor, raw = parse_jobs(payload, base_url)
         except (json.JSONDecodeError, KeyError, TypeError) as error:
-            logger.warning(
-                "indeed sent a response this version cannot read (%r), likely an API "
-                "change; keeping the %d jobs already collected",
-                error,
-                len(jobs),
-            )
+            # A GraphQL error arrives as HTTP 200 with null data. Usable data
+            # alongside errors parses above and is kept.
+            if message := _graphql_error_message(payload):
+                logger.warning(
+                    "indeed search stopped by provider error (%s); keeping the %s "
+                    "already collected",
+                    message,
+                    ngettext("%d job", "%d jobs", len(jobs)) % len(jobs),
+                )
+            else:
+                logger.warning(
+                    "indeed sent a response this version cannot read (%r), likely an "
+                    "API change; keeping the %s already collected",
+                    error,
+                    ngettext("%d job", "%d jobs", len(jobs)) % len(jobs),
+                )
             break
         # A page without results ends the search. A page whose results all
         # failed to parse costs only those results; its cursor still advances.
