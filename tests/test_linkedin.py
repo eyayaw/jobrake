@@ -536,6 +536,7 @@ def test_fetch_postings_block_less_page_pulls_the_fragment(unlimited):
 def test_fetch_postings_three_outcomes_and_what_each_costs_again(unlimited, monkeypatch):
     monkeypatch.setattr(client, "RETRY_DELAY", 0)
     gone = "https://nl.linkedin.com/jobs/view/gone-at-acme-222"
+    gone_alias = "https://www.linkedin.com/jobs/view/gone-at-acme-222"
     flaky = "https://nl.linkedin.com/jobs/view/flaky-at-acme-333"
     fetcher = StubFetcher(
         {
@@ -545,12 +546,14 @@ def test_fetch_postings_three_outcomes_and_what_each_costs_again(unlimited, monk
         }
     )
     postings = asyncio.run(
-        linkedin.fetch_postings(fetcher, [CANONICAL, "", CANONICAL, gone, flaky])
+        linkedin.fetch_postings(fetcher, [CANONICAL, "", CANONICAL, gone, gone_alias, flaky])
     )
     assert hydrated(postings, CANONICAL)["employment_type"] == "full_time"
     assert postings[gone] is None  # gone: stop asking
+    assert postings[gone_alias] is None  # the alias reuses the tombstone
     assert flaky not in postings  # transient: safe to retry
     assert sum(1 for u in fetcher.requests if u == CANONICAL) == 1  # deduped
+    assert sum(1 for u in fetcher.requests if "gone-at" in u) == 1  # so is the alias
 
     # A retry: hydrated and gone come from the cache, only the transient is re-asked.
     fetcher.responses["flaky-at"] = ok(job_page())
@@ -642,6 +645,17 @@ def test_fetch_postings_caches_by_id_not_url(unlimited):
     moved = "https://www.linkedin.com/jobs/view/senior-economist-at-acme-111"
     got = asyncio.run(linkedin.fetch_postings(StubFetcher({}), [moved]))
     assert hydrated(got, moved)["employment_type"] == "full_time"
+
+
+def test_fetch_postings_refetches_url_without_an_id(unlimited):
+    # job_id() finds no numeric suffix, so the posting has no cache key.
+    unnumbered = "https://www.linkedin.com/jobs/view/economist-at-acme"
+    fetcher = StubFetcher({"economist-at-acme": ok(job_page())})
+    got = asyncio.run(linkedin.fetch_postings(fetcher, [unnumbered]))
+    assert hydrated(got, unnumbered)["employment_type"] == "full_time"
+    # Without an ID, the second call fetches the page again.
+    assert asyncio.run(linkedin.fetch_postings(fetcher, [unnumbered])) == got
+    assert fetcher.requests == [unnumbered, unnumbered]
 
 
 def test_fetch_postings_hydrates_each_identity_once(unlimited):

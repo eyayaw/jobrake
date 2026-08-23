@@ -268,27 +268,91 @@ async def fetch_postings(
     later call may retry it. A page without the block costs a second request
     for the en-US fragment, whose labels and numbers the markup parser knows.
 
-    With ``cache``, fresh postings come from disk. Only missing or stale IDs
-    trigger requests. Cache keys use the posting ID because its subdomain and
-    slug can change.
-    Each result is saved as it arrives, so an interruption keeps every
-    completed fetch.
+    With ``cache``, fresh postings come from disk. Missing or stale IDs
+    trigger requests. URLs without an ID are fetched every time.
+    Cache keys use the posting ID because its subdomain and slug can change.
+    Each result is saved as it arrives, so an interruption keeps every completed fetch.
     """
-    postings: dict[str, dict | None] = {}
     wanted = list(dict.fromkeys(u for u in urls if u))
     ids = {url: job_id(url) for url in wanted}
-    # Keep one value per posting ID for the whole call. Seed it from the cache
-    # and extend it as fetches finish so aliases reuse the same result.
+    # Keep one value per posting identity for the whole call. Seed it from the
+    # cache and extend it as fetches finish so aliases reuse the same result.
     resolved = client.CACHE.get("linkedin", [i for i in ids.values() if i]) if cache else {}
     for posting_id, posting in resolved.items():
-        # Cached rows may predate the current field set. Ignore unknown keys
-        # before merging a row into a Job.
+        # Cached rows may predate the current field set.
+        # Ignore unknown keys before merging a row into a Job.
         if posting is not None:
             resolved[posting_id] = {
                 name: value for name, value in posting.items() if name in JOB_FIELDS
             }
 
-    def stop_warning() -> None:
+    attempted: set[str] = set()
+    stopped = False
+    for url in wanted:
+        # A posting's identity is its ID when the URL carries one, else the
+        # URL itself. IDs are digit strings and ID-less URLs never are, so the
+        # two kinds of key cannot collide. Only real IDs reach the disk cache.
+        posting_id = ids[url]
+        identity = posting_id or url
+        # Spend at most one request per identity during this call.
+        # After a transient miss, aliases remain absent for a later retry.
+        if identity in resolved or identity in attempted:
+            continue
+        attempted.add(identity)
+        result = await paced_fetch(fetcher, _canonical(url))
+        if rate_limited(result):
+            # The retry inside paced_fetch already waited and failed. The
+            # limit belongs to the IP, so the next posting would fare no
+            # better; spending a wait per posting turns one block into a
+            # stall over the whole list.
+            stopped = True
+            break
+        if result.error and result.error.http_status in (404, 410):
+            resolved[identity] = None
+            if cache and posting_id:
+                client.CACHE.put("linkedin", {posting_id: None})
+            continue
+        if result.error:
+            logger.warning("posting %s: %s; skipped, a rerun retries it", url, result.error.message)
+            continue
+        posting, structured = _parse_posting(BeautifulSoup(result.text, "html.parser"))
+        if not posting:
+            logger.warning(
+                "posting %s: the page yielded no fields, possibly a signup "
+                "wall or changed markup; a rerun retries it",
+                url,
+            )
+            continue
+        if not structured and posting_id:
+            # A blockless page arrives localized, so its employment and
+            # salary labels may not parse. Fetch the en-US fragment once
+            # for those fields, then cache the combined result.
+            fragment = await paced_fetch(fetcher, f"{FRAGMENT_URL}/{posting_id}?_l=en_US")
+            if rate_limited(fragment):
+                # Keep and cache the canonical fields before ending hydration.
+                stopped = True
+            elif fragment.error:
+                logger.warning(
+                    "posting %s: fragment fetch failed (%s); keeping the partial canonical fields",
+                    posting_id,
+                    fragment.error.message,
+                )
+            else:
+                posting = parse_posting(fragment.text) | posting
+        resolved[identity] = posting
+        if cache and posting_id:
+            client.CACHE.put("linkedin", {posting_id: posting})
+        if stopped:
+            break
+
+    # Assemble results in input order. After a rate-limit stop, URLs never
+    # visited still take cached and already resolved values.
+    postings: dict[str, dict | None] = {}
+    for url in wanted:
+        identity = ids[url] or url
+        if identity in resolved:
+            postings[url] = resolved[identity]
+    if stopped:
         logger.warning(
             "linkedin is rate limiting this IP; stopping detail hydration "
             "with %d of %d postings resolved. Wait a while, then rerun to "
@@ -296,73 +360,4 @@ async def fetch_postings(
             len(postings),
             len(wanted),
         )
-
-    attempted: set[str] = set()
-    rate_limit_stop = False
-    for url in wanted:
-        if (posting_id := ids[url]) in resolved:
-            postings[url] = resolved[posting_id]
-            continue
-        if posting_id:
-            # Spend at most one request per posting ID during this call. After a
-            # transient miss, aliases remain absent for a later retry.
-            if posting_id in attempted:
-                continue
-            attempted.add(posting_id)
-        fragment_rate_limited = False
-        result = await paced_fetch(fetcher, _canonical(url))
-        if result.error is None:
-            posting, structured = _parse_posting(BeautifulSoup(result.text, "html.parser"))
-            if not posting:
-                logger.warning(
-                    "posting %s: the page yielded no fields, possibly a signup "
-                    "wall or changed markup; a rerun retries it",
-                    url,
-                )
-                continue
-            if not structured and posting_id:
-                # A blockless page arrives localized, so its employment and
-                # salary labels may not parse. Fetch the en-US fragment once
-                # for those fields, then cache the combined result.
-                fragment = await paced_fetch(fetcher, f"{FRAGMENT_URL}/{posting_id}?_l=en_US")
-                if fragment.error is None:
-                    posting = parse_posting(fragment.text) | posting
-                elif rate_limited(fragment):
-                    # Cache the canonical fields before ending hydration.
-                    fragment_rate_limited = True
-                else:
-                    logger.warning(
-                        "posting %s: fragment fetch failed (%s); keeping the "
-                        "partial canonical fields",
-                        posting_id,
-                        fragment.error.message,
-                    )
-            value = posting
-        elif result.error.http_status in (404, 410):
-            value = None
-        elif rate_limited(result):
-            # The retry inside paced_fetch already waited and failed. The
-            # limit belongs to the IP, so the next posting would fare no
-            # better; spending a wait per posting turns one block into a
-            # stall over the whole list.
-            rate_limit_stop = True
-            break
-        else:
-            logger.warning("posting %s: %s; skipped, a rerun retries it", url, result.error.message)
-            continue
-        postings[url] = value
-        if posting_id:
-            resolved[posting_id] = value
-            if cache:
-                client.CACHE.put("linkedin", {posting_id: value})
-        if fragment_rate_limited:
-            rate_limit_stop = True
-            break
-    if rate_limit_stop:
-        # Requests stop, but URLs not yet visited still take their values
-        # from the cache and from postings resolved earlier in this call.
-        for url in wanted:
-            if url not in postings and ids[url] in resolved:
-                postings[url] = resolved[ids[url]]
-        stop_warning()
     return postings
