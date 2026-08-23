@@ -226,7 +226,9 @@ Detail fields start with `description` and appear only when a value is available
 >
 > nl, us = asyncio.run(main())
 > ```
-> To wrap another HTTP client or a browser, subclass `jobrake.fetchkit.BaseFetcher`. Its `fetch` turns transport exceptions into error results. A failed request costs that page and the run continues. Cancellation and exceptions raised outside that boundary propagate.
+> To use another HTTP client or a browser, subclass `jobrake.fetchkit.BaseFetcher`. Its `fetch()` method records request exceptions in `FetchResult.error`. Cancellation and exceptions raised outside `fetch()` propagate.
+>
+> Search stops after a failed request, logs the error, and returns the jobs already collected. A LinkedIn detail failure usually affects only that posting. LinkedIn retries 429 responses once unless `Retry-After` asks for more than a minute. Other request failures are reported without a retry.
 
 ## Locations and countries
 
@@ -236,14 +238,18 @@ Each site has one **required geographic argument**.
 
 - LinkedIn needs `location` and ignores `country`. Use an unambiguous place name such as "Amsterdam, North Holland, Netherlands". A location LinkedIn cannot resolve returns an empty result with a warning.
 
-The CLI measures `--radius` in **kilometers** and defaults it to 50. `--hours-old` defaults to 24, which filters postings older than a day. Use `-a 168` for one week. The library's `scrape()` defaults both arguments to `None`. That leaves the age unbounded and uses the site's radius default. See [defaults.py](src/jobrake/defaults.py) for the other defaults.
+The CLI defaults `--radius` to 50. Indeed treats the value as **kilometers**. LinkedIn sends it through an undocumented `distance` parameter whose unit is unknown.
+
+`--hours-old` defaults to 24, which filters postings older than a day. Use `-a 168` for one week. The library's `scrape()` defaults both arguments to `None`. For age, `None` omits the filter. For distance, Indeed uses its standard 50 km radius and LinkedIn omits the parameter. See [defaults.py](src/jobrake/defaults.py) for the other defaults.
 
 ## Supported job boards
 
 | Site       | Mechanism                     | Notes                                                                                                      |
 | ---------- | ----------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `indeed`   | Mobile-app GraphQL API (POST) | Search results include full descriptions and detail fields.                                           |
+| `indeed`   | Mobile-app GraphQL API (POST) | Search results include full descriptions and detail fields. No added delay between requests.         |
 | `linkedin` | Guest search API (HTML cards) | Token-bucket pacing allows a short burst, then about one request per 3s. Detail is optional and cached. |
+
+Jobrake asks Indeed for 100 results on every page and keeps the API's relevance order. `--results-wanted | -n` accepts any positive count. If the count is not a multiple of 100, jobrake returns only the needed jobs from the last page.
 
 <details>
 <summary>Glassdoor</summary>
@@ -252,10 +258,14 @@ Unlike jobspy, jobrake does not support Glassdoor. Glassdoor became <a href="htt
 
 ### LinkedIn rate limiting and posting detail
 
-LinkedIn rate-limits each visitor, per IP. A few requests may burst immediately, then roughly one every couple of seconds. Search pages are limited more strictly than job-detail pages.
+LinkedIn limits traffic by IP. Jobrake sends a short initial burst, then waits about three seconds between requests. Search pages hit the limit sooner than job-detail pages.
+
+The guest search returns about ten cards per page and no cards at offsets of 1,000 or more. Jobrake stops before requesting offset 1,000. One search can therefore return roughly 1,000 postings. A warning says when this limit prevents jobrake from returning the requested count.
 
 > [!NOTE]
-> Each jobrake run keeps its own token bucket. After a short burst, it allows roughly one request every **three seconds**. The bucket counts only its own requests, while LinkedIn counts everything from your IP. A second run from the same address draws from the same allowance. A request that still receives a 429 is retried once after the limit clears.
+> Each jobrake process has its own token bucket. Separate processes do not coordinate their request timing, but LinkedIn counts requests from all of them against the same IP limit.
+>
+> After a 429, jobrake waits for the number of seconds in a numeric `Retry-After` header. If the header is missing or invalid, it waits ten seconds. It then retries once. A value over one minute skips the retry. If the 429 remains, search returns the jobs already collected. Detail fetching returns postings already fetched or found in the cache.
 
 We extract summary fields from the search results. The detail fields live on the job's posting page, so this requires an extra request per job against the same rate limit. Use `--detail | -d` in the CLI to fetch them.
 
