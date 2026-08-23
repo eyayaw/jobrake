@@ -1,5 +1,41 @@
 # Changelog
 
+## [0.13.0](https://github.com/eyayaw/jobrake/releases/tag/v0.13.0) (2026-08-24)
+
+### Added
+
+- Search failures warn with the error and number of jobs kept. LinkedIn also
+  warns when its search reaches the ~1,000-card ceiling, a detail page yields
+  no usable fields, or a detail request fails transiently.
+
+### Changed
+
+- LinkedIn ends detail hydration when a posting or en-US fragment request
+  still returns 429 after applying the retry policy. It returns every posting
+  already resolved. A limited fragment keeps and caches the canonical page's
+  partial fields.
+- The LinkedIn 429 retry honors a seconds-form `Retry-After` header. A delay
+  above one minute skips the retry and returns the 429.
+- A nonpositive `results_wanted`, a negative `distance`, and a blank LinkedIn
+  `location` raise `ValueError` before any request, from `scrape()` and the
+  site `search()` functions.
+
+### Fixed
+
+- Indeed keeps its page size at 100 throughout a cursor chain. Requested counts such as 202 no longer stop at the preceding full page.
+- LinkedIn postings whose schema.org block carries `NaN` or an infinity no
+  longer leak those constants into the output, which strict JSON parsers
+  reject. Non-finite and beyond-float-range numbers are dropped like other
+  malformed fields.
+- An Indeed number too large for a float crashed the whole scrape with
+  `OverflowError`; it now costs only that field.
+- Indeed continues pagination when every result on a page is malformed but
+  the response supplies a valid continuation cursor.
+- Malformed LinkedIn salary bounds no longer stop detail hydration. The
+  salary fields are omitted.
+- Cached LinkedIn rows containing `NaN` or an infinity are treated as misses
+  instead of being returned.
+
 ## [0.12.0](https://github.com/eyayaw/jobrake/releases/tag/v0.12.0) (2026-08-21)
 
 ### Added
