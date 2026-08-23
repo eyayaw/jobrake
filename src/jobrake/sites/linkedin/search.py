@@ -1,6 +1,7 @@
 """Paginating the guest search API."""
 
 import logging
+from gettext import ngettext
 from urllib.parse import urlencode
 
 from bs4 import BeautifulSoup
@@ -107,9 +108,9 @@ async def search(
         result = await paced_fetch(fetcher, f"{SEARCH_URL}?{query}")
         if result.error:
             logger.warning(
-                "linkedin search stopped by %s; keeping the %d jobs already collected",
+                "linkedin search stopped by %s; keeping the %s already collected",
                 result.error.message,
-                len(jobs),
+                ngettext("%d job", "%d jobs", len(jobs)) % len(jobs),
             )
             break
         cards, raw = _parse_page(result.text)
