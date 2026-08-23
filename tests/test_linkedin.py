@@ -559,7 +559,7 @@ def test_fetch_postings_three_outcomes_and_what_each_costs_again(unlimited, monk
 
 
 def test_fetch_postings_stops_hydration_when_the_429_retry_also_fails(
-    unlimited, caplog, monkeypatch
+    unlimited, caplog, monkeypatch, isolated_cache
 ):
     monkeypatch.setattr(client, "RETRY_DELAY", 0)
     other = "https://nl.linkedin.com/jobs/view/other-at-acme-222"
@@ -588,6 +588,18 @@ def test_fetch_postings_stops_hydration_when_the_429_retry_also_fails(
     again = asyncio.run(linkedin.fetch_postings(fetcher, [CANONICAL]))
     assert again[CANONICAL] == got[CANONICAL]
     assert fetcher.requests == []
+
+    # a stop still serves the not-yet-visited URLs from the cache
+    first = "https://nl.linkedin.com/jobs/view/first-at-acme-333"
+    cached = "https://nl.linkedin.com/jobs/view/cached-at-acme-444"
+    isolated_cache.put("linkedin", {"444": {"description": "Cached role"}})
+    fetcher = StubFetcher({"linkedin.com": rate_limited()})
+    caplog.clear()
+    with caplog.at_level(logging.WARNING, logger="jobrake.sites.linkedin"):
+        got = asyncio.run(linkedin.fetch_postings(fetcher, [first, cached]))
+    assert got == {cached: {"description": "Cached role"}}
+    assert len(fetcher.requests) == 2  # only the first posting was attempted
+    assert any("1 of 2" in record.message for record in caplog.records)
 
 
 def test_fetch_postings_contains_a_malformed_block_per_posting(unlimited):

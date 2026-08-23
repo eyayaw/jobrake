@@ -250,11 +250,12 @@ async def fetch_postings(
     An ID alone reaches a page without the structured block. Duplicate and
     empty URLs are skipped. URLs for the same posting ID share one fetch and
     reuse its result. A failure returned in ``FetchResult`` costs at most that
-    posting, except a rate limit that survives the paced retry, which ends
-    hydration and leaves the remaining URLs absent. When the fragment request
-    is the limited one, the canonical page's partial fields are kept and
-    cached before the stop. Exceptions raised by the fetcher propagate,
-    including cancellation.
+    posting, except a rate limit still in force after the retry policy, which
+    stops further requests; the remaining URLs still take cached and already
+    resolved values, and the rest stay absent for a later call. When the
+    fragment request is the limited one, the canonical page's partial fields
+    are kept and cached before the stop. Exceptions raised by the fetcher
+    propagate, including cancellation.
 
     Each URL has three possible outcomes. A field dict contains the parsed
     posting, which may be partial when the page omits the structured block.
@@ -293,6 +294,7 @@ async def fetch_postings(
         )
 
     attempted: set[str] = set()
+    rate_limit_stop = False
     for url in wanted:
         if (posting_id := ids[url]) in resolved:
             postings[url] = resolved[posting_id]
@@ -338,8 +340,8 @@ async def fetch_postings(
             # The retry inside paced_fetch already waited and failed. The
             # limit belongs to the IP, so the next posting would fare no
             # better; spending a wait per posting turns one block into a
-            # stall over the whole list. Postings not yet asked stay absent.
-            stop_warning()
+            # stall over the whole list.
+            rate_limit_stop = True
             break
         else:
             logger.warning("posting %s: %s; skipped, a rerun retries it", url, result.error.message)
@@ -350,6 +352,13 @@ async def fetch_postings(
             if cache:
                 client.CACHE.put("linkedin", {posting_id: value})
         if fragment_rate_limited:
-            stop_warning()
+            rate_limit_stop = True
             break
+    if rate_limit_stop:
+        # Requests stop, but URLs not yet visited still take their values
+        # from the cache and from postings resolved earlier in this call.
+        for url in wanted:
+            if url not in postings and ids[url] in resolved:
+                postings[url] = resolved[ids[url]]
+        stop_warning()
     return postings
