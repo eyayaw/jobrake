@@ -224,11 +224,12 @@ def _parse_job(job: dict, base_url: str) -> dict:
     )
 
 
-def parse_jobs(data: dict, base_url: str) -> tuple[list[dict], str | None]:
-    """Return jobs and the next cursor from one GraphQL response."""
+def parse_jobs(data: dict, base_url: str) -> tuple[list[dict], str | None, int]:
+    """Return jobs, the next cursor, and the raw result count from one GraphQL response."""
     search = data["data"]["jobSearch"]
+    results = search["results"]
     jobs = []
-    for result in search["results"]:
+    for result in results:
         try:
             jobs.append(_parse_job(result["job"], base_url))
         except (KeyError, TypeError, AttributeError) as error:
@@ -238,7 +239,7 @@ def parse_jobs(data: dict, base_url: str) -> tuple[list[dict], str | None]:
     # Missing or invalid pagination metadata ends the search after this page.
     # Keep the jobs already parsed from it.
     cursor = page_info.get("nextCursor") if isinstance(page_info, dict) else None
-    return jobs, cursor if isinstance(cursor, str) else None
+    return jobs, cursor if isinstance(cursor, str) else None, len(results)
 
 
 async def search(
@@ -292,7 +293,7 @@ async def search(
             )
             break
         try:
-            page, cursor = parse_jobs(json.loads(result.text), base_url)
+            page, cursor, raw = parse_jobs(json.loads(result.text), base_url)
         except (json.JSONDecodeError, KeyError, TypeError) as error:
             logger.warning(
                 "indeed sent a response this version cannot read (%r), likely an API "
@@ -301,7 +302,9 @@ async def search(
                 len(jobs),
             )
             break
-        if not page:
+        # A page without results ends the search. A page whose results all
+        # failed to parse costs only those results; its cursor still advances.
+        if not raw:
             break
         for job in page:
             if job["id"] in seen:

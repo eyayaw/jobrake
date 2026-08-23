@@ -159,6 +159,21 @@ def test_indeed_skips_malformed_results_and_keeps_valid_siblings(caplog):
     assert sum("malformed" in record.message for record in caplog.records) == 5
 
 
+def test_indeed_all_malformed_page_keeps_paginating():
+    bad = indeed_payload(["a"], cursor="next")
+    bad["data"]["jobSearch"]["results"] = [{"job": None}]
+    pages = [bad, indeed_payload(["b"])]
+
+    class Paged(StubFetcher):
+        async def post(self, url, json_body, headers=None):
+            self.requests.append(url)
+            return ok(json.dumps(pages[len(self.requests) - 1]))
+
+    fetcher = Paged({})
+    jobs = asyncio.run(indeed.search(fetcher, search_term="x", country="usa", results_wanted=10))
+    assert [job["id"] for job in jobs] == ["b"]  # the cursor survives the bad page
+
+
 def test_indeed_malformed_later_page_keeps_collected_jobs(caplog):
     pages = [indeed_payload(["a"], cursor="next"), {"data": {"jobSearch": None}}]
 
