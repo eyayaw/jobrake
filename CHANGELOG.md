@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.14.0](https://github.com/eyayaw/jobrake/releases/tag/v0.14.0) (2026-08-26)
+
+### Added
+
+- Provider searches log their start and result count. LinkedIn detail fetching also logs its progress and, on completion, the resolved count.
+- On a terminal, the CLI renders LinkedIn detail progress as a self-updating bar with a `current/total` count on stderr.
+
+### Changed
+
+- When a search finds no jobs, `--output` leaves the file untouched and warns instead of replacing it with an empty document.
+
+### Fixed
+
+- `--output` rejects a directory path or a missing parent directory before any provider requests, and a failed write reports the error instead of a traceback.
+
 ## [0.13.0](https://github.com/eyayaw/jobrake/releases/tag/v0.13.0) (2026-08-24)
 
 ### Added
