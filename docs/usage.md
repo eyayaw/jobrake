@@ -8,8 +8,8 @@ Run `jobrake --help` to see every option. The default output is a compact JSON o
 jobrake -s indeed -q "data scientist" -c usa -n 2
 ```
 
-Warnings and progress go to stderr, so stdout can be piped into another program without mixing logs into the data.
-For example, [`jq`](https://github.com/jqlang/jq) can select a few fields:
+The stdout output pipeable into another program.
+For example, you can select the fields of your interest with [`jq`](https://github.com/jqlang/jq):
 
 ```sh
 jobrake -s indeed -q "data scientist" -c usa -n 2 \
@@ -19,11 +19,11 @@ jobrake -s indeed -q "data scientist" -c usa -n 2 \
 ### Output formats
 
 `--format | -f` accepts `json`, `jsonl`, or `csv`.
-`--output | -o` writes jobs to a file instead of stdout and replaces an existing file. If the search returns no jobs, the path remains untouched.
-The output directory must already exist.
+`--output | -o` writes jobs to a file instead of stdout and replaces an existing file.
+If the search returns no jobs, the path remains untouched. The output directory must already exist.
 
-When `--format` is absent, jobrake uses the output extension.
-An explicit format takes precedence over the extension.
+When `--format` is absent, jobrake uses the file extension from `--output`.
+Note that an explicit format takes precedence over the extension.
 
 ```sh
 jobrake ... -o jobs.csv
@@ -34,29 +34,32 @@ The formats represent unavailable fields differently.
 
 - JSON writes one array. Identity and summary keys are always present; unavailable detail keys are omitted.
 - JSONL writes one job per line with the same keys as JSON.
-- CSV writes every model field as a column and leaves unavailable cells empty.
+- CSV writes every model field as a column and fills unavailable cells with an empty string.
 
-JSONL is suitable for incremental fetching, say, daily.
-You can combine the files with `cat` or import them to `duckdb`.
-
-```sh
-jobrake ... -o runs/2026-08-10.jsonl
-jobrake ... -o runs/2026-08-11.jsonl
-cat runs/*.jsonl > jobs.jsonl
-
-duckdb -c "select * from read_json('runs/*.jsonl')"
-```
+> [!tip]
+> JSONL is suitable for incremental fetching, say, daily.
+> You can combine the files with `cat` or import them to `duckdb`.
+>
+> ```sh
+> jobrake ... -o runs/2026-08-10.jsonl
+> jobrake ... -o runs/2026-08-11.jsonl
+> cat runs/*.jsonl > jobs.jsonl
+>
+> duckdb -c "select * from read_json('runs/*.jsonl', union_by_name=true)"
+> ```
 
 ## The Job data model
 
-Every job is a flat dictionary. The identity keys are `site`, `id`, and `url`.
-The summary keys are `title`, `company`, `location`, and `date`.
+Every job is a flat dictionary, with three groups of keys.
+
+1) The **identity keys** are `site`, `id`, and `url`.
+2) The **summary keys** are `title`, `company`, `location`, and `date`.
 All seven keys are present, with `None` for an unavailable summary value.
 
-Detail keys appear only when their value is available.
+3) **Detail keys** appear only when their value is available.
 Their absence can mean that the provider omitted the value, does not publish it, or that jobrake did not fetch the posting page.
 
-Shared details use the same field names. The are provider-specific fields.
+Shared details use the same field names. However, there are provider-specific fields.
 `apply_type`, `applicants`, `experience_months`, and `education` are present only in LinkedIn,
 and `is_remote` and `apply_url` on Indeed. Indeed includes detail fields in search results.
 LinkedIn fetches details when `--detail | -d` or `detail=True` are enabled and requests each posting page.
@@ -87,7 +90,7 @@ async def main():
 asyncio.run(main())
 ```
 
-An injected fetcher belongs to the caller.
+A custom fetcher passed belongs to the caller, i.e., it may need to be closed.
 Use its context manager when several searches should share one connection pool:
 
 ```python
@@ -98,17 +101,19 @@ from jobrake.fetchkit import HttpxFetcher
 
 
 async def main():
+    query = "economist"
+    site = "indeed"
     async with HttpxFetcher(timeout=30) as fetcher:
         nl = await scrape(
-            "indeed",
-            search_term="economist",
+            site,
+            search_term=query,
             location="Amsterdam",
             country="Netherlands",
             fetcher=fetcher,
         )
         us = await scrape(
-            "indeed",
-            search_term="economist",
+            site,
+            search_term=query,
             location="New York",
             country="USA",
             fetcher=fetcher,
@@ -120,8 +125,8 @@ nl, us = asyncio.run(main())
 ```
 
 To use another HTTP client or a browser, implement `Fetcher` or subclass `BaseFetcher`.
-Indeed also needs the JSON `post()` operation from `PostFetcher`.
-`BaseFetcher` records ordinary request exceptions in `FetchResult.error`. Cancellation propagates.
+Indeed needs the JSON `post()` operation from `PostFetcher`.
+`BaseFetcher` records ordinary request exceptions in `FetchResult.error`, and cancellation propagates.
 If another `Fetcher` implementation raises, `scrape()` lets the exception propagate.
 
 ## Partial results

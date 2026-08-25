@@ -123,9 +123,12 @@ See [provider behavior](docs/providers.md) for geography, filters, pagination, r
 
 ## Credits
 
-jobrake grateful for [python-jobspy](https://pypi.org/project/python-jobspy/). The Indeed mobile-app GraphQL endpoint, and the LinkedIn guest-search approach are taken from it. Thanks.
+jobrake is grateful for [python-jobspy](https://pypi.org/project/python-jobspy/). 
+The Indeed mobile-app GraphQL endpoint, and the LinkedIn guest-search approach are taken from it. Thanks.
 
 ## Disclaimer
 
 > [!WARNING]
-> jobrake has no affiliation with LinkedIn or Indeed. Use it to find jobs, not to build datasets by scraping regularly. Scraping may violate their terms of service, and either site may rate-limit or block your IP address. You are responsible for checking and complying with their terms.
+> jobrake has no affiliation with LinkedIn or Indeed. Use it to find jobs, not to build datasets by scraping regularly. 
+Scraping may violate their terms of service, and either site may rate-limit or block your IP address. 
+You are responsible for checking and complying with their terms.
