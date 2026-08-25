@@ -21,7 +21,7 @@ def main() -> int | None:
     Scrape from command-line arguments and write the selected format.
 
     Returns:
-        ``1`` when a downstream stdout reader closes early. Normal completion returns ``None``.
+        ``1`` when stdout closes early or the output file cannot be written. Normal completion returns ``None``.
     """
     parser = argparse.ArgumentParser(
         description="Search job postings", formatter_class=argparse.ArgumentDefaultsHelpFormatter
@@ -82,7 +82,12 @@ def main() -> int | None:
     )
 
     args = parser.parse_args()
-    # Settle the format before the scrape spends any requests.
+    # Settle the output path and format before the scrape spends any requests.
+    if args.output is not None:
+        if args.output.is_dir():
+            parser.error(f"output path is a directory: {args.output}")
+        if not args.output.parent.is_dir():
+            parser.error(f"output directory does not exist: {args.output.parent}")
     if args.format:
         fmt = args.format
     elif args.output:
@@ -115,6 +120,9 @@ def main() -> int | None:
         )
     except ValueError as e:
         parser.error(str(e))
+    if args.output is not None and not jobs:
+        logger.warning("no jobs found; leaving %s untouched", args.output)
+        return None
     rendered = RENDERERS[fmt](jobs)
     if args.output is None:
         try:
@@ -130,9 +138,14 @@ def main() -> int | None:
             with open(os.devnull, "w") as devnull:
                 os.dup2(devnull.fileno(), sys.stdout.fileno())
             return 1
-    else:
+        return None
+
+    try:
         args.output.write_text(rendered, encoding="utf-8")
-        logger.info("wrote %d jobs to %s", len(jobs), args.output)
+    except OSError as error:
+        logger.error("could not write %s: %s", args.output, error)
+        return 1
+    logger.info("wrote %d jobs to %s", len(jobs), args.output)
 
 
 if __name__ == "__main__":

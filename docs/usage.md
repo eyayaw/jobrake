@@ -19,7 +19,8 @@ jobrake -s indeed -q "data scientist" -c usa -n 2 \
 ### Output formats
 
 `--format | -f` accepts `json`, `jsonl`, or `csv`.
-`--output | -o` writes to a file instead of stdout and replaces an existing file at that path.
+`--output | -o` writes jobs to a file instead of stdout and replaces an existing file. If the search returns no jobs, the path remains untouched.
+The output directory must already exist.
 
 When `--format` is absent, jobrake uses the output extension.
 An explicit format takes precedence over the extension.

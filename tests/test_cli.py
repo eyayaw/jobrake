@@ -4,6 +4,7 @@ import csv
 import json
 import os
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -90,6 +91,17 @@ def test_output_json_writes_file(run_cli, tmp_path):
     assert json.loads(out.read_text(encoding="utf-8")) == JOBS
 
 
+def test_no_jobs_leaves_output_untouched(run_cli, monkeypatch, tmp_path):
+    async def no_jobs(*args, **kwargs):
+        return []
+
+    monkeypatch.setattr(cli, "scrape", no_jobs)
+    out = tmp_path / "jobs.json"
+    out.write_text("previous run", encoding="utf-8")
+    run_cli("-o", str(out))
+    assert out.read_text(encoding="utf-8") == "previous run"
+
+
 def test_closed_pipe_ends_quietly(run_cli, monkeypatch):
     read_end, write_end = os.pipe()
     os.close(read_end)
@@ -98,10 +110,28 @@ def test_closed_pipe_ends_quietly(run_cli, monkeypatch):
         assert run_cli() == 1
 
 
-def test_unknown_extension_fails_before_scraping(run_cli, monkeypatch, tmp_path):
+def test_invalid_output_fails_before_scraping(run_cli, monkeypatch, tmp_path, capsys):
     async def must_not_run(*args, **kwargs):
         raise AssertionError("scrape ran despite a bad --output")
 
     monkeypatch.setattr(cli, "scrape", must_not_run)
     with pytest.raises(SystemExit):
         run_cli("-o", str(tmp_path / "jobs.xlsx"))
+    with pytest.raises(SystemExit):
+        run_cli("-o", str(tmp_path / "missing" / "jobs.json"))
+    with pytest.raises(SystemExit):
+        run_cli("-o", str(tmp_path))
+    errors = capsys.readouterr().err
+    assert "unsupported output extension" in errors
+    assert "output directory does not exist" in errors
+    assert "output path is a directory" in errors
+
+
+def test_output_write_error_reports_and_fails(run_cli, monkeypatch, tmp_path, caplog):
+    def deny_write(*args, **kwargs):
+        raise PermissionError("permission denied")
+
+    monkeypatch.setattr(Path, "write_text", deny_write)
+    out = tmp_path / "jobs.json"
+    assert run_cli("-o", str(out)) == 1
+    assert f"could not write {out}: permission denied" in caplog.text
