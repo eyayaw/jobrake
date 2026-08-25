@@ -1,7 +1,9 @@
 """CLI output tests for stdout and files, with explicit and inferred formats."""
 
 import csv
+import io
 import json
+import logging
 import os
 import sys
 from pathlib import Path
@@ -125,6 +127,44 @@ def test_invalid_output_fails_before_scraping(run_cli, monkeypatch, tmp_path, ca
     assert "unsupported output extension" in errors
     assert "output directory does not exist" in errors
     assert "output path is a directory" in errors
+
+
+def test_status_handler_progress():
+    def emit(handler, msg, level=logging.INFO, progress=None, exc_info=None):
+        record = logging.LogRecord("jobrake.test", level, __file__, 0, msg, None, exc_info)
+        record.progress = progress
+        handler.emit(record)
+
+    class Tty(io.StringIO):
+        def isatty(self):
+            return True
+
+    stream = Tty()
+    handler = cli._StatusHandler(stream)
+    emit(handler, "details", progress=(1, 2))
+    emit(handler, "failed", level=logging.ERROR, exc_info=(ValueError, ValueError("bad"), None))
+    emit(handler, "details", progress=(2, 2))
+    handler.clear()
+
+    out = stream.getvalue()
+    # Each erase sequence replaces the preceding terminal frame.
+    frames = out.split("\r\x1b[2K")
+    assert "#" in frames[0]  # a bar, not merely a counter
+    assert "1/2" in frames[0]
+    assert "ERROR failed" in frames[1]
+    assert "ValueError: bad" in frames[1]
+    assert "2/2" in frames[1]
+    assert frames[2] == ""  # clear() erased the last bar
+    handler.clear()  # a second clear writes nothing
+    assert stream.getvalue() == out
+
+    # A non-terminal stream keeps ordinary records and drops progress.
+    plain = io.StringIO()
+    handler = cli._StatusHandler(plain)
+    emit(handler, "details", progress=(1, 2))
+    emit(handler, "finished")
+    assert "1/2" not in plain.getvalue()
+    assert "finished" in plain.getvalue()
 
 
 def test_output_write_error_reports_and_fails(run_cli, monkeypatch, tmp_path, caplog):

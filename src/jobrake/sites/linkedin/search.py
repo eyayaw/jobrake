@@ -100,6 +100,7 @@ async def search(
     check_results_wanted(results_wanted)
     check_distance(distance)
     check_hours_old(hours_old)
+    logger.info("searching linkedin for %r in %r", search_term, location)
     jobs: list[dict] = []
     seen: set[str] = set()
     start = 0
@@ -152,8 +153,10 @@ async def search(
             results_wanted,
         )
     jobs = jobs[:results_wanted]
+    logger.info(
+        "linkedin search finished with %s", ngettext("%d job", "%d jobs", len(jobs)) % len(jobs)
+    )
     if detail:
-        logger.info("fetching posting details for %d jobs...", len(jobs))
         postings = await fetch_postings(fetcher, (job["url"] for job in jobs), cache=cache)
         # Keep summary fields when a posting disappears or fails during hydration.
         jobs = [make_job(**{**job, **(postings.get(job["url"]) or {})}) for job in jobs]

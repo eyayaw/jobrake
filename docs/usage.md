@@ -64,6 +64,7 @@ LinkedIn fetches details when `--detail | -d` or `detail=True` are enabled and r
 ## Library use
 
 `scrape()` creates and closes an HTTP client when `fetcher` is omitted.
+Library calls emit records through loggers under `jobrake`. The application controls their levels and handlers.
 
 ```python
 import asyncio

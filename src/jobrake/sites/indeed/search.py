@@ -290,6 +290,7 @@ async def search(
     subdomain, api_code = indeed_domain(country)
     base_url = f"https://{subdomain}.indeed.com"
     headers = {**API_HEADERS, "indeed-co": api_code}
+    logger.info("searching indeed for %r in %r", search_term, location or country)
 
     jobs: list[dict] = []
     seen: set[str] = set()
@@ -339,4 +340,8 @@ async def search(
         if not cursor or cursor in cursors:
             break
         cursors.add(cursor)
-    return jobs[:results_wanted]
+    jobs = jobs[:results_wanted]
+    logger.info(
+        "indeed search finished with %s", ngettext("%d job", "%d jobs", len(jobs)) % len(jobs)
+    )
+    return jobs

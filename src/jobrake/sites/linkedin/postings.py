@@ -5,6 +5,7 @@ import logging
 import math
 import re
 from collections.abc import Iterable
+from gettext import ngettext
 from html import unescape
 
 from bs4 import BeautifulSoup
@@ -248,7 +249,9 @@ async def fetch_postings(
     transient failures leave that URL absent so a later call can retry it.
     Fetcher exceptions and cancellation propagate. Empty and duplicate URLs
     are ignored. The cache stores only numeric identities. URLs without one are
-    fetched on every call. The supplied transport remains open.
+    fetched on every call. INFO records report the start, progress, and
+    resolved count on completion. A persistent rate limit reports where
+    fetching stopped at WARNING. The supplied transport remains open.
 
     Returns:
         Results keyed by the supplied URLs. A field dictionary may be partial.
@@ -256,6 +259,12 @@ async def fetch_postings(
         retryable failures or pages with nothing parseable.
     """
     wanted = list(dict.fromkeys(u for u in urls if u))
+    if not wanted:
+        return {}
+
+    total = len(wanted)
+    wanted_count = ngettext("%d job", "%d jobs", total) % total
+    logger.info("fetching linkedin details for %s", wanted_count)
     ids = {url: job_id(url) for url in wanted}
     # Keep one value per posting identity for the whole call. Seed it from the
     # cache and extend it as fetches finish so aliases reuse the same result.
@@ -270,7 +279,12 @@ async def fetch_postings(
 
     attempted: set[str] = set()
     stopped = False
-    for url in wanted:
+    for position, url in enumerate(wanted, start=1):
+        # The CLI renders progress-flagged records as one self-updating
+        # stderr line; other logging configurations show them as plain lines.
+        logger.info(
+            "linkedin details %d/%d", position, total, extra={"progress": (position, total)}
+        )
         # A posting's identity is its ID when the URL carries one, else the
         # URL itself. IDs are digit strings and ID-less URLs never are, so the
         # two kinds of key cannot collide. Only real IDs reach the disk cache.
@@ -340,6 +354,12 @@ async def fetch_postings(
             "with %d of %d postings resolved. Wait a while, then rerun to "
             "fill in the rest",
             len(postings),
-            len(wanted),
+            total,
+        )
+    elif len(postings) == total:
+        logger.info("linkedin detail fetch finished with %s resolved", wanted_count)
+    else:
+        logger.info(
+            "linkedin detail fetch finished with %d of %s resolved", len(postings), wanted_count
         )
     return postings

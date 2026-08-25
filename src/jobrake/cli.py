@@ -5,6 +5,8 @@ import asyncio
 import logging
 import os
 import sys
+import time
+from contextlib import suppress
 from pathlib import Path
 
 from jobrake import __version__, scrape
@@ -14,6 +16,57 @@ from .io import RENDERERS
 from .sites import site_searchers
 
 logger = logging.getLogger(__name__)
+
+_CLEAR_LINE = "\r\x1b[2K"
+
+
+class _StatusHandler(logging.StreamHandler):
+    """
+    Stderr handler with terse prefixes and a terminal progress line.
+
+    A record logged with ``extra={"progress": (done, total)}`` rewrites the
+    current terminal line as a bar ending in its counter; ordinary records
+    erase that line first, so warnings landing mid-fetch stay legible. A
+    non-terminal stderr skips progress records and receives no control codes.
+    """
+
+    _showing_progress = False
+
+    def format(self, record: logging.LogRecord) -> str:
+        head = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(record.created))
+        if record.levelno > logging.INFO:
+            head += f" {record.levelname}"
+        if record.name.partition(".")[0] != "jobrake":
+            head += f" [{record.name}]"
+        line = f"{head} {record.getMessage()}"
+        if record.exc_info:
+            line += "\n" + logging.Formatter().formatException(record.exc_info)
+        return line
+
+    def emit(self, record: logging.LogRecord) -> None:
+        progress = getattr(record, "progress", None)
+        try:
+            self.clear()
+            if not progress:
+                super().emit(record)
+            elif self.stream.isatty():
+                done, total = progress
+                bar = "#" * round(20 * done / total)
+                # Flag first, so clear() erases even an interrupted write.
+                self._showing_progress = True
+                self.stream.write(f"[{bar:<20}] [{done}/{total}] ")
+                self.flush()
+        except Exception:
+            self.handleError(record)
+
+    def clear(self) -> None:
+        """Erase the status line so a traceback starts on its own line."""
+        if self._showing_progress:
+            self._showing_progress = False
+            # Cleanup failures must not replace the original exception.
+            with suppress(Exception):
+                self.stream.write(_CLEAR_LINE)
+                self.flush()
 
 
 def main() -> int | None:
@@ -102,7 +155,8 @@ def main() -> int | None:
     # Progress and warnings go to stderr, stdout stays pure data for piping.
     # The WARNING root level mutes dependencies such as httpx, which logs every
     # request at INFO. Only jobrake logs progress at INFO.
-    logging.basicConfig(level=logging.WARNING, format="%(levelname)s [%(name)s] %(message)s")
+    handler = _StatusHandler()
+    logging.basicConfig(level=logging.WARNING, handlers=[handler])
     logging.getLogger("jobrake").setLevel(logging.INFO)
     try:
         jobs = asyncio.run(
@@ -120,6 +174,9 @@ def main() -> int | None:
         )
     except ValueError as e:
         parser.error(str(e))
+    finally:
+        # An exceptional exit would otherwise start its traceback beside the progress line.
+        handler.clear()
     if args.output is not None and not jobs:
         logger.warning("no jobs found; leaving %s untouched", args.output)
         return None
