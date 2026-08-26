@@ -8,6 +8,7 @@ import sys
 import time
 from contextlib import suppress
 from pathlib import Path
+from typing import Never
 
 from jobrake import __version__, scrape
 
@@ -18,6 +19,13 @@ from .sites import site_searchers
 logger = logging.getLogger(__name__)
 
 _CLEAR_LINE = "\r\x1b[2K"
+
+
+class _ArgumentParser(argparse.ArgumentParser):
+    """Report parse errors without repeating the full usage line."""
+
+    def error(self, message: str) -> Never:
+        self.exit(2, f"{self.prog}: error: {message}\nRun '{self.prog} -h' for help.\n")
 
 
 class _StatusHandler(logging.StreamHandler):
@@ -76,8 +84,10 @@ def main() -> int | None:
     Returns:
         ``1`` when stdout closes early or the output file cannot be written. Normal completion returns ``None``.
     """
-    parser = argparse.ArgumentParser(
-        description="Search job postings", formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    parser = _ArgumentParser(
+        prog="jobrake",
+        description="Search job postings",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     # The version action exits before argparse checks required arguments.
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")

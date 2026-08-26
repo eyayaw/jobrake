@@ -127,6 +127,8 @@ def test_invalid_output_fails_before_scraping(run_cli, monkeypatch, tmp_path, ca
     assert "unsupported output extension" in errors
     assert "output directory does not exist" in errors
     assert "output path is a directory" in errors
+    assert "usage:" not in errors
+    assert errors.count("Run 'jobrake -h' for help.") == 3
 
 
 def test_status_handler_progress():
