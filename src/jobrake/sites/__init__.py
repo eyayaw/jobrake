@@ -2,6 +2,7 @@
 
 from collections.abc import Callable
 
+from jobrake import defaults
 from jobrake.fetchkit import Fetcher, HttpxFetcher
 from jobrake.utils import check_distance, check_hours_old, check_results_wanted
 
@@ -20,10 +21,10 @@ async def scrape(
     location: str | None = None,
     country: str | None = None,
     distance: int | None = None,
-    results_wanted: int = 25,
-    hours_old: int | None = None,
-    detail: bool = False,
-    cache: bool = True,
+    results_wanted: int = defaults.RESULTS_WANTED,
+    hours_old: int | None = defaults.HOURS_OLD,
+    detail: bool = defaults.DETAIL,
+    cache: bool = defaults.CACHE,
     fetcher: Fetcher | None = None,
 ) -> list[dict]:
     """
@@ -32,6 +33,9 @@ async def scrape(
     Indeed requires ``country``. LinkedIn requires a nonblank ``location``.
     ``detail`` and ``cache`` affect LinkedIn only. Every returned dictionary
     has the shared identity and summary keys, with available detail fields added.
+    Searches default to the last seven days. Passing ``None`` removes the age limit.
+    A ``None`` distance uses Indeed's standard radius and omits LinkedIn's
+    undocumented distance parameter.
 
     An injected fetcher remains open and belongs to the caller. Indeed requires
     one with JSON POST support. Without an injected fetcher, ``scrape`` creates

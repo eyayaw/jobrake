@@ -5,7 +5,7 @@ import asyncio
 import pytest
 from fakes import StubFetcher, ok
 
-from jobrake import scrape, sites
+from jobrake import defaults, scrape, sites
 from jobrake.fetchkit import TokenBucket
 from jobrake.sites.linkedin import client
 
@@ -38,6 +38,23 @@ def test_scrape_accepts_an_explicit_zero_distance(monkeypatch):
         scrape("linkedin", search_term="x", location="Seattle", distance=0, fetcher=fetcher)
     )
     assert len(fetcher.requests) == 1
+
+
+def test_scrape_passes_shared_defaults(monkeypatch):
+    options = {}
+
+    async def capture(fetcher, **kwargs):
+        options.update(kwargs)
+        return []
+
+    monkeypatch.setattr(sites, "site_searchers", lambda: {"linkedin": capture})
+    asyncio.run(scrape("linkedin", search_term="x", location="Seattle", fetcher=StubFetcher({})))
+
+    assert options["distance"] is defaults.LINKEDIN_DISTANCE
+    assert options["results_wanted"] == defaults.RESULTS_WANTED
+    assert options["hours_old"] == defaults.HOURS_OLD
+    assert options["detail"] is defaults.DETAIL
+    assert options["cache"] is defaults.CACHE
 
 
 def test_scrape_does_not_close_injected_fetcher():

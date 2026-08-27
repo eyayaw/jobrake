@@ -92,8 +92,8 @@ def build_query(
         what=f"what: {json.dumps(search_term)}" if search_term else "",
         location=(
             f"location: {{ where: {json.dumps(location)}, "
-            f"radius: {defaults.RADIUS if distance is None else distance}, "
-            f"radiusUnit: {defaults.RADIUS_UNIT} }}"
+            f"radius: {defaults.INDEED_RADIUS if distance is None else distance}, "
+            f"radiusUnit: {defaults.INDEED_RADIUS_UNIT} }}"
             if location
             else ""
         ),
@@ -260,11 +260,11 @@ async def search(
     search_term: str,
     location: str | None = None,
     country: str,
-    distance: int | None = defaults.RADIUS,
+    distance: int | None = defaults.INDEED_RADIUS,
     results_wanted: int = defaults.RESULTS_WANTED,
-    hours_old: int | None = None,
-    detail: bool = True,
-    cache: bool = True,
+    hours_old: int | None = defaults.HOURS_OLD,
+    detail: bool = defaults.DETAIL,
+    cache: bool = defaults.CACHE,
 ) -> list[dict]:
     """
     Search one Indeed country edition through its GraphQL API.

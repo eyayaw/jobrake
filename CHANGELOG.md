@@ -5,6 +5,7 @@
 ### Changed
 
 - **Breaking:** `jobrake indeed` and `jobrake linkedin` replace the `--site | -s` option.
+- **Breaking:** Searches now default to 10 results, a seven-day age limit, a 40 km Indeed radius, and no LinkedIn distance parameter.
 
 ## [0.14.0](https://github.com/eyayaw/jobrake/releases/tag/v0.14.0) (2026-08-26)
 

@@ -97,7 +97,11 @@ def _add_linkedin_args(parser: argparse.ArgumentParser) -> None:
         action="store_true",
         help="refetch postings instead of serving cached ones from disk",
     )
-    parser.set_defaults(country=None, radius=None)
+    parser.set_defaults(
+        country=None,
+        radius=defaults.LINKEDIN_DISTANCE,
+        no_cache=not defaults.CACHE,
+    )
 
 
 def _add_indeed_args(parser: argparse.ArgumentParser) -> None:
@@ -112,13 +116,13 @@ def _add_indeed_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--radius",
         "-r",
-        default=defaults.RADIUS,
+        default=defaults.INDEED_RADIUS,
         type=int,
         help="radius around the location specified",
     )
     # Indeed search results already contain descriptions, and postings are not
     # fetched individually, so detail and cache do not apply.
-    parser.set_defaults(detail=defaults.DETAIL, no_cache=False)
+    parser.set_defaults(detail=defaults.DETAIL, no_cache=not defaults.CACHE)
 
 
 _SITE_ARGS = {"linkedin": _add_linkedin_args, "indeed": _add_indeed_args}

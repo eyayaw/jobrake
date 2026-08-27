@@ -10,6 +10,7 @@ from html import unescape
 
 from bs4 import BeautifulSoup
 
+from jobrake import defaults
 from jobrake.fetchkit import Fetcher
 from jobrake.models import JOB_FIELDS, employment_type
 from jobrake.utils import html_text
@@ -237,7 +238,7 @@ def _canonical(url: str) -> str:
 
 
 async def fetch_postings(
-    fetcher: Fetcher, urls: Iterable[str], *, cache: bool = True
+    fetcher: Fetcher, urls: Iterable[str], *, cache: bool = defaults.CACHE
 ) -> dict[str, dict | None]:
     """
     Fetch LinkedIn detail fields for a collection of posting URLs.

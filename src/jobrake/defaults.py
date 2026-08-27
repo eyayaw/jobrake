@@ -1,7 +1,10 @@
-"""Search defaults shared by the CLI and provider adapters."""
+"""Search defaults shared by CLI and library entry points."""
 
-HOURS_OLD: int | None = 24
-RESULTS_WANTED: int = 25
-RADIUS: int | None = 50
-RADIUS_UNIT: str = "KILOMETERS"
+HOURS_OLD: int = 168
+RESULTS_WANTED: int = 10
 DETAIL: bool = False
+CACHE: bool = True
+
+INDEED_RADIUS: int = 40
+INDEED_RADIUS_UNIT: str = "KILOMETERS"
+LINKEDIN_DISTANCE: None = None

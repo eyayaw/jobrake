@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from jobrake import cli
+from jobrake import cli, defaults
 from jobrake.models import JOB_FIELDS, make_job
 
 JOBS = [
@@ -74,10 +74,10 @@ def test_provider_commands_dispatch_expected_options(monkeypatch):
                 "location": "Seattle",
                 "country": "usa",
                 "distance": 0,
-                "results_wanted": 25,
-                "hours_old": 24,
-                "detail": False,
-                "cache": True,
+                "results_wanted": defaults.RESULTS_WANTED,
+                "hours_old": defaults.HOURS_OLD,
+                "detail": defaults.DETAIL,
+                "cache": defaults.CACHE,
             },
         ),
         (
@@ -86,9 +86,9 @@ def test_provider_commands_dispatch_expected_options(monkeypatch):
                 "search_term": "x",
                 "location": "Seattle",
                 "country": None,
-                "distance": None,
-                "results_wanted": 25,
-                "hours_old": 24,
+                "distance": defaults.LINKEDIN_DISTANCE,
+                "results_wanted": defaults.RESULTS_WANTED,
+                "hours_old": defaults.HOURS_OLD,
                 "detail": True,
                 "cache": False,
             },

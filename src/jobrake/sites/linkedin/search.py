@@ -69,11 +69,11 @@ async def search(
     search_term: str,
     location: str,
     country: str | None = None,
-    distance: int | None = defaults.RADIUS,
+    distance: int | None = defaults.LINKEDIN_DISTANCE,
     results_wanted: int = defaults.RESULTS_WANTED,
     hours_old: int | None = defaults.HOURS_OLD,
     detail: bool = defaults.DETAIL,
-    cache: bool = True,
+    cache: bool = defaults.CACHE,
 ) -> list[dict]:
     """
     Search LinkedIn's login-free guest endpoint.

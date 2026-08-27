@@ -101,7 +101,6 @@ async def main():
         search_term="economist",
         country="United States",
         results_wanted=2,
-        hours_old=24,
     )
 
 

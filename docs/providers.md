@@ -9,15 +9,13 @@ Indeed and LinkedIn share one search interface, but they interpret geography and
 
 ## Search filters
 
-The Indeed command defaults `--radius` to 50. Both commands default `--hours-old` to 24.
-The library's `scrape()` defaults both arguments to `None`.
-
-Indeed measures distance in kilometers. A `None` distance uses its standard 50 km radius.
-LinkedIn sends a numeric distance through an undocumented parameter.
-Its unit is unknown, and `None` omits the parameter.
+Every search entry point defaults to postings from the last seven days.
+Searches return 10 jobs by default.
+Indeed defaults to a 40 km radius. LinkedIn omits its undocumented distance parameter.
 
 `hours_old=None` omits the age filter.
 Positive values limit results to jobs posted within that many hours.
+For library calls, `distance=None` uses Indeed's standard radius and omits LinkedIn's distance parameter.
 `distance` accepts zero. Numeric `hours_old` values and `results_wanted` must be positive.
 
 ## Indeed
