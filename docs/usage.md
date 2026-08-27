@@ -2,17 +2,17 @@
 
 ## Command line
 
-Run `jobrake --help` to see every option. The default output is a compact JSON on stdout.
+Run `jobrake -h` to see the provider commands, then `jobrake PROVIDER -h` for that provider's options. The default output is compact JSON on stdout.
 
 ```sh
-jobrake -s indeed -q "data scientist" -c usa -n 2
+jobrake indeed -q "data scientist" -c usa -n 2
 ```
 
 The stdout output pipeable into another program.
 For example, you can select the fields of your interest with [`jq`](https://github.com/jqlang/jq):
 
 ```sh
-jobrake -s indeed -q "data scientist" -c usa -n 2 \
+jobrake indeed -q "data scientist" -c usa -n 2 \
   | jq -r '.[] | [.date, .title, .company, .url] | @tsv'
 ```
 

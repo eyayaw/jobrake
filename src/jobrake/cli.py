@@ -77,29 +77,37 @@ class _StatusHandler(logging.StreamHandler):
                 self.flush()
 
 
-def main() -> int | None:
-    """
-    Scrape from command-line arguments and write the selected format.
-
-    Returns:
-        ``1`` when stdout closes early or the output file cannot be written. Normal completion returns ``None``.
-    """
-    parser = _ArgumentParser(
-        prog="jobrake",
-        description="Search job postings",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-    )
-    # The version action exits before argparse checks required arguments.
-    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
-    parser.add_argument("--site", "-s", choices=sorted(site_searchers()), required=True)
-    parser.add_argument("--search-term", "-q", required=True, help="search query")
+def _add_linkedin_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--location",
         "-l",
-        help="location, e.g., United States, or New York (required for linkedin)",
+        required=True,
+        default=argparse.SUPPRESS,
+        help="location, e.g., United States, or New York",
     )
     parser.add_argument(
-        "--country", "-c", help="country name, e.g., usa, uk, netherlands (ignored by linkedin)"
+        "--detail",
+        "-d",
+        default=defaults.DETAIL,
+        action="store_true",
+        help="fetch each posting page for its description and other detail fields",
+    )
+    parser.add_argument(
+        "--no-cache",
+        action="store_true",
+        help="refetch postings instead of serving cached ones from disk",
+    )
+    parser.set_defaults(country=None, radius=None)
+
+
+def _add_indeed_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--location", "-l", help="location, e.g., United States, or New York")
+    parser.add_argument(
+        "--country",
+        "-c",
+        required=True,
+        default=argparse.SUPPRESS,
+        help="country name, e.g., usa, uk, netherlands",
     )
     parser.add_argument(
         "--radius",
@@ -107,6 +115,18 @@ def main() -> int | None:
         default=defaults.RADIUS,
         type=int,
         help="radius around the location specified",
+    )
+    # Indeed search results already contain descriptions, and postings are not
+    # fetched individually, so detail and cache do not apply.
+    parser.set_defaults(detail=defaults.DETAIL, no_cache=False)
+
+
+_SITE_ARGS = {"linkedin": _add_linkedin_args, "indeed": _add_indeed_args}
+
+
+def _add_common_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--search-term", "-q", required=True, default=argparse.SUPPRESS, help="search query"
     )
     parser.add_argument(
         "--results-wanted",
@@ -117,19 +137,6 @@ def main() -> int | None:
     )
     parser.add_argument(
         "--hours-old", "-a", default=defaults.HOURS_OLD, type=int, help="age of postings in hours"
-    )
-    parser.add_argument(
-        "--detail",
-        "-d",
-        default=defaults.DETAIL,
-        action="store_true",
-        help="fetch each LinkedIn posting page for its description and other detail fields. "
-        "Indeed search results already contain them",
-    )
-    parser.add_argument(
-        "--no-cache",
-        action="store_true",
-        help="always refetch postings instead of serving cached ones from disk (linkedin)",
     )
     parser.add_argument(
         "--output",
@@ -144,6 +151,28 @@ def main() -> int | None:
         help="output format, defaults to the --output extension, or json on stdout",
     )
 
+
+def _build_parser() -> _ArgumentParser:
+    parser = _ArgumentParser(prog="jobrake", description="Search job postings")
+    # The version action exits before argparse checks the required subcommand.
+    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
+    subparsers = parser.add_subparsers(dest="provider", required=True)
+    for name in sorted(site_searchers()):
+        subparser = subparsers.add_parser(name, formatter_class=argparse.ArgumentDefaultsHelpFormatter)  # fmt: skip
+        # Mutate this subparser by adding arguments and defaults.
+        _add_common_args(subparser)
+        _SITE_ARGS[name](subparser)
+    return parser
+
+
+def main() -> int | None:
+    """
+    Scrape from command-line arguments and write the selected format.
+
+    Returns:
+        ``1`` when stdout closes early or the output file cannot be written. Normal completion returns ``None``.
+    """
+    parser = _build_parser()
     args = parser.parse_args()
     # Settle the output path and format before the scrape spends any requests.
     if args.output is not None:
@@ -171,7 +200,7 @@ def main() -> int | None:
     try:
         jobs = asyncio.run(
             scrape(
-                args.site,
+                args.provider,
                 search_term=args.search_term,
                 location=args.location,
                 country=args.country,

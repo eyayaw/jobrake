@@ -5,11 +5,11 @@ Indeed and LinkedIn share one search interface, but they interpret geography and
 | Site | Required geography | Posting details |
 | --- | --- | --- |
 | Indeed | `country` chooses the country edition. `location` narrows the search. | Included in search results |
-| LinkedIn | `location` is required. `country` is ignored. | Fetched with `--detail` or `detail=True` |
+| LinkedIn | `location` is required. Library calls ignore `country`. | Fetched with `--detail` or `detail=True` |
 
 ## Search filters
 
-The CLI defaults `--radius` to 50 and `--hours-old` to 24.
+The Indeed command defaults `--radius` to 50. Both commands default `--hours-old` to 24.
 The library's `scrape()` defaults both arguments to `None`.
 
 Indeed measures distance in kilometers. A `None` distance uses its standard 50 km radius.

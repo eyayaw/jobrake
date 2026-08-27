@@ -45,10 +45,66 @@ def run_cli(monkeypatch):
     monkeypatch.setattr(cli, "scrape", fake_scrape)
 
     def run(*argv):
-        monkeypatch.setattr("sys.argv", ["jobrake", "-s", "indeed", "-q", "x", "-c", "usa", *argv])
+        monkeypatch.setattr("sys.argv", ["jobrake", "indeed", "-q", "x", "-c", "usa", *argv])
         return cli.main()
 
     return run
+
+
+def test_provider_commands_dispatch_expected_options(monkeypatch):
+    calls = []
+
+    async def record(site, **kwargs):
+        calls.append((site, kwargs))
+        return []
+
+    monkeypatch.setattr(cli, "scrape", record)
+    for argv in (
+        ["indeed", "-q", "x", "-c", "usa", "-l", "Seattle", "-r", "0"],
+        ["linkedin", "-q", "x", "-l", "Seattle", "-d", "--no-cache"],
+    ):
+        monkeypatch.setattr(sys, "argv", ["jobrake", *argv])
+        cli.main()
+
+    assert calls == [
+        (
+            "indeed",
+            {
+                "search_term": "x",
+                "location": "Seattle",
+                "country": "usa",
+                "distance": 0,
+                "results_wanted": 25,
+                "hours_old": 24,
+                "detail": False,
+                "cache": True,
+            },
+        ),
+        (
+            "linkedin",
+            {
+                "search_term": "x",
+                "location": "Seattle",
+                "country": None,
+                "distance": None,
+                "results_wanted": 25,
+                "hours_old": 24,
+                "detail": True,
+                "cache": False,
+            },
+        ),
+    ]
+
+
+def test_provider_commands_require_geography(monkeypatch):
+    async def must_not_run(*args, **kwargs):
+        raise AssertionError("scrape ran without the required geography")
+
+    monkeypatch.setattr(cli, "scrape", must_not_run)
+    for argv in (["indeed", "-q", "x"], ["linkedin", "-q", "x"]):
+        monkeypatch.setattr(sys, "argv", ["jobrake", *argv])
+        with pytest.raises(SystemExit):
+            cli.main()
 
 
 def test_default_output_is_json_on_stdout(run_cli, capsys):

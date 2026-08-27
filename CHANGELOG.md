@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- **Breaking:** `jobrake indeed` and `jobrake linkedin` replace the `--site | -s` option.
+
 ## [0.14.0](https://github.com/eyayaw/jobrake/releases/tag/v0.14.0) (2026-08-26)
 
 ### Added

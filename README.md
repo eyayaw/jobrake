@@ -42,10 +42,9 @@ jobrake is a minimal Python package and CLI tool for scraping job postings from 
 <td valign="top" width="50%">
 
 ```sh
-jobrake --site linkedin \
+jobrake linkedin \
   --search-term "data scientist" \
   --location "amsterdam, netherlands" \
-  --radius 100 \
   --hours-old 48 \
   --results-wanted 5 \
   --detail
@@ -55,7 +54,7 @@ jobrake --site linkedin \
 <td valign="top" width="50%">
 
 ```sh
-jobrake -s indeed \
+jobrake indeed \
   -q "data scientist" \
   -l amsterdam -c netherlands \
   -r 100 \
@@ -65,8 +64,6 @@ jobrake -s indeed \
 </td>
 </tr>
 </table>
-
-*NB: Indeed search results already contain detail fields; `--detail | -d` is for LinkedIn.*
 
 ## Installation
 
@@ -83,7 +80,7 @@ uv tool install git+https://github.com/eyayaw/jobrake
 ### CLI
 
 ```sh
-jobrake --help
+jobrake -h
 ```
 
 The CLI writes JSON to stdout by default.
