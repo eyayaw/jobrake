@@ -22,7 +22,7 @@ async def main():
                 print(
                     f"  [{job['date'] or '????-??-??'}] {job['title'][:44]:<45} "
                     f"{job['company'][:20]:<21} {job['location'][:24]:<25} "
-                    f"desc={len(job['description'])}ch"
+                    f"desc={len(job.get('description', ''))}ch"
                 )
         except Exception as e:
             print(f"{site}: FAILED {type(e).__name__}: {e}")
