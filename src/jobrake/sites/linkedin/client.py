@@ -2,7 +2,7 @@
 
 import asyncio
 
-from jobrake.cache import PostingCache
+from jobrake.cache import Cache
 from jobrake.fetchkit import ErrorCategory, Fetcher, FetchResult, TokenBucket
 
 
@@ -51,7 +51,7 @@ def _retry_delay(result: FetchResult) -> float | None:
 
 
 # One cache per process, lazy, so no file is touched until the first cached fetch.
-CACHE = PostingCache()
+CACHE = Cache()
 
 
 async def paced_fetch(fetcher: Fetcher, url: str) -> FetchResult:

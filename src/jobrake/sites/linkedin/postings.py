@@ -11,6 +11,7 @@ from html import unescape
 from bs4 import BeautifulSoup
 
 from jobrake import defaults
+from jobrake.cache import POSTINGS
 from jobrake.fetchkit import Fetcher
 from jobrake.models import JOB_FIELDS, employment_type
 from jobrake.utils import html_text
@@ -269,7 +270,9 @@ async def fetch_postings(
     ids = {url: job_id(url) for url in wanted}
     # Keep one value per posting identity for the whole call. Seed it from the
     # cache and extend it as fetches finish so aliases reuse the same result.
-    resolved = client.CACHE.get("linkedin", [i for i in ids.values() if i]) if cache else {}
+    resolved = (
+        client.CACHE.get(POSTINGS, "linkedin", [i for i in ids.values() if i]) if cache else {}
+    )
     for posting_id, posting in resolved.items():
         # Cached rows may predate the current field set.
         # Ignore unknown keys before merging a row into a Job.
@@ -307,7 +310,7 @@ async def fetch_postings(
         if result.error and result.error.http_status in (404, 410):
             resolved[identity] = None
             if cache and posting_id:
-                client.CACHE.put("linkedin", {posting_id: None})
+                client.CACHE.put(POSTINGS, "linkedin", {posting_id: None})
             continue
         if result.error:
             logger.warning("posting %s: %s; skipped, a rerun retries it", url, result.error.message)
@@ -338,7 +341,7 @@ async def fetch_postings(
                 posting = parse_posting(fragment.text) | posting
         resolved[identity] = posting
         if cache and posting_id:
-            client.CACHE.put("linkedin", {posting_id: posting})
+            client.CACHE.put(POSTINGS, "linkedin", {posting_id: posting})
         if stopped:
             break
 

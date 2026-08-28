@@ -25,13 +25,17 @@ async def scrape(
     max_age_hours: int | None = defaults.MAX_AGE_HOURS,
     details: bool = defaults.DETAILS,
     cache: bool = defaults.CACHE,
+    geoid: str | bool = defaults.GEOID,
     fetcher: Fetcher | None = None,
 ) -> list[dict]:
     """
     Route a search through one provider.
 
-    Indeed requires ``country``. LinkedIn requires a nonblank ``location``.
-    ``details`` and ``cache`` affect LinkedIn only. Every returned dictionary
+    Indeed requires ``country``. LinkedIn requires either a nonblank
+    ``location`` or a geoId string.
+    ``details``, ``cache``, and ``geoid`` affect LinkedIn only. ``geoid=True``
+    resolves ``location`` to a LinkedIn geoId before searching, and a string
+    passes through as the geoId. Every returned dictionary
     has the shared identity and summary keys, with available detail fields added.
     Searches default to the last seven days. ``max_age_hours=None`` removes the age limit.
     A ``None`` radius uses Indeed's standard radius and omits LinkedIn's
@@ -42,15 +46,19 @@ async def scrape(
     and closes an ``HttpxFetcher``.
 
     Raises:
-        ValueError: A site is unknown, a required location or country is
-            missing, or a numeric search argument is outside its valid range.
+        ValueError: A site is unknown, required geography is missing, or a
+            numeric search argument is outside its valid range.
     """
     searchers = site_searchers()
     if site not in searchers:
         raise ValueError(f"unknown site {site!r}. Expected one of {sorted(searchers)}")
     if site == "linkedin":
-        if location is None or not location.strip():
-            raise ValueError(f"location is required for site='{site}'. Try 'London, England'")
+        if isinstance(geoid, str) and not geoid.strip():
+            raise ValueError("geoid is blank")
+        if not isinstance(geoid, str) and (location is None or not location.strip()):
+            raise ValueError(
+                f"location is required for site='{site}' unless geoid is an ID. Try 'London, England'"
+            )
     elif site == "indeed":
         if country is None:
             raise ValueError(f"country is required for site='{site}'. Try 'usa' or 'germany'")
@@ -70,6 +78,7 @@ async def scrape(
         "max_age_hours": max_age_hours,
         "details": details,
         "cache": cache,
+        "geoid": geoid,
     }
     try:
         return await searchers[site](fetcher, **options)

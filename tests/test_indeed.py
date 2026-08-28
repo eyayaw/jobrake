@@ -44,6 +44,28 @@ def indeed_payload(keys, cursor=None):
     }
 
 
+def test_places_lists_edition_suggestions():
+    hits = [
+        {"suggestion": "Boston, MA", "payload": {"locationType": "CITY", "population": 589141}},
+        {},  # a malformed candidate is omitted, keeping its siblings
+        {"suggestion": "   ", "payload": {"locationType": "CITY"}},
+        {"suggestion": "Boston Common, MA", "payload": {"locationType": {"bad": 1}}},
+        {"suggestion": "Boston Massacre Marker, MA", "payload": {"locationType": "MISC"}},
+    ]
+    fetcher = StubFetcher({"suggestions/location": ok(json.dumps(hits))})
+    assert asyncio.run(indeed.places(fetcher, "boston", "usa")) == [
+        {"suggestion": "Boston, MA", "locationType": "CITY"},
+        {"suggestion": "Boston Common, MA", "locationType": None},
+        {"suggestion": "Boston Massacre Marker, MA", "locationType": "MISC"},
+    ]
+    assert "country=US" in fetcher.requests[0]
+    with pytest.raises(ValueError, match="country"):
+        asyncio.run(indeed.places(fetcher, "boston", "atlantis"))
+    with pytest.raises(ValueError, match="blank"):
+        asyncio.run(indeed.places(fetcher, "", "usa"))
+    assert len(fetcher.requests) == 1
+
+
 def test_indeed_parses_and_paginates():
     pages = [indeed_payload(["a", "b"], cursor="next"), indeed_payload(["b", "c"])]
 
@@ -105,6 +127,7 @@ def test_indeed_requests_full_pages_throughout_a_cursor_chain():
     # The second page overlaps the first, the limit stays at 100, and the
     # final slice returns three unique jobs.
     assert [job["id"] for job in jobs] == ["a", "b", "c"]
+    assert all('what: "x"' in query for query in fetcher.queries)
     assert all("limit: 100" in query for query in fetcher.queries)
     assert len(fetcher.queries) == 2
 

@@ -12,6 +12,7 @@ from jobrake.models import make_job
 from jobrake.utils import check_max_age_hours, check_radius, check_results
 
 from .client import SEARCH_URL, job_id, paced_fetch
+from .geo import resolve_geoid
 from .postings import fetch_postings
 
 logger = logging.getLogger(__name__)
@@ -67,22 +68,28 @@ async def search(
     fetcher: Fetcher,
     *,
     query: str,
-    location: str,
+    location: str | None = None,
     country: str | None = None,
     radius: int | None = defaults.LINKEDIN_RADIUS,
     results: int = defaults.RESULTS,
     max_age_hours: int | None = defaults.MAX_AGE_HOURS,
     details: bool = defaults.DETAILS,
     cache: bool = defaults.CACHE,
+    geoid: str | bool = defaults.GEOID,
 ) -> list[dict]:
     """
     Search LinkedIn's login-free guest endpoint.
 
-    ``location`` must be nonblank and works best with a region and country.
-    Radius is sent unchanged, and ``None`` omits it. When ``max_age_hours`` is
-    ``None``, LinkedIn omits the ``f_TPR`` filter. ``country`` is accepted for
-    the common provider call and ignored. ``details`` hydrates posting pages,
-    with ``cache`` controlling their reuse. The caller owns ``fetcher``.
+    A geoId string identifies the search area without ``location``.
+    Otherwise, ``location`` must be nonblank and works best with a region and country.
+    ``geoid=True`` resolves ``location`` through :func:`resolve_geoid`.
+    A location that fails to resolve returns no jobs with a warning.
+    LinkedIn receives ``radius`` through its undocumented ``distance`` parameter.
+    ``None`` omits it.
+    When ``max_age_hours`` is ``None``, LinkedIn omits the ``f_TPR`` filter.
+    ``country`` is accepted for the common provider call and ignored.
+    ``details`` hydrates posting pages, and ``cache`` controls their reuse.
+    The caller owns ``fetcher``.
 
     Search requests share the process-wide limiter. A persistent 429 ends the
     search with the jobs already collected. The guest endpoint serves about
@@ -91,23 +98,47 @@ async def search(
     ``results``.
 
     Raises:
-        ValueError: Location is blank or a numeric search argument is outside its valid range.
+        ValueError: Required geography is missing or a numeric search argument is outside its valid range.
     """
-    if not location.strip():
+    if isinstance(geoid, str):
+        geoid = geoid.strip()
+        if not geoid:
+            raise ValueError("geoid is blank")
+    elif location is None or not location.strip():
         raise ValueError(
-            f"location {location!r} is blank. Try 'Amsterdam, North Holland, Netherlands'"
+            "location is required unless geoid is an ID. "
+            "Try 'Amsterdam, North Holland, Netherlands'"
         )
     check_results(results)
     check_radius(radius)
     check_max_age_hours(max_age_hours)
-    logger.info("searching linkedin for %r in %r", query, location)
+    if location:
+        logger.info("searching linkedin for %r in %r", query, location)
+    else:
+        logger.info("searching linkedin for %r with geoId %s", query, geoid)
+    if geoid is True:
+        assert location is not None
+        resolved = await resolve_geoid(fetcher, location)
+        if resolved is None:
+            # A requested geoId must resolve before the search begins.
+            logger.warning(
+                "returning no jobs: %r did not resolve to a geoId. "
+                "Search without geoid to use the location text",
+                location,
+            )
+            logger.info("linkedin search finished with 0 jobs")
+            return []
+        geoid = resolved
     jobs: list[dict] = []
     seen: set[str] = set()
     start = 0
     while len(jobs) < results and start < MAX_START:
         params = {
             "keywords": query,
-            "location": location,
+            "location": location or None,
+            # A geoId outranks LinkedIn's own geocoding of the location text.
+            "geoId": geoid or None,
+            # LinkedIn names its radius parameter ``distance``.
             "distance": radius,
             "start": start,
             "f_TPR": f"r{max_age_hours * 3600}" if max_age_hours else None,
@@ -124,15 +155,18 @@ async def search(
         cards, raw = _parse_page(result.text)
         if not raw:
             if start == 0:
-                # An unresolvable location and a genuine no-results page both
-                # return an empty 200. The guest geocoder often needs a region
-                # and country. "Berlin" works, while bare "Amsterdam" does not.
-                logger.warning(
-                    "linkedin returned no jobs for location=%r. "
-                    "A location without its region and country may not resolve; try "
-                    "'Amsterdam, North Holland, Netherlands'",
-                    location,
-                )
+                if geoid:
+                    logger.warning("linkedin returned no jobs for geoId=%s", geoid)
+                else:
+                    # An unresolvable location and a genuine no-results page both
+                    # return an empty 200. The guest geocoder often needs a region
+                    # and country. "Berlin" works, while bare "Amsterdam" does not.
+                    logger.warning(
+                        "linkedin returned no jobs for location=%r. "
+                        "A location without its region and country may not resolve; try "
+                        "'Amsterdam, North Holland, Netherlands'",
+                        location,
+                    )
             break
         for job in cards:
             if job["id"] in seen:

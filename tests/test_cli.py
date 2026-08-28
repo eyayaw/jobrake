@@ -51,6 +51,44 @@ def run_cli(monkeypatch):
     return run
 
 
+def test_places_command_prints_the_selected_providers_candidates(monkeypatch, capsys):
+    linkedin_hits = [{"geoId": "102011674", "displayName": "Amsterdam, North Holland, Netherlands"}]
+    indeed_hits = [{"suggestion": "Boston, MA", "locationType": "CITY"}]
+
+    class StubHttpx:
+        instances: list = []
+
+        def __init__(self):
+            self.closed = False
+            StubHttpx.instances.append(self)
+
+        async def close(self):
+            self.closed = True
+
+    async def fake_linkedin(fetcher, name):
+        assert name == "amsterdam"
+        return linkedin_hits
+
+    async def fake_indeed(fetcher, name, country):
+        assert (name, country) == ("boston", "usa")
+        return indeed_hits
+
+    monkeypatch.setattr(cli, "HttpxFetcher", StubHttpx)
+    monkeypatch.setattr(cli.linkedin, "places", fake_linkedin)
+    monkeypatch.setattr(cli.indeed, "places", fake_indeed)
+    monkeypatch.setattr(sys, "argv", ["jobrake", "places", "linkedin", "amsterdam"])
+    assert cli.main() is None
+    assert json.loads(capsys.readouterr().out) == linkedin_hits
+    monkeypatch.setattr(sys, "argv", ["jobrake", "places", "indeed", "boston", "-c", "usa"])
+    assert cli.main() is None
+    assert json.loads(capsys.readouterr().out) == indeed_hits
+    linkedin_hits = None  # a failed lookup exits nonzero with nothing on stdout
+    monkeypatch.setattr(sys, "argv", ["jobrake", "places", "linkedin", "amsterdam"])
+    assert cli.main() == 1
+    assert capsys.readouterr().out == ""
+    assert StubHttpx.instances and all(f.closed for f in StubHttpx.instances)
+
+
 def test_provider_commands_dispatch_expected_options(monkeypatch):
     calls = []
 
@@ -75,7 +113,8 @@ def test_provider_commands_dispatch_expected_options(monkeypatch):
             "--max-age",
             "48",
         ],
-        ["linkedin", "-q", "x", "-l", "Seattle", "--details", "--no-cache"],
+        ["linkedin", "-q", "x", "-l", "Seattle", "--details", "--no-cache", "--geoid"],
+        ["linkedin", "-q", "x", "--geoid", "12345"],
     ):
         monkeypatch.setattr(sys, "argv", ["jobrake", *argv])
         cli.main()
@@ -92,6 +131,7 @@ def test_provider_commands_dispatch_expected_options(monkeypatch):
                 "max_age_hours": 48,
                 "details": defaults.DETAILS,
                 "cache": defaults.CACHE,
+                "geoid": defaults.GEOID,
             },
         ),
         (
@@ -105,6 +145,21 @@ def test_provider_commands_dispatch_expected_options(monkeypatch):
                 "max_age_hours": defaults.MAX_AGE_HOURS,
                 "details": True,
                 "cache": False,
+                "geoid": True,
+            },
+        ),
+        (
+            "linkedin",
+            {
+                "query": "x",
+                "location": None,
+                "country": None,
+                "radius": defaults.LINKEDIN_RADIUS,
+                "results": defaults.RESULTS,
+                "max_age_hours": defaults.MAX_AGE_HOURS,
+                "details": defaults.DETAILS,
+                "cache": defaults.CACHE,
+                "geoid": "12345",
             },
         ),
     ]
@@ -118,6 +173,7 @@ def test_invalid_provider_arguments_fail_before_scraping(monkeypatch):
     for argv in (
         ["indeed", "-q", "x"],
         ["linkedin", "-q", "x"],
+        ["linkedin", "-q", "x", "--geoid"],
         ["linkedin", "-q", "x", "-l", "Seattle", "--detail"],
     ):
         monkeypatch.setattr(sys, "argv", ["jobrake", *argv])
@@ -184,6 +240,17 @@ def test_closed_pipe_ends_quietly(run_cli, monkeypatch):
     with open(write_end, "w") as stdout:
         monkeypatch.setattr(sys, "stdout", stdout)
         assert run_cli() == 1
+
+    async def fake_places(fetcher, name):
+        return [{"geoId": "1", "displayName": "A"}]
+
+    monkeypatch.setattr(cli.linkedin, "places", fake_places)
+    monkeypatch.setattr(sys, "argv", ["jobrake", "places", "linkedin", "a"])
+    read_end, write_end = os.pipe()
+    os.close(read_end)
+    with open(write_end, "w") as stdout:
+        monkeypatch.setattr(sys, "stdout", stdout)
+        assert cli.main() == 1
 
 
 def test_invalid_output_fails_before_scraping(run_cli, monkeypatch, tmp_path, capsys):

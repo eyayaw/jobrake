@@ -8,7 +8,7 @@ import logging
 import pytest
 from fakes import StubFetcher, network_down, not_found, ok, rate_limited
 
-from jobrake.cache import PostingCache
+from jobrake.cache import GEOIDS, POSTINGS, Cache
 from jobrake.fetchkit import TokenBucket
 from jobrake.models import IDENTITY_FIELDS, JOB_FIELDS, SUMMARY_FIELDS
 from jobrake.sites import linkedin
@@ -90,6 +90,7 @@ def test_pagination_advances_by_raw_page_size(unlimited):
     jobs = asyncio.run(linkedin.search(fetcher, query="x", location="Seattle", results=4))
 
     assert [job["id"] for job in jobs] == ["111", "222", "333", "444"]
+    assert all("keywords=x" in url for url in fetcher.requests)
     assert "start=4" in fetcher.requests[2]
 
 
@@ -213,6 +214,93 @@ def test_no_warning_when_pagination_simply_ends(unlimited, caplog):
     assert caplog.records == []
 
 
+def test_places_lists_candidates_and_normalizes_cache_keys(unlimited, isolated_cache):
+    hits = [
+        {"id": "1", "displayName": "Amsterdam, North Holland, Netherlands", "type": "GEO"},
+        {"id": "   ", "displayName": "Amsterdam Area"},
+        {"id": "3", "displayName": "   "},
+        {"id": "2", "displayName": "Amsterdam, New York, United States", "type": "GEO"},
+        {"id": "4", "displayName": "Amsterdam North Holland Netherlands"},
+    ]
+    fetcher = StubFetcher({"typeaheadHits": ok(json.dumps(hits))})
+    assert asyncio.run(linkedin.places(fetcher, "amsterdam, ")) == [
+        {"geoId": "1", "displayName": "Amsterdam, North Holland, Netherlands"},
+        {"geoId": "2", "displayName": "Amsterdam, New York, United States"},
+        {"geoId": "4", "displayName": "Amsterdam North Holland Netherlands"},
+    ]
+    cached = isolated_cache.get(
+        GEOIDS,
+        "linkedin",
+        [
+            "amsterdam",
+            "amsterdam,",
+            "amsterdam, north holland, netherlands",
+            "amsterdam north holland netherlands",
+            "amsterdam-netherlands",
+        ],
+    )
+    assert cached == {
+        "amsterdam": {
+            "geoId": "1",
+            "displayName": "Amsterdam, North Holland, Netherlands",
+        },
+        "amsterdam north holland netherlands": {
+            "geoId": "1",
+            "displayName": "Amsterdam, North Holland, Netherlands",
+        },
+    }
+    offline = StubFetcher({})
+    assert (
+        asyncio.run(linkedin.resolve_geoid(offline, "Amsterdam   New York United States!!!")) == "2"
+    )
+    assert offline.requests == []
+    with pytest.raises(ValueError, match="blank"):
+        asyncio.run(linkedin.places(fetcher, "   "))
+    assert len(fetcher.requests) == 1
+
+
+def test_resolve_geoid_typeahead_top_hit_or_none(unlimited, caplog):
+    hits = json.dumps([{"id": "90009553", "displayName": "Groningen Metropolitan Area"}])
+    fetcher = StubFetcher({"typeaheadHits": ok(hits)})
+    assert asyncio.run(linkedin.resolve_geoid(fetcher, "groningen area")) == "90009553"
+    assert "query=groningen+area" in fetcher.requests[0]
+    with caplog.at_level(logging.WARNING, logger="jobrake.sites.linkedin"):
+        no_hits = StubFetcher({"typeaheadHits": ok("[]")})
+        assert asyncio.run(linkedin.resolve_geoid(no_hits, "atlantis")) is None
+        assert asyncio.run(linkedin.resolve_geoid(StubFetcher({}), "atlantis")) is None
+    with pytest.raises(ValueError, match="blank"):
+        asyncio.run(linkedin.resolve_geoid(StubFetcher({}), " ,,, "))
+    assert sum(record.levelno == logging.WARNING for record in caplog.records) == 2
+
+
+def test_search_by_geoid_pins_the_request(unlimited):
+    place = json.dumps(
+        [{"id": "102011674", "displayName": "Amsterdam, North Holland, Netherlands"}]
+    )
+    fetcher = StubFetcher(
+        {"typeaheadHits": ok(place), "seeMoreJobPostings": ok(linkedin_card("111"))}
+    )
+    location = "Amsterdam, North Holland, Netherlands"
+    asyncio.run(linkedin.search(fetcher, query="x", location=location, results=1, geoid=True))
+    assert "geoId=102011674" in fetcher.requests[1]
+    asyncio.run(linkedin.search(fetcher, query="x", results=1, geoid="12345"))
+    assert "geoId=12345" in fetcher.requests[2]
+    assert "location=" not in fetcher.requests[2]
+
+
+def test_search_with_geoid_returns_no_jobs_when_unresolved(unlimited, caplog):
+    fetcher = StubFetcher(
+        {"typeaheadHits": ok("[]"), "seeMoreJobPostings": ok(linkedin_card("111"))}
+    )
+    with caplog.at_level(logging.INFO, logger="jobrake.sites.linkedin"):
+        jobs = asyncio.run(linkedin.search(fetcher, query="x", location="Atlantis", geoid=True))
+    assert jobs == []
+    assert len(fetcher.requests) == 1  # the lookup request only
+    assert any("no jobs" in record.message for record in caplog.records)
+    assert any("searching linkedin" in record.message for record in caplog.records)
+    assert any("finished with 0 jobs" in record.message for record in caplog.records)
+
+
 @pytest.mark.parametrize(
     ("kwargs", "match"),
     [
@@ -220,6 +308,7 @@ def test_no_warning_when_pagination_simply_ends(unlimited, caplog):
         ({"location": "Seattle", "results": -5}, "results"),
         ({"location": "Seattle", "radius": -1}, "radius"),
         ({"location": "   "}, "location"),
+        ({"geoid": ""}, "geoid"),
     ],
 )
 def test_linkedin_rejects_bad_arguments_before_any_request(kwargs, match):
@@ -582,7 +671,7 @@ def test_fetch_postings_stops_hydration_when_the_429_retry_also_fails(
     # a stop still serves the not-yet-visited URLs from the cache
     first = "https://nl.linkedin.com/jobs/view/first-at-acme-333"
     cached = "https://nl.linkedin.com/jobs/view/cached-at-acme-444"
-    isolated_cache.put("linkedin", {"444": {"description": "Cached role"}})
+    isolated_cache.put(POSTINGS, "linkedin", {"444": {"description": "Cached role"}})
     fetcher = StubFetcher({"linkedin.com": rate_limited()})
     caplog.clear()
     with caplog.at_level(logging.WARNING, logger="jobrake.sites.linkedin"):
@@ -662,7 +751,9 @@ def test_fetch_postings_attempts_each_identity_once(unlimited, caplog):
 
 def test_fetch_postings_drops_unknown_cached_keys(unlimited, isolated_cache):
     # A cached row from an older schema must not crash the run it is served to.
-    isolated_cache.put("linkedin", {"111": {"description": "Role", "months_of_experience": 36}})
+    isolated_cache.put(
+        POSTINGS, "linkedin", {"111": {"description": "Role", "months_of_experience": 36}}
+    )
     got = asyncio.run(linkedin.fetch_postings(StubFetcher({}), [CANONICAL]))
     assert got[CANONICAL] == {"description": "Role"}
 
@@ -678,12 +769,12 @@ def test_interrupted_hydration_keeps_paid_results(unlimited, isolated_cache):
     fetcher = DiesOnSecond({"economist-at-acme-111": ok(job_page())})
     with pytest.raises(RuntimeError):
         asyncio.run(linkedin.fetch_postings(fetcher, [CANONICAL, other]))
-    assert isolated_cache.get("linkedin", ["111"])["111"]["applicants"] == 200
+    assert isolated_cache.get(POSTINGS, "linkedin", ["111"])["111"]["applicants"] == 200
 
 
 def test_broken_cache_still_fetches_and_warns_once(unlimited, tmp_path, monkeypatch, caplog):
     (tmp_path / "blocker").write_text("")
-    monkeypatch.setattr(client, "CACHE", PostingCache(tmp_path / "blocker" / "x.sqlite3"))
+    monkeypatch.setattr(client, "CACHE", Cache(tmp_path / "blocker" / "jobrake.sqlite3"))
     fetcher = StubFetcher({"economist-at-acme-111": ok(job_page())})
     with caplog.at_level(logging.WARNING, logger="jobrake.cache"):
         postings = asyncio.run(linkedin.fetch_postings(fetcher, [CANONICAL]))

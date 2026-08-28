@@ -17,6 +17,7 @@ from jobrake.sites.linkedin import client
         ("indeed", {}, "country"),
         ("linkedin", {}, "location"),
         ("linkedin", {"location": "   "}, "location"),
+        ("linkedin", {"geoid": ""}, "geoid"),
         ("linkedin", {"location": "Seattle", "results": 0}, "results"),
         ("linkedin", {"location": "Seattle", "radius": -1}, "radius"),
         ("linkedin", {"location": "Seattle", "max_age_hours": 0}, "max_age_hours"),
@@ -38,7 +39,7 @@ def test_scrape_accepts_an_explicit_zero_radius(monkeypatch):
     assert len(fetcher.requests) == 1
 
 
-def test_scrape_passes_shared_defaults(monkeypatch):
+def test_scrape_passes_shared_defaults_with_an_explicit_geoid(monkeypatch):
     options = {}
 
     async def capture(fetcher, **kwargs):
@@ -46,13 +47,15 @@ def test_scrape_passes_shared_defaults(monkeypatch):
         return []
 
     monkeypatch.setattr(sites, "site_searchers", lambda: {"linkedin": capture})
-    asyncio.run(scrape("linkedin", query="x", location="Seattle", fetcher=StubFetcher({})))
+    asyncio.run(scrape("linkedin", query="x", geoid="12345", fetcher=StubFetcher({})))
 
     assert options["radius"] is defaults.LINKEDIN_RADIUS
     assert options["results"] == defaults.RESULTS
     assert options["max_age_hours"] == defaults.MAX_AGE_HOURS
     assert options["details"] is defaults.DETAILS
     assert options["cache"] is defaults.CACHE
+    assert options["location"] is None
+    assert options["geoid"] == "12345"
 
 
 def test_scrape_does_not_close_injected_fetcher():

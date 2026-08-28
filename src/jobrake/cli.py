@@ -2,6 +2,7 @@
 
 import argparse
 import asyncio
+import json
 import logging
 import os
 import sys
@@ -13,8 +14,9 @@ from typing import Never
 from jobrake import __version__, scrape
 
 from . import defaults
+from .fetchkit import HttpxFetcher
 from .io import RENDERERS
-from .sites import site_searchers
+from .sites import indeed, linkedin, site_searchers
 
 logger = logging.getLogger(__name__)
 
@@ -81,9 +83,16 @@ def _add_linkedin_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--location",
         "-l",
-        required=True,
-        default=argparse.SUPPRESS,
-        help="location, e.g., United States, or New York",
+        help="location, preferably with region and country. Optional with --geoid ID",
+    )
+    parser.add_argument(
+        "--geoid",
+        "-g",
+        nargs="?",
+        const=True,
+        default=defaults.GEOID,
+        metavar="ID",
+        help="search by geoId: resolve --location through LinkedIn's place lookup, or send ID as given",
     )
     parser.add_argument(
         "--details",
@@ -122,8 +131,8 @@ def _add_indeed_args(parser: argparse.ArgumentParser) -> None:
         help=f"search radius in kilometers (default: {defaults.INDEED_RADIUS})",
     )
     # Indeed search results already contain descriptions, and postings are not
-    # fetched individually, so details and cache do not apply.
-    parser.set_defaults(details=defaults.DETAILS, cache=defaults.CACHE)
+    # fetched individually, so details, cache, and geoid do not apply.
+    parser.set_defaults(details=defaults.DETAILS, cache=defaults.CACHE, geoid=defaults.GEOID)
 
 
 _SITE_ARGS = {"linkedin": _add_linkedin_args, "indeed": _add_indeed_args}
@@ -177,18 +186,101 @@ def _build_parser() -> _ArgumentParser:
         # Mutate this subparser by adding arguments and defaults.
         _add_common_args(subparser)
         _SITE_ARGS[name](subparser)
+    lookup = subparsers.add_parser(
+        "places",
+        allow_abbrev=False,
+        description="Show how a provider resolves a place name",
+    )
+    sites = lookup.add_subparsers(dest="site", required=True)
+    li = sites.add_parser(
+        "linkedin",
+        allow_abbrev=False,
+        description="Print LinkedIn's candidate places for the name, best match first, as JSON",
+    )
+    ind = sites.add_parser(
+        "indeed",
+        allow_abbrev=False,
+        description=(
+            "Print an Indeed edition's location suggestions for the name, best match first, as JSON"
+        ),
+    )
+    for sub in (li, ind):
+        sub.add_argument("name", help="place name, e.g. 'amsterdam'")
+    ind.add_argument(
+        "--country",
+        "-c",
+        required=True,
+        default=argparse.SUPPRESS,
+        help="Indeed country edition, e.g., usa, uk, or netherlands",
+    )
     return parser
+
+
+def _write_stdout(text: str) -> int | None:
+    """
+    Write a command's data output to stdout.
+
+    Returns:
+        ``1`` when the downstream reader has closed the pipe. ``None`` otherwise.
+    """
+    try:
+        sys.stdout.write(text)
+        # Flush now: when the output fits the pipe buffer, a closed pipe
+        # would otherwise surface at interpreter exit, past this handler.
+        sys.stdout.flush()
+    except BrokenPipeError:
+        # The downstream reader (e.g. `jobrake ... | head`) stopped early.
+        # Keep this handler local. SIGPIPE, signal(SIGPIPE, SIG_DFL),
+        # works only on Unix and changes signal handling for the whole process.
+        # Point stdout at /dev/null so the exit-time flush stays quiet.
+        with open(os.devnull, "w") as devnull:
+            os.dup2(devnull.fileno(), sys.stdout.fileno())
+        return 1
+    return None
+
+
+async def _lookup_places(args: argparse.Namespace) -> list[dict] | None:
+    """Run the selected provider's place lookup with a fetcher of its own."""
+    fetcher = HttpxFetcher()
+    try:
+        match args.site:
+            case "linkedin":
+                return await linkedin.places(fetcher, args.name)
+            case "indeed":
+                return await indeed.places(fetcher, args.name, args.country)
+            case _:
+                raise ValueError(f"unknown provider {args.site}")
+    finally:
+        await fetcher.close()
 
 
 def main() -> int | None:
     """
-    Scrape from command-line arguments and write the selected format.
+    Run the parsed command: a provider scrape in the selected format, or a places lookup.
 
     Returns:
-        ``1`` when stdout closes early or the output file cannot be written. Normal completion returns ``None``.
+        ``1`` when stdout closes early, the output file cannot be written, or a places lookup fails. Normal completion returns ``None``.
     """
     parser = _build_parser()
     args = parser.parse_args()
+    # Progress and warnings go to stderr, stdout stays pure data for piping.
+    # The WARNING root level mutes dependencies such as httpx, which logs every
+    # request at INFO. Only jobrake logs progress at INFO.
+    handler = _StatusHandler()
+    logging.basicConfig(level=logging.WARNING, handlers=[handler])
+    logging.getLogger("jobrake").setLevel(logging.INFO)
+    if args.provider == "places":
+        try:
+            hits = asyncio.run(_lookup_places(args))
+        except ValueError as e:
+            parser.error(str(e))
+        if hits is None:
+            return 1
+        if not hits:
+            logger.warning("no places match %r", args.name)
+        return _write_stdout(json.dumps(hits, indent=2, ensure_ascii=False) + "\n")
+    if args.provider == "linkedin" and args.location is None and not isinstance(args.geoid, str):
+        parser.error("--location/-l is required unless --geoid receives an ID")
     # Settle the output path and format before the scrape spends any requests.
     if args.output is not None:
         if args.output.is_dir():
@@ -206,12 +298,6 @@ def main() -> int | None:
             f"unsupported output extension {args.output.suffix!r}. "
             f"Use {' or '.join('.' + name for name in RENDERERS)} or pass --format"
         )
-    # Progress and warnings go to stderr, stdout stays pure data for piping.
-    # The WARNING root level mutes dependencies such as httpx, which logs every
-    # request at INFO. Only jobrake logs progress at INFO.
-    handler = _StatusHandler()
-    logging.basicConfig(level=logging.WARNING, handlers=[handler])
-    logging.getLogger("jobrake").setLevel(logging.INFO)
     try:
         jobs = asyncio.run(
             scrape(
@@ -224,6 +310,7 @@ def main() -> int | None:
                 max_age_hours=args.max_age_hours,
                 details=args.details,
                 cache=args.cache,
+                geoid=args.geoid,
             )
         )
     except ValueError as e:
@@ -236,20 +323,7 @@ def main() -> int | None:
         return None
     rendered = RENDERERS[fmt](jobs)
     if args.output is None:
-        try:
-            sys.stdout.write(rendered)
-            # Flush now: when the output fits the pipe buffer, a closed pipe
-            # would otherwise surface at interpreter exit, past this handler.
-            sys.stdout.flush()
-        except BrokenPipeError:
-            # The downstream reader (e.g. `jobrake ... | head`) stopped early.
-            # Keep this handler local. SIGPIPE, signal(SIGPIPE, SIG_DFL),
-            # works only on Unix and changes signal handling for the whole process.
-            # Point stdout at /dev/null so the exit-time flush stays quiet.
-            with open(os.devnull, "w") as devnull:
-                os.dup2(devnull.fileno(), sys.stdout.fileno())
-            return 1
-        return None
+        return _write_stdout(rendered)
 
     try:
         args.output.write_text(rendered, encoding="utf-8")
