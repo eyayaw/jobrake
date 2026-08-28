@@ -1,10 +1,10 @@
-"""Search defaults shared by CLI and library entry points."""
+"""Search defaults shared by library and CLI entry points."""
 
-HOURS_OLD: int = 168
-RESULTS_WANTED: int = 10
-DETAIL: bool = False
+MAX_AGE_HOURS: int = 168
+RESULTS: int = 10
+DETAILS: bool = False
 CACHE: bool = True
 
 INDEED_RADIUS: int = 40
 INDEED_RADIUS_UNIT: str = "KILOMETERS"
-LINKEDIN_DISTANCE: None = None
+LINKEDIN_RADIUS: None = None

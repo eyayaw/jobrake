@@ -60,8 +60,22 @@ def test_provider_commands_dispatch_expected_options(monkeypatch):
 
     monkeypatch.setattr(cli, "scrape", record)
     for argv in (
-        ["indeed", "-q", "x", "-c", "usa", "-l", "Seattle", "-r", "0"],
-        ["linkedin", "-q", "x", "-l", "Seattle", "-d", "--no-cache"],
+        [
+            "indeed",
+            "--query",
+            "x",
+            "--country",
+            "usa",
+            "--location",
+            "Seattle",
+            "--radius",
+            "0",
+            "--results",
+            "3",
+            "--max-age",
+            "48",
+        ],
+        ["linkedin", "-q", "x", "-l", "Seattle", "--details", "--no-cache"],
     ):
         monkeypatch.setattr(sys, "argv", ["jobrake", *argv])
         cli.main()
@@ -70,38 +84,42 @@ def test_provider_commands_dispatch_expected_options(monkeypatch):
         (
             "indeed",
             {
-                "search_term": "x",
+                "query": "x",
                 "location": "Seattle",
                 "country": "usa",
-                "distance": 0,
-                "results_wanted": defaults.RESULTS_WANTED,
-                "hours_old": defaults.HOURS_OLD,
-                "detail": defaults.DETAIL,
+                "radius": 0,
+                "results": 3,
+                "max_age_hours": 48,
+                "details": defaults.DETAILS,
                 "cache": defaults.CACHE,
             },
         ),
         (
             "linkedin",
             {
-                "search_term": "x",
+                "query": "x",
                 "location": "Seattle",
                 "country": None,
-                "distance": defaults.LINKEDIN_DISTANCE,
-                "results_wanted": defaults.RESULTS_WANTED,
-                "hours_old": defaults.HOURS_OLD,
-                "detail": True,
+                "radius": defaults.LINKEDIN_RADIUS,
+                "results": defaults.RESULTS,
+                "max_age_hours": defaults.MAX_AGE_HOURS,
+                "details": True,
                 "cache": False,
             },
         ),
     ]
 
 
-def test_provider_commands_require_geography(monkeypatch):
+def test_invalid_provider_arguments_fail_before_scraping(monkeypatch):
     async def must_not_run(*args, **kwargs):
         raise AssertionError("scrape ran without the required geography")
 
     monkeypatch.setattr(cli, "scrape", must_not_run)
-    for argv in (["indeed", "-q", "x"], ["linkedin", "-q", "x"]):
+    for argv in (
+        ["indeed", "-q", "x"],
+        ["linkedin", "-q", "x"],
+        ["linkedin", "-q", "x", "-l", "Seattle", "--detail"],
+    ):
         monkeypatch.setattr(sys, "argv", ["jobrake", *argv])
         with pytest.raises(SystemExit):
             cli.main()

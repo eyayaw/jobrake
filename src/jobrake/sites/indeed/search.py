@@ -10,9 +10,9 @@ from jobrake import defaults
 from jobrake.fetchkit import PostFetcher
 from jobrake.models import employment_type, make_job
 from jobrake.utils import (
-    check_distance,
-    check_hours_old,
-    check_results_wanted,
+    check_max_age_hours,
+    check_radius,
+    check_results,
     epoch_ms_to_iso,
     html_text,
 )
@@ -78,21 +78,21 @@ EMPLOYMENT_TYPES = ("Full-time", "Part-time", "Contract", "Temporary", "Internsh
 
 
 def build_query(
-    search_term: str,
+    query: str,
     location: str | None,
-    distance: int | None,
-    hours_old: int | None,
+    radius: int | None,
+    max_age_hours: int | None,
     cursor: str | None,
 ) -> str:
     """Build an Indeed query with a cursor-bound page size of 100."""
     filters = ""
-    if hours_old:
-        filters = f'filters: {{ date: {{ field: "dateOnIndeed", start: "{hours_old}h" }} }}'
+    if max_age_hours:
+        filters = f'filters: {{ date: {{ field: "dateOnIndeed", start: "{max_age_hours}h" }} }}'
     return QUERY.format(
-        what=f"what: {json.dumps(search_term)}" if search_term else "",
+        what=f"what: {json.dumps(query)}" if query else "",
         location=(
             f"location: {{ where: {json.dumps(location)}, "
-            f"radius: {defaults.INDEED_RADIUS if distance is None else distance}, "
+            f"radius: {defaults.INDEED_RADIUS if radius is None else radius}, "
             f"radiusUnit: {defaults.INDEED_RADIUS_UNIT} }}"
             if location
             else ""
@@ -257,25 +257,25 @@ def parse_jobs(data: dict, base_url: str) -> tuple[list[dict], str | None, int]:
 async def search(
     fetcher: PostFetcher,
     *,
-    search_term: str,
+    query: str,
     location: str | None = None,
     country: str,
-    distance: int | None = defaults.INDEED_RADIUS,
-    results_wanted: int = defaults.RESULTS_WANTED,
-    hours_old: int | None = defaults.HOURS_OLD,
-    detail: bool = defaults.DETAIL,
+    radius: int | None = defaults.INDEED_RADIUS,
+    results: int = defaults.RESULTS,
+    max_age_hours: int | None = defaults.MAX_AGE_HOURS,
+    details: bool = defaults.DETAILS,
     cache: bool = defaults.CACHE,
 ) -> list[dict]:
     """
     Search one Indeed country edition through its GraphQL API.
 
-    ``country`` selects the edition. Distance is measured in kilometers.
-    ``None`` uses the standard radius. ``detail`` and ``cache`` are accepted
+    ``country`` selects the edition. Radius is measured in kilometers.
+    ``None`` uses the standard radius. ``details`` and ``cache`` are accepted
     for the common provider call but do not change Indeed searches. The caller
     retains ownership of ``fetcher``.
 
     Each request asks for 100 jobs in relevance order. The returned list keeps
-    that order and trims the final page to ``results_wanted``. Requests are
+    that order and trims the final page to ``results``. Requests are
     neither paced nor retried. A transport failure, provider error without
     usable data, or unreadable response ends the search with a warning and the
     jobs already collected. A malformed result costs only that result. An
@@ -284,21 +284,21 @@ async def search(
     Raises:
         ValueError: The country is unknown or a numeric search argument is outside its valid range.
     """
-    check_results_wanted(results_wanted)
-    check_distance(distance)
-    check_hours_old(hours_old)
+    check_results(results)
+    check_radius(radius)
+    check_max_age_hours(max_age_hours)
     subdomain, api_code = indeed_domain(country)
     base_url = f"https://{subdomain}.indeed.com"
     headers = {**API_HEADERS, "indeed-co": api_code}
-    logger.info("searching indeed for %r in %r", search_term, location or country)
+    logger.info("searching indeed for %r in %r", query, location or country)
 
     jobs: list[dict] = []
     seen: set[str] = set()
     cursors: set[str] = set()
     cursor: str | None = None
-    while len(jobs) < results_wanted:
-        query = build_query(search_term, location, distance, hours_old, cursor)
-        result = await fetcher.post(API_URL, {"query": query}, headers=headers)
+    while len(jobs) < results:
+        graphql = build_query(query, location, radius, max_age_hours, cursor)
+        result = await fetcher.post(API_URL, {"query": graphql}, headers=headers)
         if result.error:
             logger.warning(
                 "indeed search stopped by %s; keeping the %s already collected",
@@ -340,7 +340,7 @@ async def search(
         if not cursor or cursor in cursors:
             break
         cursors.add(cursor)
-    jobs = jobs[:results_wanted]
+    jobs = jobs[:results]
     logger.info(
         "indeed search finished with %s", ngettext("%d job", "%d jobs", len(jobs)) % len(jobs)
     )

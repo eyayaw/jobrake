@@ -11,11 +11,11 @@ async def main():
         try:
             jobs = await scrape(
                 site,
-                search_term="economist",
+                query="economist",
                 location="United States",
                 country="usa",
-                results_wanted=10,
-                hours_old=168,
+                results=10,
+                max_age_hours=168,
             )
             print(f"{site}: {len(jobs)} jobs")
             for job in jobs[:3]:

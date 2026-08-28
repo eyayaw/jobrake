@@ -9,7 +9,7 @@ from bs4 import BeautifulSoup
 from jobrake import defaults
 from jobrake.fetchkit import Fetcher
 from jobrake.models import make_job
-from jobrake.utils import check_distance, check_hours_old, check_results_wanted
+from jobrake.utils import check_max_age_hours, check_radius, check_results
 
 from .client import SEARCH_URL, job_id, paced_fetch
 from .postings import fetch_postings
@@ -66,29 +66,29 @@ def _parse_page(html: str) -> tuple[list[dict], int]:
 async def search(
     fetcher: Fetcher,
     *,
-    search_term: str,
+    query: str,
     location: str,
     country: str | None = None,
-    distance: int | None = defaults.LINKEDIN_DISTANCE,
-    results_wanted: int = defaults.RESULTS_WANTED,
-    hours_old: int | None = defaults.HOURS_OLD,
-    detail: bool = defaults.DETAIL,
+    radius: int | None = defaults.LINKEDIN_RADIUS,
+    results: int = defaults.RESULTS,
+    max_age_hours: int | None = defaults.MAX_AGE_HOURS,
+    details: bool = defaults.DETAILS,
     cache: bool = defaults.CACHE,
 ) -> list[dict]:
     """
     Search LinkedIn's login-free guest endpoint.
 
     ``location`` must be nonblank and works best with a region and country.
-    Distance is sent unchanged, and ``None`` omits it. When ``hours_old`` is
+    Radius is sent unchanged, and ``None`` omits it. When ``max_age_hours`` is
     ``None``, LinkedIn omits the ``f_TPR`` filter. ``country`` is accepted for
-    the common provider call and ignored. ``detail`` hydrates posting pages,
+    the common provider call and ignored. ``details`` hydrates posting pages,
     with ``cache`` controlling their reuse. The caller owns ``fetcher``.
 
     Search requests share the process-wide limiter. A persistent 429 ends the
     search with the jobs already collected. The guest endpoint serves about
     ten cards per page and stops at offset ``MAX_START``, limiting one search
     to roughly 1,000 cards. Results retain guest-search order and stop at
-    ``results_wanted``.
+    ``results``.
 
     Raises:
         ValueError: Location is blank or a numeric search argument is outside its valid range.
@@ -97,23 +97,23 @@ async def search(
         raise ValueError(
             f"location {location!r} is blank. Try 'Amsterdam, North Holland, Netherlands'"
         )
-    check_results_wanted(results_wanted)
-    check_distance(distance)
-    check_hours_old(hours_old)
-    logger.info("searching linkedin for %r in %r", search_term, location)
+    check_results(results)
+    check_radius(radius)
+    check_max_age_hours(max_age_hours)
+    logger.info("searching linkedin for %r in %r", query, location)
     jobs: list[dict] = []
     seen: set[str] = set()
     start = 0
-    while len(jobs) < results_wanted and start < MAX_START:
+    while len(jobs) < results and start < MAX_START:
         params = {
-            "keywords": search_term,
+            "keywords": query,
             "location": location,
-            "distance": distance,
+            "distance": radius,
             "start": start,
-            "f_TPR": f"r{hours_old * 3600}" if hours_old else None,
+            "f_TPR": f"r{max_age_hours * 3600}" if max_age_hours else None,
         }
-        query = urlencode({k: v for k, v in params.items() if v is not None})
-        result = await paced_fetch(fetcher, f"{SEARCH_URL}?{query}")
+        query_string = urlencode({k: v for k, v in params.items() if v is not None})
+        result = await paced_fetch(fetcher, f"{SEARCH_URL}?{query_string}")
         if result.error:
             logger.warning(
                 "linkedin search stopped by %s; keeping the %s already collected",
@@ -143,20 +143,20 @@ async def search(
         # without cards marks the end. Advance by the server's own card count.
         start += raw
 
-    if len(jobs) < results_wanted and start >= MAX_START:
+    if len(jobs) < results and start >= MAX_START:
         logger.warning(
             "linkedin's guest search serves nothing past offset %d; returning "
             "%d of the %d jobs requested. Narrow the search to reach more of "
             "its inventory",
             MAX_START,
             len(jobs),
-            results_wanted,
+            results,
         )
-    jobs = jobs[:results_wanted]
+    jobs = jobs[:results]
     logger.info(
         "linkedin search finished with %s", ngettext("%d job", "%d jobs", len(jobs)) % len(jobs)
     )
-    if detail:
+    if details:
         postings = await fetch_postings(fetcher, (job["url"] for job in jobs), cache=cache)
         # Keep summary fields when a posting disappears or fails during hydration.
         jobs = [make_job(**{**job, **(postings.get(job["url"]) or {})}) for job in jobs]

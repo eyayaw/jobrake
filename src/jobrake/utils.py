@@ -31,22 +31,22 @@ def html_text(html: str) -> str:
     return "\n".join(line for line in lines if line)
 
 
-def check_hours_old(hours_old: int | None) -> None:
+def check_max_age_hours(max_age_hours: int | None) -> None:
     """Require a positive posting-age bound when one is supplied."""
-    if hours_old is not None and hours_old <= 0:
-        raise ValueError(f"hours_old ({hours_old}) must be positive, or None for no age bound")
+    if max_age_hours is not None and max_age_hours <= 0:
+        raise ValueError(f"max_age_hours ({max_age_hours}) must be positive")
 
 
-def check_results_wanted(results_wanted: int) -> None:
+def check_results(results: int) -> None:
     """Require at least one requested result."""
-    if results_wanted <= 0:
-        raise ValueError(f"results_wanted ({results_wanted}) must be positive")
+    if results <= 0:
+        raise ValueError(f"results ({results}) must be positive")
 
 
-def check_distance(distance: int | None) -> None:
+def check_radius(radius: int | None) -> None:
     """Accept an omitted or nonnegative search radius."""
-    if distance is not None and distance < 0:
-        raise ValueError(f"distance ({distance}) must be zero or more")
+    if radius is not None and radius < 0:
+        raise ValueError(f"radius ({radius}) must be zero or more")
 
 
 def iso_date(value: str | None) -> str | None:

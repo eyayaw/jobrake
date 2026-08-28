@@ -43,11 +43,11 @@ jobrake is a minimal Python package and CLI tool for scraping job postings from 
 
 ```sh
 jobrake linkedin \
-  --search-term "data scientist" \
+  --query "data scientist" \
   --location "amsterdam, netherlands" \
-  --hours-old 48 \
-  --results-wanted 5 \
-  --detail
+  --max-age 48 \
+  --results 5 \
+  --details
 ```
 
 </td>
@@ -98,9 +98,9 @@ from jobrake import scrape
 async def main():
     return await scrape(
         "indeed",
-        search_term="economist",
+        query="economist",
         country="United States",
-        results_wanted=2,
+        results=2,
     )
 
 

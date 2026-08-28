@@ -17,9 +17,9 @@ from jobrake.sites.linkedin import client
         ("indeed", {}, "country"),
         ("linkedin", {}, "location"),
         ("linkedin", {"location": "   "}, "location"),
-        ("linkedin", {"location": "Seattle", "results_wanted": 0}, "results_wanted"),
-        ("linkedin", {"location": "Seattle", "distance": -1}, "distance"),
-        ("linkedin", {"location": "Seattle", "hours_old": 0}, "hours_old"),
+        ("linkedin", {"location": "Seattle", "results": 0}, "results"),
+        ("linkedin", {"location": "Seattle", "radius": -1}, "radius"),
+        ("linkedin", {"location": "Seattle", "max_age_hours": 0}, "max_age_hours"),
     ],
 )
 def test_scrape_rejects_bad_arguments_before_opening_a_fetcher(site, kwargs, match, monkeypatch):
@@ -28,15 +28,13 @@ def test_scrape_rejects_bad_arguments_before_opening_a_fetcher(site, kwargs, mat
 
     monkeypatch.setattr(sites, "HttpxFetcher", must_not_open)
     with pytest.raises(ValueError, match=match):
-        asyncio.run(scrape(site, search_term="x", **kwargs))
+        asyncio.run(scrape(site, query="x", **kwargs))
 
 
-def test_scrape_accepts_an_explicit_zero_distance(monkeypatch):
+def test_scrape_accepts_an_explicit_zero_radius(monkeypatch):
     monkeypatch.setattr(client, "LIMITER", TokenBucket(capacity=10**9, refill_interval=1.0))
     fetcher = StubFetcher({"seeMoreJobPostings": ok("")})
-    asyncio.run(
-        scrape("linkedin", search_term="x", location="Seattle", distance=0, fetcher=fetcher)
-    )
+    asyncio.run(scrape("linkedin", query="x", location="Seattle", radius=0, fetcher=fetcher))
     assert len(fetcher.requests) == 1
 
 
@@ -48,12 +46,12 @@ def test_scrape_passes_shared_defaults(monkeypatch):
         return []
 
     monkeypatch.setattr(sites, "site_searchers", lambda: {"linkedin": capture})
-    asyncio.run(scrape("linkedin", search_term="x", location="Seattle", fetcher=StubFetcher({})))
+    asyncio.run(scrape("linkedin", query="x", location="Seattle", fetcher=StubFetcher({})))
 
-    assert options["distance"] is defaults.LINKEDIN_DISTANCE
-    assert options["results_wanted"] == defaults.RESULTS_WANTED
-    assert options["hours_old"] == defaults.HOURS_OLD
-    assert options["detail"] is defaults.DETAIL
+    assert options["radius"] is defaults.LINKEDIN_RADIUS
+    assert options["results"] == defaults.RESULTS
+    assert options["max_age_hours"] == defaults.MAX_AGE_HOURS
+    assert options["details"] is defaults.DETAILS
     assert options["cache"] is defaults.CACHE
 
 
@@ -68,7 +66,7 @@ def test_scrape_does_not_close_injected_fetcher():
             closed.append(True)
 
     fetcher = Recording({"seeMoreJobPostings": ok("")})
-    asyncio.run(scrape("linkedin", search_term="x", location="Seattle", fetcher=fetcher))
+    asyncio.run(scrape("linkedin", query="x", location="Seattle", fetcher=fetcher))
     assert closed == []
 
 
@@ -82,7 +80,7 @@ def test_scrape_closes_its_default_fetcher(monkeypatch):
     fetcher = Recording({"seeMoreJobPostings": ok("")})
     monkeypatch.setattr(sites, "HttpxFetcher", lambda: fetcher)
 
-    asyncio.run(scrape("linkedin", search_term="x", location="Seattle"))
+    asyncio.run(scrape("linkedin", query="x", location="Seattle"))
 
     assert closed == [True]
 
@@ -100,5 +98,5 @@ def test_scrape_closes_its_default_fetcher_after_a_search_failure(monkeypatch):
     monkeypatch.setattr(sites, "HttpxFetcher", lambda: Dying({}))
     monkeypatch.setattr(client, "LIMITER", TokenBucket(capacity=10**9, refill_interval=1.0))
     with pytest.raises(RuntimeError):
-        asyncio.run(scrape("linkedin", search_term="x", location="Seattle"))
+        asyncio.run(scrape("linkedin", query="x", location="Seattle"))
     assert closed == [True]

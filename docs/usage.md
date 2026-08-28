@@ -62,7 +62,7 @@ Their absence can mean that the provider omitted the value, does not publish it,
 Shared details use the same field names. However, there are provider-specific fields.
 `apply_type`, `applicants`, `experience_months`, and `education` are present only in LinkedIn,
 and `is_remote` and `apply_url` on Indeed. Indeed includes detail fields in search results.
-LinkedIn fetches details when `--detail | -d` or `detail=True` are enabled and requests each posting page.
+Use `--details | -d` or `details=True` to fetch each LinkedIn posting page and add its detail fields.
 
 ## Library use
 
@@ -78,9 +78,9 @@ from jobrake import scrape
 async def main():
     jobs = await scrape(
         "indeed",
-        search_term="economist",
+        query="economist",
         country="United States",
-        results_wanted=2,
+        results=2,
     )
     for job in jobs:
         print(job["title"], job["url"])
@@ -105,14 +105,14 @@ async def main():
     async with HttpxFetcher(timeout=30) as fetcher:
         nl = await scrape(
             site,
-            search_term=query,
+            query=query,
             location="Amsterdam",
             country="Netherlands",
             fetcher=fetcher,
         )
         us = await scrape(
             site,
-            search_term=query,
+            query=query,
             location="New York",
             country="USA",
             fetcher=fetcher,

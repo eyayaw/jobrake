@@ -53,9 +53,7 @@ def test_linkedin_parses_cards_and_dedups_by_posting_id(unlimited):
         + linkedin_card("search")
     )
     fetcher = StubFetcher({"seeMoreJobPostings": ok(html)})
-    jobs = asyncio.run(
-        linkedin.search(fetcher, search_term="economist", location="Seattle", results_wanted=3)
-    )
+    jobs = asyncio.run(linkedin.search(fetcher, query="economist", location="Seattle", results=3))
     assert [j["url"] for j in jobs] == [
         "https://www.linkedin.com/jobs/view/role-111",
         "https://www.linkedin.com/jobs/view/222",
@@ -89,9 +87,7 @@ def test_pagination_advances_by_raw_page_size(unlimited):
             linkedin_card("444"),
         ]
     )
-    jobs = asyncio.run(
-        linkedin.search(fetcher, search_term="x", location="Seattle", results_wanted=4)
-    )
+    jobs = asyncio.run(linkedin.search(fetcher, query="x", location="Seattle", results=4))
 
     assert [job["id"] for job in jobs] == ["111", "222", "333", "444"]
     assert "start=4" in fetcher.requests[2]
@@ -106,9 +102,7 @@ def test_pagination_survives_a_duplicate_only_page(unlimited):
             "",
         ]
     )
-    jobs = asyncio.run(
-        linkedin.search(fetcher, search_term="x", location="Seattle", results_wanted=10)
-    )
+    jobs = asyncio.run(linkedin.search(fetcher, query="x", location="Seattle", results=10))
 
     assert [job["id"] for job in jobs] == ["111", "222", "333"]
     assert "start=4" in fetcher.requests[2]  # overlapped offsets still advance
@@ -117,9 +111,7 @@ def test_pagination_survives_a_duplicate_only_page(unlimited):
 def test_pagination_counts_unparsable_cards_toward_the_offset(unlimited):
     unparsable = '<div class="base-search-card"><span>no link</span></div>'
     fetcher = PagedFetcher([linkedin_card("111") + unparsable, ""])
-    jobs = asyncio.run(
-        linkedin.search(fetcher, search_term="x", location="Seattle", results_wanted=10)
-    )
+    jobs = asyncio.run(linkedin.search(fetcher, query="x", location="Seattle", results=10))
 
     assert [job["id"] for job in jobs] == ["111"]
     assert "start=2" in fetcher.requests[1]
@@ -129,7 +121,7 @@ def test_linkedin_persistent_429_returns_partial(unlimited, caplog, monkeypatch)
     monkeypatch.setattr(client, "RETRY_DELAY", 0)
     fetcher = StubFetcher({"seeMoreJobPostings": rate_limited()})
     with caplog.at_level(logging.WARNING, logger="jobrake.sites.linkedin"):
-        assert asyncio.run(linkedin.search(fetcher, search_term="x", location="Seattle")) == []
+        assert asyncio.run(linkedin.search(fetcher, query="x", location="Seattle")) == []
     assert len(fetcher.requests) == 2  # the one retry, then give up
     assert any("429" in record.message for record in caplog.records)
 
@@ -190,16 +182,14 @@ def test_linkedin_keeps_collected_jobs_after_a_later_page_failure(unlimited):
     fetcher = DownAfterFirst(
         {"seeMoreJobPostings": ok(linkedin_card("111") + linkedin_card("222"))}
     )
-    jobs = asyncio.run(
-        linkedin.search(fetcher, search_term="x", location="Seattle", results_wanted=5)
-    )
+    jobs = asyncio.run(linkedin.search(fetcher, query="x", location="Seattle", results=5))
     assert [j["id"] for j in jobs] == ["111", "222"]  # the first page survives
 
 
 def test_warns_on_empty_first_page(unlimited, caplog):
     fetcher = StubFetcher({"seeMoreJobPostings": ok("<!DOCTYPE html>\n<!---->")})
     with caplog.at_level(logging.WARNING, logger="jobrake.sites.linkedin"):
-        jobs = asyncio.run(linkedin.search(fetcher, search_term="x", location="Amsterdam"))
+        jobs = asyncio.run(linkedin.search(fetcher, query="x", location="Amsterdam"))
     assert jobs == []
     assert any("location" in record.message for record in caplog.records)
 
@@ -210,9 +200,7 @@ def test_warns_when_the_offset_cap_cuts_a_search_short(unlimited, caplog, monkey
     monkeypatch.setattr(search_module, "MAX_START", 2)
     fetcher = PagedFetcher([linkedin_card("111"), linkedin_card("222")])
     with caplog.at_level(logging.WARNING, logger="jobrake.sites.linkedin"):
-        jobs = asyncio.run(
-            linkedin.search(fetcher, search_term="x", location="Seattle", results_wanted=5)
-        )
+        jobs = asyncio.run(linkedin.search(fetcher, query="x", location="Seattle", results=5))
     assert [j["id"] for j in jobs] == ["111", "222"]
     assert any("offset" in record.message for record in caplog.records)
 
@@ -220,9 +208,7 @@ def test_warns_when_the_offset_cap_cuts_a_search_short(unlimited, caplog, monkey
 def test_no_warning_when_pagination_simply_ends(unlimited, caplog):
     fetcher = PagedFetcher([linkedin_card("111"), ""])
     with caplog.at_level(logging.WARNING, logger="jobrake.sites.linkedin"):
-        jobs = asyncio.run(
-            linkedin.search(fetcher, search_term="x", location="Seattle", results_wanted=5)
-        )
+        jobs = asyncio.run(linkedin.search(fetcher, query="x", location="Seattle", results=5))
     assert [j["id"] for j in jobs] == ["111"]  # a card-less page: normal end
     assert caplog.records == []
 
@@ -230,16 +216,16 @@ def test_no_warning_when_pagination_simply_ends(unlimited, caplog):
 @pytest.mark.parametrize(
     ("kwargs", "match"),
     [
-        ({"location": "Seattle", "hours_old": -1}, "hours_old"),
-        ({"location": "Seattle", "results_wanted": -5}, "results_wanted"),
-        ({"location": "Seattle", "distance": -1}, "distance"),
+        ({"location": "Seattle", "max_age_hours": -1}, "max_age_hours"),
+        ({"location": "Seattle", "results": -5}, "results"),
+        ({"location": "Seattle", "radius": -1}, "radius"),
         ({"location": "   "}, "location"),
     ],
 )
 def test_linkedin_rejects_bad_arguments_before_any_request(kwargs, match):
     fetcher = StubFetcher({})
     with pytest.raises(ValueError, match=match):
-        asyncio.run(linkedin.search(fetcher, search_term="x", **kwargs))
+        asyncio.run(linkedin.search(fetcher, query="x", **kwargs))
     assert fetcher.requests == []
 
 
@@ -254,18 +240,16 @@ def test_every_request_takes_a_token(monkeypatch):
     fetcher = StubFetcher(
         {"seeMoreJobPostings": ok(linkedin_card("111")), "jobs/view/111": ok(job_page())}
     )
-    asyncio.run(
-        linkedin.search(fetcher, search_term="x", location="Seattle", results_wanted=1, detail=True)
-    )
+    asyncio.run(linkedin.search(fetcher, query="x", location="Seattle", results=1, details=True))
     assert len(acquired) == len(fetcher.requests) == 2
 
 
-def test_search_detail_hydrates_from_the_canonical_page(unlimited):
+def test_search_details_hydrate_from_the_canonical_page(unlimited):
     fetcher = StubFetcher(
         {"seeMoreJobPostings": ok(linkedin_card("111")), "jobs/view/111": ok(job_page())}
     )
     jobs = asyncio.run(
-        linkedin.search(fetcher, search_term="x", location="Seattle", results_wanted=1, detail=True)
+        linkedin.search(fetcher, query="x", location="Seattle", results=1, details=True)
     )
     assert jobs[0]["description"] == "Great & big role"
     assert jobs[0]["employment_type"] == "full_time"
@@ -278,7 +262,7 @@ def test_search_keeps_the_summary_when_the_posting_is_gone(unlimited):
         {"seeMoreJobPostings": ok(linkedin_card("111")), "jobs/view/111": not_found()}
     )
     jobs = asyncio.run(
-        linkedin.search(fetcher, search_term="x", location="Seattle", results_wanted=1, detail=True)
+        linkedin.search(fetcher, query="x", location="Seattle", results=1, details=True)
     )
     assert jobs[0]["title"] == "Economist"
     assert "description" not in jobs[0]
@@ -289,20 +273,20 @@ def test_search_reruns_only_fetch_unseen_postings(unlimited):
     jobs = asyncio.run(
         linkedin.search(
             StubFetcher(responses),
-            search_term="x",
+            query="x",
             location="Seattle",
-            results_wanted=1,
-            detail=True,
+            results=1,
+            details=True,
         )
     )
     rerun_fetcher = StubFetcher(responses)
     rerun = asyncio.run(
         linkedin.search(
             rerun_fetcher,
-            search_term="x",
+            query="x",
             location="Seattle",
-            results_wanted=1,
-            detail=True,
+            results=1,
+            details=True,
         )
     )
     assert jobs[0]["description"] == rerun[0]["description"] == "Great & big role"

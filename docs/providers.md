@@ -5,7 +5,7 @@ Indeed and LinkedIn share one search interface, but they interpret geography and
 | Site | Required geography | Posting details |
 | --- | --- | --- |
 | Indeed | `country` chooses the country edition. `location` narrows the search. | Included in search results |
-| LinkedIn | `location` is required. Library calls ignore `country`. | Fetched with `--detail` or `detail=True` |
+| LinkedIn | `location` is required. Library calls ignore `country`. | Fetched with `--details` or `details=True` |
 
 ## Search filters
 
@@ -13,10 +13,10 @@ Every search entry point defaults to postings from the last seven days.
 Searches return 10 jobs by default.
 Indeed defaults to a 40 km radius. LinkedIn omits its undocumented distance parameter.
 
-`hours_old=None` omits the age filter.
+`max_age_hours=None` omits the age filter.
 Positive values limit results to jobs posted within that many hours.
-For library calls, `distance=None` uses Indeed's standard radius and omits LinkedIn's distance parameter.
-`distance` accepts zero. Numeric `hours_old` values and `results_wanted` must be positive.
+For library calls, `radius=None` uses Indeed's standard radius and omits LinkedIn's distance parameter.
+`radius` accepts zero. `max_age_hours` and `results` must be positive.
 
 ## Indeed
 
@@ -29,7 +29,7 @@ Accepted shortcuts are `usa`, `us`, and `uk`.
 ### Search requests
 
 jobrake asks Indeed for 100 results on every page and keeps the API's relevance order.
-`results_wanted` accepts any positive count.
+`results` accepts any positive count.
 If that count is not a multiple of 100, jobrake returns only the needed jobs from the last page.
 
 jobrake adds no delay between Indeed pages. Each request gets one attempt.
@@ -40,7 +40,7 @@ Invalid fields are omitted from an otherwise valid job.
 ## LinkedIn
 
 LinkedIn's guest search returns summary cards.
-`--detail | -d` or `detail=True` fetches each posting page for its description and other detail fields.
+Use `--details | -d` or `details=True` to fetch each posting page and add its detail fields.
 
 ### Locations
 
@@ -94,9 +94,9 @@ async def main():
     async with HttpxFetcher() as fetcher:
         jobs = await scrape(
             "linkedin",
-            search_term="data scientist",
+            query="data scientist",
             location="Amsterdam, North Holland, Netherlands",
-            results_wanted=10,
+            results=10,
             fetcher=fetcher,
         )
         urls = [job["url"] for job in jobs if "senior" not in (job["title"] or "").lower()]

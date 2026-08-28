@@ -86,43 +86,44 @@ def _add_linkedin_args(parser: argparse.ArgumentParser) -> None:
         help="location, e.g., United States, or New York",
     )
     parser.add_argument(
-        "--detail",
+        "--details",
         "-d",
-        default=defaults.DETAIL,
+        default=defaults.DETAILS,
         action="store_true",
-        help="fetch each posting page for its description and other detail fields",
+        help="fetch posting pages for descriptions and other details",
     )
     parser.add_argument(
         "--no-cache",
-        action="store_true",
-        help="refetch postings instead of serving cached ones from disk",
+        dest="cache",
+        action="store_false",
+        default=defaults.CACHE,
+        help="refetch posting details instead of using the disk cache",
     )
     parser.set_defaults(
         country=None,
-        radius=defaults.LINKEDIN_DISTANCE,
-        no_cache=not defaults.CACHE,
+        radius=defaults.LINKEDIN_RADIUS,
     )
 
 
 def _add_indeed_args(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--location", "-l", help="location, e.g., United States, or New York")
+    parser.add_argument("--location", "-l", help="city or area within the selected country")
     parser.add_argument(
         "--country",
         "-c",
         required=True,
         default=argparse.SUPPRESS,
-        help="country name, e.g., usa, uk, netherlands",
+        help="Indeed country edition, e.g., usa, uk, or netherlands",
     )
     parser.add_argument(
         "--radius",
         "-r",
         default=defaults.INDEED_RADIUS,
         type=int,
-        help="radius around the location specified",
+        help=f"search radius in kilometers (default: {defaults.INDEED_RADIUS})",
     )
     # Indeed search results already contain descriptions, and postings are not
-    # fetched individually, so detail and cache do not apply.
-    parser.set_defaults(detail=defaults.DETAIL, no_cache=not defaults.CACHE)
+    # fetched individually, so details and cache do not apply.
+    parser.set_defaults(details=defaults.DETAILS, cache=defaults.CACHE)
 
 
 _SITE_ARGS = {"linkedin": _add_linkedin_args, "indeed": _add_indeed_args}
@@ -130,17 +131,27 @@ _SITE_ARGS = {"linkedin": _add_linkedin_args, "indeed": _add_indeed_args}
 
 def _add_common_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
-        "--search-term", "-q", required=True, default=argparse.SUPPRESS, help="search query"
+        "--query",
+        "-q",
+        required=True,
+        default=argparse.SUPPRESS,
+        help="job title, keywords, or Boolean query",
     )
     parser.add_argument(
-        "--results-wanted",
+        "--results",
         "-n",
-        default=defaults.RESULTS_WANTED,
+        default=defaults.RESULTS,
         type=int,
-        help="number of unique job postings to fetch",
+        help=f"maximum number of unique jobs to return (default: {defaults.RESULTS})",
     )
     parser.add_argument(
-        "--hours-old", "-a", default=defaults.HOURS_OLD, type=int, help="age of postings in hours"
+        "--max-age",
+        "-a",
+        dest="max_age_hours",
+        default=defaults.MAX_AGE_HOURS,
+        metavar="HOURS",
+        type=int,
+        help=f"maximum posting age in hours (default: {defaults.MAX_AGE_HOURS})",
     )
     parser.add_argument(
         "--output",
@@ -152,17 +163,17 @@ def _add_common_args(parser: argparse.ArgumentParser) -> None:
         "--format",
         "-f",
         choices=list(RENDERERS),
-        help="output format, defaults to the --output extension, or json on stdout",
+        help="output format. Defaults to the --output extension or JSON for stdout",
     )
 
 
 def _build_parser() -> _ArgumentParser:
-    parser = _ArgumentParser(prog="jobrake", description="Search job postings")
+    parser = _ArgumentParser(prog="jobrake", description="Search job postings", allow_abbrev=False)
     # The version action exits before argparse checks the required subcommand.
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     subparsers = parser.add_subparsers(dest="provider", required=True)
     for name in sorted(site_searchers()):
-        subparser = subparsers.add_parser(name, formatter_class=argparse.ArgumentDefaultsHelpFormatter)  # fmt: skip
+        subparser = subparsers.add_parser(name, allow_abbrev=False)
         # Mutate this subparser by adding arguments and defaults.
         _add_common_args(subparser)
         _SITE_ARGS[name](subparser)
@@ -205,14 +216,14 @@ def main() -> int | None:
         jobs = asyncio.run(
             scrape(
                 args.provider,
-                search_term=args.search_term,
+                query=args.query,
                 location=args.location,
                 country=args.country,
-                distance=args.radius,
-                results_wanted=args.results_wanted,
-                hours_old=args.hours_old,
-                detail=args.detail,
-                cache=not args.no_cache,
+                radius=args.radius,
+                results=args.results,
+                max_age_hours=args.max_age_hours,
+                details=args.details,
+                cache=args.cache,
             )
         )
     except ValueError as e:

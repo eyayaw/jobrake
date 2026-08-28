@@ -53,9 +53,7 @@ def test_indeed_parses_and_paginates():
             return ok(json.dumps(pages[len(self.requests) - 1]))
 
     fetcher = Paged({})
-    jobs = asyncio.run(
-        indeed.search(fetcher, search_term="economist", country="usa", results_wanted=10)
-    )
+    jobs = asyncio.run(indeed.search(fetcher, query="economist", country="usa", results=10))
     assert [j["title"] for j in jobs] == ["Job a", "Job b", "Job c"]
     assert jobs[0]["id"] == "a"
     assert jobs[0]["url"] == "https://www.indeed.com/viewjob?jk=a"
@@ -69,7 +67,7 @@ def test_indeed_stops_a_repeated_cursor_without_repeating_jobs():
     page = ok(json.dumps(indeed_payload(["a"], cursor="same")))
     fetcher = StubFetcher({"apis.indeed.com": page})
 
-    jobs = asyncio.run(indeed.search(fetcher, search_term="x", country="usa", results_wanted=10))
+    jobs = asyncio.run(indeed.search(fetcher, query="x", country="usa", results=10))
 
     assert [job["id"] for job in jobs] == ["a"]
     assert len(fetcher.requests) == 2
@@ -80,7 +78,7 @@ def test_indeed_keeps_a_job_whose_date_is_not_milliseconds(caplog):
     payload["data"]["jobSearch"]["results"][0]["job"]["datePublished"] = 1717200000  # seconds
     fetcher = StubFetcher({"apis.indeed.com": ok(json.dumps(payload))})
     with caplog.at_level(logging.WARNING, logger="jobrake.sites.indeed"):
-        jobs = asyncio.run(indeed.search(fetcher, search_term="x", country="usa"))
+        jobs = asyncio.run(indeed.search(fetcher, query="x", country="usa"))
     assert jobs[0]["title"] == "Job a"  # the posting survives
     assert "posted_at" not in jobs[0]  # only its timestamp is lost
     assert jobs[0]["date"] is None
@@ -103,7 +101,7 @@ def test_indeed_requests_full_pages_throughout_a_cursor_chain():
             return ok(json.dumps(pages[len(self.requests) - 1]))
 
     fetcher = Paged()
-    jobs = asyncio.run(indeed.search(fetcher, search_term="x", country="usa", results_wanted=3))
+    jobs = asyncio.run(indeed.search(fetcher, query="x", country="usa", results=3))
     # The second page overlaps the first, the limit stays at 100, and the
     # final slice returns three unique jobs.
     assert [job["id"] for job in jobs] == ["a", "b", "c"]
@@ -125,9 +123,7 @@ def test_indeed_graphql_error_reports_the_provider_message(caplog):
 
     fetcher = Paged({})
     with caplog.at_level(logging.WARNING, logger="jobrake.sites.indeed"):
-        jobs = asyncio.run(
-            indeed.search(fetcher, search_term="x", country="usa", results_wanted=10)
-        )
+        jobs = asyncio.run(indeed.search(fetcher, query="x", country="usa", results=10))
     assert [job["id"] for job in jobs] == ["a"]  # earlier pages survive
     # The warning carries the provider's message and the retained-job count.
     assert any(
@@ -136,31 +132,31 @@ def test_indeed_graphql_error_reports_the_provider_message(caplog):
     )
 
 
-def test_indeed_stops_at_results_wanted():
+def test_indeed_returns_the_requested_number_of_results():
     fetcher = StubFetcher({"apis.indeed.com": ok(json.dumps(indeed_payload(["a", "b", "c"])))})
-    jobs = asyncio.run(indeed.search(fetcher, search_term="x", country="usa", results_wanted=2))
+    jobs = asyncio.run(indeed.search(fetcher, query="x", country="usa", results=2))
     assert len(jobs) == 2
 
 
 @pytest.mark.parametrize(
     ("bad", "match"),
     [
-        ({"hours_old": 0}, "hours_old"),
-        ({"results_wanted": 0}, "results_wanted"),
-        ({"distance": -1}, "distance"),
+        ({"max_age_hours": 0}, "max_age_hours"),
+        ({"results": 0}, "results"),
+        ({"radius": -1}, "radius"),
     ],
 )
 def test_indeed_rejects_bad_arguments_before_any_request(bad, match):
     fetcher = StubFetcher({})
     with pytest.raises(ValueError, match=match):
-        asyncio.run(indeed.search(fetcher, search_term="x", country="usa", **bad))
+        asyncio.run(indeed.search(fetcher, query="x", country="usa", **bad))
     assert fetcher.requests == []
 
 
 def test_indeed_error_result_yields_empty_with_a_warning(caplog):
     fetcher = StubFetcher({"apis.indeed.com": rate_limited()})
     with caplog.at_level(logging.WARNING, logger="jobrake.sites.indeed"):
-        assert asyncio.run(indeed.search(fetcher, search_term="x", country="usa")) == []
+        assert asyncio.run(indeed.search(fetcher, query="x", country="usa")) == []
     assert any("429" in record.message for record in caplog.records)
 
 
@@ -176,7 +172,7 @@ def test_indeed_skips_malformed_results_and_keeps_valid_siblings(caplog):
     ]
     fetcher = StubFetcher({"apis.indeed.com": ok(json.dumps(payload))})
     with caplog.at_level(logging.WARNING, logger="jobrake.sites.indeed"):
-        jobs = asyncio.run(indeed.search(fetcher, search_term="x", country="usa"))
+        jobs = asyncio.run(indeed.search(fetcher, query="x", country="usa"))
     assert [job["id"] for job in jobs] == ["a", "b"]
     assert sum("malformed" in record.message for record in caplog.records) == 5
 
@@ -192,7 +188,7 @@ def test_indeed_all_malformed_page_keeps_paginating():
             return ok(json.dumps(pages[len(self.requests) - 1]))
 
     fetcher = Paged({})
-    jobs = asyncio.run(indeed.search(fetcher, search_term="x", country="usa", results_wanted=10))
+    jobs = asyncio.run(indeed.search(fetcher, query="x", country="usa", results=10))
     assert [job["id"] for job in jobs] == ["b"]  # the cursor survives the bad page
 
 
@@ -206,9 +202,7 @@ def test_indeed_malformed_later_page_keeps_collected_jobs(caplog):
 
     fetcher = Paged({})
     with caplog.at_level(logging.WARNING, logger="jobrake.sites.indeed"):
-        jobs = asyncio.run(
-            indeed.search(fetcher, search_term="x", country="usa", results_wanted=10)
-        )
+        jobs = asyncio.run(indeed.search(fetcher, query="x", country="usa", results=10))
     assert [job["id"] for job in jobs] == ["a"]
     # the warning names the caught error
     assert any("TypeError" in record.message for record in caplog.records)
@@ -235,7 +229,7 @@ def test_indeed_damaged_page_info_ends_the_search_with_the_page_kept(damage):
             return ok(json.dumps(pages[len(self.requests) - 1]))
 
     fetcher = Paged({})
-    jobs = asyncio.run(indeed.search(fetcher, search_term="x", country="usa", results_wanted=10))
+    jobs = asyncio.run(indeed.search(fetcher, query="x", country="usa", results=10))
     assert [job["id"] for job in jobs] == ["a", "b"]  # Both pages survive the bad cursor.
 
 
