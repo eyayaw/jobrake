@@ -114,7 +114,7 @@ jobs = asyncio.run(main())
 | `indeed` | Mobile-app GraphQL API | Included in search results |
 | `linkedin` | Login-free guest API | Optional, paced, and cached |
 
-Indeed requires `country`. LinkedIn requires `location`.
+Indeed requires `country`. LinkedIn accepts either `location` or a geoId.
 See [provider behavior](docs/providers.md) for geography, filters, pagination, rate limits, retries, and LinkedIn detail fetching.
 
 ## Credits

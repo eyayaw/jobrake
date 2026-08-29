@@ -5,16 +5,14 @@ Indeed and LinkedIn share one search interface, but they interpret geography and
 | Site | Required geography | Posting details |
 | --- | --- | --- |
 | Indeed | `country` chooses the country edition. `location` narrows the search. | Included in search results |
-| LinkedIn | `location` is required. Library calls ignore `country`. | Fetched with `--details` or `details=True` |
+| LinkedIn | Pass `location` or a geoId. Library calls ignore `country`. | Fetched with `--details` or `details=True` |
 
 ## Search filters
 
-Every search entry point defaults to postings from the last seven days.
-Searches return 10 jobs by default.
+Every search entry point defaults to postings from the last seven days. Searches return 10 jobs by default.
 Indeed defaults to a 40 km radius. LinkedIn omits its undocumented distance parameter.
 
-`max_age_hours=None` omits the age filter.
-Positive values limit results to jobs posted within that many hours.
+`max_age_hours=None` omits the age filter. Positive values limit results to jobs posted within that many hours.
 For library calls, `radius=None` uses Indeed's standard radius and omits LinkedIn's distance parameter.
 `radius` accepts zero. `max_age_hours` and `results` must be positive.
 
@@ -22,14 +20,17 @@ For library calls, `radius=None` uses Indeed's standard radius and omits LinkedI
 
 ### Locations
 
-Set `country` to a name such as `germany` or `netherlands`.
-Accepted shortcuts are `usa`, `us`, and `uk`.
+Set `country` to a name such as `germany` or `netherlands`. Accepted shortcuts are `usa`, `us`, and `uk`.
 `location` may contain a city or another place within that country.
+
+`jobrake places indeed <name> --country <edition>` prints the edition's location suggestions as JSON, best match first.
+Each `suggestion` can be passed directly to `location`.
+`locationType` helps distinguish cities, states or provinces, postal areas, and landmarks with similar names.
+Library callers use `jobrake.sites.indeed.places`.
 
 ### Search requests
 
-jobrake asks Indeed for 100 results on every page and keeps the API's relevance order.
-`results` accepts any positive count.
+jobrake asks Indeed for 100 results on every page and keeps the API's relevance order. `results` accepts any positive count.
 If that count is not a multiple of 100, jobrake returns only the needed jobs from the last page.
 
 jobrake adds no delay between Indeed pages. Each request gets one attempt.
@@ -44,32 +45,58 @@ Use `--details | -d` or `details=True` to fetch each posting page and add its de
 
 ### Locations
 
-LinkedIn requires a location. Its guest geocoder may return no jobs for an ambiguous place name.
+LinkedIn accepts a location or a geoId. Its guest geocoder may return no jobs for an ambiguous place name.
 Include the region and country whenever possible.
 
 ```text
 Amsterdam, North Holland, Netherlands
 ```
 
+Pass `--geoid | -g` (or `geoid=True`) to resolve `location` through LinkedIn's place lookup.
+jobrake reports the selected place and caches it for later runs.
+If resolution fails, it returns no jobs. Omit the flag to search by location text.
+
+`--geoid 102011674` (or `geoid="102011674"`) sends a known ID directly, with `location` optional.
+
+`jobrake places linkedin <name>` prints LinkedIn's candidates as JSON, best match first, and caches them.
+Cache matching ignores case, commas, surrounding punctuation, and repeated spaces.
+
+```sh
+$ jobrake places linkedin birmingham
+[
+  {
+    "geoId": "100356971",
+    "displayName": "Birmingham, England, United Kingdom"
+  },
+  {
+    "geoId": "102905961",
+    "displayName": "Birmingham, Alabama, United States"
+  },
+  ...
+]
+```
+
+Choose the candidate you want, then search with its display name or geoid:
+
+```sh
+jobrake linkedin -q "data scientist" -l "Birmingham, England, United Kingdom"
+jobrake linkedin -q "data scientist" -g 100356971
+```
+
+Library callers use `jobrake.sites.linkedin.places` and `resolve_geoid`.
+
 ### Search limit
 
-The guest search returns about ten cards per page and no cards at offsets of 1,000 or more.
-jobrake stops before requesting offset 1,000, so one search can return roughly 1,000 postings.
-It warns when this limit prevents it from returning the requested count.
+The guest search returns about 10 cards per page and stops before offset 1,000.
+One search can therefore return roughly 1,000 postings. jobrake warns if the limit prevents the requested count.
 
 ### Request rate and retries
 
-LinkedIn limits traffic by IP. jobrake sends a short initial burst, then waits about three seconds between requests.
+LinkedIn limits traffic per IP. jobrake permits a short burst, then waits about 3 seconds between requests.
+Each process has its own limiter, so concurrent runs on the same IP can reach the limit sooner.
 
-Each process keeps its own token bucket.
-LinkedIn combines traffic from every process on the same IP, so concurrent runs can reach the limit sooner.
-
-After a 429, jobrake waits for the number of seconds in a numeric `Retry-After` header.
-A missing or invalid header gives a ten-second wait.
-It then retries once. A value over one minute skips the retry.
-
-If the 429 remains, search returns the jobs already collected.
-Detail fetching returns postings already fetched or found in the cache.
+After a 429, jobrake waits for a numeric `Retry-After` value or ten seconds, then retries once.
+A value over one minute skips the retry. If the 429 remains, jobrake returns the search results or detail postings resolved so far.
 
 ### Posting details and cache
 
@@ -111,6 +138,4 @@ A URL is absent from the result after a retryable failure. Calling the function 
 
 ## Unsupported boards
 
-jobrake does not intend to support Glassdoor, in the presence of Indeed.
-Glassdoor became [part of Indeed](https://web.archive.org/web/20260704043638/https://www.glassdoor.com/about/) on July 1, 2026, and is not a priority.
-If there is a huge interest, contributions for Glassdoor, or another major job board are welcome.
+Glassdoor is not planned because it is now [part of Indeed](https://web.archive.org/web/20260704043638/https://www.glassdoor.com/about/).

@@ -8,8 +8,8 @@ Run `jobrake -h` to see the provider commands, then `jobrake PROVIDER -h` for th
 jobrake indeed -q "data scientist" -c usa -n 2
 ```
 
-The stdout output pipeable into another program.
-For example, you can select the fields of your interest with [`jq`](https://github.com/jqlang/jq):
+Stdout can be piped into another program.
+For example, you can select fields with [`jq`](https://github.com/jqlang/jq):
 
 ```sh
 jobrake indeed -q "data scientist" -c usa -n 2 \
@@ -130,7 +130,5 @@ If another `Fetcher` implementation raises, `scrape()` lets the exception propag
 
 ## Partial results
 
-When a fetcher returns an error result, jobrake logs a warning, ends that provider search, and returns the jobs already collected.
-LinkedIn detail failures usually affect only one posting.
-A 429 that remains after any allowed retry stops the remaining LinkedIn requests.
-[Provider behavior](providers.md) describes the retry rules and the results retained when fetching stops.
+Fetch errors may leave partial results.
+[Provider behavior](providers.md) explains when fetching stops and which results are retained.
