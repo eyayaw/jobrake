@@ -1,11 +1,18 @@
 # Changelog
 
-## [Unreleased]
+## [0.15.0](https://github.com/eyayaw/jobrake/releases/tag/v0.15.0) (2026-09-02)
+
+### Added
+
+- `jobrake linkedin --geoid | -g` searches by LinkedIn's own place ID. The bare flag resolves `--location` through the guest place lookup, reports the qualified place it picked, and saves the resolution in the SQLite cache. A location that fails to resolve returns no jobs. `--geoid 102011674` searches that area directly, with `--location` optional. Library calls take `geoid=True` or a geoId string.
+- `jobrake places linkedin|indeed <name>` prints a provider's candidate places for a name as JSON, best match first: LinkedIn geoIds with their qualified names, or an Indeed edition's canonical location suggestions. LinkedIn candidates also seed normalized query and qualified-name keys in the geoId cache. `--country` picks the Indeed edition, as in search. The lookups are public as `jobrake.sites.linkedin.places` and `jobrake.sites.indeed.places`, and `jobrake.sites.linkedin.resolve_geoid` returns the single best LinkedIn ID.
 
 ### Changed
 
 - **Breaking:** `jobrake indeed` and `jobrake linkedin` replace the `--site | -s` option.
 - **Breaking:** Searches now default to 10 results, a seven-day age limit, a 40 km Indeed radius, and no LinkedIn distance parameter.
+- **Breaking:** Search arguments are renamed: `search_term` to `query`, `results_wanted` to `results`, `hours_old` to `max_age_hours`, `distance` to `radius`, and `detail` to `details`. The CLI renames `--search-term` to `--query`, `--results-wanted` to `--results`, `--hours-old` to `--max-age`, and `--detail` to `--details`.
+- jobrake stores posting details and LinkedIn geoId resolutions in separate tables within `jobrake.sqlite3`.
 
 ## [0.14.0](https://github.com/eyayaw/jobrake/releases/tag/v0.14.0) (2026-08-26)
 
