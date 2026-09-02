@@ -1,6 +1,17 @@
+Third-party notices
+
+This project includes code derived from JobSpy
+(https://github.com/speedyapply/JobSpy):
+
+  src/jobrake/sites/indeed/search.py
+      The Indeed GraphQL query, trimmed to the fields jobrake keeps.
+
+  src/jobrake/sites/indeed/countries.py
+      The Indeed country editions table, ported from JobSpy's Country enum.
+
 MIT License
 
-Copyright (c) 2026 Eyayaw Beze
+Copyright (c) 2023 Cullen Watson
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
