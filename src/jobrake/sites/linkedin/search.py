@@ -148,7 +148,7 @@ async def search(
         result = await paced_fetch(fetcher, f"{SEARCH_URL}?{query_string}")
         if result.error:
             logger.warning(
-                "linkedin search stopped by %s; keeping the %s already collected",
+                "linkedin search stopped: %s. Keeping the %s already collected",
                 result.error.message,
                 ngettext("%d job", "%d jobs", len(jobs)) % len(jobs),
             )

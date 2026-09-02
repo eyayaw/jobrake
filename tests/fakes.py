@@ -41,7 +41,7 @@ def not_found() -> FetchResult:
     return FetchResult(
         url="stub",
         status_code=404,
-        error=FetchError(ErrorCategory.CLIENT, "Client error: 404", http_status=404),
+        error=FetchError(ErrorCategory.CLIENT, "client error (HTTP 404)", http_status=404),
     )
 
 
@@ -54,5 +54,5 @@ def rate_limited(headers: dict[str, str] | None = None) -> FetchResult:
         url="stub",
         status_code=429,
         headers=headers or {},
-        error=FetchError(ErrorCategory.RATE_LIMITED, "Rate limited: 429", http_status=429),
+        error=FetchError(ErrorCategory.RATE_LIMITED, "rate limited (HTTP 429)", http_status=429),
     )

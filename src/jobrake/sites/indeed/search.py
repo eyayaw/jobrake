@@ -303,7 +303,7 @@ async def search(
         result = await fetcher.post(API_URL, {"query": graphql}, headers=headers)
         if result.error:
             logger.warning(
-                "indeed search stopped by %s; keeping the %s already collected",
+                "indeed search stopped: %s. Keeping the %s already collected",
                 result.error.message,
                 ngettext("%d job", "%d jobs", len(jobs)) % len(jobs),
             )

@@ -72,17 +72,17 @@ def build_result(url: str, status_code: int, text: str, headers: Mapping[str, st
     if status_code < 400:
         return FetchResult(url, status_code, text, headers)
     if status_code == 429:
-        category, label = ErrorCategory.RATE_LIMITED, "Rate limited"
+        category, label = ErrorCategory.RATE_LIMITED, "rate limited"
     elif status_code >= 500:
-        category, label = ErrorCategory.SERVER, "Server error"
+        category, label = ErrorCategory.SERVER, "server error"
     else:
-        category, label = ErrorCategory.CLIENT, "Client error"
+        category, label = ErrorCategory.CLIENT, "client error"
     return FetchResult(
         url,
         status_code,
         text,
         headers,
-        FetchError(category, f"{label}: {status_code}", status_code),
+        FetchError(category, f"{label} (HTTP {status_code})", status_code),
     )
 
 
