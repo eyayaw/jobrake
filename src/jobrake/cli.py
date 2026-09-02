@@ -137,6 +137,9 @@ def _add_indeed_args(parser: argparse.ArgumentParser) -> None:
 
 _SITE_ARGS = {"linkedin": _add_linkedin_args, "indeed": _add_indeed_args}
 
+# Spelled out because "linkedin".title() gives "Linkedin".
+_SITE_LABELS = {"linkedin": "LinkedIn", "indeed": "Indeed"}
+
 
 def _add_common_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
@@ -182,24 +185,29 @@ def _build_parser() -> _ArgumentParser:
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     subparsers = parser.add_subparsers(dest="provider", required=True)
     for name in sorted(site_searchers()):
-        subparser = subparsers.add_parser(name, allow_abbrev=False)
+        subparser = subparsers.add_parser(
+            name, allow_abbrev=False, help=f"search {_SITE_LABELS[name]} for job postings"
+        )
         # Mutate this subparser by adding arguments and defaults.
         _add_common_args(subparser)
         _SITE_ARGS[name](subparser)
     lookup = subparsers.add_parser(
         "places",
         allow_abbrev=False,
+        help="show how a provider resolves a place name",
         description="Show how a provider resolves a place name",
     )
     sites = lookup.add_subparsers(dest="site", required=True)
     li = sites.add_parser(
         "linkedin",
         allow_abbrev=False,
+        help="print LinkedIn geoIds for a name",
         description="Print LinkedIn's candidate places for the name, best match first, as JSON",
     )
     ind = sites.add_parser(
         "indeed",
         allow_abbrev=False,
+        help="print an Indeed edition's location suggestions for a name",
         description=(
             "Print an Indeed edition's location suggestions for the name, best match first, as JSON"
         ),
