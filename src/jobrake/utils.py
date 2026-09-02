@@ -96,5 +96,7 @@ def epoch_ms_to_iso(ms: float | str) -> str:
     except (TypeError, ValueError, OSError, OverflowError) as e:
         raise ValueError(f"not epoch milliseconds: {ms!r}") from e
     if stamp.year < 2000:
-        raise ValueError(f"not epoch milliseconds, seconds rather than ms?: {ms!r}")
+        raise ValueError(
+            f"{ms!r} resolves before 2000, so it looks like epoch seconds rather than milliseconds"
+        )
     return stamp.isoformat()
