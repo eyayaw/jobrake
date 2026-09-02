@@ -5,6 +5,11 @@ import asyncio
 from jobrake import scrape
 
 
+def column(value, width):
+    # Title, company, and location are nullable summary fields.
+    return f"{(value or '?')[:width]:<{width + 1}}"
+
+
 async def main():
     """Run one small search per provider and print representative fields."""
     for site in ("indeed", "linkedin"):
@@ -20,8 +25,8 @@ async def main():
             print(f"{site}: {len(jobs)} jobs")
             for job in jobs[:3]:
                 print(
-                    f"  [{job['date'] or '????-??-??'}] {job['title'][:44]:<45} "
-                    f"{job['company'][:20]:<21} {job['location'][:24]:<25} "
+                    f"  [{job['date'] or '????-??-??'}] {column(job['title'], 44)} "
+                    f"{column(job['company'], 20)} {column(job['location'], 24)} "
                     f"desc={len(job.get('description', ''))}ch"
                 )
         except Exception as e:
