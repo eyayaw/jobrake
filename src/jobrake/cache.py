@@ -82,7 +82,8 @@ class Cache:
         ``None`` selects the platform user-cache directory for ``path``.
 
         Raises:
-            ValueError: A lifetime is non-finite, ``ttl`` < 0, or ``retention`` < ``ttl``.
+            ValueError: A lifetime is non-finite, ``ttl`` is not positive, or
+                ``retention`` < ``ttl``.
         """
         self.ttl = float(ttl)
         self.retention = float(retention)
