@@ -38,7 +38,7 @@ The formats represent unavailable fields differently.
 
 > [!tip]
 > JSONL is suitable for incremental fetching, say, daily.
-> You can combine the files with `cat` or import them to `duckdb`.
+> You can combine the files with `cat` or load them into DuckDB.
 >
 > ```sh
 > jobrake ... -o runs/2026-08-10.jsonl
@@ -59,9 +59,9 @@ All seven keys are present, with `None` for an unavailable summary value.
 3) **Detail keys** appear only when their value is available.
 Their absence can mean that the provider omitted the value, does not publish it, or that jobrake did not fetch the posting page.
 
-Shared details use the same field names. However, there are provider-specific fields.
-`apply_type`, `applicants`, `experience_months`, and `education` are present only in LinkedIn,
-and `is_remote` and `apply_url` on Indeed. Indeed includes detail fields in search results.
+Shared details use the same field names, and a few fields come from one provider only.
+LinkedIn jobs carry `apply_type`, `applicants`, `experience_months`, and `education`.
+Indeed jobs carry `is_remote` and `apply_url`, and Indeed includes detail fields in search results.
 Use `--details | -d` or `details=True` to fetch each LinkedIn posting page and add its detail fields.
 
 ## Library use
@@ -89,7 +89,7 @@ async def main():
 asyncio.run(main())
 ```
 
-A custom fetcher passed belongs to the caller, i.e., it may need to be closed.
+The caller owns any fetcher it supplies and must close it when the fetcher holds resources.
 Use its context manager when several searches should share one connection pool:
 
 ```python

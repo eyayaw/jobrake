@@ -44,7 +44,7 @@ jobrake indeed \
 
 ## Installation
 
-jobrake is not on PyPI, install it from GitHub with [`uv`](https://github.com/astral-sh/uv):
+jobrake is not on PyPI. Install it from GitHub with [`uv`](https://github.com/astral-sh/uv):
 
 ```sh
 uv add git+https://github.com/eyayaw/jobrake
@@ -97,7 +97,7 @@ See [provider behavior](https://github.com/eyayaw/jobrake/blob/main/docs/provide
 ## Credits
 
 jobrake is grateful for [python-jobspy](https://pypi.org/project/python-jobspy/).
-The Indeed mobile-app GraphQL endpoint, and the LinkedIn guest-search approach are taken from it. Thanks.
+The Indeed mobile-app GraphQL endpoint and the LinkedIn guest-search approach are taken from it. Thanks.
 
 ## Disclaimer
 
