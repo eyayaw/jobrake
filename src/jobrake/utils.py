@@ -31,21 +31,37 @@ def html_text(html: str) -> str:
     return "\n".join(line for line in lines if line)
 
 
+def _check_integer(name: str, value: object) -> None:
+    """Require an integer for a numeric search argument."""
+    # Page slicing and Indeed's query text need real integers. Booleans satisfy
+    # isinstance(value, int) on their own, and ``radius=False`` would search a
+    # 0 km radius where ``None`` omits it.
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise TypeError(f"{name} must be an integer, got {value!r}")
+
+
 def check_max_age_hours(max_age_hours: int | None) -> None:
     """Require a positive posting-age bound when one is supplied."""
-    if max_age_hours is not None and max_age_hours <= 0:
+    if max_age_hours is None:
+        return
+    _check_integer("max_age_hours", max_age_hours)
+    if max_age_hours <= 0:
         raise ValueError(f"max_age_hours ({max_age_hours}) must be positive")
 
 
 def check_results(results: int) -> None:
     """Require at least one requested result."""
+    _check_integer("results", results)
     if results <= 0:
         raise ValueError(f"results ({results}) must be positive")
 
 
 def check_radius(radius: int | None) -> None:
     """Accept an omitted or nonnegative search radius."""
-    if radius is not None and radius < 0:
+    if radius is None:
+        return
+    _check_integer("radius", radius)
+    if radius < 0:
         raise ValueError(f"radius ({radius}) must be zero or more")
 
 

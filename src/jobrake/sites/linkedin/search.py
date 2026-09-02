@@ -98,6 +98,7 @@ async def search(
     ``results``.
 
     Raises:
+        TypeError: A numeric search argument is not an integer.
         ValueError: Required geography is missing or a numeric search argument is outside its valid range.
     """
     if isinstance(geoid, str):

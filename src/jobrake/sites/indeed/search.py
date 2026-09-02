@@ -283,6 +283,7 @@ async def search(
     invalid field costs only that field.
 
     Raises:
+        TypeError: A numeric search argument is not an integer.
         ValueError: The country is unknown or a numeric search argument is outside its valid range.
     """
     check_results(results)

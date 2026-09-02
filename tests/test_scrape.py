@@ -32,6 +32,27 @@ def test_scrape_rejects_bad_arguments_before_opening_a_fetcher(site, kwargs, mat
         asyncio.run(scrape(site, query="x", **kwargs))
 
 
+@pytest.mark.parametrize(
+    ("kwargs", "match"),
+    [
+        ({"results": float("nan")}, "results"),
+        ({"results": 2.5}, "results"),
+        ({"results": True}, "results"),
+        ({"radius": float("inf")}, "radius"),
+        ({"radius": False}, "radius"),
+        ({"max_age_hours": 1.5}, "max_age_hours"),
+        ({"max_age_hours": True}, "max_age_hours"),
+    ],
+)
+def test_scrape_rejects_arguments_that_are_not_integers(kwargs, match, monkeypatch):
+    def must_not_open():
+        raise AssertionError("opened transport before validating arguments")
+
+    monkeypatch.setattr(sites, "HttpxFetcher", must_not_open)
+    with pytest.raises(TypeError, match=match):
+        asyncio.run(scrape("linkedin", query="x", location="Seattle", **kwargs))
+
+
 def test_scrape_accepts_an_explicit_zero_radius(monkeypatch):
     monkeypatch.setattr(client, "LIMITER", TokenBucket(capacity=10**9, refill_interval=1.0))
     fetcher = StubFetcher({"seeMoreJobPostings": ok("")})

@@ -14,7 +14,7 @@ Indeed defaults to a 40 km radius. LinkedIn omits its undocumented distance para
 
 `max_age_hours=None` omits the age filter. Positive values limit results to jobs posted within that many hours.
 For library calls, `radius=None` uses Indeed's standard radius and omits LinkedIn's distance parameter.
-`radius` accepts zero. `max_age_hours` and `results` must be positive.
+`results` and `max_age_hours` must be positive integers. `radius` must be a nonnegative integer, so zero is accepted.
 
 ## Indeed
 
@@ -30,7 +30,7 @@ Library callers use `jobrake.sites.indeed.places`.
 
 ### Search requests
 
-jobrake asks Indeed for 100 results on every page and keeps the API's relevance order. `results` accepts any positive count.
+jobrake asks Indeed for 100 results on every page and keeps the API's relevance order. `results` accepts any positive integer.
 If that count is not a multiple of 100, jobrake returns only the needed jobs from the last page.
 
 jobrake adds no delay between Indeed pages. Each request gets one attempt.
