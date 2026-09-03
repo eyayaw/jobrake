@@ -195,6 +195,33 @@ def _build_parser() -> _ArgumentParser:
         _add_search_args(subparser)
         _add_output_args(subparser)
         _SITE_ARGS[name](subparser)
+    details = subparsers.add_parser(
+        "details",
+        allow_abbrev=False,
+        help="fetch known postings by ID or URL",
+        description="Fetch known postings by ID or URL",
+    )
+    details_sites = details.add_subparsers(dest="site", required=True)
+    details_linkedin = details_sites.add_parser(
+        "linkedin",
+        allow_abbrev=False,
+        help="fetch LinkedIn postings by ID or URL",
+        description="Fetch LinkedIn postings by ID or URL",
+    )
+    details_linkedin.add_argument(
+        "posting",
+        nargs="+",
+        metavar="ID|URL",
+        help="numeric LinkedIn posting ID or posting URL",
+    )
+    details_linkedin.add_argument(
+        "--no-cache",
+        dest="cache",
+        action="store_false",
+        default=defaults.CACHE,
+        help="refetch posting details instead of using the disk cache",
+    )
+    _add_output_args(details_linkedin)
     lookup = subparsers.add_parser(
         "places",
         allow_abbrev=False,
@@ -266,6 +293,15 @@ async def _lookup_places(args: argparse.Namespace) -> list[dict] | None:
         await fetcher.close()
 
 
+async def _fetch_details(args: argparse.Namespace) -> list[dict]:
+    """Fetch the named LinkedIn postings with a fetcher of its own."""
+    fetcher = HttpxFetcher()
+    try:
+        return await linkedin.fetch_details(fetcher, args.posting, cache=args.cache)
+    finally:
+        await fetcher.close()
+
+
 def _settle_output(parser: _ArgumentParser, args: argparse.Namespace) -> str:
     """Validate the output path and choose the render format before any request."""
     if args.output is not None:
@@ -310,10 +346,10 @@ def _write_jobs(args: argparse.Namespace, jobs: list[dict], fmt: str) -> int | N
 
 def main() -> int | None:
     """
-    Run the parsed command: a provider scrape in the selected format, or a places lookup.
+    Run the parsed command: a provider scrape, a posting fetch, or a places lookup.
 
     Returns:
-        ``1`` when stdout closes early, the output file cannot be written, or a places lookup fails. Normal completion returns ``None``.
+        ``1`` when stdout closes early, the output file cannot be written, a places lookup fails, or no named posting could be fetched. Normal completion returns ``None``.
     """
     parser = _build_parser()
     args = parser.parse_args()
@@ -333,6 +369,16 @@ def main() -> int | None:
         if not hits:
             logger.warning("no places match %r", args.name)
         return _write_stdout(json.dumps(hits, indent=2, ensure_ascii=False) + "\n")
+    if args.provider == "details":
+        fmt = _settle_output(parser, args)
+        try:
+            jobs = asyncio.run(_fetch_details(args))
+        except ValueError as e:
+            parser.error(str(e))
+        finally:
+            handler.clear()
+        # An empty result means every named posting failed, each already reported.
+        return _write_jobs(args, jobs, fmt) if jobs else 1
     if args.provider == "linkedin" and args.location is None and not isinstance(args.geoid, str):
         parser.error("--location/-l is required unless --geoid receives an ID")
     # Settle the output before the scrape spends any requests.

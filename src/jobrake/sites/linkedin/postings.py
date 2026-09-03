@@ -7,13 +7,14 @@ import re
 from collections.abc import Iterable
 from gettext import ngettext
 from html import unescape
+from urllib.parse import urlsplit
 
 from bs4 import BeautifulSoup
 
 from jobrake import defaults
 from jobrake.cache import POSTINGS
 from jobrake.fetchkit import Fetcher
-from jobrake.models import JOB_FIELDS, employment_type
+from jobrake.models import JOB_FIELDS, SUMMARY_FIELDS, employment_type, make_job
 from jobrake.utils import html_text
 
 from . import client
@@ -258,6 +259,95 @@ def _canonical(url: str) -> str:
     return path.rstrip("/") + sep + query
 
 
+_PAGE_PATH = "/jobs/view/"
+# The addresses a caller may name a posting by: its page, or the same posting
+# under the guest API's own path.
+_REFERENCE_PATHS = (_PAGE_PATH, f"{urlsplit(FRAGMENT_URL).path}/")
+
+
+def _posting_url(url: str, posting_id: str, paths: tuple[str, ...]) -> bool:
+    """Check that a URL is one of LinkedIn's addresses for one posting."""
+    parts = urlsplit(url)
+    return (
+        parts.scheme in ("http", "https")
+        and parts.netloc.lower().endswith(".linkedin.com")
+        and parts.path.startswith(paths)
+        and job_id(url) == posting_id
+    )
+
+
+def _serves_block(url: str) -> bool:
+    """
+    Check for the address LinkedIn answers with the schema.org block.
+
+    The block comes only from a posting's canonical URL, which carries both a
+    country subdomain and the title slug. A ``www`` address, a slugless
+    ``/jobs/view/<id>``, and the guest fragment each answer without it, and so
+    without the dates, coordinates, and requirements only it carries. A salary
+    survives when the page markup states one in English.
+    """
+    parts = urlsplit(url)
+    host = parts.netloc.lower()
+    if host.startswith("www.") or not host.endswith(".linkedin.com"):
+        return False
+    if not parts.path.startswith(_PAGE_PATH):
+        return False
+    slug = parts.path.rstrip("/").rsplit("/", 1)[-1]
+    # The canonical address carries a title slug ahead of the ID.
+    return slug != job_id(url)
+
+
+def _fragment_url(html: str, posting_id: str) -> str | None:
+    """
+    Read the posting URL a guest fragment names.
+
+    LinkedIn writes the canonical URL here, and a link to any other posting is
+    refused. A link that will not serve the schema.org block is kept, because
+    the page behind it still carries the summary and description, but the
+    fields the block holds are reported as lost.
+    """
+    link = BeautifulSoup(html, "html.parser").select_one("a.topcard__link[href]")
+    if link is None:
+        logger.warning(
+            "skipping posting %s. Its guest fragment names no posting URL, so LinkedIn's "
+            "markup may have changed. Pass the posting URL instead",
+            posting_id,
+        )
+        return None
+    # Drop tracking params
+    url = str(link["href"]).partition("?")[0]
+    if not _posting_url(url, posting_id, (_PAGE_PATH,)):
+        logger.warning(
+            "skipping posting %s. Its guest fragment points at %s, which is not that "
+            "posting's page",
+            posting_id,
+            url,
+        )
+        return None
+    if not _serves_block(url):
+        logger.warning(
+            "posting %s resolved to %s, which serves no schema.org block. Its dates, "
+            "coordinates, and the other fields only that block carries will be missing",
+            posting_id,
+            url,
+        )
+    return url
+
+
+def _cached_postings(posting_ids: list[str]) -> dict[str, dict | None]:
+    """Read stored postings, dropping fields this version no longer models."""
+    def known(row: dict | None) -> dict | None:
+        if row is None:
+            # a tombstone, which stays one
+            return None
+        # A row may predate the current field set, and
+        # an unknown key would raise when the row is merged into a Job.
+        return {name: value for name, value in row.items() if name in JOB_FIELDS}
+
+    rows = client.CACHE.get(POSTINGS, "linkedin", posting_ids)
+    return {posting_id: known(row) for posting_id, row in rows.items()}
+
+
 async def fetch_postings(
     fetcher: Fetcher, urls: Iterable[str], *, cache: bool = defaults.CACHE
 ) -> dict[str, dict | None]:
@@ -290,16 +380,7 @@ async def fetch_postings(
     ids = {url: job_id(url) for url in wanted}
     # Keep one value per posting identity for the whole call. Seed it from the
     # cache and extend it as fetches finish so aliases reuse the same result.
-    resolved = (
-        client.CACHE.get(POSTINGS, "linkedin", [i for i in ids.values() if i]) if cache else {}
-    )
-    for posting_id, posting in resolved.items():
-        # Cached rows may predate the current field set.
-        # Ignore unknown keys before merging a row into a Job.
-        if posting is not None:
-            resolved[posting_id] = {
-                name: value for name, value in posting.items() if name in JOB_FIELDS
-            }
+    resolved = _cached_postings([i for i in ids.values() if i]) if cache else {}
 
     attempted: set[str] = set()
     stopped = False
@@ -333,13 +414,13 @@ async def fetch_postings(
                 client.CACHE.put(POSTINGS, "linkedin", {posting_id: None})
             continue
         if result.error:
-            logger.warning("posting %s: %s; skipped, a rerun retries it", url, result.error.message)
+            logger.warning("skipping posting %s: %s. A rerun retries it", url, result.error.message)
             continue
         posting, structured = _parse_posting(BeautifulSoup(result.text, "html.parser"))
         if not posting:
             logger.warning(
-                "posting %s: the page yielded no fields, possibly a signup "
-                "wall or changed markup; a rerun retries it",
+                "skipping posting %s. Its page yielded no fields, so it may be a signup "
+                "wall or changed markup. A rerun retries it",
                 url,
             )
             continue
@@ -353,7 +434,8 @@ async def fetch_postings(
                 stopped = True
             elif fragment.error:
                 logger.warning(
-                    "posting %s: fragment fetch failed (%s); keeping the partial canonical fields",
+                    "posting %s: its en-US fragment failed (%s). Keeping the fields parsed "
+                    "from the posting page",
                     posting_id,
                     fragment.error.message,
                 )
@@ -374,9 +456,8 @@ async def fetch_postings(
             postings[url] = resolved[identity]
     if stopped:
         logger.warning(
-            "linkedin is rate limiting this IP; stopping detail hydration "
-            "with %d of %d postings resolved. Wait a while, then rerun to "
-            "fill in the rest",
+            "linkedin is rate limiting this IP, so detail hydration stopped with %d of "
+            "%d postings resolved. Wait a while, then rerun to fill in the rest",
             len(postings),
             total,
         )
@@ -387,3 +468,103 @@ async def fetch_postings(
             "linkedin detail fetch finished with %d of %s resolved", len(postings), wanted_count
         )
     return postings
+
+
+def _is_posting_id(reference: str) -> bool:
+    """Check for a bare numeric posting ID."""
+    return reference.isascii() and reference.isdigit()
+
+
+async def fetch_details(
+    fetcher: Fetcher, references: Iterable[str], *, cache: bool = defaults.CACHE
+) -> list[dict]:
+    """
+    Build one job per posting reference, in the order given.
+
+    A reference is a posting URL or a numeric posting ID, and the ID it names
+    is the posting's identity here. References naming one posting yield one
+    job. A canonical URL is fetched as given. Every other reference, including
+    an ID, first spends a guest-fragment request to learn the canonical URL,
+    which makes the URL a search prints the cheapest thing to pass. A
+    posting that is gone, unreachable, or unreadable is reported and left out,
+    so a short result is normal. A persistent 429 ends the whole call, which
+    then answers from the cache for the postings whose addresses it already
+    had. The caller owns ``fetcher``.
+
+    Raises:
+        ValueError: A reference is neither a numeric posting ID nor a LinkedIn
+            posting URL. Nothing is fetched in that case.
+    """
+    ids: dict[str, str] = {}
+    for reference in references:
+        ref = reference.strip()
+        if ref not in ids:
+            ids[ref] = ref if _is_posting_id(ref) else job_id(ref)
+    for ref, posting_id in ids.items():
+        if not posting_id or not (
+            _is_posting_id(ref) or _posting_url(ref, posting_id, _REFERENCE_PATHS)
+        ):
+            raise ValueError(
+                f"{ref!r} is neither a numeric posting ID nor a LinkedIn posting URL. "
+                "Try 4449382178 or the job's linkedin.com/jobs/view/... address"
+            )
+    total = len(set(ids.values()))
+    # One slot per posting, in the order its first reference arrived. A
+    # canonical reference is the posting's own address, so collect every
+    # address already in hand before spending a request on the rest.
+    addresses: dict[str, str | None] = {}
+    for ref, posting_id in ids.items():
+        if addresses.get(posting_id) is None:
+            addresses[posting_id] = ref if _serves_block(ref) else None
+    stopped = False
+    for posting_id, address in addresses.items():
+        if address is not None:
+            continue
+        result = await paced_fetch(fetcher, f"{FRAGMENT_URL}/{posting_id}?_l=en_US")
+        if rate_limited(result):
+            # The limit belongs to the IP, so every further request would buy
+            # another wait and another refusal.
+            stopped = True
+            break
+        if result.error:
+            if result.error.http_status in (404, 410):
+                logger.warning(
+                    "skipping posting %s. LinkedIn has no such posting, or it was taken down",
+                    posting_id,
+                )
+            else:
+                logger.warning(
+                    "skipping posting %s: %s. Pass its URL to fetch the posting without "
+                    "this lookup",
+                    posting_id,
+                    result.error.message,
+                )
+            continue
+        if url := _fragment_url(result.text, posting_id):
+            addresses[posting_id] = url
+    urls = {posting_id: url for posting_id, url in addresses.items() if url}
+    if stopped:
+        logger.warning(
+            "linkedin is rate limiting this IP, so posting lookups stopped with %d of "
+            "%d resolved. Wait a while, then rerun to fetch the rest",
+            len(urls),
+            total,
+        )
+        # The limit is confirmed, so no page is worth requesting. Postings
+        # already on disk still come back.
+        rows = _cached_postings(list(urls)) if cache else {}
+        postings = {url: rows[pid] for pid, url in urls.items() if pid in rows}
+    else:
+        postings = await fetch_postings(fetcher, list(urls.values()), cache=cache)
+    # A posting page need not name every summary field, and make_job wants all of them.
+    blanks = dict.fromkeys(SUMMARY_FIELDS)
+    jobs = []
+    for posting_id, url in urls.items():
+        if url not in postings:
+            continue  # fetch_postings reported why
+        fields = postings[url]
+        if fields is None:
+            logger.warning("posting %s is no longer on linkedin", posting_id)
+            continue
+        jobs.append(make_job(site="linkedin", id=posting_id, url=url, **(blanks | fields)))
+    return jobs

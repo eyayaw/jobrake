@@ -2,7 +2,7 @@
 
 ## Command line
 
-Run `jobrake -h` to see the provider commands, then `jobrake PROVIDER -h` for that provider's options. The default output is compact JSON on stdout.
+Run `jobrake -h` to see the commands, then `jobrake <command> -h` for its options. The default output is compact JSON on stdout.
 
 ```sh
 jobrake indeed -q "data scientist" -c usa -n 2
@@ -47,6 +47,21 @@ The formats represent unavailable fields differently.
 >
 > duckdb -c "select * from read_json('runs/*.jsonl', union_by_name=true)"
 > ```
+
+### Fetching a posting you already have
+
+A search result tells you enough to spot a posting worth reading. Fetch that one by ID or URL instead of searching again:
+
+```sh
+jobrake details linkedin 4449382178
+jobrake details linkedin https://nl.linkedin.com/jobs/view/data-scientist-at-acme-4449382178
+```
+
+Name as many postings as you like. The command takes the same `--output | -o` and `--format | -f` options as a search, and `--no-cache` to refetch a posting jobrake already stored.
+Each job reads like a search result with `--details`: the identity and summary keys, plus whichever detail keys the posting publishes.
+A posting that is gone or unreachable is reported on stderr and left out. If none resolve, the command exits nonzero and writes nothing.
+
+The URL a search prints is the cheapest reference. [Provider behavior](providers.md) explains what the others cost.
 
 ## The Job data model
 

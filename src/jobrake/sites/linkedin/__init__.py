@@ -2,7 +2,7 @@
 
 from .client import BASE_URL, CACHE, HEADERS, LIMITER, RETRY_DELAY, SEARCH_URL, job_id
 from .geo import TYPEAHEAD_URL, places, resolve_geoid
-from .postings import FRAGMENT_URL, fetch_postings, parse_posting
+from .postings import FRAGMENT_URL, fetch_details, fetch_postings, parse_posting
 from .search import MAX_START, parse_cards, search
 
 __all__ = [
@@ -15,6 +15,7 @@ __all__ = [
     "RETRY_DELAY",
     "SEARCH_URL",
     "TYPEAHEAD_URL",
+    "fetch_details",
     "fetch_postings",
     "job_id",
     "parse_cards",

@@ -89,6 +89,30 @@ def test_places_command_prints_the_selected_providers_candidates(monkeypatch, ca
     assert StubHttpx.instances and all(f.closed for f in StubHttpx.instances)
 
 
+def test_details_command_renders_what_it_resolved(monkeypatch, capsys):
+    calls = []
+
+    class StubHttpx:
+        async def close(self):
+            pass
+
+    async def fake_details(fetcher, references, *, cache):
+        calls.append((list(references), cache))
+        return JOBS if cache else []
+
+    monkeypatch.setattr(cli, "HttpxFetcher", StubHttpx)
+    monkeypatch.setattr(cli.linkedin, "fetch_details", fake_details)
+    argv = ["jobrake", "details", "linkedin", "111", "https://nl.linkedin.com/jobs/view/x-222"]
+    monkeypatch.setattr(sys, "argv", argv)
+    assert cli.main() is None
+    assert json.loads(capsys.readouterr().out) == JOBS
+    # nothing resolved: the failures were already reported, so stdout stays empty
+    monkeypatch.setattr(sys, "argv", ["jobrake", "details", "linkedin", "111", "--no-cache"])
+    assert cli.main() == 1
+    assert capsys.readouterr().out == ""
+    assert calls == [(argv[3:], True), (["111"], False)]
+
+
 def test_provider_commands_dispatch_expected_options(monkeypatch):
     calls = []
 
