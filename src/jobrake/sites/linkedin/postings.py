@@ -82,7 +82,10 @@ def _job_posting(soup: BeautifulSoup) -> dict:
             if kind == "JobPosting" or (isinstance(kind, list) and "JobPosting" in kind):
                 return item
             graph = item.get("@graph")
-            queue.extend(graph if isinstance(graph, list) else [graph] if graph else [])
+            if isinstance(graph, list):
+                queue.extend(graph)
+            elif graph:
+                queue.append(graph)
     return {}
 
 
