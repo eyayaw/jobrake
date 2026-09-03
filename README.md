@@ -2,7 +2,7 @@
   <picture>
     <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/eyayaw/jobrake/refs/heads/main/docs/assets/logo/jobrake-icon.svg">
     <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/eyayaw/jobrake/refs/heads/main/docs/assets/logo/jobrake-icon-dark.svg">
-    <img alt="Jobrake logo—Rake" src="https://raw.githubusercontent.com/eyayaw/jobrake/refs/heads/main/docs/assets/logo/jobrake-icon.svg" height="100">
+    <img alt="jobrake logo—a rake" src="https://raw.githubusercontent.com/eyayaw/jobrake/refs/heads/main/docs/assets/logo/jobrake-icon.svg" height="100">
 </picture>
 </div>
 
@@ -12,7 +12,7 @@ ___Scrape job postings together and heap them up.___
 
 > Read it as "**job-rake**".
 >
-> Say it quick, you hear "**job break**"—a break from the search doomscroll. (^_~)
+> Say it quickly and you hear "**job break**"—a break from the search doomscroll. (^_~)
 >
 > _Did **Jo** show up? **Jo** hit the **brake**, too._
 
@@ -106,5 +106,5 @@ jobrake's Indeed GraphQL endpoint and LinkedIn guest-search approach are based o
 
 > [!WARNING]
 > jobrake has no affiliation with LinkedIn or Indeed. Use it to find jobs, not to build datasets by scraping regularly.
-Scraping may violate their terms of service, and either site may rate-limit or block your IP address.
-You are responsible for checking and complying with their terms.
+> Scraping may violate their terms of service, and either site may rate-limit or block your IP address.
+> You are responsible for checking and complying with their terms.
