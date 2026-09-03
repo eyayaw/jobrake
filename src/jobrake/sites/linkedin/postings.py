@@ -37,9 +37,13 @@ def _obj(value) -> dict:
 
 
 def _text_value(value) -> str | None:
+    """Read a schema.org string, decoding the entities its script block escaped."""
+    # LinkedIn HTML-escapes the JSON it embeds in the page, and entities inside
+    # a script element reach the parser undecoded. A logo URL arrives with
+    # "&amp;" between its query parameters and description markup as "&lt;p&gt;".
     if isinstance(value, list):
         value = value[0] if value else None
-    return value if isinstance(value, str) else None
+    return unescape(value) if isinstance(value, str) else None
 
 
 def _number_value(value) -> float | None:
@@ -197,7 +201,7 @@ def _parse_posting(soup: BeautifulSoup) -> tuple[dict, bool]:
     from_block = {
         "title": _text_value(posting.get("title")),
         "company": _text_value(org.get("name")),
-        "description": html_text(unescape(_text_value(posting.get("description")) or "")),
+        "description": html_text(_text_value(posting.get("description")) or ""),
         "employment_type": employment_type(_text_value(posting.get("employmentType"))),
         "posted_at": _text_value(posting.get("datePosted")),
         "expires_at": _text_value(posting.get("validThrough")),

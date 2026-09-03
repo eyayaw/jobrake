@@ -501,6 +501,22 @@ def test_parse_posting_survives_schema_variants():
     assert linkedin.parse_posting(page)["description"] == "Role"
 
 
+def test_parse_posting_decodes_the_entities_the_block_arrives_with():
+    # Entities inside a script element reach the parser undecoded, so every
+    # string the block holds needs decoding, not just the description markup.
+    page = job_page(
+        title="Data &amp; Analytics Lead",
+        hiringOrganization={
+            "name": "Johnson &amp; Johnson",
+            "logo": "https://media.licdn.com/logo?e=1&amp;v=beta",
+        },
+    )
+    fields = linkedin.parse_posting(page)
+    assert fields["title"] == "Data & Analytics Lead"
+    assert fields["company"] == "Johnson & Johnson"
+    assert fields["company_logo"] == "https://media.licdn.com/logo?e=1&v=beta"
+
+
 def test_parse_posting_normalizes_union_valued_fields():
     page = job_page(
         description={"@type": "Thing"},
