@@ -537,19 +537,36 @@ def blockless_page():
     <figcaption class="num-applicants__caption">Over 200 applicants</figcaption></html>"""
 
 
-def en_fragment():
-    # The same posting's www fragment: identical markup in en-US.
-    return """
-    <html><a class="topcard__org-name-link"
-      href="https://uk.linkedin.com/company/acme?trk=public_jobs_topcard-org-name"></a>
+def en_fragment(url=CANONICAL):
+    # The same posting's guest fragment: identical markup in en-US, and the
+    # cheapest place LinkedIn writes down the canonical URL.
+    return f"""
+    <html><a class="topcard__link" href="{url}?trk=public_jobs_topcard-title">
+      <h2 class="top-card-layout__title topcard__title">Economist</h2></a>
+    <a class="topcard__org-name-link"
+      href="https://uk.linkedin.com/company/acme?trk=public_jobs_topcard-org-name">Acme</a>
+    <span class="topcard__flavor topcard__flavor--bullet">Seattle, WA</span>
+    <span class="num-applicants__caption topcard__flavor--metadata topcard__flavor--bullet">
+      109 applicants</span>
     <img class="artdeco-entity-image" data-delayed-url="https://media.licdn.com/acme-logo.png"/>
     <div class="show-more-less-html__markup">Great &amp; big role</div>
     <li class="description__job-criteria-item">
       <h3 class="description__job-criteria-subheader">Employment type</h3>
       <span class="description__job-criteria-text">Full-time</span>
     </li>
-    <div class="salary compensation__salary">AED 756,000.00/yr - AED 924,000.00/yr</div>
-    <figcaption class="num-applicants__caption">109 applicants</figcaption></html>"""
+    <div class="salary compensation__salary">AED 756,000.00/yr - AED 924,000.00/yr</div></html>"""
+
+
+def test_parse_posting_reads_the_summary_fields():
+    # A posting page has to yield a whole job, card or no card.
+    markup = linkedin.parse_posting(en_fragment())
+    assert (markup["title"], markup["company"]) == ("Economist", "Acme")
+    # the place bullet, not the applicant count sitting in the bullet beside it
+    assert markup["location"] == "Seattle, WA"
+    block = linkedin.parse_posting(
+        job_page(title="Senior Economist", hiringOrganization={"name": "Acme BV"})
+    )
+    assert (block["title"], block["company"]) == ("Senior Economist", "Acme BV")
 
 
 def test_parse_posting_falls_back_to_the_markup_without_the_block():

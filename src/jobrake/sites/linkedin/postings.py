@@ -81,6 +81,12 @@ def _job_posting(soup: BeautifulSoup) -> dict:
     return {}
 
 
+def _tag_text(soup: BeautifulSoup, selector: str) -> str | None:
+    """Read the text of the first element matching a selector."""
+    node = soup.select_one(selector)
+    return node.get_text(strip=True) if node else None
+
+
 def _description(soup: BeautifulSoup) -> str:
     div = soup.find("div", class_=lambda c: bool(c and "show-more-less-html__markup" in c))
     return html_text(div.decode_contents()) if div else ""
@@ -162,11 +168,13 @@ def _applicants(soup: BeautifulSoup) -> int | None:
 
 def parse_posting(html: str) -> dict:
     """
-    Extract model detail fields from a canonical posting page.
+    Extract model fields from a canonical posting page.
 
-    Page markup fills fields absent from the schema.org block. Structured
-    values win when both sources provide a field. A page with nothing
-    extractable yields ``{}``. Unsupported or malformed values are omitted.
+    A posting page carries the summary fields alongside the details, so one
+    page is enough to build a job without a search card. Page markup fills
+    fields absent from the schema.org block. Structured values win when both
+    sources provide a field. A page with nothing extractable yields ``{}``.
+    Unsupported or malformed values are omitted.
     """
     # LinkedIn omits the structured block for country-level postings on every
     # subdomain.
@@ -175,7 +183,7 @@ def parse_posting(html: str) -> dict:
 
 
 def _parse_posting(soup: BeautifulSoup) -> tuple[dict, bool]:
-    """Extract detail fields and report whether structured data was present."""
+    """Extract posting fields and report whether structured data was present."""
     posting = _job_posting(soup)
     org = _obj(posting.get("hiringOrganization"))
     place = _obj(posting.get("jobLocation"))
@@ -187,6 +195,8 @@ def _parse_posting(soup: BeautifulSoup) -> tuple[dict, bool]:
     # Normalize each schema.org union before adding it to the result. Omit
     # structured values in an unsupported shape.
     from_block = {
+        "title": _text_value(posting.get("title")),
+        "company": _text_value(org.get("name")),
         "description": html_text(unescape(_text_value(posting.get("description")) or "")),
         "employment_type": employment_type(_text_value(posting.get("employmentType"))),
         "posted_at": _text_value(posting.get("datePosted")),
@@ -214,6 +224,12 @@ def _parse_posting(soup: BeautifulSoup) -> tuple[dict, bool]:
     # These selectors depend on LinkedIn's page structure and are the first
     # parsing points to break when it changes.
     from_markup = {
+        "title": _tag_text(soup, ".topcard__title"),
+        "company": _tag_text(soup, "a.topcard__org-name-link"),
+        # The topcard bullets hold the place, the posting age, and the
+        # applicant count. Age and count also carry the metadata class, so the
+        # plain bullet is the place.
+        "location": _tag_text(soup, ".topcard__flavor--bullet:not(.topcard__flavor--metadata)"),
         "description": _description(soup),
         "employment_type": employment_type(_criteria(soup).get("Employment type")),
         **_company(soup),
