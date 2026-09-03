@@ -1,6 +1,10 @@
-<p align="center">
-  <img src="https://raw.githubusercontent.com/eyayaw/jobrake/refs/heads/main/docs/assets/logo/jobrake-icon.svg" height="128" alt="Rake">
-</p>
+<div align="center">
+  <picture>
+    <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/eyayaw/jobrake/refs/heads/main/docs/assets/logo/jobrake-icon.svg">
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/eyayaw/jobrake/refs/heads/main/docs/assets/logo/jobrake-icon-dark.svg">
+    <img alt="Jobrake logo—Rake" src="https://raw.githubusercontent.com/eyayaw/jobrake/refs/heads/main/docs/assets/logo/jobrake-icon.svg" height="100">
+</picture>
+</div>
 
 # jobrake
 
