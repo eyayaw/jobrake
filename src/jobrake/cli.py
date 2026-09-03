@@ -141,7 +141,7 @@ _SITE_ARGS = {"linkedin": _add_linkedin_args, "indeed": _add_indeed_args}
 _SITE_LABELS = {"linkedin": "LinkedIn", "indeed": "Indeed"}
 
 
-def _add_common_args(parser: argparse.ArgumentParser) -> None:
+def _add_search_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--query",
         "-q",
@@ -165,6 +165,9 @@ def _add_common_args(parser: argparse.ArgumentParser) -> None:
         type=int,
         help=f"maximum posting age in hours (default: {defaults.MAX_AGE_HOURS})",
     )
+
+
+def _add_output_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--output",
         "-o",
@@ -189,7 +192,8 @@ def _build_parser() -> _ArgumentParser:
             name, allow_abbrev=False, help=f"search {_SITE_LABELS[name]} for job postings"
         )
         # Mutate this subparser by adding arguments and defaults.
-        _add_common_args(subparser)
+        _add_search_args(subparser)
+        _add_output_args(subparser)
         _SITE_ARGS[name](subparser)
     lookup = subparsers.add_parser(
         "places",
@@ -262,6 +266,48 @@ async def _lookup_places(args: argparse.Namespace) -> list[dict] | None:
         await fetcher.close()
 
 
+def _settle_output(parser: _ArgumentParser, args: argparse.Namespace) -> str:
+    """Validate the output path and choose the render format before any request."""
+    if args.output is not None:
+        if args.output.is_dir():
+            parser.error(f"output path is a directory: {args.output}")
+        if not args.output.parent.is_dir():
+            parser.error(f"output directory does not exist: {args.output.parent}")
+    if args.format:
+        fmt = args.format
+    elif args.output:
+        fmt = args.output.suffix.removeprefix(".")
+    else:
+        fmt = "json"
+    if fmt not in RENDERERS:
+        parser.error(
+            f"unsupported output extension {args.output.suffix!r}. "
+            f"Use {' or '.join('.' + name for name in RENDERERS)} or pass --format"
+        )
+    return fmt
+
+
+def _write_jobs(args: argparse.Namespace, jobs: list[dict], fmt: str) -> int | None:
+    """
+    Render jobs to stdout or to the output file.
+
+    Returns:
+        ``1`` when stdout closes early or the file cannot be written. ``None`` otherwise.
+    """
+    if args.output is None:
+        return _write_stdout(RENDERERS[fmt](jobs))
+    if not jobs:
+        logger.warning("no jobs found; leaving %s untouched", args.output)
+        return None
+    try:
+        args.output.write_text(RENDERERS[fmt](jobs), encoding="utf-8")
+    except OSError as error:
+        logger.error("could not write %s: %s", args.output, error)
+        return 1
+    logger.info("wrote %d jobs to %s", len(jobs), args.output)
+    return None
+
+
 def main() -> int | None:
     """
     Run the parsed command: a provider scrape in the selected format, or a places lookup.
@@ -289,23 +335,8 @@ def main() -> int | None:
         return _write_stdout(json.dumps(hits, indent=2, ensure_ascii=False) + "\n")
     if args.provider == "linkedin" and args.location is None and not isinstance(args.geoid, str):
         parser.error("--location/-l is required unless --geoid receives an ID")
-    # Settle the output path and format before the scrape spends any requests.
-    if args.output is not None:
-        if args.output.is_dir():
-            parser.error(f"output path is a directory: {args.output}")
-        if not args.output.parent.is_dir():
-            parser.error(f"output directory does not exist: {args.output.parent}")
-    if args.format:
-        fmt = args.format
-    elif args.output:
-        fmt = args.output.suffix.removeprefix(".")
-    else:
-        fmt = "json"
-    if fmt not in RENDERERS:
-        parser.error(
-            f"unsupported output extension {args.output.suffix!r}. "
-            f"Use {' or '.join('.' + name for name in RENDERERS)} or pass --format"
-        )
+    # Settle the output before the scrape spends any requests.
+    fmt = _settle_output(parser, args)
     try:
         jobs = asyncio.run(
             scrape(
@@ -326,19 +357,7 @@ def main() -> int | None:
     finally:
         # An exceptional exit would otherwise start its traceback beside the progress line.
         handler.clear()
-    if args.output is not None and not jobs:
-        logger.warning("no jobs found; leaving %s untouched", args.output)
-        return None
-    rendered = RENDERERS[fmt](jobs)
-    if args.output is None:
-        return _write_stdout(rendered)
-
-    try:
-        args.output.write_text(rendered, encoding="utf-8")
-    except OSError as error:
-        logger.error("could not write %s: %s", args.output, error)
-        return 1
-    logger.info("wrote %d jobs to %s", len(jobs), args.output)
+    return _write_jobs(args, jobs, fmt)
 
 
 if __name__ == "__main__":
