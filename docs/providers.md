@@ -105,6 +105,8 @@ Older fields are fetched again. URLs without an ID are fetched on every call.
 jobrake records HTTP 404 and 410 responses and skips those postings on later cached runs.
 Pass `--no-cache` or `cache=False` to bypass the cache.
 
+Every stored value records the cache format that produced it, and jobrake reads only the format it writes. A release whose job fields or parsers have moved on therefore starts from an empty cache and fills it again as you search.
+
 Fetching an uncached posting costs at least one paced request.
 A page without its structured data may require a second request for an English fragment.
 

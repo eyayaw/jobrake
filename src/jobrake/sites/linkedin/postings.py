@@ -14,7 +14,7 @@ from bs4 import BeautifulSoup
 from jobrake import defaults
 from jobrake.cache import POSTINGS
 from jobrake.fetchkit import Fetcher
-from jobrake.models import JOB_FIELDS, SUMMARY_FIELDS, employment_type, make_job
+from jobrake.models import SUMMARY_FIELDS, employment_type, make_job
 from jobrake.utils import html_text
 
 from . import client
@@ -334,20 +334,6 @@ def _fragment_url(html: str, posting_id: str) -> str | None:
     return url
 
 
-def _cached_postings(posting_ids: list[str]) -> dict[str, dict | None]:
-    """Read stored postings, dropping fields this version no longer models."""
-    def known(row: dict | None) -> dict | None:
-        if row is None:
-            # a tombstone, which stays one
-            return None
-        # A row may predate the current field set, and
-        # an unknown key would raise when the row is merged into a Job.
-        return {name: value for name, value in row.items() if name in JOB_FIELDS}
-
-    rows = client.CACHE.get(POSTINGS, "linkedin", posting_ids)
-    return {posting_id: known(row) for posting_id, row in rows.items()}
-
-
 async def fetch_postings(
     fetcher: Fetcher, urls: Iterable[str], *, cache: bool = defaults.CACHE
 ) -> dict[str, dict | None]:
@@ -380,7 +366,9 @@ async def fetch_postings(
     ids = {url: job_id(url) for url in wanted}
     # Keep one value per posting identity for the whole call. Seed it from the
     # cache and extend it as fetches finish so aliases reuse the same result.
-    resolved = _cached_postings([i for i in ids.values() if i]) if cache else {}
+    resolved = (
+        client.CACHE.get(POSTINGS, "linkedin", [i for i in ids.values() if i]) if cache else {}
+    )
 
     attempted: set[str] = set()
     stopped = False
@@ -552,7 +540,7 @@ async def fetch_details(
         )
         # The limit is confirmed, so no page is worth requesting. Postings
         # already on disk still come back.
-        rows = _cached_postings(list(urls)) if cache else {}
+        rows = client.CACHE.get(POSTINGS, "linkedin", list(urls)) if cache else {}
         postings = {url: rows[pid] for pid, url in urls.items() if pid in rows}
     else:
         postings = await fetch_postings(fetcher, list(urls.values()), cache=cache)

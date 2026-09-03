@@ -782,15 +782,6 @@ def test_fetch_postings_attempts_each_identity_once(unlimited, caplog):
     assert any("no fields" in record.message for record in caplog.records)
 
 
-def test_fetch_postings_drops_unknown_cached_keys(unlimited, isolated_cache):
-    # A cached row from an older schema must not crash the run it is served to.
-    isolated_cache.put(
-        POSTINGS, "linkedin", {"111": {"description": "Role", "months_of_experience": 36}}
-    )
-    got = asyncio.run(linkedin.fetch_postings(StubFetcher({}), [CANONICAL]))
-    assert got[CANONICAL] == {"description": "Role"}
-
-
 def test_interrupted_hydration_keeps_paid_results(unlimited, isolated_cache):
     class DiesOnSecond(StubFetcher):
         async def fetch(self, url, headers=None):

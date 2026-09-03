@@ -1,10 +1,13 @@
 """Cache tests for stored fields, expiry, and corrupt data."""
 
+import json
 import math
+import sqlite3
+import time
 
 import pytest
 
-from jobrake.cache import GEOIDS, POSTINGS, RETENTION, TTL, Cache
+from jobrake.cache import _VERSION, GEOIDS, POSTINGS, RETENTION, TTL, Cache
 
 POSTING = {"description": "Role", "applicants": 25}
 
@@ -67,7 +70,7 @@ def test_nonfinite_row_is_a_miss_without_disabling_the_cache(tmp_path):
 def test_corrupt_json_disables_cache_instead_of_escaping(tmp_path, caplog):
     cache = make_cache(tmp_path)
     cache.put(POSTINGS, "linkedin", {"111": POSTING})
-    cache._conn.execute("UPDATE postings SET value = 'not json'")
+    cache._conn.execute("UPDATE postings SET fields = 'not json'")
     cache._conn.commit()
 
     assert cache.get(POSTINGS, "linkedin", ["111"]) == {}
@@ -105,3 +108,40 @@ def test_unserializable_fields_disable_cache(tmp_path):
 def test_invalid_policy_rejected(tmp_path, ttl, retention):
     with pytest.raises(ValueError):
         Cache(tmp_path / "jobrake.sqlite3", ttl=ttl, retention=retention)
+
+
+def test_rows_of_another_format_are_invisible(tmp_path):
+    # Stored values belong to the code that wrote them, so a jobrake whose
+    # fields or parsers have moved on neither serves another format's rows nor
+    # loses its own to them.
+    path = tmp_path / "jobrake.sqlite3"
+    cache = Cache(path)
+    cache.put(POSTINGS, "linkedin", {"111": POSTING})
+    moved_on = json.dumps({"description": "Role", "headcount": 4})
+    with sqlite3.connect(path) as other:
+        other.executemany(
+            f"INSERT OR REPLACE INTO {POSTINGS} VALUES (?, ?, ?, ?, ?)",
+            [
+                (_VERSION + 1, "linkedin", "111", moved_on, time.time()),
+                (_VERSION + 1, "linkedin", "222", moved_on, time.time()),
+            ],
+        )
+    assert cache.get(POSTINGS, "linkedin", ["111", "222"]) == {"111": POSTING}
+    assert not cache._broken
+
+
+def test_a_table_from_an_older_jobrake_is_rebuilt(tmp_path):
+    # A shape from before the current columns cannot take today's rows, so
+    # opening the database replaces the table and starts collecting again.
+    path = tmp_path / "jobrake.sqlite3"
+    with sqlite3.connect(path) as old:
+        old.execute(f"CREATE TABLE {POSTINGS} (scope TEXT, key TEXT, value TEXT, stored_at REAL)")
+        old.execute(
+            f"INSERT INTO {POSTINGS} VALUES (?, ?, ?, ?)",
+            ("linkedin", "111", json.dumps(POSTING), time.time()),
+        )
+    cache = Cache(path)
+    assert cache.get(POSTINGS, "linkedin", ["111"]) == {}
+    assert not cache._broken  # it starts over instead of giving up
+    cache.put(POSTINGS, "linkedin", {"111": POSTING})
+    assert cache.get(POSTINGS, "linkedin", ["111"]) == {"111": POSTING}

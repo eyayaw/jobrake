@@ -18,14 +18,24 @@ _TABLES = (POSTINGS, GEOIDS)
 TTL = 7 * 24 * 3600  # seconds
 # Startup applies retention only to rows with posting fields, tombstones stay.
 RETENTION = 30 * 24 * 3600
+
+# The format of the values stored here. Bump it whenever the current code would
+# produce something different from what is on disk: a change to the job fields,
+# or to how a provider's values are parsed. Every row records the format that
+# wrote it, and a read asks for the format the running code produces, so a
+# changed field set or parser starts from a miss.
+_VERSION = 0
+
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS {table} (
+    version INTEGER NOT NULL,
     scope TEXT NOT NULL,
     key TEXT NOT NULL,
-    value TEXT,
+    fields TEXT,
     stored_at REAL NOT NULL,
-    PRIMARY KEY (scope, key)
+    PRIMARY KEY (version, scope, key)
 )"""
+_COLUMNS = ("version", "scope", "key", "fields", "stored_at")
 
 
 class _NonstandardConstant(Exception):
@@ -61,7 +71,8 @@ class Cache:
     ``retention`` seconds. Posting tombstones and geoId resolutions do not
     expire. A storage or decoding failure logs once and disables this instance.
     Callers receive misses and continue scraping. A scope keeps provider keys
-    separate within each table.
+    separate within each table, and a stored format version keeps values apart
+    from those an earlier field set or parser produced.
 
     Attributes:
         path: SQLite database path. The cache opens it on first access.
@@ -103,9 +114,18 @@ class Cache:
                 self.path.parent.mkdir(parents=True, exist_ok=True)
                 self._conn = sqlite3.connect(self.path)
                 for table in _TABLES:
+                    columns = tuple(
+                        row[1] for row in self._conn.execute(f"PRAGMA table_info({table})")
+                    )
+                    if columns and columns != _COLUMNS:
+                        # A table built by an older jobrake cannot take today's rows.
+                        self._conn.execute(f"DROP TABLE {table}")
                     self._conn.execute(_SCHEMA.format(table=table))
+                    # Rows of another format are already invisible to this one,
+                    # so dropping them only reclaims the space they hold.
+                    self._conn.execute(f"DELETE FROM {table} WHERE version != ?", (_VERSION,))
                 self._conn.execute(
-                    f"DELETE FROM {POSTINGS} WHERE value IS NOT NULL AND stored_at < ?",
+                    f"DELETE FROM {POSTINGS} WHERE fields IS NOT NULL AND stored_at < ?",
                     (time.time() - self.retention,),
                 )
                 self._conn.commit()
@@ -142,14 +162,14 @@ class Cache:
         try:
             placeholders = ", ".join("?" for _ in keys)
             rows = conn.execute(
-                f"SELECT key, value, stored_at FROM {table}"
-                f" WHERE scope = ? AND key IN ({placeholders})",
-                [scope, *keys],
+                f"SELECT key, fields, stored_at FROM {table}"
+                f" WHERE version = ? AND scope = ? AND key IN ({placeholders})",
+                [_VERSION, scope, *keys],
             )
             stale = time.time() - self.ttl if table == POSTINGS else None
             found = {}
-            for key, value, stored_at in rows:
-                if value is None:
+            for key, stored, stored_at in rows:
+                if stored is None:
                     if table == POSTINGS:
                         found[key] = None
                     continue
@@ -158,7 +178,7 @@ class Cache:
                     raise ValueError(f"cache stored_at is not a finite number: {stored_at!r}")
                 if stale is None or stored_at >= stale:
                     try:
-                        decoded = json.loads(value, parse_constant=_reject_constant)
+                        decoded = json.loads(stored, parse_constant=_reject_constant)
                     except _NonstandardConstant:
                         # Treat nonstandard numeric constants as a cache miss. A successful refetch replaces the row.
                         continue
@@ -184,10 +204,11 @@ class Cache:
         try:
             now = time.time()
             conn.executemany(
-                f"INSERT OR REPLACE INTO {table} (scope, key, value, stored_at)"
-                " VALUES (?, ?, ?, ?)",
+                f"INSERT OR REPLACE INTO {table} (version, scope, key, fields, stored_at)"
+                " VALUES (?, ?, ?, ?, ?)",
                 (
                     (
+                        _VERSION,
                         scope,
                         key,
                         None if value is None else json.dumps(value, ensure_ascii=False),
