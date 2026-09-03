@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/eyayaw/jobrake/main/docs/assets/logo/jobrake-icon.svg" height="128" alt="Rake">
+  <img src="https://raw.githubusercontent.com/eyayaw/jobrake/refs/heads/main/docs/assets/logo/jobrake-icon.svg" height="128" alt="Rake">
 </p>
 
 # jobrake
@@ -96,8 +96,7 @@ See [provider behavior](https://github.com/eyayaw/jobrake/blob/main/docs/provide
 
 ## Credits
 
-jobrake is grateful for [python-jobspy](https://pypi.org/project/python-jobspy/).
-The Indeed mobile-app GraphQL endpoint and the LinkedIn guest-search approach are taken from it. Thanks.
+jobrake's Indeed GraphQL endpoint and LinkedIn guest-search approach are based on [python-jobspy](https://pypi.org/project/python-jobspy/). Huge thanks.
 
 ## Disclaimer
 
