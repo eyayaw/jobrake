@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/logo/jobrake-icon.svg" height="128" alt="Rake">
+  <img src="https://raw.githubusercontent.com/eyayaw/jobrake/main/docs/assets/logo/jobrake-icon.svg" height="128" alt="Rake">
 </p>
 
 # jobrake
@@ -62,7 +62,7 @@ jobrake -h
 
 The CLI writes JSON to stdout by default.
 `--format | -f` selects JSON, JSONL, or CSV, and `--output | -o` writes to a file.
-See [usage and output](docs/usage.md) for file formats, returned fields, custom fetchers, and piping.
+See [usage and output](https://github.com/eyayaw/jobrake/blob/main/docs/usage.md) for file formats, returned fields, custom fetchers, and piping.
 
 ### As a library
 
@@ -92,16 +92,16 @@ jobs = asyncio.run(main())
 | `linkedin` | Login-free guest API | Optional, paced, and cached |
 
 Indeed requires `country`. LinkedIn accepts either `location` or a geoId.
-See [provider behavior](docs/providers.md) for geography, filters, pagination, rate limits, retries, and LinkedIn detail fetching.
+See [provider behavior](https://github.com/eyayaw/jobrake/blob/main/docs/providers.md) for geography, filters, pagination, rate limits, retries, and LinkedIn detail fetching.
 
 ## Credits
 
-jobrake is grateful for [python-jobspy](https://pypi.org/project/python-jobspy/). 
+jobrake is grateful for [python-jobspy](https://pypi.org/project/python-jobspy/).
 The Indeed mobile-app GraphQL endpoint, and the LinkedIn guest-search approach are taken from it. Thanks.
 
 ## Disclaimer
 
 > [!WARNING]
-> jobrake has no affiliation with LinkedIn or Indeed. Use it to find jobs, not to build datasets by scraping regularly. 
-Scraping may violate their terms of service, and either site may rate-limit or block your IP address. 
+> jobrake has no affiliation with LinkedIn or Indeed. Use it to find jobs, not to build datasets by scraping regularly.
+Scraping may violate their terms of service, and either site may rate-limit or block your IP address.
 You are responsible for checking and complying with their terms.
