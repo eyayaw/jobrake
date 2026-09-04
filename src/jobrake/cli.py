@@ -183,7 +183,9 @@ def _add_output_args(parser: argparse.ArgumentParser) -> None:
 
 
 def _build_parser() -> _ArgumentParser:
-    parser = _ArgumentParser(prog="jobrake", description="Search job postings", allow_abbrev=False)
+    parser = _ArgumentParser(
+        prog="jobrake", description="Find and fetch job postings", allow_abbrev=False
+    )
     # The version action exits before argparse checks the required subcommand.
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     subparsers = parser.add_subparsers(dest="provider", required=True)
