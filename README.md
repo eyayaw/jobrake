@@ -62,6 +62,37 @@ uv tool install git+https://github.com/eyayaw/jobrake
 
 ```sh
 jobrake -h
+
+# LinkedIn ----
+## Search
+jobrake linkedin \
+        -q 'data science AND "economics"' \
+        -l "London, England" \
+        -n 5 \
+        -a 24 \
+        -d \
+        -o jobs.csv
+
+## Fetch details
+# You can pass several urls/ids
+jobrake details linkedin \
+        "https://uk.linkedin.com/jobs/view/senior-data-scientist-at-hm-treasury-4461975556"
+        # or just 4461975556
+## Resolve place names
+jobrake places linkedin "amsterdam" # then use the display name in search
+                                    # -l "Amsterdam, North Holland, Netherlands"
+
+# Indeed ----
+## Search and fetch details
+jobrake indeed \
+        -q 'data science AND economics' \
+        -c "UK" \
+        -l "London" \
+        -n 5 \
+        -a 24 \
+        -o jobs.jsonl
+# Resolve place names
+jobrake places indeed -c netherlands "amsterdam"
 ```
 
 The CLI writes JSON to stdout by default.
