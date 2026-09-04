@@ -475,8 +475,7 @@ async def fetch_details(
     A reference is a posting URL or a numeric posting ID, and the ID it names
     is the posting's identity here. References naming one posting yield one
     job. A canonical URL is fetched as given. Every other reference, including
-    an ID, first spends a guest-fragment request to learn the canonical URL,
-    which makes the URL a search prints the cheapest thing to pass. A
+    an ID, first spends a guest-fragment request to learn the canonical URL. A
     posting that is gone, unreachable, or unreadable is reported and left out,
     so a short result is normal. A persistent 429 ends the whole call, which
     then answers from the cache for the postings whose addresses it already
