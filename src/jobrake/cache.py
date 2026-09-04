@@ -14,17 +14,19 @@ logger = logging.getLogger(__name__)
 
 POSTINGS = "postings"
 GEOIDS = "geoids"
-_TABLES = (POSTINGS, GEOIDS)
 TTL = 7 * 24 * 3600  # seconds
 # Startup applies retention only to rows with posting fields, tombstones stay.
 RETENTION = 30 * 24 * 3600
 
-# The format of the values stored here. Bump it whenever the current code would
-# produce something different from what is on disk: a change to the job fields,
-# or to how a provider's values are parsed. Every row records the format that
-# wrote it, and a read asks for the format the running code produces, so a
-# changed field set or parser starts from a miss.
-_VERSION = 0
+# Each table version identifies the field set and parsing of its rows.
+# Bump the affected version when either changes. Reads select only that version,
+# so a posting version change leaves the cached geoids intact.
+# Fetching those again costs paced requests.
+_VERSIONS = {
+    POSTINGS: 0,
+    GEOIDS: 0,
+}
+_TABLES = tuple(_VERSIONS)
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS {table} (
@@ -71,8 +73,8 @@ class Cache:
     ``retention`` seconds. Posting tombstones and geoId resolutions do not
     expire. A storage or decoding failure logs once and disables this instance.
     Callers receive misses and continue scraping. A scope keeps provider keys
-    separate within each table, and a stored format version keeps values apart
-    from those an earlier field set or parser produced.
+    separate within each table, and each table's stored format version keeps
+    values apart from those an earlier field set or parser produced.
 
     Attributes:
         path: SQLite database path. The cache opens it on first access.
@@ -123,7 +125,9 @@ class Cache:
                     self._conn.execute(_SCHEMA.format(table=table))
                     # Rows of another format are already invisible to this one,
                     # so dropping them only reclaims the space they hold.
-                    self._conn.execute(f"DELETE FROM {table} WHERE version != ?", (_VERSION,))
+                    self._conn.execute(
+                        f"DELETE FROM {table} WHERE version != ?", (_VERSIONS[table],)
+                    )
                 self._conn.execute(
                     f"DELETE FROM {POSTINGS} WHERE fields IS NOT NULL AND stored_at < ?",
                     (time.time() - self.retention,),
@@ -164,7 +168,7 @@ class Cache:
             rows = conn.execute(
                 f"SELECT key, fields, stored_at FROM {table}"
                 f" WHERE version = ? AND scope = ? AND key IN ({placeholders})",
-                [_VERSION, scope, *keys],
+                [_VERSIONS[table], scope, *keys],
             )
             stale = time.time() - self.ttl if table == POSTINGS else None
             found = {}
@@ -208,7 +212,7 @@ class Cache:
                 " VALUES (?, ?, ?, ?, ?)",
                 (
                     (
-                        _VERSION,
+                        _VERSIONS[table],
                         scope,
                         key,
                         None if value is None else json.dumps(value, ensure_ascii=False),

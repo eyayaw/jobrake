@@ -7,7 +7,7 @@ import time
 
 import pytest
 
-from jobrake.cache import _VERSION, GEOIDS, POSTINGS, RETENTION, TTL, Cache
+from jobrake.cache import _VERSIONS, GEOIDS, POSTINGS, RETENTION, TTL, Cache
 
 POSTING = {"description": "Role", "applicants": 25}
 
@@ -122,12 +122,27 @@ def test_rows_of_another_format_are_invisible(tmp_path):
         other.executemany(
             f"INSERT OR REPLACE INTO {POSTINGS} VALUES (?, ?, ?, ?, ?)",
             [
-                (_VERSION + 1, "linkedin", "111", moved_on, time.time()),
-                (_VERSION + 1, "linkedin", "222", moved_on, time.time()),
+                (_VERSIONS[POSTINGS] + 1, "linkedin", "111", moved_on, time.time()),
+                (_VERSIONS[POSTINGS] + 1, "linkedin", "222", moved_on, time.time()),
             ],
         )
     assert cache.get(POSTINGS, "linkedin", ["111", "222"]) == {"111": POSTING}
     assert not cache._broken
+
+
+def test_table_versions_are_independent(tmp_path, monkeypatch):
+    # Place resolutions cost paced requests, so a reworked posting parser leaves
+    # them in place.
+    path = tmp_path / "jobrake.sqlite3"
+    place = {"geoId": "102011674"}
+    cache = Cache(path)
+    cache.put(POSTINGS, "linkedin", {"111": POSTING})
+    cache.put(GEOIDS, "linkedin", {"enschede": place})
+
+    monkeypatch.setitem(_VERSIONS, POSTINGS, _VERSIONS[POSTINGS] + 1)
+    moved_on = Cache(path)
+    assert moved_on.get(POSTINGS, "linkedin", ["111"]) == {}
+    assert moved_on.get(GEOIDS, "linkedin", ["enschede"]) == {"enschede": place}
 
 
 def test_a_table_from_an_older_jobrake_is_rebuilt(tmp_path):
