@@ -31,13 +31,16 @@ _TABLES = tuple(_VERSIONS)
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS {table} (
     version INTEGER NOT NULL,
-    scope TEXT NOT NULL,
+    site TEXT NOT NULL,
+    -- A posting ID, or a normalized place name in geoids.
     key TEXT NOT NULL,
+    -- The stored JSON object. NULL marks a posting confirmed gone.
     fields TEXT,
+    -- Unix time in seconds when the row was written.
     stored_at REAL NOT NULL,
-    PRIMARY KEY (version, scope, key)
+    PRIMARY KEY (version, site, key)
 )"""
-_COLUMNS = ("version", "scope", "key", "fields", "stored_at")
+_COLUMNS = ("version", "site", "key", "fields", "stored_at")
 
 
 class _NonstandardConstant(Exception):
@@ -72,7 +75,7 @@ class Cache:
     Posting values expire after ``ttl`` seconds and are deleted after
     ``retention`` seconds. Posting tombstones and geoId resolutions do not
     expire. A storage or decoding failure logs once and disables this instance.
-    Callers receive misses and continue scraping. A scope keeps provider keys
+    Callers receive misses and continue scraping. A site keeps its own keys
     separate within each table, and each table's stored format version keeps
     values apart from those an earlier field set or parser produced.
 
@@ -149,9 +152,9 @@ class Cache:
             self._conn = None
         logger.warning("cache disabled (%s): %s", self.path, error)
 
-    def get(self, table: str, scope: str, keys: Iterable[str]) -> dict[str, dict | None]:
+    def get(self, table: str, site: str, keys: Iterable[str]) -> dict[str, dict | None]:
         """
-        Read values for the requested keys in one table and scope.
+        Read values for the requested keys in one table and site.
 
         Posting values honor ``ttl``, geoId values do not expire.
         A ``None`` posting value is a tombstone marking the posting as gone.
@@ -167,8 +170,8 @@ class Cache:
             placeholders = ", ".join("?" for _ in keys)
             rows = conn.execute(
                 f"SELECT key, fields, stored_at FROM {table}"
-                f" WHERE version = ? AND scope = ? AND key IN ({placeholders})",
-                [_VERSIONS[table], scope, *keys],
+                f" WHERE version = ? AND site = ? AND key IN ({placeholders})",
+                [_VERSIONS[table], site, *keys],
             )
             stale = time.time() - self.ttl if table == POSTINGS else None
             found = {}
@@ -194,9 +197,9 @@ class Cache:
             self._give_up(error)
             return {}
 
-    def put(self, table: str, scope: str, values: Mapping[str, dict | None]) -> None:
+    def put(self, table: str, site: str, values: Mapping[str, dict | None]) -> None:
         """
-        Store dicts in one table and scope.
+        Store dicts in one table and site.
 
         ``None`` records a posting confirmed gone with a 404 or 410.
         Storage or serialization failures log once and disable this cache instance.
@@ -208,12 +211,12 @@ class Cache:
         try:
             now = time.time()
             conn.executemany(
-                f"INSERT OR REPLACE INTO {table} (version, scope, key, fields, stored_at)"
+                f"INSERT OR REPLACE INTO {table} (version, site, key, fields, stored_at)"
                 " VALUES (?, ?, ?, ?, ?)",
                 (
                     (
                         _VERSIONS[table],
-                        scope,
+                        site,
                         key,
                         None if value is None else json.dumps(value, ensure_ascii=False),
                         now,
