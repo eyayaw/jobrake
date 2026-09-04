@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.16.0](https://github.com/eyayaw/jobrake/releases/tag/v0.16.0) (2026-09-05)
+
+### Added
+
+- `jobrake details linkedin <ID|URL> ...` fetches known postings without repeating a search, with the same `--output`, `--format`, and `--no-cache` options. Several references to one posting return one job. Library callers can use `jobrake.sites.linkedin.fetch_details`. URLs from search results need the fewest requests; other accepted references require a lookup first.
+- jobrake ships a `py.typed` marker, so downstream type checkers use its inline annotations. Without it mypy reports jobrake as missing stubs and falls back to `Any`.
+
+### Changed
+
+- `jobrake --help` describes the program and each subcommand instead of listing bare names.
+- The MIT text stands alone in `LICENSE`, and the JobSpy attribution moved to `THIRD_PARTY_NOTICES`, which ships with the package. GitHub had read the concatenated file as "Other" rather than MIT.
+- This release rebuilds both cache tables, clearing existing entries, including the escaped logo URLs described below. Posting fields and place resolutions now have separate format versions. Releases bump the affected version when fields or parsing change, so jobrake refetches those values while preserving the other table's entries.
+- LinkedIn posting pages yield `title`, `company`, and `location`, so one page is enough to build a whole job. A hydrated search result takes these from the posting page wherever it names them.
+
+### Fixed
+
+- Strings from a LinkedIn posting's schema.org block are HTML-decoded. `company_logo` had carried `&amp;` between its query parameters, which made the image URL answer 403.
+- A warning carrying a transport failure reads as one sentence, with a lowercase label and the status attached, as in `server error (HTTP 500)`.
+- Rejecting a timestamp says why. A value that resolves before the year 2000 is reported as epoch seconds rather than milliseconds.
+- A numeric search argument that is not an integer now raises `TypeError` naming the argument. Previously `results=2.5` failed at page slicing, a non-finite `radius` or `max_age_hours` reached Indeed inside a malformed query, and `radius=False` searched a 0 km radius instead of omitting it.
+
 ## [0.15.0](https://github.com/eyayaw/jobrake/releases/tag/v0.15.0) (2026-09-02)
 
 ### Added
