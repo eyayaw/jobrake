@@ -79,6 +79,8 @@ jobrake details linkedin \
 ## Resolve place names
 jobrake places linkedin "amsterdam" # then use the display name in search
                                     # -l "Amsterdam, North Holland, Netherlands"
+# Use the geoid of the place directly (instead of location)
+jobrake linkedin -q "data scientist" -g 102011674 -n 2 # Amsterdam, Netherlands
 
 # Indeed ----
 ## Search and fetch details
