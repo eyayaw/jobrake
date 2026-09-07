@@ -6,7 +6,7 @@
   </picture>
 </div>
 
-___Scrape job postings together and heap them up.___
+___Scrape job postings together and heap them up.___ Read the launch post [here](https://eyayaw.github.io/posts/jobrake-for-the-job/).
 
 > Read it as "**job-rake**".
 >
