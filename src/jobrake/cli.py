@@ -172,7 +172,7 @@ def _add_output_args(parser: argparse.ArgumentParser) -> None:
         "--output",
         "-o",
         type=Path,
-        help="write results to this file instead of stdout",
+        help="write results to a new file instead of stdout",
     )
     parser.add_argument(
         "--format",
@@ -311,6 +311,8 @@ def _settle_output(parser: _ArgumentParser, args: argparse.Namespace) -> str:
             parser.error(f"output path is a directory: {args.output}")
         if not args.output.parent.is_dir():
             parser.error(f"output directory does not exist: {args.output.parent}")
+        if args.output.exists():
+            parser.error(f"output file already exists: {args.output}")
     if args.format:
         fmt = args.format
     elif args.output:
@@ -338,7 +340,8 @@ def _write_jobs(args: argparse.Namespace, jobs: list[dict], fmt: str) -> int | N
         logger.warning("no jobs found; leaving %s untouched", args.output)
         return None
     try:
-        args.output.write_text(RENDERERS[fmt](jobs), encoding="utf-8")
+        with args.output.open("x", encoding="utf-8") as output:
+            output.write(RENDERERS[fmt](jobs))
     except OSError as error:
         logger.error("could not write %s: %s", args.output, error)
         return 1

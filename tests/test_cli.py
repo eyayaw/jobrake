@@ -247,15 +247,14 @@ def test_output_json_writes_file(run_cli, tmp_path):
     assert json.loads(out.read_text(encoding="utf-8")) == JOBS
 
 
-def test_no_jobs_leaves_output_untouched(run_cli, monkeypatch, tmp_path):
+def test_no_jobs_does_not_create_output(run_cli, monkeypatch, tmp_path):
     async def no_jobs(*args, **kwargs):
         return []
 
     monkeypatch.setattr(cli, "scrape", no_jobs)
     out = tmp_path / "jobs.json"
-    out.write_text("previous run", encoding="utf-8")
     run_cli("-o", str(out))
-    assert out.read_text(encoding="utf-8") == "previous run"
+    assert not out.exists()
 
 
 def test_closed_pipe_ends_quietly(run_cli, monkeypatch):
@@ -288,12 +287,17 @@ def test_invalid_output_fails_before_scraping(run_cli, monkeypatch, tmp_path, ca
         run_cli("-o", str(tmp_path / "missing" / "jobs.json"))
     with pytest.raises(SystemExit):
         run_cli("-o", str(tmp_path))
+    existing = tmp_path / "jobs.json"
+    existing.write_text("previous run", encoding="utf-8")
+    with pytest.raises(SystemExit):
+        run_cli("-o", str(existing))
     errors = capsys.readouterr().err
     assert "unsupported output extension" in errors
     assert "output directory does not exist" in errors
     assert "output path is a directory" in errors
+    assert f"output file already exists: {existing}" in errors
     assert "usage:" not in errors
-    assert errors.count("Run 'jobrake -h' for help.") == 3
+    assert errors.count("Run 'jobrake -h' for help.") == 4
 
 
 def test_status_handler_progress():
@@ -338,7 +342,7 @@ def test_output_write_error_reports_and_fails(run_cli, monkeypatch, tmp_path, ca
     def deny_write(*args, **kwargs):
         raise PermissionError("permission denied")
 
-    monkeypatch.setattr(Path, "write_text", deny_write)
+    monkeypatch.setattr(Path, "open", deny_write)
     out = tmp_path / "jobs.json"
     assert run_cli("-o", str(out)) == 1
     assert f"could not write {out}: permission denied" in caplog.text
