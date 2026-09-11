@@ -64,7 +64,7 @@ jobrake -h
 # LinkedIn ----
 ## Search
 jobrake linkedin \
-        -q 'data science AND "economics"' \
+        -q "research economist" \
         -l "London, England" \
         -n 5 \
         -a 24 \
@@ -85,7 +85,7 @@ jobrake linkedin -q "data scientist" -g 102011674 -n 2 # Amsterdam, Netherlands
 # Indeed ----
 ## Search and fetch details
 jobrake indeed \
-        -q 'data science AND economics' \
+        -q "data analyst" \
         -c "UK" \
         -l "London" \
         -n 5 \
@@ -127,7 +127,7 @@ jobs = asyncio.run(main())
 | `linkedin` | Login-free guest API | Optional, paced, and cached |
 
 Indeed requires `country`. LinkedIn accepts either `location` or a geoId.
-See [provider behavior](https://github.com/eyayaw/jobrake/blob/main/docs/providers.md) for geography, filters, pagination, rate limits, retries, and LinkedIn detail fetching.
+See [provider behavior](https://github.com/eyayaw/jobrake/blob/main/docs/providers.md) for search queries, geography, filters, pagination, rate limits, retries, and LinkedIn detail fetching.
 
 ## Credits
 

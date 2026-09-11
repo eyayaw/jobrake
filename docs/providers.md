@@ -7,6 +7,14 @@ Indeed and LinkedIn share one search interface, but they interpret geography and
 | Indeed | `country` chooses the country edition. `location` narrows the search. | Included in search results |
 | LinkedIn | Pass `location` or a geoId. Library calls ignore `country`. | Fetched with `--details` or `details=True` |
 
+## Search queries
+
+Search for a job title or keywords. jobrake sends the query unchanged to Indeed's `what` or LinkedIn's `keywords` field.
+
+Each provider determines how operators, quotation marks, and parentheses affect results.
+Those rules can differ between providers and change independently of jobrake.
+Applications that need deterministic matching can expand a search into several provider queries, then filter and rank the returned jobs.
+
 ## Search filters
 
 Every search entry point defaults to postings from the last seven days. Searches return 10 jobs by default.
@@ -17,6 +25,24 @@ For library calls, `radius=None` uses Indeed's standard radius and omits LinkedI
 `results` and `max_age_hours` must be positive integers. `radius` must be a nonnegative integer, so zero is accepted.
 
 ## Indeed
+
+### Query behavior
+
+Indeed's mobile endpoint treats `title:` and `company:` as field restrictions.
+Inside `title:`, parentheses group terms.
+Quotation marks narrow phrase searches, and a leading minus can exclude a term.
+These constructs can be combined:
+
+```text
+title:(data OR research)
+company:"Booking.com"
+title:analyst company:Booking.com
+title:analyst -senior
+```
+
+Plain terms can match posting descriptions or other indexed content, and `description:<term>` does not reliably restrict results to descriptions.
+`AND`, `OR`, and `NOT` act as provider search hints. Their results can differ from Boolean union, intersection, and exclusion.
+Use jobrake's dedicated arguments for geography and posting age.
 
 ### Locations
 
@@ -42,6 +68,10 @@ Invalid fields are omitted from an otherwise valid job.
 
 LinkedIn's guest search returns summary cards.
 Use `--details | -d` or `details=True` to fetch each posting page and add its detail fields.
+
+### Query behavior
+
+The [Boolean search operators](https://www.linkedin.com/help/linkedin/answer/a524335/using-boolean-search-on-linkedin?lang=en) LinkedIn documents for its supported search interface do not work as documented on the guest endpoint used by jobrake.
 
 ### Locations
 

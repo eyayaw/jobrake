@@ -147,7 +147,7 @@ def _add_search_args(parser: argparse.ArgumentParser) -> None:
         "-q",
         required=True,
         default=argparse.SUPPRESS,
-        help="job title, keywords, or Boolean query",
+        help="job title or keywords, as interpreted by the provider",
     )
     parser.add_argument(
         "--results",
