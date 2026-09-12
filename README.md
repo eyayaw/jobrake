@@ -36,9 +36,9 @@ jobrake linkedin \
 jobrake indeed \
   -q "data scientist" \
   -l amsterdam -c netherlands \
-  -r 100 \
   -a 48 \
-  -n 5
+  -n 5 \
+  --radius 100
 ```
 </td>
 </tr>
