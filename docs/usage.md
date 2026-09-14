@@ -147,3 +147,19 @@ If another `Fetcher` implementation raises, `scrape()` lets the exception propag
 
 Fetch errors may leave partial results.
 [Provider behavior](providers.md) explains when fetching stops and which results are retained.
+
+## Cache location and lifetimes
+
+jobrake keeps posting fields and LinkedIn place resolutions in one SQLite file under your user cache directory (`~/Library/Caches/jobrake/` on macOS, `$XDG_CACHE_HOME/jobrake/` on Linux, `%LOCALAPPDATA%\jobrake\` on Windows). Posting fields remain fresh for seven days and are eligible for deletion after 30 days. Place resolutions and gone-posting markers are kept indefinitely. Three environment variables configure the cache:
+
+| Variable | Default | Effect |
+| --- | --- | --- |
+| `JOBRAKE_CACHE_PATH` | platform user cache | Path to the SQLite file, with home-directory expansion |
+| `JOBRAKE_CACHE_TTL` | 604800 | Seconds a stored field is served before a refetch |
+| `JOBRAKE_CACHE_RETENTION` | 2592000 | Seconds a field stays on disk, counted from when it was stored |
+
+Opening the database deletes posting fields older than the retention period. If the configured retention is shorter than the freshness period, jobrake raises retention to match.
+
+Unset or empty lifetime variables use the defaults. Other values must be finite, positive numbers of seconds. Invalid values produce a warning and fall back to the defaults. If home-directory expansion fails, jobrake warns and uses the default cache path. A storage failure logs a warning and disables that cache instance while scraping continues.
+
+When constructing `jobrake.cache.Cache`, library callers can supply explicit lifetimes with `Cache(path, ttl=..., retention=...)`. Each supplied argument overrides its environment variable. An explicit retention must be finite and at least as long as the resolved freshness period. Invalid explicit lifetimes raise `ValueError`.

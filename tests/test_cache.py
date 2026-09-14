@@ -103,11 +103,43 @@ def test_unserializable_fields_disable_cache(tmp_path):
     [
         (math.nan, RETENTION),
         (TTL, TTL - 1),  # rows would purge before going stale
+        (None, -1),  # a retention the caller stated is never repaired
     ],
 )
 def test_invalid_policy_rejected(tmp_path, ttl, retention):
     with pytest.raises(ValueError):
         Cache(tmp_path / "jobrake.sqlite3", ttl=ttl, retention=retention)
+
+
+def test_environment_supplies_path_and_lifetimes(tmp_path, monkeypatch):
+    path = tmp_path / "elsewhere" / "jobrake.sqlite3"
+    monkeypatch.setenv("JOBRAKE_CACHE_PATH", str(path))
+    monkeypatch.setenv("JOBRAKE_CACHE_TTL", "5400")
+    monkeypatch.setenv("JOBRAKE_CACHE_RETENTION", "172800")
+
+    cache = Cache()
+
+    assert cache.path == path
+    assert cache.ttl == 5400
+    assert cache.retention == 172800
+    # An argument beats the variable.
+    assert Cache(tmp_path / "given.sqlite3", ttl=60).ttl == 60
+
+
+@pytest.mark.parametrize("seconds", ["", "weekly", "0", "-5", "inf", "nan"])
+def test_unusable_environment_lifetime_falls_back(monkeypatch, seconds):
+    monkeypatch.setenv("JOBRAKE_CACHE_TTL", seconds)
+
+    assert Cache().ttl == TTL
+
+
+def test_environment_ttl_lifts_retention(monkeypatch):
+    # `CACHE = Cache()` runs during import, so this pair must not raise there.
+    monkeypatch.setenv("JOBRAKE_CACHE_TTL", str(RETENTION * 2))
+
+    cache = Cache()
+
+    assert cache.retention == cache.ttl
 
 
 def test_rows_of_another_format_are_invisible(tmp_path):

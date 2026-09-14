@@ -51,13 +51,36 @@ def _reject_constant(name: str):
     raise _NonstandardConstant(name)
 
 
+def _env_seconds(name: str, default: float) -> float:
+    """Read lifetime seconds from an environment variable, with a fallback."""
+    raw = os.environ.get(name)
+    if not raw:
+        return default
+    try:
+        seconds = float(raw)
+    except ValueError:
+        seconds = 0.0
+    # float() also accepts NaN and infinity.
+    if not math.isfinite(seconds) or seconds <= 0:
+        logger.warning("%s=%r is not a positive number of seconds; using %.0f", name, raw, default)
+        return default
+    return seconds
+
+
 def _default_path() -> Path:
+    if override := os.environ.get("JOBRAKE_CACHE_PATH"):
+        try:
+            return Path(override).expanduser()
+        except RuntimeError:
+            logger.warning(
+                "JOBRAKE_CACHE_PATH=%r names no home directory; using the default", override
+            )
     match sys.platform:
         case "darwin":
             base = Path.home() / "Library" / "Caches"
         case "win32":
             base = Path(os.environ.get("LOCALAPPDATA") or Path.home() / "AppData" / "Local")
-        case _:
+        case "linux" | _:
             base = Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache")
     return base / "jobrake" / "jobrake.sqlite3"
 
@@ -89,24 +112,39 @@ class Cache:
         self,
         path: str | Path | None = None,
         *,
-        ttl: float = TTL,
-        retention: float = RETENTION,
+        ttl: float | None = None,
+        retention: float | None = None,
     ) -> None:
         """
         Configure lazy storage and field-row lifetimes.
 
-        ``None`` selects the platform user-cache directory for ``path``.
+        An omitted ``path`` selects ``JOBRAKE_CACHE_PATH`` or the platform
+        user-cache directory. Omitted lifetimes use ``JOBRAKE_CACHE_TTL``
+        and ``JOBRAKE_CACHE_RETENTION``, with the module defaults as fallbacks.
+        If ``retention`` is omitted, its resolved value is raised to at least
+        ``ttl``. Explicit arguments take precedence over environment variables.
 
         Raises:
-            ValueError: A lifetime is non-finite, ``ttl`` is not positive, or
-                ``retention`` < ``ttl``.
+            ValueError: A given lifetime is non-finite, ``ttl`` is not positive,
+                or ``retention`` < ``ttl``.
         """
-        self.ttl = float(ttl)
-        self.retention = float(retention)
+        self.ttl = float(ttl) if ttl is not None else _env_seconds("JOBRAKE_CACHE_TTL", TTL)
+        self.retention = (
+            float(retention)
+            if retention is not None
+            else _env_seconds("JOBRAKE_CACHE_RETENTION", RETENTION)
+        )
+        if self.retention < self.ttl and retention is None:
+            # Adjusting implicit retention keeps environment settings from
+            # breaking the LinkedIn client's import.
+            self.retention = self.ttl
         if not math.isfinite(self.ttl) or self.ttl <= 0:
-            raise ValueError(f"ttl ({ttl}) must be finite and positive")
+            raise ValueError(f"ttl ({self.ttl:.10g}) must be finite and positive")
         if not math.isfinite(self.retention) or self.retention < self.ttl:
-            raise ValueError(f"retention ({retention}) must be finite and at least ttl ({ttl})")
+            raise ValueError(
+                f"retention ({self.retention:.10g}) must be finite"
+                f" and at least ttl ({self.ttl:.10g})"
+            )
         self.path = Path(path) if path else _default_path()
         self._conn: sqlite3.Connection | None = None
         self._broken = False

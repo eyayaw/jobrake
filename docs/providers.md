@@ -130,7 +130,8 @@ A value over one minute skips the retry. If the 429 remains, jobrake returns the
 
 ### Posting details and cache
 
-For URLs with numeric posting IDs, cached detail fields are reused for one week.
+For URLs with numeric posting IDs, cached detail fields remain fresh for one week by default.
+[`JOBRAKE_CACHE_TTL`](usage.md#cache-location-and-lifetimes) sets this period in seconds.
 Older fields are fetched again. URLs without an ID are fetched on every call.
 jobrake records HTTP 404 and 410 responses and skips those postings on later cached runs.
 Pass `--no-cache` or `cache=False` to bypass the cache.
