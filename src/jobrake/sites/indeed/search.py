@@ -292,7 +292,9 @@ async def search(
     subdomain, api_code = indeed_domain(country)
     base_url = f"https://{subdomain}.indeed.com"
     headers = {**API_HEADERS, "indeed-co": api_code}
-    logger.info("searching indeed for %r in %r", query, location or country)
+    logger.info(
+        "searching indeed for %r in %r", query, f"{location}, {country}" if location else country
+    )
 
     jobs: list[dict] = []
     seen: set[str] = set()
