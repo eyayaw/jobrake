@@ -82,6 +82,7 @@ def test_indeed_parses_and_paginates():
     assert jobs[0]["location"] == "NYC, NY, US"
     assert jobs[0]["description"] == "Economist & analyst"
     assert jobs[0]["date"] == "2024-06-01"
+    assert "language" not in jobs[0]
     assert len(fetcher.requests) == 2  # stopped when cursor ran out
 
 
@@ -129,6 +130,7 @@ def test_indeed_requests_full_pages_throughout_a_cursor_chain():
     assert [job["id"] for job in jobs] == ["a", "b", "c"]
     assert all('what: "x"' in query for query in fetcher.queries)
     assert all("limit: 100" in query for query in fetcher.queries)
+    assert all("language" in query.split() for query in fetcher.queries)
     assert len(fetcher.queries) == 2
 
 
@@ -289,8 +291,10 @@ def parse_one(job):
     return indeed.parse_jobs(payload, "https://www.indeed.com")[0][0]
 
 
-def test_indeed_maps_detail_onto_the_model():
-    job = parse_one(rich_job())
+@pytest.mark.parametrize("language", ["en", "nl"])
+def test_indeed_maps_detail_onto_the_model(language):
+    job = parse_one(rich_job(language=language))
+    assert job["language"] == language
     assert job["posted_at"] == "2024-06-01T00:00:00+00:00"
     assert job["expires_at"] == "2024-07-01T00:00:00+00:00"
     assert job["date"] == "2024-06-01"  # derived, not restated
@@ -305,10 +309,13 @@ def test_indeed_maps_detail_onto_the_model():
     assert (job["latitude"], job["longitude"]) == (42.36, -71.06)
 
 
-def test_indeed_omits_the_detail_a_posting_lacks():
-    job = parse_one(rich_job(compensation=None, recruit=None, attributes=[], employer=None))
+@pytest.mark.parametrize("language", [None, "", "   "])
+def test_indeed_omits_the_detail_a_posting_lacks(language):
+    job = parse_one(
+        rich_job(compensation=None, recruit=None, attributes=[], employer=None, language=language)
+    )
     # untagged is not evidence of on-site
-    assert {"salary_min", "apply_url", "employment_type", "is_remote"}.isdisjoint(job)
+    assert {"salary_min", "apply_url", "employment_type", "is_remote", "language"}.isdisjoint(job)
 
 
 def test_indeed_single_bound_salaries():
@@ -346,6 +353,7 @@ def test_indeed_omits_invalid_detail_values():
     job = parse_one(
         rich_job(
             title={"t": 1},
+            language={"code": "en"},
             location="Boston",  # a leaf where an object belongs loses the object's fields
             description="a bare string",
             employer={"name": ["Acme"], "relativeCompanyPageUrl": {"u": 1}, "dossier": "flat"},

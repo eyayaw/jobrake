@@ -75,9 +75,18 @@ All seven keys are present, with `None` for an unavailable summary value.
 Their absence can mean that the provider omitted the value, does not publish it, or that jobrake did not fetch the posting page.
 
 Shared details use the same field names, and a few fields come from one provider only.
-LinkedIn jobs carry `apply_type`, `applicants`, `experience_months`, and `education`.
-Indeed jobs carry `is_remote` and `apply_url`, and Indeed includes detail fields in search results.
+LinkedIn postings can supply `apply_type`, `applicants`, `experience_months`, and `education`.
+Indeed returns available details with search results, including `is_remote`, `apply_url`, and `language`.
 Use `--details | -d` or `details=True` to fetch each LinkedIn posting page and add its detail fields.
+
+For Indeed postings, `language` holds the provider's language code when available, such as `"en"` or `"nl"`.
+To keep English postings:
+
+```python
+english = [job for job in jobs if job.get("language") == "en"]
+```
+
+LinkedIn job dictionaries omit `language`. CSV includes the column, with an empty cell when the value is unavailable.
 
 ## Library use
 

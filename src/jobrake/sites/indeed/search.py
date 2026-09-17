@@ -43,6 +43,7 @@ query GetJobData {{
       job {{
         key
         title
+        language
         datePublished
         expirationDate
         description {{ html }}
@@ -187,6 +188,7 @@ def _parse_job(job: dict, base_url: str) -> dict:
         id=key,
         url=f"{base_url}/viewjob?jk={key}",
         title=_string_value(job.get("title")),
+        language=_string_value(job.get("language")),
         company=_string_value(employer.get("name")),
         location=", ".join(part for part in (city, region, country_code) if part) or None,
         description=_scrub_css(

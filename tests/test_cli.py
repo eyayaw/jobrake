@@ -22,6 +22,7 @@ JOBS = [
         site="indeed",
         location="Seattle, WA",
         description="line one\nline two",
+        language="en",
         date="2026-08-01",
     ),
     make_job(

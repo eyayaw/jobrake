@@ -35,6 +35,7 @@ class Job:
     date: str | None = None
     # Detail ----
     description: str | None = None
+    language: str | None = None
     company_url: str | None = None
     company_logo: str | None = None
     employment_type: str | None = None
