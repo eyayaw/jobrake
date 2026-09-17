@@ -137,10 +137,15 @@ def _add_indeed_args(parser: argparse.ArgumentParser) -> None:
         type=int,
         help=f"search radius in kilometers (default: {defaults.INDEED_RADIUS})",
     )
-    # The shared search call needs values for LinkedIn-only options.
-    parser.set_defaults(
-        details=defaults.DETAILS, cache=defaults.CACHE, geoid=defaults.GEOID, companies=None
+    parser.add_argument(
+        "--company",
+        dest="companies",
+        action="append",
+        metavar="KEY",
+        help="filter jobs by employer key (one company per search)",
     )
+    # The shared search call needs values for LinkedIn-only options.
+    parser.set_defaults(details=defaults.DETAILS, cache=defaults.CACHE, geoid=defaults.GEOID)
 
 
 _SITE_ARGS = {"linkedin": _add_linkedin_args, "indeed": _add_indeed_args}
@@ -275,7 +280,20 @@ def _build_parser() -> _ArgumentParser:
         help="print LinkedIn company names and IDs",
         description="List LinkedIn's suggested company names and IDs as JSON",
     )
-    company_linkedin.add_argument("name", help="company name, e.g. 'ABN AMRO'")
+    company_indeed = company_sites.add_parser(
+        "indeed",
+        allow_abbrev=False,
+        help="print Indeed company names and employer keys",
+        description="List an Indeed edition's company suggestions and employer keys as JSON",
+    )
+    for sub in (company_linkedin, company_indeed):
+        sub.add_argument("name", help="company name, e.g. 'ABN AMRO'")
+    company_indeed.add_argument(
+        "--country",
+        "-c",
+        required=True,
+        help="Indeed country edition, e.g., usa, uk, or netherlands",
+    )
     return parser
 
 
@@ -312,6 +330,8 @@ async def _lookup_candidates(args: argparse.Namespace) -> list[dict] | None:
                     return await linkedin.companies(fetcher, args.name)
                 return await linkedin.places(fetcher, args.name)
             case "indeed":
+                if args.provider == "companies":
+                    return await indeed.companies(fetcher, args.name, args.country)
                 return await indeed.places(fetcher, args.name, args.country)
             case _:
                 raise ValueError(f"unknown provider {args.site}")

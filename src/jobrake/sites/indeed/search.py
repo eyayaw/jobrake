@@ -10,6 +10,7 @@ from jobrake import defaults
 from jobrake.fetchkit import PostFetcher
 from jobrake.models import employment_type, make_job
 from jobrake.utils import (
+    check_companies,
     check_max_age_hours,
     check_radius,
     check_results,
@@ -84,11 +85,18 @@ def build_query(
     radius: int | None,
     max_age_hours: int | None,
     cursor: str | None,
+    company: str | None = None,
 ) -> str:
     """Build an Indeed query with a cursor-bound page size of 100."""
-    filters = ""
+    filters = []
     if max_age_hours:
-        filters = f'filters: {{ date: {{ field: "dateOnIndeed", start: "{max_age_hours}h" }} }}'
+        filters.append(f'{{ date: {{ field: "dateOnIndeed", start: "{max_age_hours}h" }} }}')
+    if company is not None:
+        filters.append(
+            '{ keyword: { field: "indeedEmployerKey", keys: [' + json.dumps(company) + "] } }"
+        )
+    # Indeed requires date and keyword filters in separate objects.
+    # Jobs must satisfy both filters when both are supplied.
     return QUERY.format(
         what=f"what: {json.dumps(query)}" if query else "",
         location=(
@@ -99,7 +107,7 @@ def build_query(
             else ""
         ),
         cursor=f"cursor: {json.dumps(cursor)}" if cursor else "",
-        filters=filters,
+        filters="filters: [" + ", ".join(filters) + "]" if filters else "",
     )
 
 
@@ -275,7 +283,9 @@ async def search(
 
     ``country`` selects the edition. Radius is measured in kilometers.
     ``None`` uses the standard radius. The shared search options ``details``,
-    ``cache``, ``geoid``, and ``companies`` are accepted and ignored.
+    ``cache``, and ``geoid`` are accepted and ignored.
+    ``companies`` restricts results to jobs at one employer. Pass its Indeed
+    employer key as a nonblank string in a list. ``None`` and ``[]`` omit this filter.
     The caller retains ownership of ``fetcher``.
 
     Each request asks for 100 jobs in relevance order. The returned list keeps
@@ -286,9 +296,11 @@ async def search(
     invalid field costs only that field.
 
     Raises:
-        TypeError: A numeric search argument is not an integer.
-        ValueError: The country is unknown or a numeric search argument is outside its valid range.
+        TypeError: A numeric search argument is not an integer, or company IDs are not a list of strings.
+        ValueError: The country is unknown, a numeric search argument is outside its valid range,
+            or the company list contains a blank key or more than one entry.
     """
+    check_companies(companies, site="indeed")
     check_results(results)
     check_radius(radius)
     check_max_age_hours(max_age_hours)
@@ -304,7 +316,9 @@ async def search(
     cursors: set[str] = set()
     cursor: str | None = None
     while len(jobs) < results:
-        graphql = build_query(query, location, radius, max_age_hours, cursor)
+        graphql = build_query(
+            query, location, radius, max_age_hours, cursor, companies[0] if companies else None
+        )
         result = await fetcher.post(API_URL, {"query": graphql}, headers=headers)
         if result.error:
             logger.warning(

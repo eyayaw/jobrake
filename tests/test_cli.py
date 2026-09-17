@@ -56,6 +56,7 @@ def test_lookup_commands_print_candidates_and_report_failure(monkeypatch, capsys
     linkedin_hits = [{"geoId": "102011674", "displayName": "Amsterdam, North Holland, Netherlands"}]
     indeed_hits = [{"suggestion": "Boston, MA", "locationType": "CITY"}]
     company_hits = [{"companyId": "1173", "displayName": "ABN AMRO Bank N.V."}]
+    indeed_company_hits = [{"employerKey": "fe219df7f711aa73", "suggestion": "ABN AMRO"}]
 
     class StubHttpx:
         instances: list = []
@@ -79,7 +80,12 @@ def test_lookup_commands_print_candidates_and_report_failure(monkeypatch, capsys
         assert name == "ABN AMRO"
         return company_hits
 
+    async def fake_indeed_companies(fetcher, name, country):
+        assert (name, country) == ("ABN AMRO", "netherlands")
+        return indeed_company_hits
+
     monkeypatch.setattr(cli, "HttpxFetcher", StubHttpx)
+    monkeypatch.setattr(cli.indeed, "companies", fake_indeed_companies)
     monkeypatch.setattr(cli.linkedin, "companies", fake_companies)
     monkeypatch.setattr(cli.linkedin, "places", fake_linkedin)
     monkeypatch.setattr(cli.indeed, "places", fake_indeed)
@@ -100,6 +106,14 @@ def test_lookup_commands_print_candidates_and_report_failure(monkeypatch, capsys
     assert cli.main() is None
     assert json.loads(capsys.readouterr().out) == []
     company_hits = None
+    assert cli.main() == 1
+    assert capsys.readouterr().out == ""
+    monkeypatch.setattr(
+        sys, "argv", ["jobrake", "companies", "indeed", "ABN AMRO", "-c", "netherlands"]
+    )
+    assert cli.main() is None
+    assert json.loads(capsys.readouterr().out) == indeed_company_hits
+    indeed_company_hits = None
     assert cli.main() == 1
     assert capsys.readouterr().out == ""
     assert StubHttpx.instances and all(f.closed for f in StubHttpx.instances)
@@ -152,6 +166,8 @@ def test_provider_commands_dispatch_expected_options(monkeypatch):
             "3",
             "--max-age",
             "48",
+            "--company",
+            "fe219df7f711aa73",
         ],
         ["linkedin", "-q", "x", "-l", "Seattle", "--details", "--no-cache", "--geoid"],
         [
@@ -182,7 +198,7 @@ def test_provider_commands_dispatch_expected_options(monkeypatch):
                 "details": defaults.DETAILS,
                 "cache": defaults.CACHE,
                 "geoid": defaults.GEOID,
-                "companies": None,
+                "companies": ["fe219df7f711aa73"],
             },
         ),
         (
@@ -225,7 +241,7 @@ def test_invalid_provider_arguments_fail_before_scraping(monkeypatch):
     monkeypatch.setattr(cli, "scrape", must_not_run)
     for argv in (
         ["indeed", "-q", "x"],
-        ["indeed", "-q", "x", "-c", "usa", "--company", "1173"],
+        ["companies", "indeed", "ABN AMRO"],
         ["linkedin", "-q", "x"],
         ["linkedin", "-q", "x", "--geoid"],
         ["linkedin", "-q", "x", "-l", "Seattle", "--detail"],
@@ -235,18 +251,29 @@ def test_invalid_provider_arguments_fail_before_scraping(monkeypatch):
             cli.main()
 
 
-def test_invalid_company_id_reports_a_cli_error_before_opening_a_fetcher(monkeypatch, capsys):
+@pytest.mark.parametrize(
+    ("argv", "message"),
+    [
+        (["linkedin", "-l", "Netherlands", "--company", "Acme"], "must use digits 0-9"),
+        (["indeed", "-c", "netherlands", "--company", " "], "employer key is blank"),
+        (
+            ["indeed", "-c", "netherlands", "--company", "a", "--company", "b"],
+            "one Indeed employer key per search",
+        ),
+    ],
+)
+def test_invalid_company_id_reports_a_cli_error_before_opening_a_fetcher(
+    monkeypatch, capsys, argv, message
+):
     def must_not_open():
         raise AssertionError("opened transport before validating company IDs")
 
     monkeypatch.setattr(sites, "HttpxFetcher", must_not_open)
-    monkeypatch.setattr(
-        sys, "argv", ["jobrake", "linkedin", "-q", "", "-l", "Netherlands", "--company", "Acme"]
-    )
+    monkeypatch.setattr(sys, "argv", ["jobrake", *argv, "-q", ""])
     with pytest.raises(SystemExit) as error:
         cli.main()
     assert error.value.code == 2
-    assert "company ID 'Acme' must use digits 0-9" in capsys.readouterr().err
+    assert message in capsys.readouterr().err
 
 
 def test_default_output_is_json_on_stdout(run_cli, capsys):

@@ -1,4 +1,4 @@
-"""Endpoint and headers for Indeed's mobile-app GraphQL API."""
+"""Connection settings for Indeed search and autocomplete."""
 
 API_URL = "https://apis.indeed.com/graphql"
 
@@ -19,4 +19,17 @@ API_HEADERS = {
     "indeed-app-info": "appv=193.1; appid=com.indeed.jobsearch; osv=16.6.1; os=ios; dtype=phone",
 }
 
-__all__ = ["API_HEADERS", "API_URL", "INDEED_APP_KEY"]
+# Autocomplete serves the browser search interface.
+AUTOCOMPLETE_HEADERS = {
+    "accept": "*/*",
+    "accept-language": "en-US,en;q=0.9",
+    "origin": "https://www.indeed.com",
+    "referer": "https://www.indeed.com/",
+    "user-agent": (
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
+        " (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    ),
+}
+
+
+__all__ = ["AUTOCOMPLETE_HEADERS", "API_HEADERS", "API_URL", "INDEED_APP_KEY"]

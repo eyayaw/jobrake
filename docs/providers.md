@@ -44,6 +44,27 @@ Plain terms can match posting descriptions or other indexed content, and `descri
 `AND`, `OR`, and `NOT` act as provider search hints. Their results can differ from Boolean union, intersection, and exclusion.
 Use jobrake's dedicated arguments for geography and posting age.
 
+### Companies
+
+Find an Indeed employer key by looking up the company name in a country edition:
+
+```sh
+jobrake companies indeed "ABN AMRO" -c netherlands
+```
+
+Each JSON entry pairs an `employerKey` with a company name in `suggestion`. Results follow Indeed's suggestion order and may include related companies. Choose the employer whose jobs you want.
+Library callers can use `jobrake.sites.indeed.companies(fetcher, name, country)`. A lookup with no matches returns `[]`. A failed request or unreadable response returns `None` and logs a warning. The command exits nonzero on failure.
+
+Use the selected key to restrict job results to that employer:
+
+```sh
+jobrake indeed -q "data" -c netherlands --company fe219df7f711aa73
+jobrake indeed -q "" -c netherlands --company fe219df7f711aa73
+```
+
+This key selects ABN AMRO. An empty query searches its postings without keywords. Location and posting-age options apply alongside the company filter.
+For a library search, pass `companies=["fe219df7f711aa73"]` to `scrape()`. jobrake supports one Indeed employer key per search, supplied as a nonblank string. A list with multiple keys raises an error before any request. Use `None` or `[]` to omit this filter.
+
 ### Locations
 
 Set `country` to a name such as `germany` or `netherlands`. Accepted shortcuts are `usa`, `us`, and `uk`.

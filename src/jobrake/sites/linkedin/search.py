@@ -115,7 +115,7 @@ async def search(
             "location is required unless geoid is an ID. "
             "Try 'Amsterdam, North Holland, Netherlands'"
         )
-    check_companies(companies)
+    check_companies(companies, site="linkedin")
     check_results(results)
     check_radius(radius)
     check_max_age_hours(max_age_hours)

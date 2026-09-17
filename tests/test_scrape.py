@@ -15,6 +15,8 @@ from jobrake.sites.linkedin import client
     [
         ("glassdoor", {}, "glassdoor"),
         ("indeed", {}, "country"),
+        ("indeed", {"country": "netherlands", "companies": [" "]}, "blank"),
+        ("indeed", {"country": "netherlands", "companies": ["a", "b"]}, "one Indeed employer key"),
         ("linkedin", {}, "location"),
         ("linkedin", {"location": "   "}, "location"),
         ("linkedin", {"geoid": ""}, "geoid"),
@@ -34,26 +36,28 @@ def test_scrape_rejects_bad_arguments_before_opening_a_fetcher(site, kwargs, mat
 
 
 @pytest.mark.parametrize(
-    ("kwargs", "match"),
+    ("site", "kwargs", "match"),
     [
-        ({"companies": "1173"}, "companies"),
-        ({"companies": [1173]}, "company ID"),
-        ({"results": float("nan")}, "results"),
-        ({"results": 2.5}, "results"),
-        ({"results": True}, "results"),
-        ({"radius": float("inf")}, "radius"),
-        ({"radius": False}, "radius"),
-        ({"max_age_hours": 1.5}, "max_age_hours"),
-        ({"max_age_hours": True}, "max_age_hours"),
+        ("indeed", {"companies": "fe219df7f711aa73"}, "companies"),
+        ("indeed", {"companies": [123]}, "company ID"),
+        ("linkedin", {"companies": "1173"}, "companies"),
+        ("linkedin", {"companies": [1173]}, "company ID"),
+        ("linkedin", {"results": float("nan")}, "results"),
+        ("linkedin", {"results": 2.5}, "results"),
+        ("linkedin", {"results": True}, "results"),
+        ("linkedin", {"radius": float("inf")}, "radius"),
+        ("linkedin", {"radius": False}, "radius"),
+        ("linkedin", {"max_age_hours": 1.5}, "max_age_hours"),
+        ("linkedin", {"max_age_hours": True}, "max_age_hours"),
     ],
 )
-def test_scrape_rejects_invalid_argument_types(kwargs, match, monkeypatch):
+def test_scrape_rejects_invalid_argument_types(kwargs, match, monkeypatch, site):
     def must_not_open():
         raise AssertionError("opened transport before validating arguments")
 
     monkeypatch.setattr(sites, "HttpxFetcher", must_not_open)
     with pytest.raises(TypeError, match=match):
-        asyncio.run(scrape("linkedin", query="x", location="Seattle", **kwargs))
+        asyncio.run(scrape(site, query="x", location="Seattle", country="usa", **kwargs))
 
 
 def test_scrape_accepts_an_explicit_zero_radius(monkeypatch):

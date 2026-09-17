@@ -45,16 +45,17 @@ async def scrape(
     Without an injected fetcher, ``scrape`` creates and closes an ``HttpxFetcher``.
 
     Raises:
-        TypeError: A numeric search argument has the wrong type, or LinkedIn
-            company IDs are not supplied as a list of strings.
+        TypeError: A numeric search argument has the wrong type, or company IDs
+            are not supplied as a list of strings.
         ValueError: The site is unknown, required geography is missing, a numeric
-            argument is out of range, or a LinkedIn company ID is empty or contains characters outside 0-9.
+            argument is out of range, a company ID is blank or malformed, or
+            too many company IDs are supplied for the provider.
     """
     searchers = site_searchers()
     if site not in searchers:
         raise ValueError(f"unknown site {site!r}. Expected one of {sorted(searchers)}")
+    check_companies(companies, site=site)
     if site == "linkedin":
-        check_companies(companies)
         if isinstance(geoid, str) and not geoid.strip():
             raise ValueError("geoid is blank")
         if not isinstance(geoid, str) and (location is None or not location.strip()):

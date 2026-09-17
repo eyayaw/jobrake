@@ -65,17 +65,25 @@ def check_radius(radius: int | None) -> None:
         raise ValueError(f"radius ({radius}) must be zero or more")
 
 
-def check_companies(companies: list[str] | None) -> None:
-    """Validate an optional list of company IDs containing only digits 0-9."""
+def check_companies(companies: list[str] | None, *, site: str) -> None:
+    """Validate LinkedIn company IDs or one Indeed employer key."""
     if companies is None:
         return
     if not isinstance(companies, list):
-        raise TypeError("companies must be a list of LinkedIn company ID strings")
+        raise TypeError("companies must be a list of company ID strings")
+    if site == "indeed" and len(companies) > 1:
+        raise ValueError("jobrake supports one Indeed employer key per search. Supply a single key")
     for company in companies:
         if not isinstance(company, str):
             raise TypeError(f"company ID {company!r} must be a string")
-        if not (company.isascii() and company.isdigit()):
-            raise ValueError(f"company ID {company!r} must use digits 0-9, such as '1173'")
+        if site == "linkedin":
+            if not (company.isascii() and company.isdigit()):
+                raise ValueError(f"company ID {company!r} must use digits 0-9, such as '1173'")
+        elif not company.strip():
+            raise ValueError(
+                "Indeed employer key is blank. Find a key with "
+                "'jobrake companies indeed NAME --country EDITION'"
+            )
 
 
 def iso_date(value: str | None) -> str | None:

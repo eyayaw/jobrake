@@ -4,6 +4,8 @@ import asyncio
 import json
 import logging
 import math
+from typing import Any
+from urllib.parse import parse_qs, urlparse
 
 import pytest
 from fakes import StubFetcher, ok, rate_limited
@@ -18,6 +20,9 @@ def test_query_escapes_graphql_strings_as_json():
     assert 'what: "C:\\\\jobs \\"quoted\\""' in query
     assert 'where: "Brussels \\"center\\""' in query
     assert "radius: 0" in query
+    company = 'key\\"quoted'
+    with_company = indeed.build_query("", None, None, None, None, company)
+    assert f"keys: [{json.dumps(company)}]" in with_company
     assert 'cursor: "next\\\\\\""' in query
 
 
@@ -42,6 +47,59 @@ def indeed_payload(keys, cursor=None):
             }
         }
     }
+
+
+def test_company_lookup_keeps_usable_keys_in_provider_order():
+    hits = [
+        {"employerKey": " fe219df7f711aa73 ", "suggestion": " ABN AMRO "},
+        {},
+        {"employerKey": 123, "suggestion": "Invalid key"},
+        {"employerKey": " ", "suggestion": "Blank key"},
+        {"employerKey": "6495c5a19835b81b", "suggestion": None},
+        {"employerKey": "6495c5a19835b81b", "suggestion": "Abn amro, bouwfonds"},
+    ]
+    fetcher = StubFetcher({"suggestions/company": ok(json.dumps(hits))})
+    assert asyncio.run(indeed.companies(fetcher, " ABN & AMRO ", "netherlands")) == [
+        {"employerKey": "fe219df7f711aa73", "suggestion": "ABN AMRO"},
+        {"employerKey": "6495c5a19835b81b", "suggestion": "Abn amro, bouwfonds"},
+    ]
+    params = parse_qs(urlparse(fetcher.requests[0]).query)
+    assert params["query"] == ["ABN & AMRO"]
+    assert params["country"] == ["NL"]
+    for name, country in [(" ", "usa"), ("ABN", "atlantis")]:
+        with pytest.raises(ValueError):
+            asyncio.run(indeed.companies(fetcher, name, country))
+    assert len(fetcher.requests) == 1
+
+
+def test_company_lookup_distinguishes_no_matches_from_failure(caplog):
+    for response, expected in [
+        (ok("[]"), []),
+        (ok("[{}]"), None),
+        (ok("{}"), None),
+        (ok("not JSON"), None),
+        (rate_limited(), None),
+    ]:
+        caplog.clear()
+        fetcher = StubFetcher({"suggestions/company": response})
+        assert asyncio.run(indeed.companies(fetcher, "ABN", "netherlands")) == expected
+        assert bool(caplog.records) == (expected is None)
+
+
+def test_indeed_rejects_invalid_company_arguments_before_searching():
+    cases: list[tuple[Any, type[Exception]]] = [
+        ("fe219df7f711aa73", TypeError),
+        ([123], TypeError),
+        ([" "], ValueError),
+        (["fe219df7f711aa73", "8e8f030e53ea29e4"], ValueError),
+    ]
+    fetcher = StubFetcher({})
+    for companies, error in cases:
+        with pytest.raises(error):
+            asyncio.run(
+                indeed.search(fetcher, query="", country="netherlands", companies=companies)
+            )
+    assert fetcher.requests == []
 
 
 def test_places_lists_edition_suggestions():
@@ -108,7 +166,11 @@ def test_indeed_keeps_a_job_whose_date_is_not_milliseconds(caplog):
     assert any("milliseconds" in record.message for record in caplog.records)
 
 
-def test_indeed_requests_full_pages_throughout_a_cursor_chain():
+@pytest.mark.parametrize(
+    ("companies", "age"),
+    [(None, 168), ([], None), (["fe219df7f711aa73"], None), (["fe219df7f711aa73"], 168)],
+)
+def test_indeed_requests_full_pages_throughout_a_cursor_chain(companies, age):
     # Indeed binds the page size to its cursor and rejects a changed limit
     # with BAD_USER_INPUT, so every request in a chain asks for a full page.
     pages = [indeed_payload(["a", "b"], cursor="next"), indeed_payload(["b", "c", "d"])]
@@ -125,7 +187,9 @@ def test_indeed_requests_full_pages_throughout_a_cursor_chain():
 
     fetcher = Paged()
     jobs = asyncio.run(
-        indeed.search(fetcher, query="x", country="usa", results=3, companies=["1173"])
+        indeed.search(
+            fetcher, query="x", country="usa", results=3, companies=companies, max_age_hours=age
+        )
     )
     # The second page overlaps the first, the limit stays at 100, and the
     # final slice returns three unique jobs.
@@ -133,7 +197,14 @@ def test_indeed_requests_full_pages_throughout_a_cursor_chain():
     assert all('what: "x"' in query for query in fetcher.queries)
     assert all("limit: 100" in query for query in fetcher.queries)
     assert all("language" in query.split() for query in fetcher.queries)
-    assert all("1173" not in query for query in fetcher.queries)
+    for query in fetcher.queries:
+        assert ('field: "indeedEmployerKey"' in query) == bool(companies)
+        assert ('keys: ["fe219df7f711aa73"]' in query) == bool(companies)
+        assert ('date: { field: "dateOnIndeed", start: "168h" }' in query) == bool(age)
+        if companies and age:
+            assert "} }, { keyword:" in query
+        if not companies and age is None:
+            assert "filters:" not in query
     assert len(fetcher.queries) == 2
 
 

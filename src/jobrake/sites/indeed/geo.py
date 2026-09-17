@@ -6,24 +6,12 @@ from urllib.parse import urlencode
 
 from jobrake.fetchkit import Fetcher
 
+from .client import AUTOCOMPLETE_HEADERS
 from .countries import indeed_domain
 
 logger = logging.getLogger(__name__)
 
 AUTOCOMPLETE_URL = "https://autocomplete.indeed.com/api/v0/suggestions/location"
-
-# The autocomplete backs indeed.com's search box and expects browser
-# headers, unlike the app-keyed GraphQL API.
-HEADERS = {
-    "accept": "*/*",
-    "accept-language": "en-US,en;q=0.9",
-    "origin": "https://www.indeed.com",
-    "referer": "https://www.indeed.com/",
-    "user-agent": (
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
-        " (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-    ),
-}
 
 
 async def places(fetcher: Fetcher, name: str, country: str) -> list[dict] | None:
@@ -56,7 +44,7 @@ async def places(fetcher: Fetcher, name: str, country: str) -> list[dict] | None
             "query": name.strip(),
         }
     )
-    result = await fetcher.fetch(f"{AUTOCOMPLETE_URL}?{params}", headers=HEADERS)
+    result = await fetcher.fetch(f"{AUTOCOMPLETE_URL}?{params}", headers=AUTOCOMPLETE_HEADERS)
     if result.error:
         logger.warning("location lookup for %r failed: %s", name, result.error.message)
         return None
