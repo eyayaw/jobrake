@@ -262,6 +262,20 @@ def _build_parser() -> _ArgumentParser:
         default=argparse.SUPPRESS,
         help="Indeed country edition, e.g., usa, uk, or netherlands",
     )
+    companies = subparsers.add_parser(
+        "companies",
+        allow_abbrev=False,
+        help="find company IDs by name",
+        description="Find company IDs by name",
+    )
+    company_sites = companies.add_subparsers(dest="site", required=True)
+    company_linkedin = company_sites.add_parser(
+        "linkedin",
+        allow_abbrev=False,
+        help="print LinkedIn company names and IDs",
+        description="List LinkedIn's suggested company names and IDs as JSON",
+    )
+    company_linkedin.add_argument("name", help="company name, e.g. 'ABN AMRO'")
     return parser
 
 
@@ -288,12 +302,14 @@ def _write_stdout(text: str) -> int | None:
     return None
 
 
-async def _lookup_places(args: argparse.Namespace) -> list[dict] | None:
-    """Run the selected provider's place lookup with a fetcher of its own."""
+async def _lookup_candidates(args: argparse.Namespace) -> list[dict] | None:
+    """Run a place or company lookup with a fetcher of its own."""
     fetcher = HttpxFetcher()
     try:
         match args.site:
             case "linkedin":
+                if args.provider == "companies":
+                    return await linkedin.companies(fetcher, args.name)
                 return await linkedin.places(fetcher, args.name)
             case "indeed":
                 return await indeed.places(fetcher, args.name, args.country)
@@ -359,10 +375,10 @@ def _write_jobs(args: argparse.Namespace, jobs: list[dict], fmt: str) -> int | N
 
 def main() -> int | None:
     """
-    Run the parsed command: a provider scrape, a posting fetch, or a places lookup.
+    Run a search, posting fetch, or name lookup.
 
     Returns:
-        ``1`` when stdout closes early, the output file cannot be written, a places lookup fails, or no named posting could be fetched. Normal completion returns ``None``.
+        ``1`` when stdout closes early, the output file cannot be written, a lookup fails, or no named posting could be fetched. Normal completion returns ``None``.
     """
     parser = _build_parser()
     args = parser.parse_args()
@@ -372,15 +388,19 @@ def main() -> int | None:
     handler = _StatusHandler()
     logging.basicConfig(level=logging.WARNING, handlers=[handler])
     logging.getLogger("jobrake").setLevel(logging.INFO)
-    if args.provider == "places":
+    if args.provider in ("places", "companies"):
         try:
-            hits = asyncio.run(_lookup_places(args))
+            hits = asyncio.run(_lookup_candidates(args))
         except ValueError as e:
             parser.error(str(e))
         if hits is None:
             return 1
         if not hits:
-            logger.warning("no places match %r", args.name)
+            logger.warning(
+                "no %s found for %r. Check the spelling or try another name",
+                args.provider,
+                args.name,
+            )
         return _write_stdout(json.dumps(hits, indent=2, ensure_ascii=False) + "\n")
     if args.provider == "details":
         fmt = _settle_output(parser, args)

@@ -52,9 +52,10 @@ def run_cli(monkeypatch):
     return run
 
 
-def test_places_command_prints_the_selected_providers_candidates(monkeypatch, capsys):
+def test_lookup_commands_print_candidates_and_report_failure(monkeypatch, capsys):
     linkedin_hits = [{"geoId": "102011674", "displayName": "Amsterdam, North Holland, Netherlands"}]
     indeed_hits = [{"suggestion": "Boston, MA", "locationType": "CITY"}]
+    company_hits = [{"companyId": "1173", "displayName": "ABN AMRO Bank N.V."}]
 
     class StubHttpx:
         instances: list = []
@@ -74,7 +75,12 @@ def test_places_command_prints_the_selected_providers_candidates(monkeypatch, ca
         assert (name, country) == ("boston", "usa")
         return indeed_hits
 
+    async def fake_companies(fetcher, name):
+        assert name == "ABN AMRO"
+        return company_hits
+
     monkeypatch.setattr(cli, "HttpxFetcher", StubHttpx)
+    monkeypatch.setattr(cli.linkedin, "companies", fake_companies)
     monkeypatch.setattr(cli.linkedin, "places", fake_linkedin)
     monkeypatch.setattr(cli.indeed, "places", fake_indeed)
     monkeypatch.setattr(sys, "argv", ["jobrake", "places", "linkedin", "amsterdam"])
@@ -85,6 +91,15 @@ def test_places_command_prints_the_selected_providers_candidates(monkeypatch, ca
     assert json.loads(capsys.readouterr().out) == indeed_hits
     linkedin_hits = None  # a failed lookup exits nonzero with nothing on stdout
     monkeypatch.setattr(sys, "argv", ["jobrake", "places", "linkedin", "amsterdam"])
+    assert cli.main() == 1
+    assert capsys.readouterr().out == ""
+    monkeypatch.setattr(sys, "argv", ["jobrake", "companies", "linkedin", "ABN AMRO"])
+    assert cli.main() is None
+    assert json.loads(capsys.readouterr().out) == company_hits
+    company_hits = []
+    assert cli.main() is None
+    assert json.loads(capsys.readouterr().out) == []
+    company_hits = None
     assert cli.main() == 1
     assert capsys.readouterr().out == ""
     assert StubHttpx.instances and all(f.closed for f in StubHttpx.instances)

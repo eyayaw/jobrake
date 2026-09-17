@@ -13,6 +13,7 @@ def rate_limited(result: FetchResult) -> bool:
 
 BASE_URL = "https://www.linkedin.com"
 SEARCH_URL = f"{BASE_URL}/jobs-guest/jobs/api/seeMoreJobPostings/search"
+TYPEAHEAD_URL = f"{BASE_URL}/jobs-guest/api/typeaheadHits"
 
 HEADERS = {
     "accept": (

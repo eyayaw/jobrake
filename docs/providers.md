@@ -78,6 +78,22 @@ The [Boolean search operators](https://www.linkedin.com/help/linkedin/answer/a52
 Pass an employer's numeric ID to `--company ID` to find job postings at that company.
 Repeat the option to include several employers.
 Company filtering combines with keywords, geography, and the posting-age limit.
+Look up an employer's name to find its LinkedIn company ID:
+
+```sh
+jobrake companies linkedin "ABN AMRO"
+```
+
+The command lists suggested companies as JSON, with `companyId` and `displayName` for each entry.
+LinkedIn determines the order.
+Subsidiaries and regional branches can have separate IDs, so choose the intended employer or try a more specific name.
+Library callers use `jobrake.sites.linkedin.companies(fetcher, name)`.
+It returns `[]` when LinkedIn supplies no suggestions and `None` if the request fails or the response cannot be read.
+The CLI exits nonzero on failure.
+
+Pass an employer's numeric ID to `--company ID` to find job postings at that company.
+Repeat the option to include several employers.
+Company filtering combines with keywords, geography, and the posting-age limit.
 
 ```sh
 jobrake linkedin -q "data" -l "Netherlands" --company 1173

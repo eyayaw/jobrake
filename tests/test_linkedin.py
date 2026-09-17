@@ -216,6 +216,50 @@ def test_no_warning_when_pagination_simply_ends(unlimited, caplog):
     assert caplog.records == []
 
 
+def test_companies_lists_usable_candidates_in_provider_order(unlimited):
+    hits = [
+        {"id": " 1173 ", "displayName": " ABN AMRO Bank N.V. ", "trackingId": "unused"},
+        {"id": "2948083", "displayName": "ABN AMRO MeesPierson"},
+        {"id": "company-slug", "displayName": "Acme"},
+        {"id": "１２３", "displayName": "Acme"},
+        {"id": "456", "displayName": "   "},
+        {"id": 789, "displayName": "Acme"},
+        None,
+    ]
+    fetcher = StubFetcher({"typeaheadHits": ok(json.dumps(hits))})
+    assert asyncio.run(linkedin.companies(fetcher, " ABN & AMRO ")) == [
+        {"companyId": "1173", "displayName": "ABN AMRO Bank N.V."},
+        {"companyId": "2948083", "displayName": "ABN AMRO MeesPierson"},
+    ]
+    assert len(fetcher.requests) == 1
+    assert parse_qs(urlsplit(fetcher.requests[0]).query) == {
+        "query": ["ABN & AMRO"],
+        "typeaheadType": ["COMPANY"],
+    }
+    with pytest.raises(ValueError, match="company name is blank"):
+        asyncio.run(linkedin.companies(fetcher, "   "))
+    assert len(fetcher.requests) == 1
+
+
+@pytest.mark.parametrize(
+    ("response", "expected"),
+    [
+        (ok("[]"), []),
+        (network_down(), None),
+        (ok("<html>Sign in</html>"), None),
+        (ok("{}"), None),
+        (ok('[{"id": "bad", "displayName": "Acme"}]'), None),
+    ],
+)
+def test_company_lookup_distinguishes_no_matches_from_failure(
+    unlimited, caplog, response, expected
+):
+    fetcher = StubFetcher({"typeaheadHits": response})
+    with caplog.at_level(logging.WARNING, logger="jobrake.sites.linkedin"):
+        assert asyncio.run(linkedin.companies(fetcher, "Acme")) == expected
+    assert bool(caplog.records) is (expected is None)
+
+
 def test_places_lists_candidates_and_normalizes_cache_keys(unlimited, isolated_cache):
     hits = [
         {"id": "1", "displayName": "Amsterdam, North Holland, Netherlands", "type": "GEO"},

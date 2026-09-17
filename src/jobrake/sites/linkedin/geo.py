@@ -12,8 +12,6 @@ from . import client
 
 logger = logging.getLogger(__name__)
 
-TYPEAHEAD_URL = f"{client.BASE_URL}/jobs-guest/api/typeaheadHits"
-
 
 def _name_key(name: str) -> str:
     text = " ".join(name.casefold().replace(",", " ").split())
@@ -52,7 +50,7 @@ async def places(fetcher: Fetcher, name: str) -> list[dict] | None:
     if not name_key:
         raise ValueError(f"place name {name!r} is blank. Try 'amsterdam'")
     query = urlencode({"query": name.strip(), "typeaheadType": "GEO"})
-    result = await client.paced_fetch(fetcher, f"{TYPEAHEAD_URL}?{query}")
+    result = await client.paced_fetch(fetcher, f"{client.TYPEAHEAD_URL}?{query}")
     if result.error:
         logger.warning("geoId lookup for %r failed: %s", name, result.error.message)
         return None
