@@ -124,13 +124,16 @@ def test_indeed_requests_full_pages_throughout_a_cursor_chain():
             return ok(json.dumps(pages[len(self.requests) - 1]))
 
     fetcher = Paged()
-    jobs = asyncio.run(indeed.search(fetcher, query="x", country="usa", results=3))
+    jobs = asyncio.run(
+        indeed.search(fetcher, query="x", country="usa", results=3, companies=["1173"])
+    )
     # The second page overlaps the first, the limit stays at 100, and the
     # final slice returns three unique jobs.
     assert [job["id"] for job in jobs] == ["a", "b", "c"]
     assert all('what: "x"' in query for query in fetcher.queries)
     assert all("limit: 100" in query for query in fetcher.queries)
     assert all("language" in query.split() for query in fetcher.queries)
+    assert all("1173" not in query for query in fetcher.queries)
     assert len(fetcher.queries) == 2
 
 

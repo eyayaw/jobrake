@@ -4,6 +4,8 @@ import asyncio
 import importlib
 import json
 import logging
+from typing import Any
+from urllib.parse import parse_qs, urlsplit
 
 import pytest
 from fakes import StubFetcher, network_down, not_found, ok, rate_limited
@@ -271,6 +273,56 @@ def test_resolve_geoid_typeahead_top_hit_or_none(unlimited, caplog):
     with pytest.raises(ValueError, match="blank"):
         asyncio.run(linkedin.resolve_geoid(StubFetcher({}), " ,,, "))
     assert sum(record.levelno == logging.WARNING for record in caplog.records) == 2
+
+
+@pytest.mark.parametrize(
+    ("companies", "query"),
+    [(None, "data"), ([], ""), (["1173"], ""), (["1173", "2220078"], "data")],
+)
+def test_paginated_search_preserves_company_selection(unlimited, companies, query):
+    fetcher = PagedFetcher([linkedin_card("111"), linkedin_card("222")])
+    jobs = asyncio.run(
+        linkedin.search(
+            fetcher,
+            query=query,
+            geoid="102890719",
+            companies=companies,
+            max_age_hours=48,
+            results=2,
+        )
+    )
+    assert [job["id"] for job in jobs] == ["111", "222"]
+    assert len(fetcher.requests) == 2
+    for start, url in enumerate(fetcher.requests):
+        params = parse_qs(urlsplit(url).query, keep_blank_values=True)
+        assert params == {
+            "keywords": [query],
+            "geoId": ["102890719"],
+            "start": [str(start)],
+            "f_TPR": ["r172800"],
+            **({"f_C": [",".join(companies)]} if companies else {}),
+        }
+
+
+@pytest.mark.parametrize(
+    ("companies", "error"),
+    [
+        ([""], ValueError),
+        (["1173,2220078"], ValueError),
+        (["１２３"], ValueError),
+        ([1173], TypeError),
+        ("1173", TypeError),
+    ],
+)
+def test_company_ids_are_validated_before_geoid_lookup(companies: Any, error):
+    fetcher = StubFetcher({})
+    with pytest.raises(error, match="compan"):
+        asyncio.run(
+            linkedin.search(
+                fetcher, query="", location="Netherlands", geoid=True, companies=companies
+            )
+        )
+    assert fetcher.requests == []
 
 
 def test_search_by_geoid_pins_the_request(unlimited):

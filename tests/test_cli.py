@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from jobrake import cli, defaults
+from jobrake import cli, defaults, sites
 from jobrake.models import JOB_FIELDS, make_job
 
 JOBS = [
@@ -139,7 +139,17 @@ def test_provider_commands_dispatch_expected_options(monkeypatch):
             "48",
         ],
         ["linkedin", "-q", "x", "-l", "Seattle", "--details", "--no-cache", "--geoid"],
-        ["linkedin", "-q", "x", "--geoid", "12345"],
+        [
+            "linkedin",
+            "-q",
+            "",
+            "--geoid",
+            "12345",
+            "--company",
+            "1173",
+            "--company",
+            "2220078",
+        ],
     ):
         monkeypatch.setattr(sys, "argv", ["jobrake", *argv])
         cli.main()
@@ -157,6 +167,7 @@ def test_provider_commands_dispatch_expected_options(monkeypatch):
                 "details": defaults.DETAILS,
                 "cache": defaults.CACHE,
                 "geoid": defaults.GEOID,
+                "companies": None,
             },
         ),
         (
@@ -171,12 +182,13 @@ def test_provider_commands_dispatch_expected_options(monkeypatch):
                 "details": True,
                 "cache": False,
                 "geoid": True,
+                "companies": None,
             },
         ),
         (
             "linkedin",
             {
-                "query": "x",
+                "query": "",
                 "location": None,
                 "country": None,
                 "radius": defaults.LINKEDIN_RADIUS,
@@ -185,6 +197,7 @@ def test_provider_commands_dispatch_expected_options(monkeypatch):
                 "details": defaults.DETAILS,
                 "cache": defaults.CACHE,
                 "geoid": "12345",
+                "companies": ["1173", "2220078"],
             },
         ),
     ]
@@ -192,11 +205,12 @@ def test_provider_commands_dispatch_expected_options(monkeypatch):
 
 def test_invalid_provider_arguments_fail_before_scraping(monkeypatch):
     async def must_not_run(*args, **kwargs):
-        raise AssertionError("scrape ran without the required geography")
+        raise AssertionError("scrape ran with invalid CLI arguments")
 
     monkeypatch.setattr(cli, "scrape", must_not_run)
     for argv in (
         ["indeed", "-q", "x"],
+        ["indeed", "-q", "x", "-c", "usa", "--company", "1173"],
         ["linkedin", "-q", "x"],
         ["linkedin", "-q", "x", "--geoid"],
         ["linkedin", "-q", "x", "-l", "Seattle", "--detail"],
@@ -204,6 +218,20 @@ def test_invalid_provider_arguments_fail_before_scraping(monkeypatch):
         monkeypatch.setattr(sys, "argv", ["jobrake", *argv])
         with pytest.raises(SystemExit):
             cli.main()
+
+
+def test_invalid_company_id_reports_a_cli_error_before_opening_a_fetcher(monkeypatch, capsys):
+    def must_not_open():
+        raise AssertionError("opened transport before validating company IDs")
+
+    monkeypatch.setattr(sites, "HttpxFetcher", must_not_open)
+    monkeypatch.setattr(
+        sys, "argv", ["jobrake", "linkedin", "-q", "", "-l", "Netherlands", "--company", "Acme"]
+    )
+    with pytest.raises(SystemExit) as error:
+        cli.main()
+    assert error.value.code == 2
+    assert "company ID 'Acme' must use digits 0-9" in capsys.readouterr().err
 
 
 def test_default_output_is_json_on_stdout(run_cli, capsys):

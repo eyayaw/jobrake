@@ -268,14 +268,15 @@ async def search(
     details: bool = defaults.DETAILS,
     cache: bool = defaults.CACHE,
     geoid: str | bool = defaults.GEOID,
+    companies: list[str] | None = None,
 ) -> list[dict]:
     """
     Search one Indeed country edition through its GraphQL API.
 
     ``country`` selects the edition. Radius is measured in kilometers.
-    ``None`` uses the standard radius. ``details``, ``cache``, and ``geoid``
-    are accepted for the common provider call but do not change Indeed searches. The caller
-    retains ownership of ``fetcher``.
+    ``None`` uses the standard radius. The shared search options ``details``,
+    ``cache``, ``geoid``, and ``companies`` are accepted and ignored.
+    The caller retains ownership of ``fetcher``.
 
     Each request asks for 100 jobs in relevance order. The returned list keeps
     that order and trims the final page to ``results``. Requests are

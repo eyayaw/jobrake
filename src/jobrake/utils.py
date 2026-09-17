@@ -65,6 +65,19 @@ def check_radius(radius: int | None) -> None:
         raise ValueError(f"radius ({radius}) must be zero or more")
 
 
+def check_companies(companies: list[str] | None) -> None:
+    """Validate an optional list of company IDs containing only digits 0-9."""
+    if companies is None:
+        return
+    if not isinstance(companies, list):
+        raise TypeError("companies must be a list of LinkedIn company ID strings")
+    for company in companies:
+        if not isinstance(company, str):
+            raise TypeError(f"company ID {company!r} must be a string")
+        if not (company.isascii() and company.isdigit()):
+            raise ValueError(f"company ID {company!r} must use digits 0-9, such as '1173'")
+
+
 def iso_date(value: str | None) -> str | None:
     """
     Reduce an ISO 8601 date or timestamp to its calendar date.

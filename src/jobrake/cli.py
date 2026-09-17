@@ -95,6 +95,13 @@ def _add_linkedin_args(parser: argparse.ArgumentParser) -> None:
         help="search by geoId: resolve --location through LinkedIn's place lookup, or send ID as given",
     )
     parser.add_argument(
+        "--company",
+        dest="companies",
+        action="append",
+        metavar="ID",
+        help="filter job results by company ID, repeat for several companies",
+    )
+    parser.add_argument(
         "--details",
         "-d",
         default=defaults.DETAILS,
@@ -130,9 +137,10 @@ def _add_indeed_args(parser: argparse.ArgumentParser) -> None:
         type=int,
         help=f"search radius in kilometers (default: {defaults.INDEED_RADIUS})",
     )
-    # Indeed search results already contain descriptions, and postings are not
-    # fetched individually, so details, cache, and geoid do not apply.
-    parser.set_defaults(details=defaults.DETAILS, cache=defaults.CACHE, geoid=defaults.GEOID)
+    # The shared search call needs values for LinkedIn-only options.
+    parser.set_defaults(
+        details=defaults.DETAILS, cache=defaults.CACHE, geoid=defaults.GEOID, companies=None
+    )
 
 
 _SITE_ARGS = {"linkedin": _add_linkedin_args, "indeed": _add_indeed_args}
@@ -401,6 +409,7 @@ def main() -> int | None:
                 details=args.details,
                 cache=args.cache,
                 geoid=args.geoid,
+                companies=args.companies,
             )
         )
     except ValueError as e:

@@ -9,7 +9,7 @@ from bs4 import BeautifulSoup
 from jobrake import defaults
 from jobrake.fetchkit import Fetcher
 from jobrake.models import make_job
-from jobrake.utils import check_max_age_hours, check_radius, check_results
+from jobrake.utils import check_companies, check_max_age_hours, check_radius, check_results
 
 from .client import SEARCH_URL, job_id, paced_fetch
 from .geo import resolve_geoid
@@ -76,6 +76,7 @@ async def search(
     details: bool = defaults.DETAILS,
     cache: bool = defaults.CACHE,
     geoid: str | bool = defaults.GEOID,
+    companies: list[str] | None = None,
 ) -> list[dict]:
     """
     Search LinkedIn's login-free guest endpoint.
@@ -87,7 +88,10 @@ async def search(
     LinkedIn receives ``radius`` through its undocumented ``distance`` parameter.
     ``None`` omits it.
     When ``max_age_hours`` is ``None``, LinkedIn omits the ``f_TPR`` filter.
-    ``country`` is accepted for the common provider call and ignored.
+    ``companies`` filters job results by employer ID. Each ID must be a numeric string.
+    With ``None`` or an empty list, jobs from any company can appear.
+    Pass ``query=""`` to search for jobs without keywords.
+    ``country`` is ignored, accepted for symmetry.
     ``details`` hydrates posting pages, and ``cache`` controls their reuse.
     The caller owns ``fetcher``.
 
@@ -98,8 +102,9 @@ async def search(
     ``results``.
 
     Raises:
-        TypeError: A numeric search argument is not an integer.
-        ValueError: Required geography is missing or a numeric search argument is outside its valid range.
+        TypeError: A numeric option is not an integer, or ``companies`` is not a list of strings.
+        ValueError: The location or geoId is blank or missing, a numeric option
+            is out of range, or a company ID is empty or uses characters other than digits 0-9.
     """
     if isinstance(geoid, str):
         geoid = geoid.strip()
@@ -110,6 +115,7 @@ async def search(
             "location is required unless geoid is an ID. "
             "Try 'Amsterdam, North Holland, Netherlands'"
         )
+    check_companies(companies)
     check_results(results)
     check_radius(radius)
     check_max_age_hours(max_age_hours)
@@ -143,6 +149,7 @@ async def search(
             "distance": radius,
             "start": start,
             "f_TPR": f"r{max_age_hours * 3600}" if max_age_hours else None,
+            "f_C": ",".join(companies) if companies else None,
         }
         query_string = urlencode({k: v for k, v in params.items() if v is not None})
         result = await paced_fetch(fetcher, f"{SEARCH_URL}?{query_string}")

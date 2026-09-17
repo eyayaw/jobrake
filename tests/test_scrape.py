@@ -18,6 +18,7 @@ from jobrake.sites.linkedin import client
         ("linkedin", {}, "location"),
         ("linkedin", {"location": "   "}, "location"),
         ("linkedin", {"geoid": ""}, "geoid"),
+        ("linkedin", {"location": "Seattle", "companies": ["Acme"]}, "company ID"),
         ("linkedin", {"location": "Seattle", "results": 0}, "results"),
         ("linkedin", {"location": "Seattle", "radius": -1}, "radius"),
         ("linkedin", {"location": "Seattle", "max_age_hours": 0}, "max_age_hours"),
@@ -35,6 +36,8 @@ def test_scrape_rejects_bad_arguments_before_opening_a_fetcher(site, kwargs, mat
 @pytest.mark.parametrize(
     ("kwargs", "match"),
     [
+        ({"companies": "1173"}, "companies"),
+        ({"companies": [1173]}, "company ID"),
         ({"results": float("nan")}, "results"),
         ({"results": 2.5}, "results"),
         ({"results": True}, "results"),
@@ -44,7 +47,7 @@ def test_scrape_rejects_bad_arguments_before_opening_a_fetcher(site, kwargs, mat
         ({"max_age_hours": True}, "max_age_hours"),
     ],
 )
-def test_scrape_rejects_arguments_that_are_not_integers(kwargs, match, monkeypatch):
+def test_scrape_rejects_invalid_argument_types(kwargs, match, monkeypatch):
     def must_not_open():
         raise AssertionError("opened transport before validating arguments")
 
@@ -60,7 +63,8 @@ def test_scrape_accepts_an_explicit_zero_radius(monkeypatch):
     assert len(fetcher.requests) == 1
 
 
-def test_scrape_passes_shared_defaults_with_an_explicit_geoid(monkeypatch):
+@pytest.mark.parametrize("companies", [None, ["1173", "2220078"]])
+def test_scrape_passes_search_options_with_an_explicit_geoid(monkeypatch, companies):
     options = {}
 
     async def capture(fetcher, **kwargs):
@@ -68,7 +72,9 @@ def test_scrape_passes_shared_defaults_with_an_explicit_geoid(monkeypatch):
         return []
 
     monkeypatch.setattr(sites, "site_searchers", lambda: {"linkedin": capture})
-    asyncio.run(scrape("linkedin", query="x", geoid="12345", fetcher=StubFetcher({})))
+    asyncio.run(
+        scrape("linkedin", query="x", geoid="12345", companies=companies, fetcher=StubFetcher({}))
+    )
 
     assert options["radius"] is defaults.LINKEDIN_RADIUS
     assert options["results"] == defaults.RESULTS
@@ -77,6 +83,7 @@ def test_scrape_passes_shared_defaults_with_an_explicit_geoid(monkeypatch):
     assert options["cache"] is defaults.CACHE
     assert options["location"] is None
     assert options["geoid"] == "12345"
+    assert options["companies"] == companies
 
 
 def test_scrape_does_not_close_injected_fetcher():

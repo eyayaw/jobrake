@@ -73,6 +73,21 @@ Use `--details | -d` or `details=True` to fetch each posting page and add its de
 
 The [Boolean search operators](https://www.linkedin.com/help/linkedin/answer/a524335/using-boolean-search-on-linkedin?lang=en) LinkedIn documents for its supported search interface do not work as documented on the guest endpoint used by jobrake.
 
+### Companies
+
+Pass an employer's numeric ID to `--company ID` to find job postings at that company.
+Repeat the option to include several employers.
+Company filtering combines with keywords, geography, and the posting-age limit.
+
+```sh
+jobrake linkedin -q "data" -l "Netherlands" --company 1173
+jobrake linkedin -q "" -l "Netherlands" --company 1173 --company 2220078
+```
+
+These IDs select ABN AMRO and PwC Nederland. Use `-q ""` to search without keywords.
+Within Python, pass `companies=["1173", "2220078"]` to `scrape()`. Each ID must be a string of digits `0-9`.
+Use `None` or `[]` to search without a company filter. Note that Indeed ignores this argument.
+
 ### Locations
 
 LinkedIn accepts a location or a geoId. Its guest geocoder may return no jobs for an ambiguous place name.
