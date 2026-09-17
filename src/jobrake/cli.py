@@ -102,6 +102,16 @@ def _add_linkedin_args(parser: argparse.ArgumentParser) -> None:
         help="filter job results by company ID, repeat for several companies",
     )
     parser.add_argument(
+        "--easy-apply",
+        action="store_true",
+        help="restrict results to jobs with LinkedIn's Easy Apply form",
+    )
+    parser.add_argument(
+        "--early-applicant",
+        action="store_true",
+        help="use LinkedIn's filter for fewer than 10 applicants",
+    )
+    parser.add_argument(
         "--details",
         "-d",
         default=defaults.DETAILS,
@@ -151,7 +161,13 @@ def _add_indeed_args(parser: argparse.ArgumentParser) -> None:
         help="restrict results to postings tagged Remote by Indeed",
     )
     # The shared search call needs values for LinkedIn-only options.
-    parser.set_defaults(details=defaults.DETAILS, cache=defaults.CACHE, geoid=defaults.GEOID)
+    parser.set_defaults(
+        details=defaults.DETAILS,
+        cache=defaults.CACHE,
+        geoid=defaults.GEOID,
+        easy_apply=False,
+        early_applicant=False,
+    )
 
 
 _SITE_ARGS = {"linkedin": _add_linkedin_args, "indeed": _add_indeed_args}
@@ -457,6 +473,8 @@ def main() -> int | None:
                 geoid=args.geoid,
                 companies=args.companies,
                 remote=args.remote,
+                easy_apply=args.easy_apply,
+                early_applicant=args.early_applicant,
             )
         )
     except ValueError as e:

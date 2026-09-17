@@ -320,10 +320,17 @@ def test_resolve_geoid_typeahead_top_hit_or_none(unlimited, caplog):
 
 
 @pytest.mark.parametrize(
-    ("companies", "query"),
-    [(None, "data"), ([], ""), (["1173"], ""), (["1173", "2220078"], "data")],
+    ("companies", "query", "easy_apply", "early_applicant"),
+    [
+        (None, "data", False, False),
+        ([], "", True, False),
+        (["1173"], "", False, True),
+        (["1173", "2220078"], "data", True, True),
+    ],
 )
-def test_paginated_search_preserves_company_selection(unlimited, companies, query):
+def test_paginated_search_preserves_filters(
+    unlimited, companies, query, easy_apply, early_applicant
+):
     fetcher = PagedFetcher([linkedin_card("111"), linkedin_card("222")])
     jobs = asyncio.run(
         linkedin.search(
@@ -331,6 +338,8 @@ def test_paginated_search_preserves_company_selection(unlimited, companies, quer
             query=query,
             geoid="102890719",
             companies=companies,
+            easy_apply=easy_apply,
+            early_applicant=early_applicant,
             max_age_hours=48,
             results=2,
         )
@@ -345,6 +354,8 @@ def test_paginated_search_preserves_company_selection(unlimited, companies, quer
             "start": [str(start)],
             "f_TPR": ["r172800"],
             **({"f_C": [",".join(companies)]} if companies else {}),
+            **({"f_AL": ["true"]} if easy_apply else {}),
+            **({"f_EA": ["true"]} if early_applicant else {}),
         }
 
 

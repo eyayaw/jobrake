@@ -251,6 +251,8 @@ def test_indeed_returns_the_requested_number_of_results():
         ({"max_age_hours": 0}, "max_age_hours"),
         ({"results": 0}, "results"),
         ({"radius": -1}, "radius"),
+        ({"easy_apply": True}, "easy_apply"),
+        ({"early_applicant": True}, "early_applicant"),
     ],
 )
 def test_indeed_rejects_bad_arguments_before_any_request(bad, match):

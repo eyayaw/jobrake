@@ -5,6 +5,7 @@ from collections.abc import Callable
 from jobrake import defaults
 from jobrake.fetchkit import Fetcher, HttpxFetcher
 from jobrake.utils import (
+    check_application_filters,
     check_companies,
     check_max_age_hours,
     check_radius,
@@ -34,6 +35,8 @@ async def scrape(
     geoid: str | bool = defaults.GEOID,
     companies: list[str] | None = None,
     remote: bool = False,
+    easy_apply: bool = False,
+    early_applicant: bool = False,
     fetcher: Fetcher | None = None,
 ) -> list[dict]:
     """
@@ -49,21 +52,25 @@ async def scrape(
     Every returned dict has the shared identity and summary keys, with available detail fields added.
     Searches ask the provider for jobs from the past seven days by default. ``max_age_hours=None`` omits the age filter.
     A ``None`` radius uses Indeed's standard radius and omits LinkedIn's undocumented distance parameter.
+    ``easy_apply=True`` selects LinkedIn jobs with Easy Apply.
+    ``early_applicant=True`` asks LinkedIn for jobs with fewer than 10 applicants.
+    Both default to ``False`` and require a LinkedIn search when enabled.
 
     An injected fetcher remains open and belongs to the caller. Indeed requires one with JSON POST support.
     Without an injected fetcher, ``scrape`` creates and closes an ``HttpxFetcher``.
 
     Raises:
-        TypeError: A numeric argument or ``remote`` has the wrong type, or company IDs
+        TypeError: A numeric argument or Boolean filter has the wrong type, or company IDs
             are not supplied as a list of strings.
         ValueError: The site is unknown, required geography is missing, a numeric
             argument is out of range, a company ID is blank or malformed,
-            too many company IDs are supplied, or remote filtering is requested for LinkedIn.
+            too many company IDs are supplied, or a filter is unsupported by the provider.
     """
     searchers = site_searchers()
     if site not in searchers:
         raise ValueError(f"unknown site {site!r}. Expected one of {sorted(searchers)}")
     check_remote(remote, site=site)
+    check_application_filters(easy_apply, early_applicant, site=site)
     check_companies(companies, site=site)
     if site == "linkedin":
         if isinstance(geoid, str) and not geoid.strip():
@@ -94,6 +101,8 @@ async def scrape(
         "geoid": geoid,
         "companies": companies,
         "remote": remote,
+        "easy_apply": easy_apply,
+        "early_applicant": early_applicant,
     }
     try:
         return await searchers[site](fetcher, **options)

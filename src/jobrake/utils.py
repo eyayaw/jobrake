@@ -75,6 +75,15 @@ def check_remote(remote: bool, *, site: str) -> None:
         )
 
 
+def check_application_filters(easy_apply: bool, early_applicant: bool, *, site: str) -> None:
+    """Require Boolean application filters and a LinkedIn search when enabled."""
+    for name, value in (("easy_apply", easy_apply), ("early_applicant", early_applicant)):
+        if not isinstance(value, bool):
+            raise TypeError(f"{name} must be a boolean, got {value!r}")
+        if value and site != "linkedin":
+            raise ValueError(f"{name}=True requires a LinkedIn search. Set {name}=False for {site}")
+
+
 def check_companies(companies: list[str] | None, *, site: str) -> None:
     """Validate LinkedIn company IDs or one Indeed employer key."""
     if companies is None:

@@ -109,6 +109,26 @@ Use `--details | -d` or `details=True` to fetch each posting page and add its de
 
 The [Boolean search operators](https://www.linkedin.com/help/linkedin/answer/a524335/using-boolean-search-on-linkedin?lang=en) LinkedIn documents for its supported search interface do not work as documented on the guest endpoint used by jobrake.
 
+### Easy Apply and early applicants
+
+Use `--easy-apply` to find jobs with LinkedIn's Easy Apply form. `--early-applicant` requests LinkedIn's "under 10 applicants" filter.
+Both can be combined with keywords, location or geoId, company IDs, and posting age:
+
+```sh
+jobrake linkedin -q "data scientist" -l Netherlands --easy-apply --early-applicant
+```
+
+Library callers pass `easy_apply=True` or `early_applicant=True` to `scrape("linkedin", ...)` or `linkedin.search()`.
+Both default to `False`, which omits those restrictions. When both are enabled, results must match both filters.
+LinkedIn applies them on every search page, including searches with `details=False`.
+
+LinkedIn fixes the early-applicant threshold at fewer than 10 applicants. Its posting pages can show a broader count: "Be among the first 25 applicants" becomes `applicants=25` in jobrake.
+An early-applicant result can therefore carry that value in its details.
+For Indeed searches, both options must be `False`. Enabling either raises `ValueError` before any request.
+
+The guest endpoint ignores filters for workplace type, employment type, experience level, verified postings, and salary. jobrake leaves these out of its LinkedIn search options.
+Employment type is available as a posting detail when `details=True`.
+
 ### Companies
 
 Pass an employer's numeric ID to `--company ID` to find job postings at that company.

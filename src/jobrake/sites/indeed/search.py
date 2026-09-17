@@ -10,6 +10,7 @@ from jobrake import defaults
 from jobrake.fetchkit import PostFetcher
 from jobrake.models import employment_type, make_job
 from jobrake.utils import (
+    check_application_filters,
     check_companies,
     check_max_age_hours,
     check_radius,
@@ -283,6 +284,8 @@ async def search(
     geoid: str | bool = defaults.GEOID,
     companies: list[str] | None = None,
     remote: bool = False,
+    easy_apply: bool = False,
+    early_applicant: bool = False,
 ) -> list[dict]:
     """
     Search one Indeed country edition through its GraphQL API.
@@ -296,6 +299,7 @@ async def search(
     ``False`` applies no remote restriction. Company, remote, and age filters
     combine on the server. Age uses Indeed's ``dateOnIndeed`` field, which can
     differ from the publication timestamp returned as ``posted_at``.
+    ``easy_apply`` and ``early_applicant`` must both be ``False``.
     The caller retains ownership of ``fetcher``.
 
     Each request asks for 100 jobs in relevance order. The returned list keeps
@@ -306,12 +310,14 @@ async def search(
     invalid field costs only that field.
 
     Raises:
-        TypeError: A numeric argument is not an integer, ``remote`` is not a Boolean,
+        TypeError: A numeric argument is not an integer, a Boolean filter has the wrong type,
             or company IDs are not a list of strings.
         ValueError: The country is unknown, a numeric search argument is outside its valid range,
-            or the company list contains a blank key or more than one entry.
+            the company list contains a blank key or more than one entry, or
+            ``easy_apply`` or ``early_applicant`` is enabled.
     """
     check_remote(remote, site="indeed")
+    check_application_filters(easy_apply, early_applicant, site="indeed")
     check_companies(companies, site="indeed")
     check_results(results)
     check_radius(radius)

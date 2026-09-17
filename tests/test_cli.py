@@ -170,7 +170,17 @@ def test_provider_commands_dispatch_expected_options(monkeypatch):
             "fe219df7f711aa73",
             "--remote",
         ],
-        ["linkedin", "-q", "x", "-l", "Seattle", "--details", "--no-cache", "--geoid"],
+        [
+            "linkedin",
+            "-q",
+            "x",
+            "-l",
+            "Seattle",
+            "--details",
+            "--no-cache",
+            "--geoid",
+            "--easy-apply",
+        ],
         [
             "linkedin",
             "-q",
@@ -181,6 +191,7 @@ def test_provider_commands_dispatch_expected_options(monkeypatch):
             "1173",
             "--company",
             "2220078",
+            "--early-applicant",
         ],
     ):
         monkeypatch.setattr(sys, "argv", ["jobrake", *argv])
@@ -201,6 +212,8 @@ def test_provider_commands_dispatch_expected_options(monkeypatch):
                 "geoid": defaults.GEOID,
                 "companies": ["fe219df7f711aa73"],
                 "remote": True,
+                "easy_apply": False,
+                "early_applicant": False,
             },
         ),
         (
@@ -217,6 +230,8 @@ def test_provider_commands_dispatch_expected_options(monkeypatch):
                 "geoid": True,
                 "companies": None,
                 "remote": False,
+                "easy_apply": True,
+                "early_applicant": False,
             },
         ),
         (
@@ -233,6 +248,8 @@ def test_provider_commands_dispatch_expected_options(monkeypatch):
                 "geoid": "12345",
                 "companies": ["1173", "2220078"],
                 "remote": False,
+                "easy_apply": False,
+                "early_applicant": True,
             },
         ),
     ]
@@ -245,6 +262,8 @@ def test_invalid_provider_arguments_fail_before_scraping(monkeypatch):
     monkeypatch.setattr(cli, "scrape", must_not_run)
     for argv in (
         ["indeed", "-q", "x"],
+        ["indeed", "-q", "x", "-c", "usa", "--easy-apply"],
+        ["indeed", "-q", "x", "-c", "usa", "--early-applicant"],
         ["companies", "indeed", "ABN AMRO"],
         ["linkedin", "-q", "x"],
         ["linkedin", "-q", "x", "--geoid"],

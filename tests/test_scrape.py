@@ -15,6 +15,8 @@ from jobrake.sites.linkedin import client
     [
         ("glassdoor", {}, "glassdoor"),
         ("indeed", {}, "country"),
+        ("indeed", {"country": "usa", "easy_apply": True}, "easy_apply"),
+        ("indeed", {"country": "usa", "early_applicant": True}, "early_applicant"),
         ("indeed", {"country": "netherlands", "companies": [" "]}, "blank"),
         ("indeed", {"country": "netherlands", "companies": ["a", "b"]}, "one Indeed employer key"),
         ("linkedin", {}, "location"),
@@ -41,6 +43,8 @@ def test_scrape_rejects_bad_arguments_before_opening_a_fetcher(site, kwargs, mat
     [
         ("indeed", {"remote": "false"}, "remote"),
         ("linkedin", {"remote": 1}, "remote"),
+        ("linkedin", {"easy_apply": "false"}, "easy_apply"),
+        ("indeed", {"early_applicant": 1}, "early_applicant"),
         ("indeed", {"companies": "fe219df7f711aa73"}, "companies"),
         ("indeed", {"companies": [123]}, "company ID"),
         ("linkedin", {"companies": "1173"}, "companies"),
@@ -71,10 +75,16 @@ def test_scrape_accepts_an_explicit_zero_radius(monkeypatch):
 
 
 @pytest.mark.parametrize(
-    ("site", "companies", "remote"),
-    [("linkedin", None, False), ("linkedin", ["1173", "2220078"], False), ("indeed", None, True)],
+    ("site", "companies", "remote", "easy_apply", "early_applicant"),
+    [
+        ("linkedin", None, False, False, True),
+        ("linkedin", ["1173", "2220078"], False, True, False),
+        ("indeed", None, True, False, False),
+    ],
 )
-def test_scrape_passes_search_options(monkeypatch, site, companies, remote):
+def test_scrape_passes_search_options(
+    monkeypatch, site, companies, remote, easy_apply, early_applicant
+):
     options = {}
 
     async def capture(fetcher, **kwargs):
@@ -90,6 +100,8 @@ def test_scrape_passes_search_options(monkeypatch, site, companies, remote):
             geoid="12345",
             companies=companies,
             remote=remote,
+            easy_apply=easy_apply,
+            early_applicant=early_applicant,
             fetcher=StubFetcher({}),
         )
     )
@@ -103,16 +115,21 @@ def test_scrape_passes_search_options(monkeypatch, site, companies, remote):
     assert options["geoid"] == "12345"
     assert options["companies"] == companies
     assert options["remote"] is remote
+    assert options["easy_apply"] is easy_apply
+    assert options["early_applicant"] is early_applicant
 
 
-def test_provider_searches_require_a_boolean_remote_option():
+def test_provider_searches_require_boolean_filters():
     fetcher = StubFetcher({})
     for search in sites.site_searchers().values():
-        for remote in (None, 0, "false"):
-            with pytest.raises(TypeError, match="remote must be a boolean"):
-                asyncio.run(
-                    search(fetcher, query="x", location="Seattle", country="usa", remote=remote)
-                )
+        for name in ("remote", "easy_apply", "early_applicant"):
+            for value in (None, 0, "false"):
+                with pytest.raises(TypeError, match=f"{name} must be a boolean"):
+                    asyncio.run(
+                        search(
+                            fetcher, query="x", location="Seattle", country="usa", **{name: value}
+                        )
+                    )
     assert fetcher.requests == []
 
 

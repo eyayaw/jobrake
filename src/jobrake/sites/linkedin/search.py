@@ -10,6 +10,7 @@ from jobrake import defaults
 from jobrake.fetchkit import Fetcher
 from jobrake.models import make_job
 from jobrake.utils import (
+    check_application_filters,
     check_companies,
     check_max_age_hours,
     check_radius,
@@ -84,6 +85,8 @@ async def search(
     geoid: str | bool = defaults.GEOID,
     companies: list[str] | None = None,
     remote: bool = False,
+    easy_apply: bool = False,
+    early_applicant: bool = False,
 ) -> list[dict]:
     """
     Search LinkedIn's login-free guest endpoint.
@@ -97,6 +100,11 @@ async def search(
     When ``max_age_hours`` is ``None``, LinkedIn omits the ``f_TPR`` filter.
     ``companies`` filters job results by employer ID. Each ID must be a numeric string.
     With ``None`` or an empty list, jobs from any company can appear.
+    ``easy_apply=True`` limits results to jobs with LinkedIn's Easy Apply form.
+    ``early_applicant=True`` selects jobs LinkedIn classifies as having fewer than 10 applicants.
+    Each defaults to ``False``, leaving that restriction unset. Enabling both
+    requires results to match both filters. They apply alongside keywords,
+    geography, company selection, and posting age on every page.
     Pass ``query=""`` to search for jobs without keywords.
     ``country`` is ignored, accepted for symmetry.
     ``country`` is accepted for the common provider call and ignored.
@@ -111,7 +119,7 @@ async def search(
     ``results``.
 
     Raises:
-        TypeError: A numeric option is not an integer, ``remote`` is not a Boolean,
+        TypeError: A numeric option is not an integer, a Boolean filter has the wrong type,
             or ``companies`` is not a list of strings.
         ValueError: The location or geoId is blank or missing, a numeric option
             is out of range, a company ID is empty or uses characters other than digits 0-9,
@@ -127,6 +135,7 @@ async def search(
             "Try 'Amsterdam, North Holland, Netherlands'"
         )
     check_remote(remote, site="linkedin")
+    check_application_filters(easy_apply, early_applicant, site="linkedin")
     check_companies(companies, site="linkedin")
     check_results(results)
     check_radius(radius)
@@ -162,6 +171,8 @@ async def search(
             "start": start,
             "f_TPR": f"r{max_age_hours * 3600}" if max_age_hours else None,
             "f_C": ",".join(companies) if companies else None,
+            "f_AL": "true" if easy_apply else None,
+            "f_EA": "true" if early_applicant else None,
         }
         query_string = urlencode({k: v for k, v in params.items() if v is not None})
         result = await paced_fetch(fetcher, f"{SEARCH_URL}?{query_string}")
