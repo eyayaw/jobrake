@@ -13,6 +13,7 @@ from jobrake.utils import (
     check_companies,
     check_max_age_hours,
     check_radius,
+    check_remote,
     check_results,
     epoch_ms_to_iso,
     html_text,
@@ -86,6 +87,7 @@ def build_query(
     max_age_hours: int | None,
     cursor: str | None,
     company: str | None = None,
+    remote: bool = False,
 ) -> str:
     """Build an Indeed query with a cursor-bound page size of 100."""
     filters = []
@@ -95,8 +97,11 @@ def build_query(
         filters.append(
             '{ keyword: { field: "indeedEmployerKey", keys: [' + json.dumps(company) + "] } }"
         )
+    if remote:
+        # DSQF7 identifies Indeed's Remote attribute.
+        filters.append('{ keyword: { field: "attributes", keys: ["DSQF7"] } }')
     # Indeed requires date and keyword filters in separate objects.
-    # Jobs must satisfy both filters when both are supplied.
+    # Jobs must satisfy every filter in the list.
     return QUERY.format(
         what=f"what: {json.dumps(query)}" if query else "",
         location=(
@@ -277,6 +282,7 @@ async def search(
     cache: bool = defaults.CACHE,
     geoid: str | bool = defaults.GEOID,
     companies: list[str] | None = None,
+    remote: bool = False,
 ) -> list[dict]:
     """
     Search one Indeed country edition through its GraphQL API.
@@ -286,6 +292,10 @@ async def search(
     ``cache``, and ``geoid`` are accepted and ignored.
     ``companies`` restricts results to jobs at one employer. Pass its Indeed
     employer key as a nonblank string in a list. ``None`` and ``[]`` omit this filter.
+    ``remote=True`` selects postings with Indeed's Remote attribute.
+    ``False`` applies no remote restriction. Company, remote, and age filters
+    combine on the server. Age uses Indeed's ``dateOnIndeed`` field, which can
+    differ from the publication timestamp returned as ``posted_at``.
     The caller retains ownership of ``fetcher``.
 
     Each request asks for 100 jobs in relevance order. The returned list keeps
@@ -296,10 +306,12 @@ async def search(
     invalid field costs only that field.
 
     Raises:
-        TypeError: A numeric search argument is not an integer, or company IDs are not a list of strings.
+        TypeError: A numeric argument is not an integer, ``remote`` is not a Boolean,
+            or company IDs are not a list of strings.
         ValueError: The country is unknown, a numeric search argument is outside its valid range,
             or the company list contains a blank key or more than one entry.
     """
+    check_remote(remote, site="indeed")
     check_companies(companies, site="indeed")
     check_results(results)
     check_radius(radius)
@@ -317,7 +329,13 @@ async def search(
     cursor: str | None = None
     while len(jobs) < results:
         graphql = build_query(
-            query, location, radius, max_age_hours, cursor, companies[0] if companies else None
+            query,
+            location,
+            radius,
+            max_age_hours,
+            cursor,
+            companies[0] if companies else None,
+            remote=remote,
         )
         result = await fetcher.post(API_URL, {"query": graphql}, headers=headers)
         if result.error:

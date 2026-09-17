@@ -65,6 +65,16 @@ def check_radius(radius: int | None) -> None:
         raise ValueError(f"radius ({radius}) must be zero or more")
 
 
+def check_remote(remote: bool, *, site: str) -> None:
+    """Require a Boolean remote filter supported by the selected provider."""
+    if not isinstance(remote, bool):
+        raise TypeError(f"remote must be a boolean, got {remote!r}")
+    if remote and site != "indeed":
+        raise ValueError(
+            "Remote filtering is available for Indeed. Use an Indeed search or set remote=False"
+        )
+
+
 def check_companies(companies: list[str] | None, *, site: str) -> None:
     """Validate LinkedIn company IDs or one Indeed employer key."""
     if companies is None:

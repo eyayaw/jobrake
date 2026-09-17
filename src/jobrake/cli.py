@@ -117,6 +117,7 @@ def _add_linkedin_args(parser: argparse.ArgumentParser) -> None:
     )
     parser.set_defaults(
         country=None,
+        remote=False,
         radius=defaults.LINKEDIN_RADIUS,
     )
 
@@ -143,6 +144,11 @@ def _add_indeed_args(parser: argparse.ArgumentParser) -> None:
         action="append",
         metavar="KEY",
         help="filter jobs by employer key (one company per search)",
+    )
+    parser.add_argument(
+        "--remote",
+        action="store_true",
+        help="restrict results to postings tagged Remote by Indeed",
     )
     # The shared search call needs values for LinkedIn-only options.
     parser.set_defaults(details=defaults.DETAILS, cache=defaults.CACHE, geoid=defaults.GEOID)
@@ -450,6 +456,7 @@ def main() -> int | None:
                 cache=args.cache,
                 geoid=args.geoid,
                 companies=args.companies,
+                remote=args.remote,
             )
         )
     except ValueError as e:

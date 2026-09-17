@@ -405,6 +405,7 @@ def test_search_with_geoid_returns_no_jobs_when_unresolved(unlimited, caplog):
         ({"location": "Seattle", "radius": -1}, "radius"),
         ({"location": "   "}, "location"),
         ({"geoid": ""}, "geoid"),
+        ({"location": "Seattle", "remote": True}, "Remote filtering"),
     ],
 )
 def test_linkedin_rejects_bad_arguments_before_any_request(kwargs, match):

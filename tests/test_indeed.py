@@ -170,7 +170,8 @@ def test_indeed_keeps_a_job_whose_date_is_not_milliseconds(caplog):
     ("companies", "age"),
     [(None, 168), ([], None), (["fe219df7f711aa73"], None), (["fe219df7f711aa73"], 168)],
 )
-def test_indeed_requests_full_pages_throughout_a_cursor_chain(companies, age):
+@pytest.mark.parametrize("remote", [False, True])
+def test_indeed_requests_full_pages_throughout_a_cursor_chain(companies, age, remote):
     # Indeed binds the page size to its cursor and rejects a changed limit
     # with BAD_USER_INPUT, so every request in a chain asks for a full page.
     pages = [indeed_payload(["a", "b"], cursor="next"), indeed_payload(["b", "c", "d"])]
@@ -188,7 +189,13 @@ def test_indeed_requests_full_pages_throughout_a_cursor_chain(companies, age):
     fetcher = Paged()
     jobs = asyncio.run(
         indeed.search(
-            fetcher, query="x", country="usa", results=3, companies=companies, max_age_hours=age
+            fetcher,
+            query="x",
+            country="usa",
+            results=3,
+            companies=companies,
+            max_age_hours=age,
+            remote=remote,
         )
     )
     # The second page overlaps the first, the limit stays at 100, and the
@@ -201,9 +208,10 @@ def test_indeed_requests_full_pages_throughout_a_cursor_chain(companies, age):
         assert ('field: "indeedEmployerKey"' in query) == bool(companies)
         assert ('keys: ["fe219df7f711aa73"]' in query) == bool(companies)
         assert ('date: { field: "dateOnIndeed", start: "168h" }' in query) == bool(age)
-        if companies and age:
+        assert ('keyword: { field: "attributes", keys: ["DSQF7"] }' in query) == remote
+        if (companies or remote) and age:
             assert "} }, { keyword:" in query
-        if not companies and age is None:
+        if not companies and not remote and age is None:
             assert "filters:" not in query
     assert len(fetcher.queries) == 2
 

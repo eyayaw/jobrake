@@ -18,6 +18,7 @@ from jobrake.sites.linkedin import client
         ("indeed", {"country": "netherlands", "companies": [" "]}, "blank"),
         ("indeed", {"country": "netherlands", "companies": ["a", "b"]}, "one Indeed employer key"),
         ("linkedin", {}, "location"),
+        ("linkedin", {"location": "Seattle", "remote": True}, "Remote filtering"),
         ("linkedin", {"location": "   "}, "location"),
         ("linkedin", {"geoid": ""}, "geoid"),
         ("linkedin", {"location": "Seattle", "companies": ["Acme"]}, "company ID"),
@@ -38,6 +39,8 @@ def test_scrape_rejects_bad_arguments_before_opening_a_fetcher(site, kwargs, mat
 @pytest.mark.parametrize(
     ("site", "kwargs", "match"),
     [
+        ("indeed", {"remote": "false"}, "remote"),
+        ("linkedin", {"remote": 1}, "remote"),
         ("indeed", {"companies": "fe219df7f711aa73"}, "companies"),
         ("indeed", {"companies": [123]}, "company ID"),
         ("linkedin", {"companies": "1173"}, "companies"),
@@ -67,20 +70,31 @@ def test_scrape_accepts_an_explicit_zero_radius(monkeypatch):
     assert len(fetcher.requests) == 1
 
 
-@pytest.mark.parametrize("companies", [None, ["1173", "2220078"]])
-def test_scrape_passes_search_options_with_an_explicit_geoid(monkeypatch, companies):
+@pytest.mark.parametrize(
+    ("site", "companies", "remote"),
+    [("linkedin", None, False), ("linkedin", ["1173", "2220078"], False), ("indeed", None, True)],
+)
+def test_scrape_passes_search_options(monkeypatch, site, companies, remote):
     options = {}
 
     async def capture(fetcher, **kwargs):
         options.update(kwargs)
         return []
 
-    monkeypatch.setattr(sites, "site_searchers", lambda: {"linkedin": capture})
+    monkeypatch.setattr(sites, "site_searchers", lambda: {site: capture})
     asyncio.run(
-        scrape("linkedin", query="x", geoid="12345", companies=companies, fetcher=StubFetcher({}))
+        scrape(
+            site,
+            query="x",
+            country="usa",
+            geoid="12345",
+            companies=companies,
+            remote=remote,
+            fetcher=StubFetcher({}),
+        )
     )
 
-    assert options["radius"] is defaults.LINKEDIN_RADIUS
+    assert options["radius"] is None
     assert options["results"] == defaults.RESULTS
     assert options["max_age_hours"] == defaults.MAX_AGE_HOURS
     assert options["details"] is defaults.DETAILS
@@ -88,6 +102,18 @@ def test_scrape_passes_search_options_with_an_explicit_geoid(monkeypatch, compan
     assert options["location"] is None
     assert options["geoid"] == "12345"
     assert options["companies"] == companies
+    assert options["remote"] is remote
+
+
+def test_provider_searches_require_a_boolean_remote_option():
+    fetcher = StubFetcher({})
+    for search in sites.site_searchers().values():
+        for remote in (None, 0, "false"):
+            with pytest.raises(TypeError, match="remote must be a boolean"):
+                asyncio.run(
+                    search(fetcher, query="x", location="Seattle", country="usa", remote=remote)
+                )
+    assert fetcher.requests == []
 
 
 def test_scrape_does_not_close_injected_fetcher():

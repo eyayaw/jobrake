@@ -4,7 +4,13 @@ from collections.abc import Callable
 
 from jobrake import defaults
 from jobrake.fetchkit import Fetcher, HttpxFetcher
-from jobrake.utils import check_companies, check_max_age_hours, check_radius, check_results
+from jobrake.utils import (
+    check_companies,
+    check_max_age_hours,
+    check_radius,
+    check_remote,
+    check_results,
+)
 
 from . import indeed, linkedin
 
@@ -27,6 +33,7 @@ async def scrape(
     cache: bool = defaults.CACHE,
     geoid: str | bool = defaults.GEOID,
     companies: list[str] | None = None,
+    remote: bool = False,
     fetcher: Fetcher | None = None,
 ) -> list[dict]:
     """
@@ -35,25 +42,28 @@ async def scrape(
     Indeed requires ``country``. LinkedIn requires either a ``location`` or a geoId string.
     ``companies`` restricts LinkedIn results to jobs at the listed employer numeric IDs.
     ``None`` or ``[]`` applies no company restriction. Indeed ignores ``companies``.
+    ``remote=True`` restricts Indeed results to postings tagged Remote.
+    ``False`` leaves remote status unrestricted. LinkedIn requires ``remote=False``.
     ``details``, ``cache``, and ``geoid`` affect LinkedIn only.
     ``geoid=True`` resolves ``location`` to a LinkedIn geoId before searching, and a string passes through as the geoId.
     Every returned dict has the shared identity and summary keys, with available detail fields added.
-    Searches default to the last seven days. ``max_age_hours=None`` removes the age limit.
+    Searches ask the provider for jobs from the past seven days by default. ``max_age_hours=None`` omits the age filter.
     A ``None`` radius uses Indeed's standard radius and omits LinkedIn's undocumented distance parameter.
 
     An injected fetcher remains open and belongs to the caller. Indeed requires one with JSON POST support.
     Without an injected fetcher, ``scrape`` creates and closes an ``HttpxFetcher``.
 
     Raises:
-        TypeError: A numeric search argument has the wrong type, or company IDs
+        TypeError: A numeric argument or ``remote`` has the wrong type, or company IDs
             are not supplied as a list of strings.
         ValueError: The site is unknown, required geography is missing, a numeric
-            argument is out of range, a company ID is blank or malformed, or
-            too many company IDs are supplied for the provider.
+            argument is out of range, a company ID is blank or malformed,
+            too many company IDs are supplied, or remote filtering is requested for LinkedIn.
     """
     searchers = site_searchers()
     if site not in searchers:
         raise ValueError(f"unknown site {site!r}. Expected one of {sorted(searchers)}")
+    check_remote(remote, site=site)
     check_companies(companies, site=site)
     if site == "linkedin":
         if isinstance(geoid, str) and not geoid.strip():
@@ -83,6 +93,7 @@ async def scrape(
         "cache": cache,
         "geoid": geoid,
         "companies": companies,
+        "remote": remote,
     }
     try:
         return await searchers[site](fetcher, **options)

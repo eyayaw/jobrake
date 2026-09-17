@@ -17,10 +17,10 @@ Applications that need deterministic matching can expand a search into several p
 
 ## Search filters
 
-Every search entry point defaults to postings from the last seven days. Searches return 10 jobs by default.
+By default, searches ask the provider for jobs from the past seven days. Searches return 10 jobs by default.
 Indeed defaults to a 40 km radius. LinkedIn omits its undocumented distance parameter.
 
-`max_age_hours=None` omits the age filter. Positive values limit results to jobs posted within that many hours.
+`max_age_hours=None` omits the age filter. Positive values set the provider's age limit in hours.
 For library calls, `radius=None` uses Indeed's standard radius and omits LinkedIn's distance parameter.
 `results` and `max_age_hours` must be positive integers. `radius` must be a nonnegative integer, so zero is accepted.
 
@@ -43,6 +43,21 @@ title:analyst -senior
 Plain terms can match posting descriptions or other indexed content, and `description:<term>` does not reliably restrict results to descriptions.
 `AND`, `OR`, and `NOT` act as provider search hints. Their results can differ from Boolean union, intersection, and exclusion.
 Use jobrake's dedicated arguments for geography and posting age.
+
+### Remote jobs
+
+Pass `--remote` to search postings that Indeed tags Remote:
+
+```sh
+jobrake indeed -q "econometrics" -c usa --remote
+```
+
+Library callers pass `remote=True` to `scrape("indeed", ...)` or `indeed.search()`. The default, `False`, leaves remote status unrestricted.
+Indeed applies this filter together with keywords, location, company, and posting age before returning each page.
+The tag reflects Indeed's classification. Check the posting for residency and workplace requirements.
+
+The age filter uses Indeed's `dateOnIndeed` field. A matching posting can have an older publication timestamp in `posted_at`.
+LinkedIn's guest endpoint does not support remote filtering. jobrake accepts `--remote` only for Indeed, and a LinkedIn library search with `remote=True` raises `ValueError` before any request.
 
 ### Companies
 

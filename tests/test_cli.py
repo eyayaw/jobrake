@@ -168,6 +168,7 @@ def test_provider_commands_dispatch_expected_options(monkeypatch):
             "48",
             "--company",
             "fe219df7f711aa73",
+            "--remote",
         ],
         ["linkedin", "-q", "x", "-l", "Seattle", "--details", "--no-cache", "--geoid"],
         [
@@ -199,6 +200,7 @@ def test_provider_commands_dispatch_expected_options(monkeypatch):
                 "cache": defaults.CACHE,
                 "geoid": defaults.GEOID,
                 "companies": ["fe219df7f711aa73"],
+                "remote": True,
             },
         ),
         (
@@ -214,6 +216,7 @@ def test_provider_commands_dispatch_expected_options(monkeypatch):
                 "cache": False,
                 "geoid": True,
                 "companies": None,
+                "remote": False,
             },
         ),
         (
@@ -229,6 +232,7 @@ def test_provider_commands_dispatch_expected_options(monkeypatch):
                 "cache": defaults.CACHE,
                 "geoid": "12345",
                 "companies": ["1173", "2220078"],
+                "remote": False,
             },
         ),
     ]
@@ -245,6 +249,7 @@ def test_invalid_provider_arguments_fail_before_scraping(monkeypatch):
         ["linkedin", "-q", "x"],
         ["linkedin", "-q", "x", "--geoid"],
         ["linkedin", "-q", "x", "-l", "Seattle", "--detail"],
+        ["linkedin", "-q", "x", "-l", "Seattle", "--remote"],
     ):
         monkeypatch.setattr(sys, "argv", ["jobrake", *argv])
         with pytest.raises(SystemExit):
