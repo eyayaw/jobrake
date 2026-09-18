@@ -127,6 +127,7 @@ def _add_linkedin_args(parser: argparse.ArgumentParser) -> None:
     )
     parser.set_defaults(
         country=None,
+        language=None,
         remote=False,
         radius=defaults.LINKEDIN_RADIUS,
     )
@@ -159,6 +160,11 @@ def _add_indeed_args(parser: argparse.ArgumentParser) -> None:
         "--remote",
         action="store_true",
         help="restrict results to postings tagged Remote by Indeed",
+    )
+    parser.add_argument(
+        "--language",
+        metavar="CODE",
+        help="restrict postings by Indeed language code (two letters, e.g., EN or NL)",
     )
     # The shared search call needs values for LinkedIn-only options.
     parser.set_defaults(
@@ -473,6 +479,7 @@ def main() -> int | None:
                 geoid=args.geoid,
                 companies=args.companies,
                 remote=args.remote,
+                language=args.language,
                 easy_apply=args.easy_apply,
                 early_applicant=args.early_applicant,
             )

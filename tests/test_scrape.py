@@ -15,6 +15,8 @@ from jobrake.sites.linkedin import client
     [
         ("glassdoor", {}, "glassdoor"),
         ("indeed", {}, "country"),
+        ("indeed", {"country": "usa", "language": " "}, "language"),
+        ("indeed", {"country": "usa", "language": "eng"}, "language"),
         ("indeed", {"country": "usa", "easy_apply": True}, "easy_apply"),
         ("indeed", {"country": "usa", "early_applicant": True}, "early_applicant"),
         ("indeed", {"country": "netherlands", "companies": [" "]}, "blank"),
@@ -42,6 +44,7 @@ def test_scrape_rejects_bad_arguments_before_opening_a_fetcher(site, kwargs, mat
     ("site", "kwargs", "match"),
     [
         ("indeed", {"remote": "false"}, "remote"),
+        ("indeed", {"language": ["en"]}, "language"),
         ("linkedin", {"remote": 1}, "remote"),
         ("linkedin", {"easy_apply": "false"}, "easy_apply"),
         ("indeed", {"early_applicant": 1}, "early_applicant"),
@@ -75,15 +78,15 @@ def test_scrape_accepts_an_explicit_zero_radius(monkeypatch):
 
 
 @pytest.mark.parametrize(
-    ("site", "companies", "remote", "easy_apply", "early_applicant"),
+    ("site", "companies", "remote", "easy_apply", "early_applicant", "language"),
     [
-        ("linkedin", None, False, False, True),
-        ("linkedin", ["1173", "2220078"], False, True, False),
-        ("indeed", None, True, False, False),
+        ("linkedin", None, False, False, True, "not a code"),
+        ("linkedin", ["1173", "2220078"], False, True, False, None),
+        ("indeed", None, True, False, False, "EN"),
     ],
 )
 def test_scrape_passes_search_options(
-    monkeypatch, site, companies, remote, easy_apply, early_applicant
+    monkeypatch, site, companies, remote, easy_apply, early_applicant, language
 ):
     options = {}
 
@@ -100,6 +103,7 @@ def test_scrape_passes_search_options(
             geoid="12345",
             companies=companies,
             remote=remote,
+            language=language,
             easy_apply=easy_apply,
             early_applicant=early_applicant,
             fetcher=StubFetcher({}),
@@ -115,6 +119,7 @@ def test_scrape_passes_search_options(
     assert options["geoid"] == "12345"
     assert options["companies"] == companies
     assert options["remote"] is remote
+    assert options["language"] == language
     assert options["easy_apply"] is easy_apply
     assert options["early_applicant"] is early_applicant
 

@@ -169,6 +169,8 @@ def test_provider_commands_dispatch_expected_options(monkeypatch):
             "--company",
             "fe219df7f711aa73",
             "--remote",
+            "--language",
+            "EN",
         ],
         [
             "linkedin",
@@ -212,6 +214,7 @@ def test_provider_commands_dispatch_expected_options(monkeypatch):
                 "geoid": defaults.GEOID,
                 "companies": ["fe219df7f711aa73"],
                 "remote": True,
+                "language": "EN",
                 "easy_apply": False,
                 "early_applicant": False,
             },
@@ -230,6 +233,7 @@ def test_provider_commands_dispatch_expected_options(monkeypatch):
                 "geoid": True,
                 "companies": None,
                 "remote": False,
+                "language": None,
                 "easy_apply": True,
                 "early_applicant": False,
             },
@@ -248,6 +252,7 @@ def test_provider_commands_dispatch_expected_options(monkeypatch):
                 "geoid": "12345",
                 "companies": ["1173", "2220078"],
                 "remote": False,
+                "language": None,
                 "easy_apply": False,
                 "early_applicant": True,
             },
@@ -269,6 +274,7 @@ def test_invalid_provider_arguments_fail_before_scraping(monkeypatch):
         ["linkedin", "-q", "x", "--geoid"],
         ["linkedin", "-q", "x", "-l", "Seattle", "--detail"],
         ["linkedin", "-q", "x", "-l", "Seattle", "--remote"],
+        ["linkedin", "-q", "x", "-l", "Seattle", "--language", "en"],
     ):
         monkeypatch.setattr(sys, "argv", ["jobrake", *argv])
         with pytest.raises(SystemExit):
@@ -281,16 +287,24 @@ def test_invalid_provider_arguments_fail_before_scraping(monkeypatch):
         (["linkedin", "-l", "Netherlands", "--company", "Acme"], "must use digits 0-9"),
         (["indeed", "-c", "netherlands", "--company", " "], "employer key is blank"),
         (
+            ["indeed", "-c", "netherlands", "--language", " "],
+            "language ' ' must contain exactly two ASCII letters",
+        ),
+        (
+            ["indeed", "-c", "netherlands", "--language", "en-US"],
+            "language 'en-US' must contain exactly two ASCII letters",
+        ),
+        (
             ["indeed", "-c", "netherlands", "--company", "a", "--company", "b"],
             "one Indeed employer key per search",
         ),
     ],
 )
-def test_invalid_company_id_reports_a_cli_error_before_opening_a_fetcher(
+def test_invalid_filter_reports_a_cli_error_before_opening_a_fetcher(
     monkeypatch, capsys, argv, message
 ):
     def must_not_open():
-        raise AssertionError("opened transport before validating company IDs")
+        raise AssertionError("opened transport before validating filters")
 
     monkeypatch.setattr(sites, "HttpxFetcher", must_not_open)
     monkeypatch.setattr(sys, "argv", ["jobrake", *argv, "-q", ""])

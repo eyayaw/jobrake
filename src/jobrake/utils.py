@@ -1,6 +1,7 @@
 """Shared parsing and search-argument helpers."""
 
 import logging
+import re
 from datetime import UTC, datetime
 
 from bs4 import BeautifulSoup
@@ -72,6 +73,18 @@ def check_remote(remote: bool, *, site: str) -> None:
     if remote and site != "indeed":
         raise ValueError(
             "Remote filtering is available for Indeed. Use an Indeed search or set remote=False"
+        )
+
+
+def check_language(language: str | None) -> None:
+    """Validate an optional two-letter language code."""
+    if language is None:
+        return
+    if not isinstance(language, str):
+        raise TypeError(f"language must be a string or None, got {language!r}")
+    if re.fullmatch(r"[A-Za-z]{2}", language) is None:
+        raise ValueError(
+            f"language {language!r} must contain exactly two ASCII letters, such as 'en'"
         )
 
 

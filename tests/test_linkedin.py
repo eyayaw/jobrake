@@ -340,6 +340,7 @@ def test_paginated_search_preserves_filters(
             companies=companies,
             easy_apply=easy_apply,
             early_applicant=early_applicant,
+            language="not a code",
             max_age_hours=48,
             results=2,
         )

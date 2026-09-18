@@ -7,6 +7,7 @@ from jobrake.fetchkit import Fetcher, HttpxFetcher
 from jobrake.utils import (
     check_application_filters,
     check_companies,
+    check_language,
     check_max_age_hours,
     check_radius,
     check_remote,
@@ -35,6 +36,7 @@ async def scrape(
     geoid: str | bool = defaults.GEOID,
     companies: list[str] | None = None,
     remote: bool = False,
+    language: str | None = None,
     easy_apply: bool = False,
     early_applicant: bool = False,
     fetcher: Fetcher | None = None,
@@ -52,6 +54,9 @@ async def scrape(
     Every returned dict has the shared identity and summary keys, with available detail fields added.
     Searches ask the provider for jobs from the past seven days by default. ``max_age_hours=None`` omits the age filter.
     A ``None`` radius uses Indeed's standard radius and omits LinkedIn's undocumented distance parameter.
+    ``language`` restricts Indeed postings to the provider's language code,
+    supplied as two ASCII letters in either case. The code is sent to Indeed in lowercase.
+    ``None`` omits the restriction. LinkedIn ignores ``language``.
     ``easy_apply=True`` selects LinkedIn jobs with Easy Apply.
     ``early_applicant=True`` asks LinkedIn for jobs with fewer than 10 applicants.
     Both default to ``False`` and require a LinkedIn search when enabled.
@@ -60,11 +65,12 @@ async def scrape(
     Without an injected fetcher, ``scrape`` creates and closes an ``HttpxFetcher``.
 
     Raises:
-        TypeError: A numeric argument or Boolean filter has the wrong type, or company IDs
-            are not supplied as a list of strings.
+        TypeError: A numeric argument or Boolean filter has the wrong type, company IDs
+            are not supplied as a list of strings, or ``language`` has the wrong type for an Indeed search.
         ValueError: The site is unknown, required geography is missing, a numeric
             argument is out of range, a company ID is blank or malformed,
-            too many company IDs are supplied, or a filter is unsupported by the provider.
+            too many company IDs are supplied, the Indeed language code is malformed,
+            or a filter is unsupported.
     """
     searchers = site_searchers()
     if site not in searchers:
@@ -80,6 +86,7 @@ async def scrape(
                 f"location is required for site='{site}' unless geoid is an ID. Try 'London, England'"
             )
     elif site == "indeed":
+        check_language(language)
         if country is None:
             raise ValueError(f"country is required for site='{site}'. Try 'usa' or 'germany'")
     check_results(results)
@@ -101,6 +108,7 @@ async def scrape(
         "geoid": geoid,
         "companies": companies,
         "remote": remote,
+        "language": language,
         "easy_apply": easy_apply,
         "early_applicant": early_applicant,
     }

@@ -12,6 +12,7 @@ from jobrake.models import employment_type, make_job
 from jobrake.utils import (
     check_application_filters,
     check_companies,
+    check_language,
     check_max_age_hours,
     check_radius,
     check_remote,
@@ -89,6 +90,7 @@ def build_query(
     cursor: str | None,
     company: str | None = None,
     remote: bool = False,
+    language: str | None = None,
 ) -> str:
     """Build an Indeed query with a cursor-bound page size of 100."""
     filters = []
@@ -101,6 +103,10 @@ def build_query(
     if remote:
         # DSQF7 identifies Indeed's Remote attribute.
         filters.append('{ keyword: { field: "attributes", keys: ["DSQF7"] } }')
+    if language is not None:
+        filters.append(
+            '{ keyword: { field: "language", keys: [' + json.dumps(language.lower()) + "] } }"
+        )
     # Indeed requires date and keyword filters in separate objects.
     # Jobs must satisfy every filter in the list.
     return QUERY.format(
@@ -284,6 +290,7 @@ async def search(
     geoid: str | bool = defaults.GEOID,
     companies: list[str] | None = None,
     remote: bool = False,
+    language: str | None = None,
     easy_apply: bool = False,
     early_applicant: bool = False,
 ) -> list[dict]:
@@ -296,9 +303,13 @@ async def search(
     ``companies`` restricts results to jobs at one employer. Pass its Indeed
     employer key as a nonblank string in a list. ``None`` and ``[]`` omit this filter.
     ``remote=True`` selects postings with Indeed's Remote attribute.
-    ``False`` applies no remote restriction. Company, remote, and age filters
-    combine on the server. Age uses Indeed's ``dateOnIndeed`` field, which can
-    differ from the publication timestamp returned as ``posted_at``.
+    ``False`` applies no remote restriction.
+    ``language`` selects postings by Indeed's language code, such as ``"en"``.
+    Supply two ASCII letters in either case. The code is lowercased for Indeed.
+    Legacy codes such as ``"iw"`` and ``"in"`` are supported.
+    ``None`` leaves posting language unrestricted. Company, remote, language,
+    and age filters combine on every page.
+    Age uses Indeed's ``dateOnIndeed`` field, which can differ from the publication timestamp returned as ``posted_at``.
     ``easy_apply`` and ``early_applicant`` must both be ``False``.
     The caller retains ownership of ``fetcher``.
 
@@ -311,12 +322,13 @@ async def search(
 
     Raises:
         TypeError: A numeric argument is not an integer, a Boolean filter has the wrong type,
-            or company IDs are not a list of strings.
+            company IDs are not a list of strings, or a supplied ``language`` is not a string.
         ValueError: The country is unknown, a numeric search argument is outside its valid range,
-            the company list contains a blank key or more than one entry, or
-            ``easy_apply`` or ``early_applicant`` is enabled.
+            the company list contains a blank key or more than one entry, ``language`` has an
+            invalid format, or ``easy_apply`` or ``early_applicant`` is enabled.
     """
     check_remote(remote, site="indeed")
+    check_language(language)
     check_application_filters(easy_apply, early_applicant, site="indeed")
     check_companies(companies, site="indeed")
     check_results(results)
@@ -342,6 +354,7 @@ async def search(
             cursor,
             companies[0] if companies else None,
             remote=remote,
+            language=language,
         )
         result = await fetcher.post(API_URL, {"query": graphql}, headers=headers)
         if result.error:

@@ -79,12 +79,8 @@ LinkedIn postings can supply `apply_type`, `applicants`, `experience_months`, an
 Indeed returns available details with search results, including `is_remote`, `apply_url`, and `language`.
 Use `--details | -d` or `details=True` to fetch each LinkedIn posting page and add its detail fields.
 
-For Indeed postings, `language` holds the provider's language code when available, such as `"en"` or `"nl"`.
-To keep English postings:
-
-```python
-english = [job for job in jobs if job.get("language") == "en"]
-```
+For Indeed postings, `language` holds the provider's two-letter language code when available, such as `"en"` or `"nl"`.
+To restrict an Indeed search to English postings, pass `--language en` or `language="en"`. See [posting language](providers.md#posting-language) for details.
 
 LinkedIn job dictionaries omit `language`. CSV includes the column, with an empty cell when the value is unavailable.
 

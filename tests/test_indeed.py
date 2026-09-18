@@ -22,7 +22,7 @@ def test_query_escapes_graphql_strings_as_json():
     assert "radius: 0" in query
     company = 'key\\"quoted'
     with_company = indeed.build_query("", None, None, None, None, company)
-    assert f"keys: [{json.dumps(company)}]" in with_company
+    assert f'field: "indeedEmployerKey", keys: [{json.dumps(company)}]' in with_company
     assert 'cursor: "next\\\\\\""' in query
 
 
@@ -167,11 +167,20 @@ def test_indeed_keeps_a_job_whose_date_is_not_milliseconds(caplog):
 
 
 @pytest.mark.parametrize(
-    ("companies", "age"),
-    [(None, 168), ([], None), (["fe219df7f711aa73"], None), (["fe219df7f711aa73"], 168)],
+    ("companies", "age", "remote", "language"),
+    [
+        (None, 168, False, None),
+        ([], None, False, None),
+        (["fe219df7f711aa73"], None, False, None),
+        (["fe219df7f711aa73"], 168, False, None),
+        (None, 168, True, "Iw"),
+        ([], None, True, None),
+        (["fe219df7f711aa73"], None, True, "in"),
+        (["fe219df7f711aa73"], 168, True, "EN"),
+        (None, None, False, "NL"),
+    ],
 )
-@pytest.mark.parametrize("remote", [False, True])
-def test_indeed_requests_full_pages_throughout_a_cursor_chain(companies, age, remote):
+def test_indeed_requests_full_pages_throughout_a_cursor_chain(companies, age, remote, language):
     # Indeed binds the page size to its cursor and rejects a changed limit
     # with BAD_USER_INPUT, so every request in a chain asks for a full page.
     pages = [indeed_payload(["a", "b"], cursor="next"), indeed_payload(["b", "c", "d"])]
@@ -196,6 +205,8 @@ def test_indeed_requests_full_pages_throughout_a_cursor_chain(companies, age, re
             companies=companies,
             max_age_hours=age,
             remote=remote,
+            language=language,
+            location="Seattle",
         )
     )
     # The second page overlaps the first, the limit stays at 100, and the
@@ -209,9 +220,14 @@ def test_indeed_requests_full_pages_throughout_a_cursor_chain(companies, age, re
         assert ('keys: ["fe219df7f711aa73"]' in query) == bool(companies)
         assert ('date: { field: "dateOnIndeed", start: "168h" }' in query) == bool(age)
         assert ('keyword: { field: "attributes", keys: ["DSQF7"] }' in query) == remote
-        if (companies or remote) and age:
+        assert 'where: "Seattle"' in query
+        if language is None:
+            assert 'field: "language"' not in query
+        else:
+            assert '{ keyword: { field: "language", keys: ["' + language.lower() + '"] } }' in query
+        if (companies or remote or language) and age:
             assert "} }, { keyword:" in query
-        if not companies and not remote and age is None:
+        if not companies and not remote and language is None and age is None:
             assert "filters:" not in query
     assert len(fetcher.queries) == 2
 
@@ -246,18 +262,23 @@ def test_indeed_returns_the_requested_number_of_results():
 
 
 @pytest.mark.parametrize(
-    ("bad", "match"),
+    ("bad", "error", "match"),
     [
-        ({"max_age_hours": 0}, "max_age_hours"),
-        ({"results": 0}, "results"),
-        ({"radius": -1}, "radius"),
-        ({"easy_apply": True}, "easy_apply"),
-        ({"early_applicant": True}, "early_applicant"),
+        ({"max_age_hours": 0}, ValueError, "max_age_hours"),
+        ({"results": 0}, ValueError, "results"),
+        ({"radius": -1}, ValueError, "radius"),
+        ({"easy_apply": True}, ValueError, "easy_apply"),
+        ({"early_applicant": True}, ValueError, "early_applicant"),
+        *[
+            ({"language": value}, ValueError, "two ASCII letters")
+            for value in ("", " ", " en ", "e", "eng", "en-US", "en_US", "e1", "éñ", "en\n")
+        ],
+        *[({"language": value}, TypeError, "language") for value in (False, 1, ["en"])],
     ],
 )
-def test_indeed_rejects_bad_arguments_before_any_request(bad, match):
+def test_indeed_rejects_bad_arguments_before_any_request(bad, error, match):
     fetcher = StubFetcher({})
-    with pytest.raises(ValueError, match=match):
+    with pytest.raises(error, match=match):
         asyncio.run(indeed.search(fetcher, query="x", country="usa", **bad))
     assert fetcher.requests == []
 

@@ -44,6 +44,23 @@ Plain terms can match posting descriptions or other indexed content, and `descri
 `AND`, `OR`, and `NOT` act as provider search hints. Their results can differ from Boolean union, intersection, and exclusion.
 Use jobrake's dedicated arguments for geography and posting age.
 
+### Posting language
+
+Use `--language CODE` to select postings in one language:
+
+```sh
+jobrake indeed -q econometrics -c netherlands --language en
+```
+
+Library searches accept `language="en"` through `scrape("indeed", ...)` or `indeed.search()`.
+Omitting the option, or passing `None`, leaves language unrestricted.
+Use the code from a posting's `language` field, such as `en` or `nl`. The input accepts two ASCII letters in either case, so `EN` and `Nl` work too. jobrake sends the code in lowercase. Indeed determines each posting's language.
+Indeed's [language-code reference](https://docs.indeed.com/api/common/objects/LanguageCode) describes ISO 639-1. Search results also use the legacy codes `iw` for Hebrew and `in` for Indonesian, which jobrake preserves.
+Values with the wrong type or format raise an error before any request. A correctly formatted code can still return no matches.
+
+Indeed applies the restriction on every page together with company, remote, location, and age filters. The requested result count therefore applies to postings matching the language filter.
+The CLI offers `--language` only for Indeed. LinkedIn library searches accept and ignore `language`, like the shared `country` argument.
+
 ### Remote jobs
 
 Pass `--remote` to search postings that Indeed tags Remote:
