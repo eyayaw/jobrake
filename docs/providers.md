@@ -83,7 +83,7 @@ jobrake indeed -q economist -c usa --attribute CF3CP --attribute 6QC5F
 `3CQB7` selects Spatial analysis. The second search requires both Full-time (`CF3CP`) and Doctoral degree (`6QC5F`). Several codes intersect: every returned posting must carry every selected code. To find jobs matching any of several codes, run separate searches and combine the results.
 A code selects postings carrying that attribute. A Full-time match can also carry Part-time when the employer offers either arrangement. Attribute filters provide no exclusion option.
 
-Pass `attributes=["3CQB7"]` to `scrape("indeed", ...)` or `indeed.search()`. Codes must be nonblank strings in a list and are sent unchanged. `None` or `[]` leaves attributes unrestricted.
+Pass `attributes=["3CQB7"]` to `scrape("indeed", ...)` or `indeed.search()`. Supply codes as nonblank strings in a list. jobrake removes surrounding whitespace before sending them to Indeed. `None` or `[]` leaves attributes unrestricted.
 Attribute filters combine with company, language, location, and posting age on every page, before the requested result limit is applied.
 The CLI exposes `--attribute` only for Indeed. LinkedIn library searches ignore `attributes`.
 

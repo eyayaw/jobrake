@@ -60,7 +60,8 @@ async def scrape(
     supplied as two ASCII letters in either case. The code is sent to Indeed in lowercase.
     ``None`` omits the restriction. LinkedIn ignores ``language``.
     ``attributes`` selects Indeed postings carrying every supplied attribute code.
-    Pass a list of nonblank strings. ``None`` and ``[]`` omit this restriction.
+    Pass a list of nonblank strings. Surrounding whitespace is stripped from each code.
+    ``None`` and ``[]`` omit this restriction.
     LinkedIn ignores ``attributes``.
     ``easy_apply=True`` selects LinkedIn jobs with Easy Apply.
     ``early_applicant=True`` asks LinkedIn for jobs with fewer than 10 applicants.

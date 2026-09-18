@@ -102,7 +102,7 @@ def build_query(
         filters.append(
             '{ keyword: { field: "indeedEmployerKey", keys: [' + json.dumps(company) + "] } }"
         )
-    attribute_keys = list(dict.fromkeys(attributes or []))
+    attribute_keys = list(dict.fromkeys(code.strip() for code in attributes or []))
     if remote and "DSQF7" not in attribute_keys:
         # DSQF7 identifies Indeed's Remote attribute.
         attribute_keys.append("DSQF7")
@@ -313,7 +313,8 @@ async def search(
     ``remote=True`` selects postings with Indeed's Remote attribute.
     ``False`` applies no remote restriction.
     ``attributes`` requires every listed attribute code on each posting.
-    Codes are nonblank strings passed unchanged. ``None`` or ``[]`` omits the filter.
+    Codes are nonblank strings with surrounding whitespace removed.
+    ``None`` or ``[]`` omits the filter.
     ``remote=True`` adds ``"DSQF7"`` to the selected attributes.
     ``language`` selects postings by Indeed's language code, such as ``"en"``.
     Supply two ASCII letters in either case. The code is lowercased for Indeed.
