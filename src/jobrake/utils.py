@@ -76,6 +76,22 @@ def check_remote(remote: bool, *, site: str) -> None:
         )
 
 
+def check_attributes(attributes: list[str] | None) -> None:
+    """Require a list of nonblank attribute codes when supplied."""
+    if attributes is None:
+        return
+    if not isinstance(attributes, list):
+        raise TypeError("attributes must be a list of code strings")
+    for code in attributes:
+        if not isinstance(code, str):
+            raise TypeError(f"attribute code {code!r} must be a string")
+        if not code.strip():
+            raise ValueError(
+                "attribute code is blank. Find codes with "
+                "'jobrake attributes indeed -c EDITION QUERY'"
+            )
+
+
 def check_language(language: str | None) -> None:
     """Validate an optional two-letter language code."""
     if language is None:

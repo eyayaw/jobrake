@@ -57,6 +57,7 @@ def test_lookup_commands_print_candidates_and_report_failure(monkeypatch, capsys
     indeed_hits = [{"suggestion": "Boston, MA", "locationType": "CITY"}]
     company_hits = [{"companyId": "1173", "displayName": "ABN AMRO Bank N.V."}]
     indeed_company_hits = [{"employerKey": "fe219df7f711aa73", "suggestion": "ABN AMRO"}]
+    attribute_hits = [{"key": "3CQB7", "label": "Spatial analysis"}]
 
     class StubHttpx:
         instances: list = []
@@ -84,7 +85,12 @@ def test_lookup_commands_print_candidates_and_report_failure(monkeypatch, capsys
         assert (name, country) == ("ABN AMRO", "netherlands")
         return indeed_company_hits
 
+    async def fake_attributes(fetcher, query, country):
+        assert (query, country) == ("data scientist", "usa")
+        return attribute_hits
+
     monkeypatch.setattr(cli, "HttpxFetcher", StubHttpx)
+    monkeypatch.setattr(cli.indeed, "attributes", fake_attributes)
     monkeypatch.setattr(cli.indeed, "companies", fake_indeed_companies)
     monkeypatch.setattr(cli.linkedin, "companies", fake_companies)
     monkeypatch.setattr(cli.linkedin, "places", fake_linkedin)
@@ -114,6 +120,17 @@ def test_lookup_commands_print_candidates_and_report_failure(monkeypatch, capsys
     assert cli.main() is None
     assert json.loads(capsys.readouterr().out) == indeed_company_hits
     indeed_company_hits = None
+    assert cli.main() == 1
+    assert capsys.readouterr().out == ""
+    monkeypatch.setattr(
+        sys, "argv", ["jobrake", "attributes", "indeed", "-c", "usa", "data scientist"]
+    )
+    assert cli.main() is None
+    assert json.loads(capsys.readouterr().out) == attribute_hits
+    attribute_hits = []
+    assert cli.main() is None
+    assert json.loads(capsys.readouterr().out) == []
+    attribute_hits = None
     assert cli.main() == 1
     assert capsys.readouterr().out == ""
     assert StubHttpx.instances and all(f.closed for f in StubHttpx.instances)
@@ -171,6 +188,10 @@ def test_provider_commands_dispatch_expected_options(monkeypatch):
             "--remote",
             "--language",
             "EN",
+            "--attribute",
+            "3CQB7",
+            "--attribute",
+            "6QC5F",
         ],
         [
             "linkedin",
@@ -215,6 +236,7 @@ def test_provider_commands_dispatch_expected_options(monkeypatch):
                 "companies": ["fe219df7f711aa73"],
                 "remote": True,
                 "language": "EN",
+                "attributes": ["3CQB7", "6QC5F"],
                 "easy_apply": False,
                 "early_applicant": False,
             },
@@ -234,6 +256,7 @@ def test_provider_commands_dispatch_expected_options(monkeypatch):
                 "companies": None,
                 "remote": False,
                 "language": None,
+                "attributes": None,
                 "easy_apply": True,
                 "early_applicant": False,
             },
@@ -253,6 +276,7 @@ def test_provider_commands_dispatch_expected_options(monkeypatch):
                 "companies": ["1173", "2220078"],
                 "remote": False,
                 "language": None,
+                "attributes": None,
                 "easy_apply": False,
                 "early_applicant": True,
             },
@@ -270,6 +294,9 @@ def test_invalid_provider_arguments_fail_before_scraping(monkeypatch):
         ["indeed", "-q", "x", "-c", "usa", "--easy-apply"],
         ["indeed", "-q", "x", "-c", "usa", "--early-applicant"],
         ["companies", "indeed", "ABN AMRO"],
+        ["attributes", "indeed", "data scientist"],
+        ["attributes", "linkedin", "data scientist"],
+        ["linkedin", "-q", "x", "-l", "Seattle", "--attribute", "3CQB7"],
         ["linkedin", "-q", "x"],
         ["linkedin", "-q", "x", "--geoid"],
         ["linkedin", "-q", "x", "-l", "Seattle", "--detail"],
@@ -286,6 +313,7 @@ def test_invalid_provider_arguments_fail_before_scraping(monkeypatch):
     [
         (["linkedin", "-l", "Netherlands", "--company", "Acme"], "must use digits 0-9"),
         (["indeed", "-c", "netherlands", "--company", " "], "employer key is blank"),
+        (["indeed", "-c", "usa", "--attribute", " "], "attribute code is blank"),
         (
             ["indeed", "-c", "netherlands", "--language", " "],
             "language ' ' must contain exactly two ASCII letters",

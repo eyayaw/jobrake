@@ -23,6 +23,8 @@ def test_query_escapes_graphql_strings_as_json():
     company = 'key\\"quoted'
     with_company = indeed.build_query("", None, None, None, None, company)
     assert f'field: "indeedEmployerKey", keys: [{json.dumps(company)}]' in with_company
+    with_attributes = indeed.build_query("", None, None, None, None, attributes=[company])
+    assert f'field: "attributes", keys: [{json.dumps(company)}]' in with_attributes
     assert 'cursor: "next\\\\\\""' in query
 
 
@@ -167,20 +169,29 @@ def test_indeed_keeps_a_job_whose_date_is_not_milliseconds(caplog):
 
 
 @pytest.mark.parametrize(
-    ("companies", "age", "remote", "language"),
+    ("companies", "age", "remote", "language", "attributes", "expected_keys"),
     [
-        (None, 168, False, None),
-        ([], None, False, None),
-        (["fe219df7f711aa73"], None, False, None),
-        (["fe219df7f711aa73"], 168, False, None),
-        (None, 168, True, "Iw"),
-        ([], None, True, None),
-        (["fe219df7f711aa73"], None, True, "in"),
-        (["fe219df7f711aa73"], 168, True, "EN"),
-        (None, None, False, "NL"),
+        (None, 168, False, None, None, []),
+        ([], None, False, None, [], []),
+        (["fe219df7f711aa73"], None, False, None, ["3CQB7"], ["3CQB7"]),
+        (["fe219df7f711aa73"], 168, False, None, ["CF3CP", "6QC5F"], ["CF3CP", "6QC5F"]),
+        (None, 168, True, "Iw", None, ["DSQF7"]),
+        ([], None, True, None, ["DSQF7"], ["DSQF7"]),
+        (["fe219df7f711aa73"], None, True, "in", ["3CQB7"], ["3CQB7", "DSQF7"]),
+        (
+            ["fe219df7f711aa73"],
+            168,
+            True,
+            "EN",
+            ["CF3CP", "6QC5F", "CF3CP"],
+            ["CF3CP", "6QC5F", "DSQF7"],
+        ),
+        (None, None, False, "NL", None, []),
     ],
 )
-def test_indeed_requests_full_pages_throughout_a_cursor_chain(companies, age, remote, language):
+def test_indeed_requests_full_pages_throughout_a_cursor_chain(
+    companies, age, remote, language, attributes, expected_keys
+):
     # Indeed binds the page size to its cursor and rejects a changed limit
     # with BAD_USER_INPUT, so every request in a chain asks for a full page.
     pages = [indeed_payload(["a", "b"], cursor="next"), indeed_payload(["b", "c", "d"])]
@@ -196,6 +207,7 @@ def test_indeed_requests_full_pages_throughout_a_cursor_chain(companies, age, re
             return ok(json.dumps(pages[len(self.requests) - 1]))
 
     fetcher = Paged()
+    original_attributes = attributes.copy() if attributes is not None else None
     jobs = asyncio.run(
         indeed.search(
             fetcher,
@@ -206,6 +218,7 @@ def test_indeed_requests_full_pages_throughout_a_cursor_chain(companies, age, re
             max_age_hours=age,
             remote=remote,
             language=language,
+            attributes=attributes,
             location="Seattle",
         )
     )
@@ -219,17 +232,22 @@ def test_indeed_requests_full_pages_throughout_a_cursor_chain(companies, age, re
         assert ('field: "indeedEmployerKey"' in query) == bool(companies)
         assert ('keys: ["fe219df7f711aa73"]' in query) == bool(companies)
         assert ('date: { field: "dateOnIndeed", start: "168h" }' in query) == bool(age)
-        assert ('keyword: { field: "attributes", keys: ["DSQF7"] }' in query) == remote
+        if expected_keys:
+            assert f'keyword: {{ field: "attributes", keys: {json.dumps(expected_keys)} }}' in query
+            assert query.count('field: "attributes"') == 1
+        else:
+            assert 'field: "attributes"' not in query
         assert 'where: "Seattle"' in query
         if language is None:
             assert 'field: "language"' not in query
         else:
             assert '{ keyword: { field: "language", keys: ["' + language.lower() + '"] } }' in query
-        if (companies or remote or language) and age:
+        if (companies or expected_keys or language) and age:
             assert "} }, { keyword:" in query
-        if not companies and not remote and language is None and age is None:
+        if not companies and not expected_keys and language is None and age is None:
             assert "filters:" not in query
     assert len(fetcher.queries) == 2
+    assert attributes == original_attributes
 
 
 def test_indeed_graphql_error_reports_the_provider_message(caplog):
@@ -264,6 +282,9 @@ def test_indeed_returns_the_requested_number_of_results():
 @pytest.mark.parametrize(
     ("bad", "error", "match"),
     [
+        ({"attributes": "3CQB7"}, TypeError, "attributes"),
+        ({"attributes": [1]}, TypeError, "attribute code"),
+        ({"attributes": [" "]}, ValueError, "attribute code is blank"),
         ({"max_age_hours": 0}, ValueError, "max_age_hours"),
         ({"results": 0}, ValueError, "results"),
         ({"radius": -1}, ValueError, "radius"),
@@ -490,3 +511,64 @@ def test_indeed_ignores_malformed_attribute_entries():
     job = parse_one(rich_job(attributes=[{}, {"label": 3}, "Remote", {"label": "Full-time"}]))
     assert job["employment_type"] == "full_time"
     assert "is_remote" not in job  # the bare string is not a Remote tag
+
+
+def test_attribute_lookup_preserves_distinct_codes_and_skips_malformed_entries():
+    entries = [
+        {"key": " 4N39D ", "label": " Economics "},
+        {"key": "5DH8C", "label": "Economics"},
+        {"key": "4N39D", "label": "Economics"},
+        {"key": "", "label": "Missing code"},
+        {"key": "INVALID", "label": None},
+        None,
+    ]
+    payload = {
+        "data": {
+            "jobSearch": {
+                "results": [
+                    {"job": {"attributes": entries}},
+                    None,
+                    {"job": {"attributes": []}},
+                ]
+            }
+        }
+    }
+
+    class Recording(StubFetcher):
+        async def post(self, url, json_body, headers=None):
+            assert headers is not None
+            assert headers["indeed-co"] == "NL"
+            assert "attributes { key label }" in json_body["query"]
+            assert "limit: 100" in json_body["query"]
+            assert json.dumps('data "scientist"') in json_body["query"]
+            assert "filters:" not in json_body["query"]
+            return await super().post(url, json_body, headers)
+
+    fetcher = Recording({"apis.indeed.com": ok(json.dumps(payload))})
+    assert asyncio.run(indeed.attributes(fetcher, 'data "scientist"', "netherlands")) == [
+        {"key": "4N39D", "label": "Economics"},
+        {"key": "5DH8C", "label": "Economics"},
+    ]
+    assert len(fetcher.requests) == 1
+    for query, country in ((" ", "usa"), ("data", "unknown")):
+        with pytest.raises(ValueError):
+            asyncio.run(indeed.attributes(fetcher, query, country))
+    assert len(fetcher.requests) == 1
+
+
+def test_attribute_lookup_distinguishes_empty_results_from_failure(caplog):
+    for payload, expected in (
+        ({"data": {"jobSearch": {"results": []}}}, []),
+        ({"data": {"jobSearch": {"results": [{"job": {"attributes": []}}]}}}, []),
+        ({"data": None, "errors": [{"message": "unavailable"}]}, None),
+        ({"data": {"jobSearch": {"results": {}}}}, None),
+        ({"data": {"jobSearch": {"results": [{"job": {"attributes": [None]}}]}}}, None),
+        (None, None),
+    ):
+        caplog.clear()
+        fetcher = StubFetcher({"apis.indeed.com": ok(json.dumps(payload))})
+        assert asyncio.run(indeed.attributes(fetcher, "data", "usa")) == expected
+        assert bool(caplog.records) == (expected is None)
+    for response in (ok("not json"), rate_limited()):
+        fetcher = StubFetcher({"apis.indeed.com": response})
+        assert asyncio.run(indeed.attributes(fetcher, "data", "usa")) is None

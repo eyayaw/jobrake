@@ -127,6 +127,7 @@ def _add_linkedin_args(parser: argparse.ArgumentParser) -> None:
     )
     parser.set_defaults(
         country=None,
+        attributes=None,
         language=None,
         remote=False,
         radius=defaults.LINKEDIN_RADIUS,
@@ -165,6 +166,13 @@ def _add_indeed_args(parser: argparse.ArgumentParser) -> None:
         "--language",
         metavar="CODE",
         help="restrict postings by Indeed language code (two letters, e.g., EN or NL)",
+    )
+    parser.add_argument(
+        "--attribute",
+        dest="attributes",
+        action="append",
+        metavar="CODE",
+        help="filter jobs by attribute code (repeat to require all codes)",
     )
     # The shared search call needs values for LinkedIn-only options.
     parser.set_defaults(
@@ -322,6 +330,26 @@ def _build_parser() -> _ArgumentParser:
         required=True,
         help="Indeed country edition, e.g., usa, uk, or netherlands",
     )
+    attributes = subparsers.add_parser(
+        "attributes",
+        allow_abbrev=False,
+        help="discover attribute codes in matching jobs",
+        description="Discover attribute codes in matching jobs",
+    )
+    attribute_sites = attributes.add_subparsers(dest="site", required=True)
+    attribute_indeed = attribute_sites.add_parser(
+        "indeed",
+        allow_abbrev=False,
+        help="print Indeed attribute codes and labels",
+        description="List attribute codes and labels from the first 100 matching jobs as JSON",
+    )
+    attribute_indeed.add_argument("name", metavar="QUERY", help="job title or keywords")
+    attribute_indeed.add_argument(
+        "--country",
+        "-c",
+        required=True,
+        help="Indeed country edition, e.g., usa, uk, or netherlands",
+    )
     return parser
 
 
@@ -349,7 +377,7 @@ def _write_stdout(text: str) -> int | None:
 
 
 async def _lookup_candidates(args: argparse.Namespace) -> list[dict] | None:
-    """Run a place or company lookup with a fetcher of its own."""
+    """Look up places, companies, or attributes with a fetcher of its own."""
     fetcher = HttpxFetcher()
     try:
         match args.site:
@@ -358,6 +386,8 @@ async def _lookup_candidates(args: argparse.Namespace) -> list[dict] | None:
                     return await linkedin.companies(fetcher, args.name)
                 return await linkedin.places(fetcher, args.name)
             case "indeed":
+                if args.provider == "attributes":
+                    return await indeed.attributes(fetcher, args.name, args.country)
                 if args.provider == "companies":
                     return await indeed.companies(fetcher, args.name, args.country)
                 return await indeed.places(fetcher, args.name, args.country)
@@ -423,7 +453,7 @@ def _write_jobs(args: argparse.Namespace, jobs: list[dict], fmt: str) -> int | N
 
 def main() -> int | None:
     """
-    Run a search, posting fetch, or name lookup.
+    Run a search, posting fetch, or lookup.
 
     Returns:
         ``1`` when stdout closes early, the output file cannot be written, a lookup fails, or no named posting could be fetched. Normal completion returns ``None``.
@@ -436,7 +466,7 @@ def main() -> int | None:
     handler = _StatusHandler()
     logging.basicConfig(level=logging.WARNING, handlers=[handler])
     logging.getLogger("jobrake").setLevel(logging.INFO)
-    if args.provider in ("places", "companies"):
+    if args.provider in ("places", "companies", "attributes"):
         try:
             hits = asyncio.run(_lookup_candidates(args))
         except ValueError as e:
@@ -445,7 +475,7 @@ def main() -> int | None:
             return 1
         if not hits:
             logger.warning(
-                "no %s found for %r. Check the spelling or try another name",
+                "no %s found for %r. Check the spelling or try another query",
                 args.provider,
                 args.name,
             )
@@ -480,6 +510,7 @@ def main() -> int | None:
                 companies=args.companies,
                 remote=args.remote,
                 language=args.language,
+                attributes=args.attributes,
                 easy_apply=args.easy_apply,
                 early_applicant=args.early_applicant,
             )

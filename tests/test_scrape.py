@@ -15,6 +15,7 @@ from jobrake.sites.linkedin import client
     [
         ("glassdoor", {}, "glassdoor"),
         ("indeed", {}, "country"),
+        ("indeed", {"country": "usa", "attributes": [" "]}, "attribute code"),
         ("indeed", {"country": "usa", "language": " "}, "language"),
         ("indeed", {"country": "usa", "language": "eng"}, "language"),
         ("indeed", {"country": "usa", "easy_apply": True}, "easy_apply"),
@@ -45,6 +46,7 @@ def test_scrape_rejects_bad_arguments_before_opening_a_fetcher(site, kwargs, mat
     [
         ("indeed", {"remote": "false"}, "remote"),
         ("indeed", {"language": ["en"]}, "language"),
+        ("indeed", {"attributes": "3CQB7"}, "attributes"),
         ("linkedin", {"remote": 1}, "remote"),
         ("linkedin", {"easy_apply": "false"}, "easy_apply"),
         ("indeed", {"early_applicant": 1}, "early_applicant"),
@@ -104,6 +106,7 @@ def test_scrape_passes_search_options(
             companies=companies,
             remote=remote,
             language=language,
+            attributes=["3CQB7", "6QC5F"],
             easy_apply=easy_apply,
             early_applicant=early_applicant,
             fetcher=StubFetcher({}),
@@ -120,6 +123,7 @@ def test_scrape_passes_search_options(
     assert options["companies"] == companies
     assert options["remote"] is remote
     assert options["language"] == language
+    assert options["attributes"] == ["3CQB7", "6QC5F"]
     assert options["easy_apply"] is easy_apply
     assert options["early_applicant"] is early_applicant
 

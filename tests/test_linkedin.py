@@ -341,6 +341,7 @@ def test_paginated_search_preserves_filters(
             easy_apply=easy_apply,
             early_applicant=early_applicant,
             language="not a code",
+            attributes=["3CQB7"],
             max_age_hours=48,
             results=2,
         )

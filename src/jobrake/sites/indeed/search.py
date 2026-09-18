@@ -11,6 +11,7 @@ from jobrake.fetchkit import PostFetcher
 from jobrake.models import employment_type, make_job
 from jobrake.utils import (
     check_application_filters,
+    check_attributes,
     check_companies,
     check_language,
     check_max_age_hours,
@@ -91,6 +92,7 @@ def build_query(
     company: str | None = None,
     remote: bool = False,
     language: str | None = None,
+    attributes: list[str] | None = None,
 ) -> str:
     """Build an Indeed query with a cursor-bound page size of 100."""
     filters = []
@@ -100,9 +102,14 @@ def build_query(
         filters.append(
             '{ keyword: { field: "indeedEmployerKey", keys: [' + json.dumps(company) + "] } }"
         )
-    if remote:
+    attribute_keys = list(dict.fromkeys(attributes or []))
+    if remote and "DSQF7" not in attribute_keys:
         # DSQF7 identifies Indeed's Remote attribute.
-        filters.append('{ keyword: { field: "attributes", keys: ["DSQF7"] } }')
+        attribute_keys.append("DSQF7")
+    if attribute_keys:
+        filters.append(
+            '{ keyword: { field: "attributes", keys: ' + json.dumps(attribute_keys) + " } }"
+        )
     if language is not None:
         filters.append(
             '{ keyword: { field: "language", keys: [' + json.dumps(language.lower()) + "] } }"
@@ -291,6 +298,7 @@ async def search(
     companies: list[str] | None = None,
     remote: bool = False,
     language: str | None = None,
+    attributes: list[str] | None = None,
     easy_apply: bool = False,
     early_applicant: bool = False,
 ) -> list[dict]:
@@ -304,10 +312,13 @@ async def search(
     employer key as a nonblank string in a list. ``None`` and ``[]`` omit this filter.
     ``remote=True`` selects postings with Indeed's Remote attribute.
     ``False`` applies no remote restriction.
+    ``attributes`` requires every listed attribute code on each posting.
+    Codes are nonblank strings passed unchanged. ``None`` or ``[]`` omits the filter.
+    ``remote=True`` adds ``"DSQF7"`` to the selected attributes.
     ``language`` selects postings by Indeed's language code, such as ``"en"``.
     Supply two ASCII letters in either case. The code is lowercased for Indeed.
     Legacy codes such as ``"iw"`` and ``"in"`` are supported.
-    ``None`` leaves posting language unrestricted. Company, remote, language,
+    ``None`` leaves posting language unrestricted. Company, attribute, language,
     and age filters combine on every page.
     Age uses Indeed's ``dateOnIndeed`` field, which can differ from the publication timestamp returned as ``posted_at``.
     ``easy_apply`` and ``early_applicant`` must both be ``False``.
@@ -322,13 +333,14 @@ async def search(
 
     Raises:
         TypeError: A numeric argument is not an integer, a Boolean filter has the wrong type,
-            company IDs are not a list of strings, or a supplied ``language`` is not a string.
+            company or attribute codes are not a list of strings, or a supplied ``language`` is not a string.
         ValueError: The country is unknown, a numeric search argument is outside its valid range,
-            the company list contains a blank key or more than one entry, ``language`` has an
-            invalid format, or ``easy_apply`` or ``early_applicant`` is enabled.
+            the company list contains a blank key or more than one entry, an attribute code
+            is blank, ``language`` has an invalid format, or an application filter is enabled.
     """
     check_remote(remote, site="indeed")
     check_language(language)
+    check_attributes(attributes)
     check_application_filters(easy_apply, early_applicant, site="indeed")
     check_companies(companies, site="indeed")
     check_results(results)
@@ -355,6 +367,7 @@ async def search(
             companies[0] if companies else None,
             remote=remote,
             language=language,
+            attributes=attributes,
         )
         result = await fetcher.post(API_URL, {"query": graphql}, headers=headers)
         if result.error:

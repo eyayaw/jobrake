@@ -61,6 +61,32 @@ Values with the wrong type or format raise an error before any request. A correc
 Indeed applies the restriction on every page together with company, remote, location, and age filters. The requested result count therefore applies to postings matching the language filter.
 The CLI offers `--language` only for Indeed. LinkedIn library searches accept and ignore `language`, like the shared `country` argument.
 
+### Job attributes
+
+Find codes on postings matching a job title or keywords:
+
+```sh
+jobrake attributes indeed -c usa "data scientist"
+```
+
+The command reads the first 100 matching postings and prints a JSON list of `key` and `label` pairs. It applies no posting-age restriction. The list covers the sampled jobs, so another query can reveal additional codes.
+Labels can differ by country edition. A label can also belong to several codes, and the lookup keeps each code separately. jobrake reads the codes live from Indeed.
+Library callers use `jobrake.sites.indeed.attributes(fetcher, query, country)`. A lookup that finds no attributes returns `[]`. A failed request or unreadable response returns `None` and logs a warning. The CLI exits nonzero on failure.
+
+Use those codes to filter jobs:
+
+```sh
+jobrake indeed -q "data scientist" -c usa --attribute 3CQB7
+jobrake indeed -q economist -c usa --attribute CF3CP --attribute 6QC5F
+```
+
+`3CQB7` selects Spatial analysis. The second search requires both Full-time (`CF3CP`) and Doctoral degree (`6QC5F`). Several codes intersect: every returned posting must carry every selected code. To find jobs matching any of several codes, run separate searches and combine the results.
+A code selects postings carrying that attribute. A Full-time match can also carry Part-time when the employer offers either arrangement. Attribute filters provide no exclusion option.
+
+Pass `attributes=["3CQB7"]` to `scrape("indeed", ...)` or `indeed.search()`. Codes must be nonblank strings in a list and are sent unchanged. `None` or `[]` leaves attributes unrestricted.
+Attribute filters combine with company, language, location, and posting age on every page, before the requested result limit is applied.
+The CLI exposes `--attribute` only for Indeed. LinkedIn library searches ignore `attributes`.
+
 ### Remote jobs
 
 Pass `--remote` to search postings that Indeed tags Remote:
@@ -70,6 +96,7 @@ jobrake indeed -q "econometrics" -c usa --remote
 ```
 
 Library callers pass `remote=True` to `scrape("indeed", ...)` or `indeed.search()`. The default, `False`, leaves remote status unrestricted.
+`--remote` is shorthand for `--attribute DSQF7`. When combined with other attributes, a posting must carry the Remote tag and every other selected code.
 Indeed applies this filter together with keywords, location, company, and posting age before returning each page.
 The tag reflects Indeed's classification. Check the posting for residency and workplace requirements.
 

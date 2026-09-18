@@ -86,6 +86,7 @@ async def search(
     companies: list[str] | None = None,
     remote: bool = False,
     language: str | None = None,
+    attributes: list[str] | None = None,
     easy_apply: bool = False,
     early_applicant: bool = False,
 ) -> list[dict]:
@@ -107,7 +108,7 @@ async def search(
     requires results to match both filters. They apply alongside keywords,
     geography, company selection, and posting age on every page.
     Pass ``query=""`` to search for jobs without keywords.
-    ``country`` and ``language`` are accepted for symmetry and ignored.
+    ``country``, ``language``, and ``attributes`` are accepted for symmetry and ignored.
     ``remote`` must be ``False`` because the guest endpoint cannot filter remote jobs.
     ``details`` hydrates posting pages, and ``cache`` controls their reuse.
     The caller owns ``fetcher``.
