@@ -65,7 +65,11 @@ async def scrape(
     LinkedIn ignores ``attributes``.
     ``easy_apply=True`` selects LinkedIn jobs with Easy Apply.
     ``early_applicant=True`` asks LinkedIn for jobs with fewer than 10 applicants.
-    Both default to ``False`` and require a LinkedIn search when enabled.
+    Both default to ``False``. Indeed ignores them.
+
+    One signature covers both providers, so a caller can send the same options
+    to each. A provider applies the filters it supports and warns for the rest.
+    An ignored value goes unvalidated.
 
     An injected fetcher remains open and belongs to the caller. Indeed requires one with JSON POST support.
     Without an injected fetcher, ``scrape`` creates and closes an ``HttpxFetcher``.
@@ -77,13 +81,13 @@ async def scrape(
         ValueError: The site is unknown, required geography is missing, a numeric
             argument is out of range, a company ID is blank or malformed,
             too many company IDs are supplied, an attribute code is blank,
-            the Indeed language code is malformed, or a filter is unsupported.
+            or the Indeed language code is malformed.
     """
     searchers = site_searchers()
     if site not in searchers:
         raise ValueError(f"unknown site {site!r}. Expected one of {sorted(searchers)}")
-    check_remote(remote, site=site)
-    check_application_filters(easy_apply, early_applicant, site=site)
+    check_remote(remote)
+    check_application_filters(easy_apply, early_applicant)
     check_companies(companies, site=site)
     if site == "linkedin":
         if isinstance(geoid, str) and not geoid.strip():

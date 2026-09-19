@@ -288,8 +288,6 @@ def test_indeed_returns_the_requested_number_of_results():
         ({"max_age_hours": 0}, ValueError, "max_age_hours"),
         ({"results": 0}, ValueError, "results"),
         ({"radius": -1}, ValueError, "radius"),
-        ({"easy_apply": True}, ValueError, "easy_apply"),
-        ({"early_applicant": True}, ValueError, "early_applicant"),
         *[
             ({"language": value}, ValueError, "two ASCII letters")
             for value in ("", " ", " en ", "e", "eng", "en-US", "en_US", "e1", "éñ", "en\n")

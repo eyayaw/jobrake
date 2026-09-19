@@ -1,6 +1,7 @@
 """Site-routing and fetcher-lifecycle tests for ``scrape``."""
 
 import asyncio
+import logging
 
 import pytest
 from fakes import StubFetcher, ok
@@ -18,12 +19,9 @@ from jobrake.sites.linkedin import client
         ("indeed", {"country": "usa", "attributes": [" "]}, "attribute code"),
         ("indeed", {"country": "usa", "language": " "}, "language"),
         ("indeed", {"country": "usa", "language": "eng"}, "language"),
-        ("indeed", {"country": "usa", "easy_apply": True}, "easy_apply"),
-        ("indeed", {"country": "usa", "early_applicant": True}, "early_applicant"),
         ("indeed", {"country": "netherlands", "companies": [" "]}, "blank"),
         ("indeed", {"country": "netherlands", "companies": ["a", "b"]}, "one Indeed employer key"),
         ("linkedin", {}, "location"),
-        ("linkedin", {"location": "Seattle", "remote": True}, "Remote filtering"),
         ("linkedin", {"location": "   "}, "location"),
         ("linkedin", {"geoid": ""}, "geoid"),
         ("linkedin", {"location": "Seattle", "companies": ["Acme"]}, "company ID"),
@@ -39,6 +37,28 @@ def test_scrape_rejects_bad_arguments_before_opening_a_fetcher(site, kwargs, mat
     monkeypatch.setattr(sites, "HttpxFetcher", must_not_open)
     with pytest.raises(ValueError, match=match):
         asyncio.run(scrape(site, query="x", **kwargs))
+
+
+@pytest.mark.parametrize(
+    ("site", "kwargs", "ignored", "applied_by"),
+    [
+        ("linkedin", {"location": "Seattle", "remote": True}, "remote", "indeed"),
+        ("linkedin", {"location": "Seattle", "attributes": ["3CQB7"]}, "attributes", "indeed"),
+        ("indeed", {"country": "usa", "easy_apply": True}, "easy_apply", "linkedin"),
+        ("indeed", {"country": "usa", "early_applicant": True}, "early_applicant", "linkedin"),
+    ],
+)
+def test_a_filter_the_provider_cannot_apply_is_ignored_with_a_warning(
+    site, kwargs, ignored, applied_by, caplog
+):
+    fetcher = StubFetcher({})
+    with caplog.at_level(logging.WARNING, logger="jobrake.utils"):
+        jobs = asyncio.run(scrape(site, query="x", fetcher=fetcher, **kwargs))
+
+    assert jobs == []
+    assert fetcher.requests, "an unsupported filter stopped the search"
+    assert f"{site} ignores {ignored}" in caplog.text
+    assert f"Run the search on {applied_by}" in caplog.text
 
 
 @pytest.mark.parametrize(

@@ -66,14 +66,10 @@ def check_radius(radius: int | None) -> None:
         raise ValueError(f"radius ({radius}) must be zero or more")
 
 
-def check_remote(remote: bool, *, site: str) -> None:
-    """Require a Boolean remote filter supported by the selected provider."""
+def check_remote(remote: bool) -> None:
+    """Require a Boolean remote filter."""
     if not isinstance(remote, bool):
         raise TypeError(f"remote must be a boolean, got {remote!r}")
-    if remote and site != "indeed":
-        raise ValueError(
-            "Remote filtering is available for Indeed. Use an Indeed search or set remote=False"
-        )
 
 
 def check_attributes(attributes: list[str] | None) -> None:
@@ -104,13 +100,39 @@ def check_language(language: str | None) -> None:
         )
 
 
-def check_application_filters(easy_apply: bool, early_applicant: bool, *, site: str) -> None:
-    """Require Boolean application filters and a LinkedIn search when enabled."""
+def check_application_filters(easy_apply: bool, early_applicant: bool) -> None:
+    """Require Boolean application filters."""
     for name, value in (("easy_apply", easy_apply), ("early_applicant", early_applicant)):
         if not isinstance(value, bool):
             raise TypeError(f"{name} must be a boolean, got {value!r}")
-        if value and site != "linkedin":
-            raise ValueError(f"{name}=True requires a LinkedIn search. Set {name}=False for {site}")
+
+
+# Which provider applies each search filter. The other one accepts the
+# argument and leaves it unused.
+_FILTER_PROVIDER = {
+    "remote": "indeed",
+    "language": "indeed",
+    "attributes": "indeed",
+    "easy_apply": "linkedin",
+    "early_applicant": "linkedin",
+}
+
+
+def warn_ignored_filters(site: str, **filters: object) -> None:
+    """
+    Report each supplied filter the selected provider cannot apply.
+
+    The search still runs, so the warning is the only sign that a restriction
+    took no effect.
+    """
+    for name, value in filters.items():
+        if value and _FILTER_PROVIDER[name] != site:
+            logger.warning(
+                "%s ignores %s and searches without it. Run the search on %s to apply it",
+                site,
+                name,
+                _FILTER_PROVIDER[name],
+            )
 
 
 def check_companies(companies: list[str] | None, *, site: str) -> None:

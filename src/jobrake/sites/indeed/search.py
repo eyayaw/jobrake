@@ -20,6 +20,7 @@ from jobrake.utils import (
     check_results,
     epoch_ms_to_iso,
     html_text,
+    warn_ignored_filters,
 )
 
 from .client import API_HEADERS, API_URL
@@ -322,7 +323,7 @@ async def search(
     ``None`` leaves posting language unrestricted. Company, attribute, language,
     and age filters combine on every page.
     Age uses Indeed's ``dateOnIndeed`` field, which can differ from the publication timestamp returned as ``posted_at``.
-    ``easy_apply`` and ``early_applicant`` must both be ``False``.
+    ``easy_apply`` and ``early_applicant`` belong to LinkedIn. Indeed ignores them and warns when either is enabled.
     The caller retains ownership of ``fetcher``.
 
     Each request asks for 100 jobs in relevance order. The returned list keeps
@@ -337,13 +338,14 @@ async def search(
             company or attribute codes are not a list of strings, or a supplied ``language`` is not a string.
         ValueError: The country is unknown, a numeric search argument is outside its valid range,
             the company list contains a blank key or more than one entry, an attribute code
-            is blank, ``language`` has an invalid format, or an application filter is enabled.
+            is blank, or ``language`` has an invalid format.
     """
-    check_remote(remote, site="indeed")
+    check_remote(remote)
     check_language(language)
     check_attributes(attributes)
-    check_application_filters(easy_apply, early_applicant, site="indeed")
+    check_application_filters(easy_apply, early_applicant)
     check_companies(companies, site="indeed")
+    warn_ignored_filters("indeed", easy_apply=easy_apply, early_applicant=early_applicant)
     check_results(results)
     check_radius(radius)
     check_max_age_hours(max_age_hours)
