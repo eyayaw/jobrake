@@ -10,14 +10,11 @@ from jobrake import defaults
 from jobrake.fetchkit import PostFetcher
 from jobrake.models import employment_type, make_job
 from jobrake.utils import (
-    check_application_filters,
     check_attributes,
+    check_bounds,
     check_companies,
+    check_flags,
     check_language,
-    check_max_age_hours,
-    check_radius,
-    check_remote,
-    check_results,
     epoch_ms_to_iso,
     html_text,
     warn_ignored_filters,
@@ -340,15 +337,12 @@ async def search(
             the company list contains a blank key or more than one entry, an attribute code
             is blank, or ``language`` has an invalid format.
     """
-    check_remote(remote)
+    check_flags(remote=remote, easy_apply=easy_apply, early_applicant=early_applicant)
     check_language(language)
     check_attributes(attributes)
-    check_application_filters(easy_apply, early_applicant)
     check_companies(companies, site="indeed")
+    check_bounds(results=results, radius=radius, max_age_hours=max_age_hours)
     warn_ignored_filters("indeed", easy_apply=easy_apply, early_applicant=early_applicant)
-    check_results(results)
-    check_radius(radius)
-    check_max_age_hours(max_age_hours)
     subdomain, api_code = indeed_domain(country)
     base_url = f"https://{subdomain}.indeed.com"
     headers = {**API_HEADERS, "indeed-co": api_code}

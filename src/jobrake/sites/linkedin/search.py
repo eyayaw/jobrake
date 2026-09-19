@@ -10,12 +10,9 @@ from jobrake import defaults
 from jobrake.fetchkit import Fetcher
 from jobrake.models import make_job
 from jobrake.utils import (
-    check_application_filters,
+    check_bounds,
     check_companies,
-    check_max_age_hours,
-    check_radius,
-    check_remote,
-    check_results,
+    check_flags,
     warn_ignored_filters,
 )
 
@@ -135,13 +132,10 @@ async def search(
             "location is required unless geoid is an ID. "
             "Try 'Amsterdam, North Holland, Netherlands'"
         )
-    check_remote(remote)
-    check_application_filters(easy_apply, early_applicant)
+    check_flags(remote=remote, easy_apply=easy_apply, early_applicant=early_applicant)
     check_companies(companies, site="linkedin")
+    check_bounds(results=results, radius=radius, max_age_hours=max_age_hours)
     warn_ignored_filters("linkedin", remote=remote, language=language, attributes=attributes)
-    check_results(results)
-    check_radius(radius)
-    check_max_age_hours(max_age_hours)
     if location:
         logger.info("searching linkedin for %r in %r", query, location)
     else:

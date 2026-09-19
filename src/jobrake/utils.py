@@ -3,6 +3,7 @@
 import logging
 import re
 from datetime import UTC, datetime
+from typing import NamedTuple
 
 from bs4 import BeautifulSoup
 
@@ -32,44 +33,41 @@ def html_text(html: str) -> str:
     return "\n".join(line for line in lines if line)
 
 
-def _check_integer(name: str, value: object) -> None:
-    """Require an integer for a numeric search argument."""
-    # Page slicing and Indeed's query text need real integers. Booleans satisfy
-    # isinstance(value, int) on their own, and ``radius=False`` would search a
-    # 0 km radius where ``None`` omits it.
-    if isinstance(value, bool) or not isinstance(value, int):
-        raise TypeError(f"{name} must be an integer, got {value!r}")
+class _Bound(NamedTuple):
+    """What one numeric search option accepts."""
+
+    minimum: int
+    requirement: str
+    optional: bool = False
 
 
-def check_max_age_hours(max_age_hours: int | None) -> None:
-    """Require a positive posting-age bound when one is supplied."""
-    if max_age_hours is None:
-        return
-    _check_integer("max_age_hours", max_age_hours)
-    if max_age_hours <= 0:
-        raise ValueError(f"max_age_hours ({max_age_hours}) must be positive")
+_BOUNDS = {
+    "results": _Bound(1, "positive"),
+    "radius": _Bound(0, "zero or more", optional=True),
+    "max_age_hours": _Bound(1, "positive", optional=True),
+}
 
 
-def check_results(results: int) -> None:
-    """Require at least one requested result."""
-    _check_integer("results", results)
-    if results <= 0:
-        raise ValueError(f"results ({results}) must be positive")
+def check_bounds(**values: int | None) -> None:
+    """Require each numeric search option to be an integer within its bound."""
+    for name, value in values.items():
+        bound = _BOUNDS[name]
+        if value is None and bound.optional:
+            continue
+        # Page slicing and Indeed's query text need real integers. Booleans
+        # satisfy isinstance(value, int) on their own, and ``radius=False``
+        # would search a 0 km radius where ``None`` omits it.
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise TypeError(f"{name} must be an integer, got {value!r}")
+        if value < bound.minimum:
+            raise ValueError(f"{name} ({value}) must be {bound.requirement}")
 
 
-def check_radius(radius: int | None) -> None:
-    """Accept an omitted or nonnegative search radius."""
-    if radius is None:
-        return
-    _check_integer("radius", radius)
-    if radius < 0:
-        raise ValueError(f"radius ({radius}) must be zero or more")
-
-
-def check_remote(remote: bool) -> None:
-    """Require a Boolean remote filter."""
-    if not isinstance(remote, bool):
-        raise TypeError(f"remote must be a boolean, got {remote!r}")
+def check_flags(**flags: bool) -> None:
+    """Require a Boolean for each search flag."""
+    for name, value in flags.items():
+        if not isinstance(value, bool):
+            raise TypeError(f"{name} must be a boolean, got {value!r}")
 
 
 def check_attributes(attributes: list[str] | None) -> None:
@@ -98,13 +96,6 @@ def check_language(language: str | None) -> None:
         raise ValueError(
             f"language {language!r} must contain exactly two ASCII letters, such as 'en'"
         )
-
-
-def check_application_filters(easy_apply: bool, early_applicant: bool) -> None:
-    """Require Boolean application filters."""
-    for name, value in (("easy_apply", easy_apply), ("early_applicant", early_applicant)):
-        if not isinstance(value, bool):
-            raise TypeError(f"{name} must be a boolean, got {value!r}")
 
 
 # Which provider applies each search filter. The other one accepts the

@@ -5,14 +5,11 @@ from collections.abc import Callable
 from jobrake import defaults
 from jobrake.fetchkit import Fetcher, HttpxFetcher
 from jobrake.utils import (
-    check_application_filters,
     check_attributes,
+    check_bounds,
     check_companies,
+    check_flags,
     check_language,
-    check_max_age_hours,
-    check_radius,
-    check_remote,
-    check_results,
 )
 
 from . import indeed, linkedin
@@ -86,8 +83,7 @@ async def scrape(
     searchers = site_searchers()
     if site not in searchers:
         raise ValueError(f"unknown site {site!r}. Expected one of {sorted(searchers)}")
-    check_remote(remote)
-    check_application_filters(easy_apply, early_applicant)
+    check_flags(remote=remote, easy_apply=easy_apply, early_applicant=early_applicant)
     check_companies(companies, site=site)
     if site == "linkedin":
         if isinstance(geoid, str) and not geoid.strip():
@@ -101,9 +97,7 @@ async def scrape(
         check_attributes(attributes)
         if country is None:
             raise ValueError(f"country is required for site='{site}'. Try 'usa' or 'germany'")
-    check_results(results)
-    check_radius(radius)
-    check_max_age_hours(max_age_hours)
+    check_bounds(results=results, radius=radius, max_age_hours=max_age_hours)
 
     owns_fetcher = fetcher is None
     if owns_fetcher:
