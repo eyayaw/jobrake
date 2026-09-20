@@ -59,7 +59,7 @@ Indeed's [language-code reference](https://docs.indeed.com/api/common/objects/La
 Values with the wrong type or format raise an error before any request. A correctly formatted code can still return no matches.
 
 Indeed applies the restriction on every page together with company, remote, location, and age filters. The requested result count therefore applies to postings matching the language filter.
-The CLI offers `--language` only for Indeed. LinkedIn library searches accept and ignore `language`, like the shared `country` argument.
+The CLI offers `--language` only for Indeed. A LinkedIn library search accepts `language`, warns, and runs without it.
 
 ### Job attributes
 
@@ -101,7 +101,7 @@ Indeed applies this filter together with keywords, location, company, and postin
 The tag reflects Indeed's classification. Check the posting for residency and workplace requirements.
 
 The age filter uses Indeed's `dateOnIndeed` field. A matching posting can have an older publication timestamp in `posted_at`.
-LinkedIn's guest endpoint does not support remote filtering. jobrake accepts `--remote` only for Indeed, and a LinkedIn library search with `remote=True` raises `ValueError` before any request.
+LinkedIn's guest endpoint does not support remote filtering. jobrake offers `--remote` only for Indeed, and a LinkedIn library search with `remote=True` warns and runs without it.
 
 ### Companies
 
@@ -168,7 +168,7 @@ LinkedIn applies them on every search page, including searches with `details=Fal
 
 LinkedIn fixes the early-applicant threshold at fewer than 10 applicants. Its posting pages can show a broader count: "Be among the first 25 applicants" becomes `applicants=25` in jobrake.
 An early-applicant result can therefore carry that value in its details.
-For Indeed searches, both options must be `False`. Enabling either raises `ValueError` before any request.
+Indeed applies neither option. Enabling either on an Indeed search draws a warning, and the search runs without it.
 
 The guest endpoint ignores filters for workplace type, employment type, experience level, verified postings, and salary. jobrake leaves these out of its LinkedIn search options.
 Employment type is available as a posting detail when `details=True`.
@@ -202,7 +202,7 @@ jobrake linkedin -q "" -l "Netherlands" --company 1173 --company 2220078
 
 These IDs select ABN AMRO and PwC Nederland. Use `-q ""` to search without keywords.
 Within Python, pass `companies=["1173", "2220078"]` to `scrape()`. Each ID must be a string of digits `0-9`.
-Use `None` or `[]` to search without a company filter. Note that Indeed ignores this argument.
+Use `None` or `[]` to search without a company filter. Indeed reads the same argument as a single employer key.
 
 ### Locations
 
