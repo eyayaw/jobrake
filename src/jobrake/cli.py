@@ -2,6 +2,7 @@
 
 import argparse
 import asyncio
+import inspect
 import json
 import logging
 import os
@@ -21,6 +22,10 @@ from .sites import indeed, linkedin, site_searchers
 logger = logging.getLogger(__name__)
 
 _CLEAR_LINE = "\r\x1b[2K"
+
+# The scrape options a search subparser can fill. A provider offers flags only
+# for the options it honors. The rest reach scrape as its declared defaults.
+_SEARCH_OPTIONS = frozenset(inspect.signature(scrape).parameters) - {"site", "fetcher"}
 
 
 class _ArgumentParser(argparse.ArgumentParser):
@@ -125,13 +130,8 @@ def _add_linkedin_args(parser: argparse.ArgumentParser) -> None:
         default=defaults.CACHE,
         help="refetch posting details instead of using the disk cache",
     )
-    parser.set_defaults(
-        country=None,
-        attributes=None,
-        language=None,
-        remote=False,
-        radius=defaults.LINKEDIN_RADIUS,
-    )
+    # LinkedIn has no radius flag, so this is where its default enters a search.
+    parser.set_defaults(radius=defaults.LINKEDIN_RADIUS)
 
 
 def _add_indeed_args(parser: argparse.ArgumentParser) -> None:
@@ -173,14 +173,6 @@ def _add_indeed_args(parser: argparse.ArgumentParser) -> None:
         action="append",
         metavar="CODE",
         help="filter jobs by attribute code (repeat to require all codes)",
-    )
-    # The shared search call needs values for LinkedIn-only options.
-    parser.set_defaults(
-        details=defaults.DETAILS,
-        cache=defaults.CACHE,
-        geoid=defaults.GEOID,
-        easy_apply=False,
-        early_applicant=False,
     )
 
 
@@ -494,27 +486,9 @@ def main() -> int | None:
         parser.error("--location/-l is required unless --geoid receives an ID")
     # Settle the output before the scrape spends any requests.
     fmt = _settle_output(parser, args)
+    options = {name: value for name, value in vars(args).items() if name in _SEARCH_OPTIONS}
     try:
-        jobs = asyncio.run(
-            scrape(
-                args.provider,
-                query=args.query,
-                location=args.location,
-                country=args.country,
-                radius=args.radius,
-                results=args.results,
-                max_age_hours=args.max_age_hours,
-                details=args.details,
-                cache=args.cache,
-                geoid=args.geoid,
-                companies=args.companies,
-                remote=args.remote,
-                language=args.language,
-                attributes=args.attributes,
-                easy_apply=args.easy_apply,
-                early_applicant=args.early_applicant,
-            )
-        )
+        jobs = asyncio.run(scrape(args.provider, **options))
     except ValueError as e:
         parser.error(str(e))
     finally:

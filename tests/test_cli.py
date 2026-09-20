@@ -220,6 +220,8 @@ def test_provider_commands_dispatch_expected_options(monkeypatch):
         monkeypatch.setattr(sys, "argv", ["jobrake", *argv])
         cli.main()
 
+    # Each provider forwards the options its own subparser offers. The rest are
+    # left to scrape's own defaults.
     assert calls == [
         (
             "indeed",
@@ -230,15 +232,10 @@ def test_provider_commands_dispatch_expected_options(monkeypatch):
                 "radius": 0,
                 "results": 3,
                 "max_age_hours": 48,
-                "details": defaults.DETAILS,
-                "cache": defaults.CACHE,
-                "geoid": defaults.GEOID,
                 "companies": ["fe219df7f711aa73"],
                 "remote": True,
                 "language": "EN",
                 "attributes": ["3CQB7", "6QC5F"],
-                "easy_apply": False,
-                "early_applicant": False,
             },
         ),
         (
@@ -246,7 +243,6 @@ def test_provider_commands_dispatch_expected_options(monkeypatch):
             {
                 "query": "x",
                 "location": "Seattle",
-                "country": None,
                 "radius": defaults.LINKEDIN_RADIUS,
                 "results": defaults.RESULTS,
                 "max_age_hours": defaults.MAX_AGE_HOURS,
@@ -254,9 +250,6 @@ def test_provider_commands_dispatch_expected_options(monkeypatch):
                 "cache": False,
                 "geoid": True,
                 "companies": None,
-                "remote": False,
-                "language": None,
-                "attributes": None,
                 "easy_apply": True,
                 "early_applicant": False,
             },
@@ -266,7 +259,6 @@ def test_provider_commands_dispatch_expected_options(monkeypatch):
             {
                 "query": "",
                 "location": None,
-                "country": None,
                 "radius": defaults.LINKEDIN_RADIUS,
                 "results": defaults.RESULTS,
                 "max_age_hours": defaults.MAX_AGE_HOURS,
@@ -274,9 +266,6 @@ def test_provider_commands_dispatch_expected_options(monkeypatch):
                 "cache": defaults.CACHE,
                 "geoid": "12345",
                 "companies": ["1173", "2220078"],
-                "remote": False,
-                "language": None,
-                "attributes": None,
                 "easy_apply": False,
                 "early_applicant": True,
             },
