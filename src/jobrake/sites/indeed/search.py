@@ -10,11 +10,8 @@ from jobrake import defaults
 from jobrake.fetchkit import PostFetcher
 from jobrake.models import employment_type, make_job
 from jobrake.utils import (
-    check_attributes,
     check_bounds,
-    check_companies,
-    check_flags,
-    check_language,
+    check_filters,
     epoch_ms_to_iso,
     html_text,
     warn_ignored_filters,
@@ -320,7 +317,7 @@ async def search(
     ``None`` leaves posting language unrestricted. Company, attribute, language,
     and age filters combine on every page.
     Age uses Indeed's ``dateOnIndeed`` field, which can differ from the publication timestamp returned as ``posted_at``.
-    ``easy_apply`` and ``early_applicant`` belong to LinkedIn. Indeed ignores them and warns when either is enabled.
+    ``easy_apply`` and ``early_applicant`` belong to LinkedIn. Indeed ignores them and warns when either is enabled, whatever type the value carries.
     The caller retains ownership of ``fetcher``.
 
     Each request asks for 100 jobs in relevance order. The returned list keeps
@@ -331,18 +328,23 @@ async def search(
     invalid field costs only that field.
 
     Raises:
-        TypeError: A numeric argument is not an integer, a Boolean filter has the wrong type,
+        TypeError: A numeric argument is not an integer, ``remote`` is not a Boolean,
             company or attribute codes are not a list of strings, or a supplied ``language`` is not a string.
         ValueError: The country is unknown, a numeric search argument is outside its valid range,
             the company list contains a blank key or more than one entry, an attribute code
             is blank, or ``language`` has an invalid format.
     """
-    check_flags(remote=remote, easy_apply=easy_apply, early_applicant=early_applicant)
-    check_language(language)
-    check_attributes(attributes)
-    check_companies(companies, site="indeed")
+    filters = {
+        "companies": companies,
+        "remote": remote,
+        "language": language,
+        "attributes": attributes,
+        "easy_apply": easy_apply,
+        "early_applicant": early_applicant,
+    }
+    check_filters("indeed", **filters)
+    warn_ignored_filters("indeed", **filters)
     check_bounds(results=results, radius=radius, max_age_hours=max_age_hours)
-    warn_ignored_filters("indeed", easy_apply=easy_apply, early_applicant=early_applicant)
     subdomain, api_code = indeed_domain(country)
     base_url = f"https://{subdomain}.indeed.com"
     headers = {**API_HEADERS, "indeed-co": api_code}

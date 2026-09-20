@@ -6,7 +6,7 @@ import logging
 import pytest
 from fakes import StubFetcher, ok
 
-from jobrake import defaults, scrape, sites
+from jobrake import defaults, scrape, sites, utils
 from jobrake.fetchkit import TokenBucket
 from jobrake.sites.linkedin import client
 
@@ -46,6 +46,9 @@ def test_scrape_rejects_bad_arguments_before_opening_a_fetcher(site, kwargs, mat
         ("linkedin", {"location": "Seattle", "attributes": ["3CQB7"]}, "attributes", "indeed"),
         ("indeed", {"country": "usa", "easy_apply": True}, "easy_apply", "linkedin"),
         ("indeed", {"country": "usa", "early_applicant": True}, "early_applicant", "linkedin"),
+        # A bad value for an ignored filter draws the same warning and searches on.
+        ("linkedin", {"location": "Seattle", "remote": "yes"}, "remote", "indeed"),
+        ("indeed", {"country": "usa", "early_applicant": 1}, "early_applicant", "linkedin"),
     ],
 )
 def test_a_filter_the_provider_cannot_apply_is_ignored_with_a_warning(
@@ -61,15 +64,22 @@ def test_a_filter_the_provider_cannot_apply_is_ignored_with_a_warning(
     assert f"Run the search on {applied_by}" in caplog.text
 
 
+def test_the_filter_checks_reject_an_unknown_filter_or_site():
+    with pytest.raises(KeyError, match="salary"):
+        utils.check_filters("indeed", salary=True)
+    # An unknown site matches no row, which would pass every filter unchecked.
+    with pytest.raises(ValueError, match="glassdoor"):
+        utils.check_filters("glassdoor", remote="nonsense")
+
+
 @pytest.mark.parametrize(
     ("site", "kwargs", "match"),
     [
         ("indeed", {"remote": "false"}, "remote"),
         ("indeed", {"language": ["en"]}, "language"),
         ("indeed", {"attributes": "3CQB7"}, "attributes"),
-        ("linkedin", {"remote": 1}, "remote"),
         ("linkedin", {"easy_apply": "false"}, "easy_apply"),
-        ("indeed", {"early_applicant": 1}, "early_applicant"),
+        ("linkedin", {"early_applicant": "false"}, "early_applicant"),
         ("indeed", {"companies": "fe219df7f711aa73"}, "companies"),
         ("indeed", {"companies": [123]}, "company ID"),
         ("linkedin", {"companies": "1173"}, "companies"),
@@ -148,17 +158,15 @@ def test_scrape_passes_search_options(
     assert options["early_applicant"] is early_applicant
 
 
-def test_provider_searches_require_boolean_filters():
+def test_provider_searches_validate_the_filters_they_apply():
     fetcher = StubFetcher({})
-    for search in sites.site_searchers().values():
-        for name in ("remote", "easy_apply", "early_applicant"):
-            for value in (None, 0, "false"):
-                with pytest.raises(TypeError, match=f"{name} must be a boolean"):
-                    asyncio.run(
-                        search(
-                            fetcher, query="x", location="Seattle", country="usa", **{name: value}
-                        )
-                    )
+    applied = {"indeed": "remote", "linkedin": "easy_apply"}
+    for site, search in sites.site_searchers().items():
+        name = applied[site]
+        with pytest.raises(TypeError, match=f"{name} must be a boolean"):
+            asyncio.run(
+                search(fetcher, query="x", location="Seattle", country="usa", **{name: "false"})
+            )
     assert fetcher.requests == []
 
 

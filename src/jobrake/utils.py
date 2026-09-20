@@ -2,6 +2,7 @@
 
 import logging
 import re
+from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import NamedTuple
 
@@ -63,20 +64,19 @@ def check_bounds(**values: int | None) -> None:
             raise ValueError(f"{name} ({value}) must be {bound.requirement}")
 
 
-def check_flags(**flags: bool) -> None:
-    """Require a Boolean for each search flag."""
-    for name, value in flags.items():
-        if not isinstance(value, bool):
-            raise TypeError(f"{name} must be a boolean, got {value!r}")
+def check_flag(name: str, value: object, *, site: str) -> None:
+    """Require a Boolean for one search flag."""
+    if not isinstance(value, bool):
+        raise TypeError(f"{name} must be a boolean, got {value!r}")
 
 
-def check_attributes(attributes: list[str] | None) -> None:
+def check_attributes(name: str, value: object, *, site: str) -> None:
     """Require a list of nonblank attribute codes when supplied."""
-    if attributes is None:
+    if value is None:
         return
-    if not isinstance(attributes, list):
-        raise TypeError("attributes must be a list of code strings")
-    for code in attributes:
+    if not isinstance(value, list):
+        raise TypeError(f"{name} must be a list of code strings")
+    for code in value:
         if not isinstance(code, str):
             raise TypeError(f"attribute code {code!r} must be a string")
         if not code.strip():
@@ -86,55 +86,25 @@ def check_attributes(attributes: list[str] | None) -> None:
             )
 
 
-def check_language(language: str | None) -> None:
+def check_language(name: str, value: object, *, site: str) -> None:
     """Validate an optional two-letter language code."""
-    if language is None:
+    if value is None:
         return
-    if not isinstance(language, str):
-        raise TypeError(f"language must be a string or None, got {language!r}")
-    if re.fullmatch(r"[A-Za-z]{2}", language) is None:
-        raise ValueError(
-            f"language {language!r} must contain exactly two ASCII letters, such as 'en'"
-        )
+    if not isinstance(value, str):
+        raise TypeError(f"{name} must be a string or None, got {value!r}")
+    if re.fullmatch(r"[A-Za-z]{2}", value) is None:
+        raise ValueError(f"{name} {value!r} must contain exactly two ASCII letters, such as 'en'")
 
 
-# Which provider applies each search filter. The other one accepts the
-# argument and leaves it unused.
-_FILTER_PROVIDER = {
-    "remote": "indeed",
-    "language": "indeed",
-    "attributes": "indeed",
-    "easy_apply": "linkedin",
-    "early_applicant": "linkedin",
-}
-
-
-def warn_ignored_filters(site: str, **filters: object) -> None:
-    """
-    Report each supplied filter the selected provider cannot apply.
-
-    The search still runs, so the warning is the only sign that a restriction
-    took no effect.
-    """
-    for name, value in filters.items():
-        if value and _FILTER_PROVIDER[name] != site:
-            logger.warning(
-                "%s ignores %s and searches without it. Run the search on %s to apply it",
-                site,
-                name,
-                _FILTER_PROVIDER[name],
-            )
-
-
-def check_companies(companies: list[str] | None, *, site: str) -> None:
+def check_companies(name: str, value: object, *, site: str) -> None:
     """Validate LinkedIn company IDs or one Indeed employer key."""
-    if companies is None:
+    if value is None:
         return
-    if not isinstance(companies, list):
-        raise TypeError("companies must be a list of company ID strings")
-    if site == "indeed" and len(companies) > 1:
+    if not isinstance(value, list):
+        raise TypeError(f"{name} must be a list of company ID strings")
+    if site == "indeed" and len(value) > 1:
         raise ValueError("jobrake supports one Indeed employer key per search. Supply a single key")
-    for company in companies:
+    for company in value:
         if not isinstance(company, str):
             raise TypeError(f"company ID {company!r} must be a string")
         if site == "linkedin":
@@ -144,6 +114,83 @@ def check_companies(companies: list[str] | None, *, site: str) -> None:
             raise ValueError(
                 "Indeed employer key is blank. Find a key with "
                 "'jobrake companies indeed NAME --country EDITION'"
+            )
+
+
+class _Filter(NamedTuple):
+    """How one search filter is checked and which providers apply it."""
+
+    check: Callable[..., None]
+    providers: tuple[str, ...]
+
+
+# Any provider outside a filter's row accepts the argument and runs anyway.
+_FILTERS = {
+    "companies": _Filter(check_companies, ("indeed", "linkedin")),
+    "remote": _Filter(check_flag, ("indeed",)),
+    "language": _Filter(check_language, ("indeed",)),
+    "attributes": _Filter(check_attributes, ("indeed",)),
+    "easy_apply": _Filter(check_flag, ("linkedin",)),
+    "early_applicant": _Filter(check_flag, ("linkedin",)),
+}
+
+_SITES = frozenset(site for entry in _FILTERS.values() for site in entry.providers)
+
+
+def _filter_entry(site: str, name: str) -> _Filter:
+    """
+    Return the table row for one search filter.
+
+    Raises:
+        KeyError: No provider applies the filter.
+        ValueError: The site is unknown, which would leave every filter unchecked.
+    """
+    if site not in _SITES:
+        raise ValueError(f"unknown site {site!r}. Expected one of {sorted(_SITES)}")
+    try:
+        return _FILTERS[name]
+    except KeyError:
+        raise KeyError(f"no provider applies the {name!r} filter") from None
+
+
+def check_filters(site: str, **filters: object) -> None:
+    """
+    Validate each filter the provider applies.
+
+    A filter outside the provider's own set goes unchecked, so a value aimed at
+    the other provider travels along and the search proceeds.
+
+    Raises:
+        KeyError: No provider applies the filter.
+        TypeError: An applied filter has the wrong type.
+        ValueError: The site is unknown, or an applied filter has an unusable value.
+    """
+    for name, value in filters.items():
+        entry = _filter_entry(site, name)
+        if site in entry.providers:
+            entry.check(name, value, site=site)
+
+
+def warn_ignored_filters(site: str, **filters: object) -> None:
+    """
+    Report each filter the provider leaves unused.
+
+    A filter set to a falsy value asks for no restriction, so it passes in
+    silence. The search still runs, and the warning is the only sign that a
+    restriction took no effect.
+
+    Raises:
+        KeyError: No provider applies the filter.
+        ValueError: The site is unknown.
+    """
+    for name, value in filters.items():
+        entry = _filter_entry(site, name)
+        if value and site not in entry.providers:
+            logger.warning(
+                "%s ignores %s and searches without it. Run the search on %s to apply it",
+                site,
+                name,
+                " or ".join(entry.providers),
             )
 
 

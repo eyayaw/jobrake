@@ -4,13 +4,7 @@ from collections.abc import Callable
 
 from jobrake import defaults
 from jobrake.fetchkit import Fetcher, HttpxFetcher
-from jobrake.utils import (
-    check_attributes,
-    check_bounds,
-    check_companies,
-    check_flags,
-    check_language,
-)
+from jobrake.utils import check_bounds, check_filters
 
 from . import indeed, linkedin
 
@@ -67,25 +61,33 @@ async def scrape(
 
     One signature covers both providers, so a caller can send the same options
     to each. A provider applies the filters it supports and warns for the rest.
-    An ignored value goes unvalidated.
+    An ignored filter goes unchecked, so the wrong type for it cannot stop the
+    search.
 
     An injected fetcher remains open and belongs to the caller. Indeed requires one with JSON POST support.
     Without an injected fetcher, ``scrape`` creates and closes an ``HttpxFetcher``.
 
     Raises:
-        TypeError: A numeric argument or Boolean filter has the wrong type, company IDs
-            are not supplied as a list of strings, or Indeed language or attribute filters
-            have the wrong type.
+        TypeError: A numeric argument, or a filter the provider applies, carries the
+            wrong type.
         ValueError: The site is unknown, required geography is missing, a numeric
-            argument is out of range, a company ID is blank or malformed,
-            too many company IDs are supplied, an attribute code is blank,
-            or the Indeed language code is malformed.
+            argument is out of range, or a filter the provider applies carries an
+            unusable value.
     """
     searchers = site_searchers()
     if site not in searchers:
         raise ValueError(f"unknown site {site!r}. Expected one of {sorted(searchers)}")
-    check_flags(remote=remote, easy_apply=easy_apply, early_applicant=early_applicant)
-    check_companies(companies, site=site)
+    # Rejecting bad values here keeps the transport closed. The warnings for
+    # unused filters come from the provider search, which direct callers reach too.
+    check_filters(
+        site,
+        companies=companies,
+        remote=remote,
+        language=language,
+        attributes=attributes,
+        easy_apply=easy_apply,
+        early_applicant=early_applicant,
+    )
     if site == "linkedin":
         if isinstance(geoid, str) and not geoid.strip():
             raise ValueError("geoid is blank")
@@ -94,8 +96,6 @@ async def scrape(
                 f"location is required for site='{site}' unless geoid is an ID. Try 'London, England'"
             )
     elif site == "indeed":
-        check_language(language)
-        check_attributes(attributes)
         if country is None:
             raise ValueError(f"country is required for site='{site}'. Try 'usa' or 'germany'")
     check_bounds(results=results, radius=radius, max_age_hours=max_age_hours)

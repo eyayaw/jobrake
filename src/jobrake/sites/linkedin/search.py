@@ -9,12 +9,7 @@ from bs4 import BeautifulSoup
 from jobrake import defaults
 from jobrake.fetchkit import Fetcher
 from jobrake.models import make_job
-from jobrake.utils import (
-    check_bounds,
-    check_companies,
-    check_flags,
-    warn_ignored_filters,
-)
+from jobrake.utils import check_bounds, check_filters, warn_ignored_filters
 
 from .client import SEARCH_URL, job_id, paced_fetch
 from .geo import resolve_geoid
@@ -107,7 +102,8 @@ async def search(
     geography, company selection, and posting age on every page.
     Pass ``query=""`` to search for jobs without keywords.
     ``country``, ``language``, ``attributes``, and ``remote`` are accepted for symmetry and ignored, because the guest endpoint applies none of them.
-    A search warns for ``language``, ``attributes``, and ``remote``. ``country`` passes quietly, carrying no restriction of its own.
+    A search warns for ``language``, ``attributes``, and ``remote`` whenever one of them carries a value, and leaves its type unexamined.
+    ``country`` passes quietly, carrying no restriction of its own.
     ``details`` hydrates posting pages, and ``cache`` controls their reuse.
     The caller owns ``fetcher``.
 
@@ -118,8 +114,8 @@ async def search(
     ``results``.
 
     Raises:
-        TypeError: A numeric option is not an integer, a Boolean filter has the wrong type,
-            or ``companies`` is not a list of strings.
+        TypeError: A numeric option is not an integer, ``easy_apply`` or ``early_applicant``
+            is not a Boolean, or ``companies`` is not a list of strings.
         ValueError: The location or geoId is blank or missing, a numeric option
             is out of range, or a company ID is empty or uses characters other than digits 0-9.
     """
@@ -132,10 +128,17 @@ async def search(
             "location is required unless geoid is an ID. "
             "Try 'Amsterdam, North Holland, Netherlands'"
         )
-    check_flags(remote=remote, easy_apply=easy_apply, early_applicant=early_applicant)
-    check_companies(companies, site="linkedin")
+    filters = {
+        "companies": companies,
+        "remote": remote,
+        "language": language,
+        "attributes": attributes,
+        "easy_apply": easy_apply,
+        "early_applicant": early_applicant,
+    }
+    check_filters("linkedin", **filters)
+    warn_ignored_filters("linkedin", **filters)
     check_bounds(results=results, radius=radius, max_age_hours=max_age_hours)
-    warn_ignored_filters("linkedin", remote=remote, language=language, attributes=attributes)
     if location:
         logger.info("searching linkedin for %r in %r", query, location)
     else:
