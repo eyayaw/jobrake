@@ -44,10 +44,11 @@ async def scrape(
     Route a search through one provider.
 
     Indeed requires ``country``. LinkedIn requires either a ``location`` or a geoId string.
-    ``companies`` restricts LinkedIn results to jobs at the listed employer numeric IDs.
-    ``None`` or ``[]`` applies no company restriction. Indeed ignores ``companies``.
+    ``companies`` restricts results by employer. LinkedIn takes a list of numeric IDs,
+    and Indeed takes one employer key.
+    ``None`` or ``[]`` applies no company restriction.
     ``remote=True`` restricts Indeed results to postings tagged Remote.
-    ``False`` leaves remote status unrestricted. LinkedIn requires ``remote=False``.
+    ``False`` leaves remote status unrestricted. LinkedIn ignores ``remote``.
     ``details``, ``cache``, and ``geoid`` affect LinkedIn only.
     ``geoid=True`` resolves ``location`` to a LinkedIn geoId before searching, and a string passes through as the geoId.
     Every returned dict has the shared identity and summary keys, with available detail fields added.
