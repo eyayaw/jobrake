@@ -276,12 +276,14 @@ A page without its structured data may require a second request for an English f
 
 `jobrake details linkedin <ID|URL> ...` fetches postings you already know, in the order given.
 
-LinkedIn serves the schema.org block only from a posting's canonical URL, the one carrying both its country subdomain and its title slug.
-A slugless `/jobs/view/<id>`, a `www` address, and the guest fragment all return the posting without that block, and so without the dates, coordinates, and requirements only it carries. A salary still comes through when the page markup states one in English.
-jobrake therefore fetches a canonical URL as given and resolves every other reference first, reading the canonical URL from the guest fragment, which transfers about a tenth as many bytes as the page.
+LinkedIn serves the schema.org block only from a posting's canonical URL, the title slug on the host of the posting's country.
+That host is `www.linkedin.com` for the United States and a country subdomain, such as `nl.linkedin.com`, elsewhere.
+Another country's host, a slugless `/jobs/view/<id>`, and the guest fragment all return the posting without that block, and so without the dates, coordinates, and requirements only it carries. A salary still comes through when the page markup states one in English.
+A posting placed in a whole country, such as "United States" or "Netherlands", has no block at any address.
 
-The URL a search prints is canonical, so it costs the fewest requests: a posting already in the cache needs none at all.
-Anything else spends that one lookup.
+A `www` URL looks the same for a posting from any country, so jobrake fetches only a country-subdomain URL with a slug as given.
+Every other reference, US `www` URLs included, first costs one lookup. jobrake reads the canonical URL from the guest fragment, which transfers about a tenth as many bytes as the page.
+A posting already cached costs no request.
 
 The posting ID is the identity throughout, so several references to one posting return one job, and the cache stores that posting once.
 A reference that is neither a numeric ID nor a LinkedIn posting address is an error, and nothing is fetched.

@@ -1017,18 +1017,18 @@ def test_fetch_details_keeps_the_postings_it_resolved_in_order(unlimited, caplog
     ]
 
 
-def test_fetch_details_keeps_a_lookup_that_lands_on_a_blockless_address(unlimited, caplog):
+def test_fetch_details_fetches_a_us_posting_on_www(unlimited, caplog):
+    # A US posting has no country subdomain, so the fragment names its www page,
+    # and that page carries the schema.org block.
     www = "https://www.linkedin.com/jobs/view/economist-at-acme-111"
-    fetcher = StubFetcher({"jobPosting/111": ok(en_fragment(url=www)), www: ok(en_fragment(www))})
+    fetcher = StubFetcher(
+        {"jobPosting/111": ok(en_fragment(url=www)), www: ok(job_page(title="Economist"))}
+    )
     with caplog.at_level(logging.WARNING, logger="jobrake.sites.linkedin"):
         jobs = asyncio.run(linkedin.fetch_details(fetcher, ["111"]))
-    # the page still carries the summary, the description, and any salary its
-    # markup states, so the posting is worth keeping
     assert [(job["id"], job["url"], job["title"]) for job in jobs] == [("111", www, "Economist")]
-    assert jobs[0]["salary_min"] == 756000.0
-    # only what the block alone carries is lost, and the warning says so
-    assert not {"posted_at", "latitude", "education", "city"} & set(jobs[0])
-    assert any("no schema.org block" in record.message for record in caplog.records)
+    assert jobs[0]["posted_at"] == "2026-08-05T08:04:27.000Z"
+    assert caplog.records == []
 
 
 @pytest.mark.parametrize("references", [[CANONICAL, "222"], ["222", CANONICAL]])

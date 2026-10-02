@@ -279,15 +279,15 @@ def _posting_url(url: str, posting_id: str, paths: tuple[str, ...]) -> bool:
     )
 
 
-def _serves_block(url: str) -> bool:
+def _country_canonical(url: str) -> bool:
     """
-    Check for the address LinkedIn answers with the schema.org block.
+    Check for a canonical posting URL on a country subdomain.
 
-    The block comes only from a posting's canonical URL, which carries both a
-    country subdomain and the title slug. A ``www`` address, a slugless
-    ``/jobs/view/<id>``, and the guest fragment each answer without it, and so
-    without the dates, coordinates, and requirements only it carries. A salary
-    survives when the page markup states one in English.
+    LinkedIn serves the schema.org block only from a posting's canonical URL,
+    the title slug on the host of the posting's country. That host is ``www``
+    for a US posting and a country subdomain elsewhere. A ``www`` URL looks
+    the same for a posting from any country, so only a country subdomain
+    passes.
     """
     parts = urlsplit(url)
     host = parts.netloc.lower()
@@ -304,10 +304,8 @@ def _fragment_url(html: str, posting_id: str) -> str | None:
     """
     Read the posting URL a guest fragment names.
 
-    LinkedIn writes the canonical URL here, and a link to any other posting is
-    refused. A link that will not serve the schema.org block is kept, because
-    the page behind it still carries the summary and description, but the
-    fields the block holds are reported as lost.
+    LinkedIn writes the canonical URL here, on ``www`` for a US posting. A
+    missing link, or one to another posting, yields None and a warning.
     """
     link = BeautifulSoup(html, "html.parser").select_one("a.topcard__link[href]")
     if link is None:
@@ -327,13 +325,6 @@ def _fragment_url(html: str, posting_id: str) -> str | None:
             url,
         )
         return None
-    if not _serves_block(url):
-        logger.warning(
-            "posting %s resolved to %s, which serves no schema.org block. Its dates, "
-            "coordinates, and the other fields only that block carries will be missing",
-            posting_id,
-            url,
-        )
     return url
 
 
@@ -474,8 +465,9 @@ async def fetch_details(
 
     A reference is a posting URL or a numeric posting ID, and the ID it names
     is the posting's identity here. References naming one posting yield one
-    job. A canonical URL is fetched as given. Every other reference, including
-    an ID, first spends a guest-fragment request to learn the canonical URL. A
+    job. A canonical URL on a country subdomain is fetched as given. Every
+    other reference, including an ID or a US posting's ``www`` URL, first
+    spends a guest-fragment request to learn the canonical URL. A
     posting that is gone, unreachable, or unreadable is reported and left out,
     so a short result is normal. A persistent 429 ends the whole call, which
     then answers from the cache for the postings whose addresses it already
@@ -505,7 +497,7 @@ async def fetch_details(
     addresses: dict[str, str | None] = {}
     for ref, posting_id in ids.items():
         if addresses.get(posting_id) is None:
-            addresses[posting_id] = ref if _serves_block(ref) else None
+            addresses[posting_id] = ref if _country_canonical(ref) else None
     stopped = False
     for posting_id, address in addresses.items():
         if address is not None:
