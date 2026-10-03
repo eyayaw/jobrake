@@ -328,6 +328,20 @@ def _fragment_url(html: str, posting_id: str) -> str | None:
     return url
 
 
+def _cache_posting(posting_id: str, posting: dict | None) -> None:
+    """
+    Store a posting's fields, or ``None`` for a posting that is gone.
+
+    Only the schema.org block carries ``posted_at``. A fresh cached copy that
+    has it stays when the new fields lack it.
+    """
+    if posting and "posted_at" not in posting:
+        cached = client.CACHE.get(POSTINGS, "linkedin", [posting_id]).get(posting_id)
+        if cached and "posted_at" in cached:
+            return
+    client.CACHE.put(POSTINGS, "linkedin", {posting_id: posting})
+
+
 async def fetch_postings(
     fetcher: Fetcher, urls: Iterable[str], *, cache: bool = defaults.CACHE
 ) -> dict[str, dict | None]:
@@ -341,9 +355,12 @@ async def fetch_postings(
     transient failures leave that URL absent so a later call can retry it.
     Fetcher exceptions and cancellation propagate. Empty and duplicate URLs
     are ignored. The cache stores only numeric identities. URLs without one are
-    fetched on every call. INFO records report the start, progress, and
-    resolved count on completion. A persistent rate limit reports where
-    fetching stopped at WARNING. The supplied transport remains open.
+    fetched on every call. ``cache=False`` skips the cache read but still
+    stores results. A result without the schema.org block leaves a fresh
+    cached copy that has it in place. INFO records report the start,
+    progress, and resolved count on completion. A persistent rate limit
+    reports where fetching stopped at WARNING. The supplied transport remains
+    open.
 
     Returns:
         Results keyed by the supplied URLs. A field dictionary may be partial.
@@ -392,8 +409,8 @@ async def fetch_postings(
             break
         if result.error and result.error.http_status in (404, 410):
             resolved[identity] = None
-            if cache and posting_id:
-                client.CACHE.put(POSTINGS, "linkedin", {posting_id: None})
+            if posting_id:
+                _cache_posting(posting_id, None)
             continue
         if result.error:
             logger.warning("skipping posting %s: %s. A rerun retries it", url, result.error.message)
@@ -424,8 +441,8 @@ async def fetch_postings(
             else:
                 posting = parse_posting(fragment.text) | posting
         resolved[identity] = posting
-        if cache and posting_id:
-            client.CACHE.put(POSTINGS, "linkedin", {posting_id: posting})
+        if posting_id:
+            _cache_posting(posting_id, posting)
         if stopped:
             break
 
@@ -468,7 +485,8 @@ async def fetch_details(
     job. A canonical URL on a country subdomain is fetched as given. Every
     other reference, including an ID or a US posting's ``www`` URL, spends a
     guest-fragment request to learn the canonical URL, unless the cache holds
-    that URL or records the posting as gone. A posting that is gone,
+    that URL or records the posting as gone. ``cache=False`` skips those reads
+    and still stores what the lookups learn. A posting that is gone,
     unreachable, or unreadable is reported and left out, so a short result is
     normal. A persistent 429 ends the whole call, which then answers from the
     cache for the postings whose addresses it already had. The caller owns
@@ -523,8 +541,7 @@ async def fetch_details(
                     "skipping posting %s. LinkedIn has no such posting, or it was taken down",
                     posting_id,
                 )
-                if cache:
-                    client.CACHE.put(POSTINGS, "linkedin", {posting_id: None})
+                _cache_posting(posting_id, None)
             else:
                 logger.warning(
                     "skipping posting %s: %s. Pass its URL to fetch the posting without "
@@ -535,8 +552,7 @@ async def fetch_details(
             continue
         if url := _fragment_url(result.text, posting_id):
             addresses[posting_id] = url
-            if cache:
-                client.CACHE.put(ADDRESSES, "linkedin", {posting_id: {"url": url}})
+            client.CACHE.put(ADDRESSES, "linkedin", {posting_id: {"url": url}})
     urls = {posting_id: url for posting_id, url in addresses.items() if url}
     if stopped:
         logger.warning(

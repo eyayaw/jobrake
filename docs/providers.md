@@ -265,7 +265,8 @@ For URLs with numeric posting IDs, cached detail fields remain fresh for one wee
 [`JOBRAKE_CACHE_TTL`](usage.md#cache-location-and-lifetimes) sets this period in seconds.
 Older fields are fetched again. URLs without an ID are fetched on every call.
 jobrake records HTTP 404 and 410 responses and skips those postings on later cached runs.
-Pass `--no-cache` or `cache=False` to bypass the cache.
+Pass `--no-cache` or `cache=False` to refetch every posting and refresh its cached copy.
+A refetched page without the schema.org block leaves a fresh cached copy that has the block in place, since that copy carries more fields.
 
 Every stored value records the cache format that produced it, and jobrake reads only the format it writes. A release whose job fields or parsers have moved on therefore starts from an empty table and fills it again as you search. Posting fields, posting addresses, and place resolutions each carry their own format version, so a change to one leaves the others' cached values in place.
 

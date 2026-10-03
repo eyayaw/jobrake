@@ -846,11 +846,32 @@ def test_fetch_postings_drops_a_trailing_slash(unlimited):
     assert fetcher.requests == [CANONICAL]  # fetched without it, or the page omits the block
 
 
-def test_fetch_postings_cache_false_refetches(unlimited):
+def test_fetch_postings_cache_false_refetches_and_refreshes(unlimited):
     fetcher = StubFetcher({"economist-at-acme-111": ok(job_page())})
     asyncio.run(linkedin.fetch_postings(fetcher, [CANONICAL], cache=False))
     asyncio.run(linkedin.fetch_postings(fetcher, [CANONICAL], cache=False))
     assert len(fetcher.requests) == 2
+    # the refetches stored what they found, so a cached call needs no request
+    asyncio.run(linkedin.fetch_postings(fetcher, [CANONICAL]))
+    assert len(fetcher.requests) == 2
+
+
+def test_fetch_postings_keeps_a_cached_block_over_a_blockless_refetch(unlimited, isolated_cache):
+    def cached():
+        return isolated_cache.get(POSTINGS, "linkedin", ["111"])["111"]
+
+    complete = {"description": "Old role", "posted_at": "2026-08-05T08:04:27.000Z"}
+    isolated_cache.put(POSTINGS, "linkedin", {"111": complete})
+    blockless = StubFetcher(
+        {"economist-at-acme-111": ok(blockless_page()), "jobPosting/111": ok(en_fragment())}
+    )
+    got = asyncio.run(linkedin.fetch_postings(blockless, [CANONICAL], cache=False))
+    assert "posted_at" not in hydrated(got, CANONICAL)  # the caller gets what it fetched
+    assert cached() == complete
+    # a refetch that has the block replaces the cached copy
+    full = StubFetcher({"economist-at-acme-111": ok(job_page())})
+    asyncio.run(linkedin.fetch_postings(full, [CANONICAL], cache=False))
+    assert cached()["description"] == "Great & big role"
 
 
 def test_fetch_postings_caches_by_id_not_url(unlimited):
