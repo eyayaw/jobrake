@@ -129,6 +129,10 @@ jobs = asyncio.run(main())
 Indeed requires `country`. LinkedIn accepts either `location` or a geoId.
 See the [guide](https://github.com/eyayaw/jobrake/blob/main/docs/guide.md) for search queries, geography, filters, pagination, rate limits, retries, and LinkedIn detail fetching.
 
+> [!WARNING]
+> LinkedIn answers posting pages with [HTTP 999](https://http.dev/999) from data center IPs, such as a Hetzner VPS.
+> Searches still work there, but `--details` and `jobrake details linkedin` return no details. So use jobrake from the comfort of your home. :D
+
 ## Credits
 
 jobrake's Indeed GraphQL endpoint and LinkedIn guest-search approach are based on [python-jobspy](https://pypi.org/project/python-jobspy/). Huge thanks.

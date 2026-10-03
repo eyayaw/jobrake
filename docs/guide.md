@@ -584,6 +584,8 @@ Each process has its own limiter, so concurrent runs on the same IP can reach th
 After a 429, jobrake waits for the `Retry-After` value or 10 seconds, then retries once.
 A `Retry-After` over one minute skips the retry. If the 429 remains, jobrake returns what it has collected so far.
 
+On a data center IP, such as a VPS, LinkedIn refuses posting pages with [HTTP 999](https://http.dev/999). Searches and lookups keep working, but every detail fetch fails.
+
 ## Cache location and lifetimes
 
 jobrake keeps posting fields, posting addresses, and LinkedIn place resolutions in one SQLite file under your user cache directory: `~/Library/Caches/jobrake/` on macOS, `$XDG_CACHE_HOME/jobrake/` on Linux, `%LOCALAPPDATA%\jobrake\` on Windows.
