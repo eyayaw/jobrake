@@ -96,9 +96,10 @@ async def resolve_geoid(fetcher: Fetcher, location: str) -> str | None:
 
     A saved name resolves from the SQLite cache. Any other name goes through
     :func:`places`, where the candidate carrying that exact name wins over the
-    first hit, ignoring case, commas, and repeated spaces. The choice answers
-    later runs. Every resolution logs the geoId and qualified place name. A
-    failed lookup or an unknown place logs the reason and returns ``None``.
+    first hit, ignoring case, commas, surrounding punctuation, and repeated
+    spaces. The choice is saved for later runs. Every resolution logs the geoId
+    and qualified place name. A failed lookup or an unknown place logs the
+    reason and returns ``None``.
 
     Raises:
         ValueError: The location is blank.

@@ -306,7 +306,7 @@ async def search(
     Whitespace around the key and the codes is removed.
     ``remote=True`` adds Indeed's Remote attribute, ``"DSQF7"``, to those codes.
     ``language`` takes Indeed's two-letter code in either case, such as ``"en"``, including the legacy codes ``"iw"`` and ``"in"``.
-    ``None``, ``False``, and ``[]`` each keep an option out of the search. The filters that remain combine on every page.
+    A filter stays out of the search at its default and as ``[]``. The filters that remain combine on every page.
     Age uses Indeed's ``dateOnIndeed`` field, which can differ from the publication timestamp returned as ``posted_at``.
     ``details`` and ``cache`` are accepted and unused. ``geoid``, ``company_ids``, ``easy_apply``, and ``early_applicant`` belong to LinkedIn.
     Indeed warns when one of them carries a value and leaves its type unexamined.

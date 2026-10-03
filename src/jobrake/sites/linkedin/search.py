@@ -95,7 +95,7 @@ async def search(
     A search by geoId ignores the radius for some places.
     ``company_ids`` lists numeric employer IDs. ``easy_apply`` keeps jobs with the Easy Apply form,
     and ``early_applicant`` keeps jobs LinkedIn lists with fewer than 10 applicants.
-    ``query=""`` searches without keywords. An option set to ``None``, ``False``, or ``[]`` applies no restriction.
+    ``query=""`` searches without keywords. A filter left at its default, or given ``[]``, applies no restriction.
     Filters combine and travel with every page.
     ``details`` hydrates posting pages, and ``cache`` controls their reuse.
     ``country`` is accepted and unused. ``employer_key``, ``remote``, ``language``, and ``attributes`` belong to Indeed.

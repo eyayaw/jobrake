@@ -237,7 +237,7 @@ def _build_parser() -> _ArgumentParser:
         subparser = subparsers.add_parser(
             name, allow_abbrev=False, help=f"search {_SITE_LABELS[name]} for job postings"
         )
-        # Mutate this subparser by adding arguments and defaults.
+        # Mutate this subparser by adding arguments.
         _add_search_args(subparser)
         _add_output_args(subparser)
         _SITE_ARGS[name](subparser)

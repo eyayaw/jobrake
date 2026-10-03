@@ -278,7 +278,7 @@ Pass an employer's numeric (a string of digits `0-9`) ID to `--company ID` to fi
 job postings at that company. Unlike with Indeed, here we can provide several employers.
 
 ```sh
-jobrake linkedin -l "Netherlands"  -q "data scientist" --company 11348
+jobrake linkedin -l "Netherlands" -q "data scientist" --company 11348
 jobrake linkedin -l "Netherlands" -q "" --company 11348 --company 215713
 ```
 

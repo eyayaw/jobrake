@@ -19,7 +19,7 @@ API_HEADERS = {
     "indeed-app-info": "appv=193.1; appid=com.indeed.jobsearch; osv=16.6.1; os=ios; dtype=phone",
 }
 
-# Autocomplete serves the browser search interface.
+# Autocomplete backs indeed.com's search box and expects browser headers.
 AUTOCOMPLETE_HEADERS = {
     "accept": "*/*",
     "accept-language": "en-US,en;q=0.9",

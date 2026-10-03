@@ -17,7 +17,7 @@ async def companies(fetcher: Fetcher, name: str) -> list[dict] | None:
 
     Each dict has a ``companyId`` string of digits 0-9 and a nonblank ``displayName``.
     Valid entries keep their order when malformed entries are omitted.
-    An empty list means no suggestions returned. Request failures and unreadable responses,
+    An empty list means LinkedIn returned no suggestions. Request failures and unreadable responses,
     including nonempty lists with no usable entries, log a warning and return ``None``.
 
     Requests use the shared LinkedIn limiter. The caller owns ``fetcher``.

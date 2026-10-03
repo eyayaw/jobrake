@@ -130,7 +130,7 @@ def check_employer_key(name: str, value: object) -> None:
 
 
 def check_geoid(name: str, value: object) -> None:
-    """Require a nonblank geoId string or the Boolean that asks for a lookup."""
+    """Require a nonblank geoId string or a Boolean."""
     if isinstance(value, bool):
         return
     if not isinstance(value, str):
