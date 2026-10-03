@@ -113,7 +113,10 @@ def check_company_ids(name: str, value: object) -> None:
     """Require a list of LinkedIn company IDs when supplied."""
     for company in _strings(name, value, "company ID"):
         if not (company.isascii() and company.isdigit()):
-            raise ValueError(f"company ID {company!r} must use digits 0-9, such as '1173'")
+            raise ValueError(
+                f"company ID {company!r} must use digits 0-9, such as '1173'. "
+                "Find IDs with 'jobrake companies linkedin NAME'"
+            )
 
 
 def check_employer_key(name: str, value: object) -> None:

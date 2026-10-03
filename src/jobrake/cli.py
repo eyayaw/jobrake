@@ -110,7 +110,7 @@ def _add_linkedin_args(parser: argparse.ArgumentParser) -> None:
         dest="company_ids",
         action="append",
         metavar="ID",
-        help="filter job results by company ID, repeat for several companies",
+        help="filter jobs by company ID (repeat for several companies)",
     )
     parser.add_argument(
         "--easy-apply",
@@ -290,7 +290,7 @@ def _build_parser() -> _ArgumentParser:
         ),
     )
     for sub in (li, ind):
-        sub.add_argument("name", help="place name, e.g. 'amsterdam'")
+        sub.add_argument("name", help="place name, e.g., 'amsterdam'")
     ind.add_argument(
         "--country",
         "-c",
@@ -301,8 +301,8 @@ def _build_parser() -> _ArgumentParser:
     companies = subparsers.add_parser(
         "companies",
         allow_abbrev=False,
-        help="find company IDs by name",
-        description="Find company IDs by name",
+        help="find company IDs or employer keys by name",
+        description="Find company IDs or employer keys by name",
     )
     company_sites = companies.add_subparsers(dest="site", required=True)
     company_linkedin = company_sites.add_parser(
@@ -318,7 +318,7 @@ def _build_parser() -> _ArgumentParser:
         description="List an Indeed edition's company suggestions and employer keys as JSON",
     )
     for sub in (company_linkedin, company_indeed):
-        sub.add_argument("name", help="company name, e.g. 'ABN AMRO'")
+        sub.add_argument("name", help="company name, e.g., 'ABN AMRO'")
     company_indeed.add_argument(
         "--country",
         "-c",
