@@ -128,7 +128,7 @@ def _add_linkedin_args(parser: argparse.ArgumentParser) -> None:
         dest="cache",
         action="store_false",
         default=defaults.CACHE,
-        help="refetch posting details and refresh the disk cache",
+        help="refetch posting details and refresh their cached copies",
     )
     # LinkedIn has no radius flag, so this is where its default enters a search.
     parser.set_defaults(radius=defaults.LINKEDIN_RADIUS)
@@ -262,7 +262,7 @@ def _build_parser() -> _ArgumentParser:
         dest="cache",
         action="store_false",
         default=defaults.CACHE,
-        help="refetch posting details and refresh the disk cache",
+        help="refetch posting details and refresh their cached copies",
     )
     _add_output_args(details_linkedin)
     lookup = subparsers.add_parser(

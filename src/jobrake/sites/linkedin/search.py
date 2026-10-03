@@ -86,25 +86,17 @@ async def search(
     """
     Search LinkedIn's login-free guest endpoint.
 
-    A geoId string identifies the search area without ``location``.
-    Otherwise, ``location`` must be nonblank and works best with a region and country.
-    ``geoid=True`` resolves ``location`` through :func:`resolve_geoid`.
-    A location that fails to resolve returns no jobs with a warning.
-    LinkedIn receives ``radius`` through its undocumented ``distance`` parameter.
-    ``None`` omits it.
-    When ``max_age_hours`` is ``None``, LinkedIn omits the ``f_TPR`` filter.
-    ``companies`` filters job results by employer ID. Each ID must be a numeric string.
-    With ``None`` or an empty list, jobs from any company can appear.
-    ``easy_apply=True`` limits results to jobs with LinkedIn's Easy Apply form.
-    ``early_applicant=True`` selects jobs LinkedIn classifies as having fewer than 10 applicants.
-    Each defaults to ``False``, leaving that restriction unset. Enabling both
-    requires results to match both filters. They apply alongside keywords,
-    geography, company selection, and posting age on every page.
-    Pass ``query=""`` to search for jobs without keywords.
-    ``country``, ``language``, ``attributes``, and ``remote`` are accepted for symmetry and ignored, because the guest endpoint applies none of them.
-    A search warns for ``language``, ``attributes``, and ``remote`` whenever one of them carries a value, and leaves its type unexamined.
-    ``country`` passes quietly, carrying no restriction of its own.
+    A geoId string names the search area and makes ``location`` optional.
+    Otherwise ``location`` is required and works best with a region and country.
+    ``geoid=True`` resolves ``location`` through :func:`resolve_geoid`, and a failed resolution returns no jobs with a warning.
+    ``radius`` reaches LinkedIn through its undocumented ``distance`` parameter.
+    ``companies`` lists numeric employer IDs. ``easy_apply`` keeps jobs with the Easy Apply form,
+    and ``early_applicant`` keeps jobs LinkedIn lists with fewer than 10 applicants.
+    ``query=""`` searches without keywords. An option set to ``None``, ``False``, or ``[]`` applies no restriction.
+    Filters combine and travel with every page.
     ``details`` hydrates posting pages, and ``cache`` controls their reuse.
+    ``country`` is accepted and unused. ``remote``, ``language``, and ``attributes`` belong to Indeed.
+    A value in one of them draws a warning and goes unchecked.
     The caller owns ``fetcher``.
 
     Search requests share the process-wide limiter. A persistent 429 ends the
@@ -114,10 +106,9 @@ async def search(
     ``results``.
 
     Raises:
-        TypeError: A numeric option is not an integer, ``easy_apply`` or ``early_applicant``
-            is not a Boolean, or ``companies`` is not a list of strings.
-        ValueError: The location or geoId is blank or missing, a numeric option
-            is out of range, or a company ID is empty or uses characters other than digits 0-9.
+        TypeError: An argument LinkedIn applies has the wrong type.
+        ValueError: The location is missing or blank, the geoId is blank, a numeric option
+            is out of range, or a company ID uses characters other than digits 0-9.
     """
     if isinstance(geoid, str):
         geoid = geoid.strip()

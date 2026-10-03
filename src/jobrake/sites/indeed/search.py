@@ -303,25 +303,17 @@ async def search(
     """
     Search one Indeed country edition through its GraphQL API.
 
-    ``country`` selects the edition. Radius is measured in kilometers.
-    ``None`` uses the standard radius. The shared search options ``details``,
-    ``cache``, and ``geoid`` are accepted and ignored.
-    ``companies`` restricts results to jobs at one employer. Pass its Indeed
-    employer key as a nonblank string in a list. ``None`` and ``[]`` omit this filter.
-    ``remote=True`` selects postings with Indeed's Remote attribute.
-    ``False`` applies no remote restriction.
-    ``attributes`` requires every listed attribute code on each posting.
-    Codes are nonblank strings with surrounding whitespace removed.
-    ``None`` or ``[]`` omits the filter.
-    ``remote=True`` adds ``"DSQF7"`` to the selected attributes.
-    ``language`` selects postings by Indeed's language code, such as ``"en"``.
-    Supply two ASCII letters in either case. The code is lowercased for Indeed.
-    Legacy codes such as ``"iw"`` and ``"in"`` are supported.
-    ``None`` leaves posting language unrestricted. Company, attribute, language,
-    and age filters combine on every page.
+    ``country`` selects the edition, and ``location`` narrows it to a place within that edition.
+    ``radius`` is in kilometers, and ``None`` uses ``defaults.INDEED_RADIUS``.
+    ``companies`` keeps jobs at one employer, given as a list holding its employer key.
+    ``attributes`` keeps postings carrying every listed code, with whitespace around each code removed.
+    ``remote=True`` adds Indeed's Remote attribute, ``"DSQF7"``, to those codes.
+    ``language`` takes Indeed's two-letter code in either case, such as ``"en"``, including the legacy codes ``"iw"`` and ``"in"``.
+    ``None``, ``False``, and ``[]`` each keep an option out of the search. The filters that remain combine on every page.
     Age uses Indeed's ``dateOnIndeed`` field, which can differ from the publication timestamp returned as ``posted_at``.
-    ``easy_apply`` and ``early_applicant`` belong to LinkedIn. Indeed ignores them and warns when either is enabled, whatever type the value carries.
-    The caller retains ownership of ``fetcher``.
+    ``details``, ``cache``, and ``geoid`` are accepted and unused. ``easy_apply`` and ``early_applicant`` belong to LinkedIn.
+    Indeed warns when one of them carries a value and leaves its type unexamined.
+    The caller owns ``fetcher``.
 
     Each request asks for 100 jobs, newest first. The returned list keeps
     that order and trims the final page to ``results``. Requests are
@@ -331,11 +323,10 @@ async def search(
     invalid field costs only that field.
 
     Raises:
-        TypeError: A numeric argument is not an integer, ``remote`` is not a Boolean,
-            company or attribute codes are not a list of strings, or a supplied ``language`` is not a string.
-        ValueError: The country is unknown, a numeric search argument is outside its valid range,
-            the company list contains a blank key or more than one entry, an attribute code
-            is blank, or ``language`` has an invalid format.
+        TypeError: An argument Indeed applies has the wrong type.
+        ValueError: The country is unknown, a numeric argument is out of range,
+            the company list holds a blank key or more than one, an attribute code is blank,
+            or ``language`` is not two ASCII letters.
     """
     filters = {
         "companies": companies,

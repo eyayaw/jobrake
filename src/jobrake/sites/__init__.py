@@ -37,42 +37,24 @@ async def scrape(
     """
     Route a search through one provider.
 
-    Indeed requires ``country``. LinkedIn requires either a ``location`` or a geoId string.
-    ``companies`` restricts results by employer. LinkedIn takes a list of numeric IDs,
-    and Indeed takes one employer key.
-    ``None`` or ``[]`` applies no company restriction.
-    ``remote=True`` restricts Indeed results to postings tagged Remote.
-    ``False`` leaves remote status unrestricted. LinkedIn ignores ``remote``.
-    ``details``, ``cache``, and ``geoid`` affect LinkedIn only.
-    ``geoid=True`` resolves ``location`` to a LinkedIn geoId before searching, and a string passes through as the geoId.
-    Every returned dict has the shared identity and summary keys, with available detail fields added.
-    Searches ask the provider for jobs from the past seven days by default. ``max_age_hours=None`` omits the age filter.
-    A ``None`` radius uses Indeed's standard radius and omits LinkedIn's undocumented distance parameter.
-    ``language`` restricts Indeed postings to the provider's language code,
-    supplied as two ASCII letters in either case. The code is sent to Indeed in lowercase.
-    ``None`` omits the restriction. LinkedIn ignores ``language``.
-    ``attributes`` selects Indeed postings carrying every supplied attribute code.
-    Pass a list of nonblank strings. Surrounding whitespace is stripped from each code.
-    ``None`` and ``[]`` omit this restriction.
-    LinkedIn ignores ``attributes``.
-    ``easy_apply=True`` selects LinkedIn jobs with Easy Apply.
-    ``early_applicant=True`` asks LinkedIn for jobs with fewer than 10 applicants.
-    Both default to ``False``. Indeed ignores them.
+    Both providers take ``query``, ``location``, ``radius``, ``results``, ``max_age_hours``, and ``companies``.
+    Searches cover the past seven days by default, and ``max_age_hours=None`` lifts the age limit.
+    Indeed requires ``country`` and applies ``remote``, ``language``, and ``attributes``.
+    LinkedIn requires a ``location`` or a geoId string and applies ``geoid``, ``easy_apply``, ``early_applicant``, ``details``, and ``cache``.
+    Each provider's ``search`` documents the values its options accept.
 
     One signature covers both providers, so a caller can send the same options
-    to each. A provider applies the filters it supports and warns for the rest.
-    An ignored filter goes unchecked, so the wrong type for it cannot stop the
-    search.
+    to each. A provider warns for a filter it cannot apply and leaves that
+    filter unchecked, so a wrong type there cannot stop the search.
 
+    Every returned dict has the shared identity and summary keys, with available detail fields added.
     An injected fetcher remains open and belongs to the caller. Indeed requires one with JSON POST support.
     Without an injected fetcher, ``scrape`` creates and closes an ``HttpxFetcher``.
 
     Raises:
-        TypeError: A numeric argument, or a filter the provider applies, carries the
-            wrong type.
-        ValueError: The site is unknown, required geography is missing, a numeric
-            argument is out of range, or a filter the provider applies carries an
-            unusable value.
+        TypeError: An argument the provider applies has the wrong type.
+        ValueError: The site is unknown, required geography is missing, or an
+            argument the provider applies has an unusable value.
     """
     searchers = site_searchers()
     if site not in searchers:
