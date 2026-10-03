@@ -2,7 +2,10 @@
 
 import json
 import math
+import os
 import sqlite3
+import subprocess
+import sys
 import time
 
 import pytest
@@ -136,12 +139,30 @@ def test_unusable_environment_lifetime_falls_back(monkeypatch, seconds):
 
 
 def test_environment_ttl_lifts_retention(monkeypatch):
-    # `CACHE = Cache()` runs during import, so this pair must not raise there.
+    # The shared cache is built inside the first cached fetch, so this pair must not raise.
     monkeypatch.setenv("JOBRAKE_CACHE_TTL", str(RETENTION * 2))
 
     cache = Cache()
 
     assert cache.retention == cache.ttl
+
+
+def test_the_shared_cache_reads_the_environment_on_first_use(tmp_path):
+    # A fresh interpreter, because the suite's fixture replaces the shared cache.
+    code = """
+import os
+import jobrake
+from jobrake.sites import linkedin
+from jobrake.sites.linkedin import client
+
+assert "CACHE" not in vars(client), "importing jobrake built the shared cache"
+os.environ["JOBRAKE_CACHE_TTL"] = "5400"
+assert linkedin.CACHE.ttl == 5400
+assert linkedin.CACHE is client.CACHE
+"""
+    env = {k: v for k, v in os.environ.items() if not k.startswith("JOBRAKE_CACHE_")}
+    env["JOBRAKE_CACHE_PATH"] = str(tmp_path / "jobrake.sqlite3")
+    subprocess.run([sys.executable, "-c", code], env=env, check=True)
 
 
 def test_rows_of_another_format_are_invisible(tmp_path):

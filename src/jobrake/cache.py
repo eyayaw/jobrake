@@ -141,7 +141,7 @@ class Cache:
         )
         if self.retention < self.ttl and retention is None:
             # Adjusting implicit retention keeps environment settings from
-            # breaking the LinkedIn client's import.
+            # failing the first cached fetch, where the shared cache is built.
             self.retention = self.ttl
         if not math.isfinite(self.ttl) or self.ttl <= 0:
             raise ValueError(f"ttl ({self.ttl:.10g}) must be finite and positive")

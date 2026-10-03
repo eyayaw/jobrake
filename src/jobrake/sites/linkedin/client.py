@@ -51,8 +51,14 @@ def _retry_delay(result: FetchResult) -> float | None:
     return seconds if seconds <= MAX_RETRY_DELAY else None
 
 
-# One cache per process, lazy, so no file is touched until the first cached fetch.
-CACHE = Cache()
+def __getattr__(name: str) -> Cache:
+    # One cache per process, built when a fetch first reads ``CACHE``. Its
+    # environment settings are read at that moment, so importing jobrake
+    # neither reads them nor warns about them.
+    if name == "CACHE":
+        cache = globals()["CACHE"] = Cache()
+        return cache
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 async def paced_fetch(fetcher: Fetcher, url: str) -> FetchResult:
