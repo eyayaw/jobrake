@@ -28,6 +28,9 @@ logger = logging.getLogger(__name__)
 # BAD_USER_INPUT. Pagination continues through pageInfo.nextCursor. The salary
 # range is a union. Range carries both bounds, AtLeast and AtMost carry one,
 # and Exactly carries one value.
+#
+# The API returns results newest first by dateOnIndeed under both RELEVANCE
+# and DATE. DATE names that order, so it holds if the two ever diverge.
 QUERY = """
 query GetJobData {{
   jobSearch(
@@ -35,7 +38,7 @@ query GetJobData {{
     {location}
     limit: 100
     {cursor}
-    sort: RELEVANCE
+    sort: DATE
     {filters}
   ) {{
     pageInfo {{ nextCursor }}
@@ -320,7 +323,7 @@ async def search(
     ``easy_apply`` and ``early_applicant`` belong to LinkedIn. Indeed ignores them and warns when either is enabled, whatever type the value carries.
     The caller retains ownership of ``fetcher``.
 
-    Each request asks for 100 jobs in relevance order. The returned list keeps
+    Each request asks for 100 jobs, newest first. The returned list keeps
     that order and trims the final page to ``results``. Requests are
     neither paced nor retried. A transport failure, provider error without
     usable data, or unreadable response ends the search with a warning and the

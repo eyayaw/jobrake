@@ -355,6 +355,7 @@ def test_paginated_search_preserves_filters(
             "geoId": ["102890719"],
             "start": [str(start)],
             "f_TPR": ["r172800"],
+            "sortBy": ["DD"],
             **({"f_C": [",".join(companies)]} if companies else {}),
             **({"f_AL": ["true"]} if easy_apply else {}),
             **({"f_EA": ["true"]} if early_applicant else {}),

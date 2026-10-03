@@ -169,6 +169,9 @@ async def search(
             "distance": radius,
             "start": start,
             "f_TPR": f"r{max_age_hours * 3600}" if max_age_hours else None,
+            # Newest first. The guest endpoint ignores it today and ranks by
+            # relevance.
+            "sortBy": "DD",
             "f_C": ",".join(companies) if companies else None,
             "f_AL": "true" if easy_apply else None,
             "f_EA": "true" if early_applicant else None,
