@@ -25,6 +25,13 @@ def _parse_place(geoid: object, display: object) -> tuple[str, str] | None:
     return (geoid, display) if geoid and _name_key(display) else None
 
 
+def _named(candidates: list[dict], name_key: str) -> dict:
+    """Pick the candidate carrying the requested name, or else the first."""
+    # LinkedIn ranks a region above the city that shares its name, so
+    # "Utrecht, Utrecht, Netherlands" arrives behind the province.
+    return next((c for c in candidates if _name_key(c["displayName"]) == name_key), candidates[0])
+
+
 def _saved(name: str) -> tuple[str, str] | None:
     entry = client.CACHE.get(GEOIDS, "linkedin", [name]).get(name)
     if not isinstance(entry, dict):
@@ -41,7 +48,8 @@ async def places(fetcher: Fetcher, name: str) -> list[dict] | None:
     without both strings intact. An empty list means LinkedIn knows no such
     place. A failed request or an unreadable response logs the reason and
     returns ``None``. Valid candidates seed the SQLite cache by qualified name,
-    and the first candidate also uses the normalized query.
+    and the normalized query maps to the candidate carrying that exact name, or
+    else to the first.
 
     Raises:
         ValueError: The name is blank.
@@ -77,19 +85,20 @@ async def places(fetcher: Fetcher, name: str) -> list[dict] | None:
         saved = {}
         for candidate in candidates:
             saved.setdefault(_name_key(candidate["displayName"]), candidate)
-        saved[name_key] = candidates[0]
+        saved[name_key] = _named(candidates, name_key)
         client.CACHE.put(GEOIDS, "linkedin", saved)
     return candidates
 
 
 async def resolve_geoid(fetcher: Fetcher, location: str) -> str | None:
     """
-    Resolve a place name to the geoId LinkedIn itself would pick for it.
+    Resolve a place name to a LinkedIn geoId.
 
     A saved name resolves from the SQLite cache. Any other name goes through
-    :func:`places`, and the first hit becomes the answer for later runs. Every
-    resolution logs the geoId and qualified place name. When the lookup fails
-    or LinkedIn knows no such place, this logs the reason and returns ``None``.
+    :func:`places`, where the candidate carrying that exact name wins over the
+    first hit, ignoring case, commas, and repeated spaces. The choice answers
+    later runs. Every resolution logs the geoId and qualified place name. A
+    failed lookup or an unknown place logs the reason and returns ``None``.
 
     Raises:
         ValueError: The location is blank.
@@ -106,6 +115,7 @@ async def resolve_geoid(fetcher: Fetcher, location: str) -> str | None:
         if not hits:
             logger.warning("linkedin knows no place named %r; check the spelling", location)
             return None
-        geoid, display = hits[0]["geoId"], hits[0]["displayName"]
+        hit = _named(hits, name)
+        geoid, display = hit["geoId"], hit["displayName"]
     logger.info("resolved %r to geoId %s (%s)", location, geoid, display)
     return geoid

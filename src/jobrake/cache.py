@@ -27,7 +27,7 @@ RETENTION = 30 * 24 * 3600
 _VERSIONS = {
     POSTINGS: 0,
     ADDRESSES: 0,
-    GEOIDS: 0,
+    GEOIDS: 1,
 }
 _TABLES = tuple(_VERSIONS)
 

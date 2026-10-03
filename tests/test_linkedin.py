@@ -305,11 +305,22 @@ def test_places_lists_candidates_and_normalizes_cache_keys(unlimited, isolated_c
     assert len(fetcher.requests) == 1
 
 
-def test_resolve_geoid_typeahead_top_hit_or_none(unlimited, caplog):
+def test_resolve_geoid_takes_the_exact_name_then_the_top_hit(unlimited, caplog):
     hits = json.dumps([{"id": "90009553", "displayName": "Groningen Metropolitan Area"}])
     fetcher = StubFetcher({"typeaheadHits": ok(hits)})
     assert asyncio.run(linkedin.resolve_geoid(fetcher, "groningen area")) == "90009553"
     assert "query=groningen+area" in fetcher.requests[0]
+    # LinkedIn lists the province ahead of the city that shares its name.
+    ranked = json.dumps(
+        [
+            {"id": "100163908", "displayName": "Utrecht, Netherlands"},
+            {"id": "106623457", "displayName": "Utrecht, Utrecht, Netherlands"},
+        ]
+    )
+    city = "utrecht utrecht, netherlands"
+    online = StubFetcher({"typeaheadHits": ok(ranked)})
+    assert asyncio.run(linkedin.resolve_geoid(online, city)) == "106623457"
+    assert asyncio.run(linkedin.resolve_geoid(StubFetcher({}), city)) == "106623457"  # cached
     with caplog.at_level(logging.WARNING, logger="jobrake.sites.linkedin"):
         no_hits = StubFetcher({"typeaheadHits": ok("[]")})
         assert asyncio.run(linkedin.resolve_geoid(no_hits, "atlantis")) is None
