@@ -504,6 +504,19 @@ def test_search_reruns_only_fetch_unseen_postings(unlimited):
     )
     assert jobs[0]["description"] == rerun[0]["description"] == "Great & big role"
     assert [url for url in rerun_fetcher.requests if "seeMoreJobPostings" not in url] == []
+    # cache=False reaches hydration, so the same search refetches the posting.
+    refetch_fetcher = StubFetcher(responses)
+    asyncio.run(
+        linkedin.search(
+            refetch_fetcher,
+            query="x",
+            location="Seattle",
+            results=1,
+            details=True,
+            cache=False,
+        )
+    )
+    assert len([url for url in refetch_fetcher.requests if "jobs/view/111" in url]) == 1
 
 
 CANONICAL = "https://nl.linkedin.com/jobs/view/economist-at-acme-111"
