@@ -402,13 +402,25 @@ def test_invalid_output_fails_before_scraping(run_cli, monkeypatch, tmp_path, ca
     existing.write_text("previous run", encoding="utf-8")
     with pytest.raises(SystemExit):
         run_cli("-o", str(existing))
+    # Exclusive creation refuses a dangling symlink, and a read-only directory
+    # refuses any new file. Either would cost a finished scrape its results.
+    dangling = tmp_path / "dangling.json"
+    dangling.symlink_to(tmp_path / "nowhere.json")
+    with pytest.raises(SystemExit):
+        run_cli("-o", str(dangling))
+    locked = tmp_path / "locked"
+    locked.mkdir(mode=0o555)
+    with pytest.raises(SystemExit):
+        run_cli("-o", str(locked / "jobs.json"))
     errors = capsys.readouterr().err
     assert "unsupported output extension" in errors
     assert "output directory does not exist" in errors
     assert "output path is a directory" in errors
     assert f"output file already exists: {existing}" in errors
+    assert f"output file already exists: {dangling}" in errors
+    assert f"output directory is not writable: {locked}" in errors
     assert "usage:" not in errors
-    assert errors.count("Run 'jobrake -h' for help.") == 4
+    assert errors.count("Run 'jobrake -h' for help.") == 6
 
 
 def test_status_handler_progress():

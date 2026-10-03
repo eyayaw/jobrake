@@ -404,8 +404,11 @@ def _settle_output(parser: _ArgumentParser, args: argparse.Namespace) -> str:
             parser.error(f"output path is a directory: {args.output}")
         if not args.output.parent.is_dir():
             parser.error(f"output directory does not exist: {args.output.parent}")
-        if args.output.exists():
+        # lexists also sees a dangling symlink, which exclusive creation refuses.
+        if os.path.lexists(args.output):
             parser.error(f"output file already exists: {args.output}")
+        if not os.access(args.output.parent, os.W_OK | os.X_OK):
+            parser.error(f"output directory is not writable: {args.output.parent}")
     if args.format:
         fmt = args.format
     elif args.output:
