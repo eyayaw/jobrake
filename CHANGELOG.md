@@ -1,5 +1,38 @@
 # Changelog
 
+## [0.17.0](https://github.com/eyayaw/jobrake/releases/tag/v0.17.0) (2026-10-04)
+
+### Added
+
+- Filter Indeed jobs by attribute codes with repeatable `--attribute CODE` options or `attributes=[...]`. Discover codes and labels from matching postings with `jobrake attributes indeed -c EDITION QUERY` or `jobrake.sites.indeed.attributes()`. Surrounding whitespace in codes is ignored.
+- Filter Indeed searches by posting language with `--language CODE` or `language="en"`. Two-letter codes accept either case, and the result limit counts postings in the selected language.
+- Find LinkedIn jobs with Easy Apply or fewer than 10 applicants. Use `--easy-apply` and `--early-applicant` separately or together, with matching library options.
+- Limit Indeed searches to postings tagged Remote with `--remote` or `remote=True`, alongside company, location, and age filters.
+- Find Indeed employer keys with `jobrake companies indeed NAME --country EDITION` or `jobrake.sites.indeed.companies()`, then search for jobs at one company using `--company KEY` or `employer_key=KEY`. Surrounding whitespace in the key is ignored.
+- Find company IDs with `jobrake companies linkedin NAME` or `jobrake.sites.linkedin.companies()`, then search their postings with repeatable `--company ID` options or `company_ids=[...]`.
+- Indeed results include a language code when available, so callers can keep postings in languages they read. CSV output gains a `language` column after `description`.
+- Configure the cache location, freshness and retention period through `JOBRAKE_CACHE_PATH`, `JOBRAKE_CACHE_TTL` and `JOBRAKE_CACHE_RETENTION`.
+- `jobrake linkedin` takes `--radius`, `-r`, in kilometers.
+- Every filter belongs to the shared search signature, so one set of options can go to both providers. A provider checks only the filters it applies and warns for each one it ignores.
+
+### Changed
+
+- **Breaking:** `--output` refuses an existing path, protecting earlier results from accidental replacement. An unwritable output directory is refused before the search starts.
+- **Breaking:** `radius` on a LinkedIn search is kilometers, as on Indeed. LinkedIn reads its distance in miles, so `radius=25` used to reach about 40 km. jobrake now sends the value rounded to whole miles.
+- Searches ask for newest postings first. Indeed already returned that order and LinkedIn's guest endpoint ignores the request, so results are unchanged for now. The guide describes each site's order and how to collect only new postings with `--max-age`.
+- Search query documentation now explains that jobrake forwards text unchanged.
+  - Indeed recognizes field restrictions, such as `title:` and `company:`.
+  - LinkedIn's documented Boolean operators do not work on its guest endpoint.
+- `jobrake details` and `fetch_details()` cache each posting's canonical URL and remember postings whose lookup found them gone. A rerun over the same IDs or `www` URLs sends no lookups, where 100 IDs used to spend about five minutes on them. `--no-cache` still sends every lookup.- `--geoid` and `resolve_geoid()` pick the candidate whose name equals the requested one. LinkedIn lists a region ahead of the city that shares its name, so `Utrecht, Utrecht, Netherlands` used to search the province. A name with no exact candidate still takes the first one. This release clears cached place resolutions, so each name resolves again on first use.
+- Gone-posting markers expire after `JOBRAKE_CACHE_RETENTION`, 30 days by default. A posting that once returned 404 or 410 used to be skipped on every later cached run.
+- Indeed warns when a search passes it a `geoid`, which only LinkedIn applies.
+- `--no-cache` and `cache=False` refresh the posting cache instead of bypassing it, so later cached runs see what a refetch found. A refetched page without the schema.org block leaves a fresh cached copy that has the block in place, with its dates, coordinates, and requirements.
+
+### Fixed
+
+- `jobrake details` and `fetch_details()` stop warning that a US posting's `www` URL serves no schema.org block. That URL is the posting's canonical address, and its dates and coordinates come through.
+- An Indeed search raises `TypeError` for a non-string `query`, `location`, or `country`. A LinkedIn search does so for `query` and `location`, and for a `geoid` that is neither a string nor a Boolean. These used to surface as `AttributeError` or as a missing-location error.
+
 ## [0.16.0](https://github.com/eyayaw/jobrake/releases/tag/v0.16.0) (2026-09-05)
 
 ### Added
