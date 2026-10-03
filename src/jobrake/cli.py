@@ -23,8 +23,8 @@ logger = logging.getLogger(__name__)
 
 _CLEAR_LINE = "\r\x1b[2K"
 
-# The scrape options a search subparser can fill. A provider offers flags only
-# for the options it honors. The rest reach scrape as its declared defaults.
+# The scrape options a search subparser can fill. An option without a flag on
+# the selected provider reaches scrape as its declared default.
 _SEARCH_OPTIONS = frozenset(inspect.signature(scrape).parameters) - {"site", "fetcher"}
 
 
@@ -100,6 +100,12 @@ def _add_linkedin_args(parser: argparse.ArgumentParser) -> None:
         help="search by geoId: resolve --location through LinkedIn's place lookup, or send ID as given",
     )
     parser.add_argument(
+        "--radius",
+        "-r",
+        type=int,
+        help="search radius in kilometers (default: unset)",
+    )
+    parser.add_argument(
         "--company",
         dest="company_ids",
         action="append",
@@ -130,8 +136,6 @@ def _add_linkedin_args(parser: argparse.ArgumentParser) -> None:
         default=defaults.CACHE,
         help="refetch posting details and refresh their cached copies",
     )
-    # LinkedIn has no radius flag, so this is where its default enters a search.
-    parser.set_defaults(radius=defaults.LINKEDIN_RADIUS)
 
 
 def _add_indeed_args(parser: argparse.ArgumentParser) -> None:

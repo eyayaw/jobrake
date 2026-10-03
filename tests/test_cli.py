@@ -211,6 +211,8 @@ def test_provider_commands_dispatch_expected_options(monkeypatch):
             "",
             "--geoid",
             "12345",
+            "--radius",
+            "40",
             "--company",
             "1173",
             "--company",
@@ -244,7 +246,7 @@ def test_provider_commands_dispatch_expected_options(monkeypatch):
             {
                 "query": "x",
                 "location": "Seattle",
-                "radius": defaults.LINKEDIN_RADIUS,
+                "radius": None,
                 "results": defaults.RESULTS,
                 "max_age_hours": defaults.MAX_AGE_HOURS,
                 "details": True,
@@ -260,7 +262,7 @@ def test_provider_commands_dispatch_expected_options(monkeypatch):
             {
                 "query": "",
                 "location": None,
-                "radius": defaults.LINKEDIN_RADIUS,
+                "radius": 40,
                 "results": defaults.RESULTS,
                 "max_age_hours": defaults.MAX_AGE_HOURS,
                 "details": defaults.DETAILS,

@@ -96,6 +96,7 @@ def test_scrape_accepts_an_explicit_zero_radius(monkeypatch):
     fetcher = StubFetcher({"seeMoreJobPostings": ok("")})
     asyncio.run(scrape("linkedin", query="x", location="Seattle", radius=0, fetcher=fetcher))
     assert len(fetcher.requests) == 1
+    assert "distance=0" in fetcher.requests[0]
 
 
 def test_scrape_forwards_every_search_option(monkeypatch):

@@ -354,6 +354,7 @@ def test_paginated_search_preserves_filters(
             language="not a code",
             attributes=["3CQB7"],
             max_age_hours=48,
+            radius=40,
             results=2,
         )
     )
@@ -364,6 +365,8 @@ def test_paginated_search_preserves_filters(
         assert params == {
             "keywords": [query],
             "geoId": ["102890719"],
+            # Kilometers go out as whole miles, here with a geoId and no location.
+            "distance": ["25"],
             "start": [str(start)],
             "f_TPR": ["r172800"],
             "sortBy": ["DD"],

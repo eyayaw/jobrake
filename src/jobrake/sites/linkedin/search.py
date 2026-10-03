@@ -18,6 +18,7 @@ from .postings import fetch_postings
 logger = logging.getLogger(__name__)
 
 MAX_START = 1000  # the guest API stops serving past this offset
+KM_PER_MILE = 1.609344
 
 
 def parse_cards(html: str) -> list[dict]:
@@ -90,7 +91,8 @@ async def search(
     A geoId string names the search area and makes ``location`` optional.
     Otherwise ``location`` is required and works best with a region and country.
     ``geoid=True`` resolves ``location`` through :func:`resolve_geoid`, and a failed resolution returns no jobs with a warning.
-    ``radius`` reaches LinkedIn through its undocumented ``distance`` parameter.
+    ``radius`` is in kilometers and reaches LinkedIn's undocumented ``distance`` parameter as whole miles.
+    A search by geoId ignores the radius for some places.
     ``company_ids`` lists numeric employer IDs. ``easy_apply`` keeps jobs with the Easy Apply form,
     and ``early_applicant`` keeps jobs LinkedIn lists with fewer than 10 applicants.
     ``query=""`` searches without keywords. An option set to ``None``, ``False``, or ``[]`` applies no restriction.
@@ -158,8 +160,8 @@ async def search(
             "location": location or None,
             # A geoId outranks LinkedIn's own geocoding of the location text.
             "geoId": geoid or None,
-            # LinkedIn names its radius parameter ``distance``.
-            "distance": radius,
+            # LinkedIn names its radius parameter ``distance`` and reads it in miles.
+            "distance": None if radius is None else round(radius / KM_PER_MILE),
             "start": start,
             "f_TPR": f"r{max_age_hours * 3600}" if max_age_hours else None,
             # Newest first. The guest endpoint ignores it today and ranks by

@@ -37,7 +37,7 @@ async def scrape(
     """
     Route a search through one provider.
 
-    Both providers take ``query``, ``location``, ``radius``, ``results``, and ``max_age_hours``.
+    Both providers take ``query``, ``location``, ``radius`` in kilometers, ``results``, and ``max_age_hours``.
     Searches cover the past seven days by default, and ``max_age_hours=None`` lifts the age limit.
     Indeed requires ``country`` and applies ``employer_key``, ``remote``, ``language``, and ``attributes``.
     LinkedIn requires a ``location`` or a geoId string and applies ``geoid``, ``company_ids``, ``easy_apply``, ``early_applicant``, ``details``, and ``cache``.
