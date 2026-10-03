@@ -308,7 +308,7 @@ async def search(
     ``language`` takes Indeed's two-letter code in either case, such as ``"en"``, including the legacy codes ``"iw"`` and ``"in"``.
     ``None``, ``False``, and ``[]`` each keep an option out of the search. The filters that remain combine on every page.
     Age uses Indeed's ``dateOnIndeed`` field, which can differ from the publication timestamp returned as ``posted_at``.
-    ``details``, ``cache``, and ``geoid`` are accepted and unused. ``company_ids``, ``easy_apply``, and ``early_applicant`` belong to LinkedIn.
+    ``details`` and ``cache`` are accepted and unused. ``geoid``, ``company_ids``, ``easy_apply``, and ``early_applicant`` belong to LinkedIn.
     Indeed warns when one of them carries a value and leaves its type unexamined.
     The caller owns ``fetcher``.
 
@@ -332,6 +332,7 @@ async def search(
     check_bounds(results=results, radius=radius, max_age_hours=max_age_hours)
     check_filters(
         "indeed",
+        geoid=geoid,
         company_ids=company_ids,
         employer_key=employer_key,
         remote=remote,

@@ -129,9 +129,20 @@ def check_employer_key(name: str, value: object) -> None:
         )
 
 
+def check_geoid(name: str, value: object) -> None:
+    """Require a nonblank geoId string or the Boolean that asks for a lookup."""
+    if isinstance(value, bool):
+        return
+    if not isinstance(value, str):
+        raise TypeError(f"{name} must be an ID string or a boolean, got {value!r}")
+    if not value.strip():
+        raise ValueError(f"{name} is blank")
+
+
 # Each filter names the providers that apply it and the check each one runs.
 # A provider outside a filter's row accepts the argument and searches without it.
 _FILTERS: dict[str, dict[str, Callable[[str, object], None]]] = {
+    "geoid": {"linkedin": check_geoid},
     "company_ids": {"linkedin": check_company_ids},
     "employer_key": {"indeed": check_employer_key},
     "remote": {"indeed": check_flag},

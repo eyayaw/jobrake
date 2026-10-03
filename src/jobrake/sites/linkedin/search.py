@@ -112,11 +112,8 @@ async def search(
             is out of range, or a company ID uses characters other than digits 0-9.
     """
     check_text(query=query, location=location)
-    if isinstance(geoid, str):
-        geoid = geoid.strip()
-        if not geoid:
-            raise ValueError("geoid is blank")
-    elif location is None or not location.strip():
+    # A Boolean geoid searches by the location text or resolves it to a geoId.
+    if isinstance(geoid, bool) and (location is None or not location.strip()):
         raise ValueError(
             "location is required unless geoid is an ID. "
             "Try 'Amsterdam, North Holland, Netherlands'"
@@ -124,6 +121,7 @@ async def search(
     check_bounds(results=results, radius=radius, max_age_hours=max_age_hours)
     check_filters(
         "linkedin",
+        geoid=geoid,
         company_ids=company_ids,
         employer_key=employer_key,
         remote=remote,
@@ -132,6 +130,8 @@ async def search(
         easy_apply=easy_apply,
         early_applicant=early_applicant,
     )
+    if isinstance(geoid, str):
+        geoid = geoid.strip()
     if location:
         logger.info("searching linkedin for %r in %r", query, location)
     else:
