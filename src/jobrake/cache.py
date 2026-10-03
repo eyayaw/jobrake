@@ -1,4 +1,4 @@
-"""SQLite cache for posting fields and LinkedIn place resolutions."""
+"""SQLite cache for posting fields, posting addresses, and LinkedIn place resolutions."""
 
 import json
 import logging
@@ -13,6 +13,8 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 POSTINGS = "postings"
+# A posting's canonical URL, kept after its fields expire.
+ADDRESSES = "addresses"
 GEOIDS = "geoids"
 TTL = 7 * 24 * 3600  # seconds
 # Startup applies retention only to rows with posting fields, tombstones stay.
@@ -20,10 +22,11 @@ RETENTION = 30 * 24 * 3600
 
 # Each table version identifies the field set and parsing of its rows.
 # Bump the affected version when either changes. Reads select only that version,
-# so a posting version change leaves the cached geoids intact.
+# so a posting version change leaves the cached addresses and geoids intact.
 # Fetching those again costs paced requests.
 _VERSIONS = {
     POSTINGS: 0,
+    ADDRESSES: 0,
     GEOIDS: 0,
 }
 _TABLES = tuple(_VERSIONS)
@@ -93,14 +96,15 @@ def _table_name(table: str) -> str:
 
 class Cache:
     """
-    Store postings and LinkedIn place resolutions in separate SQLite tables.
+    Store postings, their addresses, and LinkedIn place resolutions in SQLite tables.
 
     Posting values expire after ``ttl`` seconds and are deleted after
-    ``retention`` seconds. Posting tombstones and geoId resolutions do not
-    expire. A storage or decoding failure logs once and disables this instance.
-    Callers receive misses and continue scraping. A site keeps its own keys
-    separate within each table, and each table's stored format version keeps
-    values apart from those an earlier field set or parser produced.
+    ``retention`` seconds. Posting tombstones, addresses, and geoId
+    resolutions do not expire. A storage or decoding failure logs once and
+    disables this instance. Callers receive misses and continue scraping. A
+    site keeps its own keys separate within each table, and each table's
+    stored format version keeps values apart from those an earlier field set
+    or parser produced.
 
     Attributes:
         path: SQLite database path. The cache opens it on first access.
@@ -194,7 +198,7 @@ class Cache:
         """
         Read values for the requested keys in one table and site.
 
-        Posting values honor ``ttl``, geoId values do not expire.
+        Posting values honor ``ttl``. Address and geoId values do not expire.
         A ``None`` posting value is a tombstone marking the posting as gone.
         Missing keys are stale, absent, or malformed rows.
         Storage and decoding failures disable the cache and return an empty dict.

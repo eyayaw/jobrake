@@ -155,7 +155,7 @@ Fetch errors may leave partial results.
 
 ## Cache location and lifetimes
 
-jobrake keeps posting fields and LinkedIn place resolutions in one SQLite file under your user cache directory (`~/Library/Caches/jobrake/` on macOS, `$XDG_CACHE_HOME/jobrake/` on Linux, `%LOCALAPPDATA%\jobrake\` on Windows). Posting fields remain fresh for seven days and are eligible for deletion after 30 days. Place resolutions and gone-posting markers are kept indefinitely. Three environment variables configure the cache:
+jobrake keeps posting fields, posting addresses, and LinkedIn place resolutions in one SQLite file under your user cache directory (`~/Library/Caches/jobrake/` on macOS, `$XDG_CACHE_HOME/jobrake/` on Linux, `%LOCALAPPDATA%\jobrake\` on Windows). Posting fields remain fresh for seven days and are eligible for deletion after 30 days. Posting addresses, place resolutions, and gone-posting markers are kept indefinitely. Three environment variables configure the cache:
 
 | Variable | Default | Effect |
 | --- | --- | --- |

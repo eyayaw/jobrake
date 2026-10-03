@@ -930,20 +930,23 @@ def test_fetch_details_resolves_an_id_before_fetching_the_posting(unlimited):
         ("111", CANONICAL, "Economist")
     ]
     assert jobs[0]["posted_at"] == "2026-08-05T08:04:27.000Z"  # what the block adds
-    # the canonical URL skips the lookup, and the cached posting costs nothing at all
-    fetcher.requests.clear()
-    assert asyncio.run(linkedin.fetch_details(fetcher, [CANONICAL])) == jobs
-    assert fetcher.requests == []
-    # every other address the same posting answers to is resolved like an id,
-    # so none of them can leave a job holding a page without the block
-    for address in (
+    others = (
+        "111",
         f"{FRAGMENT_URL}/111",
         "https://www.linkedin.com/jobs/view/economist-at-acme-111",
         "https://nl.linkedin.com/jobs/view/111",
-    ):
+    )
+    # the cache holds the address and the posting, so no reference costs a request
+    for address in (CANONICAL, *others):
         fetcher.requests.clear()
         assert asyncio.run(linkedin.fetch_details(fetcher, [address])) == jobs
-        assert fetcher.requests == [f"{FRAGMENT_URL}/111?_l=en_US"]
+        assert fetcher.requests == []
+    # without the cache, every other address is resolved like an id, so none
+    # of them can leave a job holding a page without the block
+    for address in others:
+        fetcher.requests.clear()
+        assert asyncio.run(linkedin.fetch_details(fetcher, [address], cache=False)) == jobs
+        assert fetcher.requests == [f"{FRAGMENT_URL}/111?_l=en_US", CANONICAL]
 
 
 @pytest.mark.parametrize(
@@ -1015,6 +1018,10 @@ def test_fetch_details_keeps_the_postings_it_resolved_in_order(unlimited, caplog
         "skipping posting 333: connection reset",
         "skipping posting 222",
     ]
+    # a rerun asks again only about the failure that may pass, since 222 is known gone
+    fetcher.requests.clear()
+    assert asyncio.run(linkedin.fetch_details(fetcher, ["333", "444", "222", "111"])) == jobs
+    assert fetcher.requests == [f"{FRAGMENT_URL}/333?_l=en_US"]
 
 
 def test_fetch_details_fetches_a_us_posting_on_www(unlimited, caplog):

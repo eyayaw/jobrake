@@ -267,7 +267,7 @@ Older fields are fetched again. URLs without an ID are fetched on every call.
 jobrake records HTTP 404 and 410 responses and skips those postings on later cached runs.
 Pass `--no-cache` or `cache=False` to bypass the cache.
 
-Every stored value records the cache format that produced it, and jobrake reads only the format it writes. A release whose job fields or parsers have moved on therefore starts from an empty table and fills it again as you search. Posting fields and place resolutions carry their own format versions, so a change to one leaves the other's cached values in place.
+Every stored value records the cache format that produced it, and jobrake reads only the format it writes. A release whose job fields or parsers have moved on therefore starts from an empty table and fills it again as you search. Posting fields, posting addresses, and place resolutions each carry their own format version, so a change to one leaves the others' cached values in place.
 
 Fetching an uncached posting costs at least one paced request.
 A page without its structured data may require a second request for an English fragment.
@@ -282,8 +282,8 @@ Another country's host, a slugless `/jobs/view/<id>`, and the guest fragment all
 A posting placed in a whole country, such as "United States" or "Netherlands", has no block at any address.
 
 A `www` URL looks the same for a posting from any country, so jobrake fetches only a country-subdomain URL with a slug as given.
-Every other reference, US `www` URLs included, first costs one lookup. jobrake reads the canonical URL from the guest fragment, which transfers about a tenth as many bytes as the page.
-A posting already cached costs no request.
+Every other reference, US `www` URLs included, costs one lookup the first time. jobrake reads the canonical URL from the guest fragment, which transfers about a tenth as many bytes as the page.
+The cache keeps that URL, so a cached posting costs no request, whichever reference names it.
 
 The posting ID is the identity throughout, so several references to one posting return one job, and the cache stores that posting once.
 A reference that is neither a numeric ID nor a LinkedIn posting address is an error, and nothing is fetched.

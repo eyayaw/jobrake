@@ -12,7 +12,7 @@ from urllib.parse import urlsplit
 from bs4 import BeautifulSoup
 
 from jobrake import defaults
-from jobrake.cache import POSTINGS
+from jobrake.cache import ADDRESSES, POSTINGS
 from jobrake.fetchkit import Fetcher
 from jobrake.models import SUMMARY_FIELDS, employment_type, make_job
 from jobrake.utils import html_text
@@ -466,12 +466,13 @@ async def fetch_details(
     A reference is a posting URL or a numeric posting ID, and the ID it names
     is the posting's identity here. References naming one posting yield one
     job. A canonical URL on a country subdomain is fetched as given. Every
-    other reference, including an ID or a US posting's ``www`` URL, first
-    spends a guest-fragment request to learn the canonical URL. A
-    posting that is gone, unreachable, or unreadable is reported and left out,
-    so a short result is normal. A persistent 429 ends the whole call, which
-    then answers from the cache for the postings whose addresses it already
-    had. The caller owns ``fetcher``.
+    other reference, including an ID or a US posting's ``www`` URL, spends a
+    guest-fragment request to learn the canonical URL, unless the cache holds
+    that URL or records the posting as gone. A posting that is gone,
+    unreachable, or unreadable is reported and left out, so a short result is
+    normal. A persistent 429 ends the whole call, which then answers from the
+    cache for the postings whose addresses it already had. The caller owns
+    ``fetcher``.
 
     Raises:
         ValueError: A reference is neither a numeric posting ID nor a LinkedIn
@@ -498,9 +499,17 @@ async def fetch_details(
     for ref, posting_id in ids.items():
         if addresses.get(posting_id) is None:
             addresses[posting_id] = ref if _country_canonical(ref) else None
+    unresolved = [posting_id for posting_id, url in addresses.items() if url is None]
+    known = client.CACHE.get(ADDRESSES, "linkedin", unresolved) if cache else {}
+    addresses |= {posting_id: row.get("url") for posting_id, row in known.items() if row}
+    rows = client.CACHE.get(POSTINGS, "linkedin", unresolved) if cache else {}
+    gone = {posting_id for posting_id, row in rows.items() if row is None}
     stopped = False
     for posting_id, address in addresses.items():
         if address is not None:
+            continue
+        if posting_id in gone:
+            logger.warning("posting %s is no longer on linkedin", posting_id)
             continue
         result = await paced_fetch(fetcher, f"{FRAGMENT_URL}/{posting_id}?_l=en_US")
         if rate_limited(result):
@@ -514,6 +523,8 @@ async def fetch_details(
                     "skipping posting %s. LinkedIn has no such posting, or it was taken down",
                     posting_id,
                 )
+                if cache:
+                    client.CACHE.put(POSTINGS, "linkedin", {posting_id: None})
             else:
                 logger.warning(
                     "skipping posting %s: %s. Pass its URL to fetch the posting without "
@@ -524,6 +535,8 @@ async def fetch_details(
             continue
         if url := _fragment_url(result.text, posting_id):
             addresses[posting_id] = url
+            if cache:
+                client.CACHE.put(ADDRESSES, "linkedin", {posting_id: {"url": url}})
     urls = {posting_id: url for posting_id, url in addresses.items() if url}
     if stopped:
         logger.warning(
