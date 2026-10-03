@@ -137,61 +137,37 @@ _FILTERS = {
 _SITES = frozenset(site for entry in _FILTERS.values() for site in entry.providers)
 
 
-def _filter_entry(site: str, name: str) -> _Filter:
-    """
-    Return the table row for one search filter.
-
-    Raises:
-        KeyError: No provider applies the filter.
-        ValueError: The site is unknown, which would leave every filter unchecked.
-    """
-    if site not in _SITES:
-        raise ValueError(f"unknown site {site!r}. Expected one of {sorted(_SITES)}")
-    try:
-        return _FILTERS[name]
-    except KeyError:
-        raise KeyError(f"no provider applies the {name!r} filter") from None
-
-
 def check_filters(site: str, **filters: object) -> None:
     """
-    Validate each filter the provider applies.
+    Validate each filter the provider applies and warn for each one it ignores.
 
-    A filter outside the provider's own set goes unchecked, so a value aimed at
-    the other provider travels along and the search proceeds.
+    An ignored filter goes unchecked, and its warning is the only sign that the
+    restriction took no effect. A falsy value asks for no restriction and
+    passes in silence. Warnings follow the last check, so a rejected search
+    logs none.
 
     Raises:
         KeyError: No provider applies the filter.
         TypeError: An applied filter has the wrong type.
         ValueError: The site is unknown, or an applied filter has an unusable value.
     """
+    if site not in _SITES:
+        # An unknown site matches no row, which would leave every filter unchecked.
+        raise ValueError(f"unknown site {site!r}. Expected one of {sorted(_SITES)}")
+    ignored = []
     for name, value in filters.items():
-        entry = _filter_entry(site, name)
+        entry = _FILTERS[name]
         if site in entry.providers:
             entry.check(name, value, site=site)
-
-
-def warn_ignored_filters(site: str, **filters: object) -> None:
-    """
-    Report each filter the provider leaves unused.
-
-    A filter set to a falsy value asks for no restriction, so it passes in
-    silence. The search still runs, and the warning is the only sign that a
-    restriction took no effect.
-
-    Raises:
-        KeyError: No provider applies the filter.
-        ValueError: The site is unknown.
-    """
-    for name, value in filters.items():
-        entry = _filter_entry(site, name)
-        if value and site not in entry.providers:
-            logger.warning(
-                "%s ignores %s and searches without it. Run the search on %s to apply it",
-                site,
-                name,
-                " or ".join(entry.providers),
-            )
+        elif value:
+            ignored.append(name)
+    for name in ignored:
+        logger.warning(
+            "%s ignores %s and searches without it. Run the search on %s to apply it",
+            site,
+            name,
+            " or ".join(_FILTERS[name].providers),
+        )
 
 
 def iso_date(value: str | None) -> str | None:

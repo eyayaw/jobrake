@@ -1,53 +1,49 @@
 """Site-routing and fetcher-lifecycle tests for ``scrape``."""
 
 import asyncio
+import inspect
 import logging
 
 import pytest
 from fakes import StubFetcher, ok
 
-from jobrake import defaults, scrape, sites, utils
+from jobrake import scrape, sites, utils
 from jobrake.fetchkit import TokenBucket
 from jobrake.sites.linkedin import client
 
 
 @pytest.mark.parametrize(
-    ("site", "kwargs", "match"),
+    ("site", "kwargs", "error", "match"),
     [
-        ("glassdoor", {}, "glassdoor"),
-        ("indeed", {}, "country"),
-        ("indeed", {"country": "usa", "attributes": [" "]}, "attribute code"),
-        ("indeed", {"country": "usa", "language": " "}, "language"),
-        ("indeed", {"country": "usa", "language": "eng"}, "language"),
-        ("indeed", {"country": "netherlands", "companies": [" "]}, "blank"),
-        ("indeed", {"country": "netherlands", "companies": ["a", "b"]}, "one Indeed employer key"),
-        ("linkedin", {}, "location"),
-        ("linkedin", {"location": "   "}, "location"),
-        ("linkedin", {"geoid": ""}, "geoid"),
-        ("linkedin", {"location": "Seattle", "companies": ["Acme"]}, "company ID"),
-        ("linkedin", {"location": "Seattle", "results": 0}, "results"),
-        ("linkedin", {"location": "Seattle", "radius": -1}, "radius"),
-        ("linkedin", {"location": "Seattle", "max_age_hours": 0}, "max_age_hours"),
+        ("glassdoor", {}, ValueError, "glassdoor"),
+        # Each provider's search owns its own argument checks. These are the
+        # ones scrape's defaults reach, plus one applied filter per provider.
+        ("indeed", {}, ValueError, "country is required"),
+        ("indeed", {"country": "usa", "companies": ["a", "b"]}, ValueError, "one Indeed employer"),
+        ("indeed", {"country": "usa", "remote": "false"}, TypeError, "remote must be a boolean"),
+        ("linkedin", {}, ValueError, "location is required"),
+        ("linkedin", {"geoid": True}, ValueError, "location is required"),
+        ("linkedin", {"geoid": " "}, ValueError, "geoid is blank"),
+        ("linkedin", {"location": "Seattle", "companies": ["Acme"]}, ValueError, "company ID"),
+        ("linkedin", {"location": "Seattle", "easy_apply": "false"}, TypeError, "easy_apply must"),
+        ("linkedin", {"location": "Seattle", "early_applicant": 1}, TypeError, "early_applicant"),
     ],
 )
-def test_scrape_rejects_bad_arguments_before_opening_a_fetcher(site, kwargs, match, monkeypatch):
-    def must_not_open():
-        raise AssertionError("opened transport before validating arguments")
-
-    monkeypatch.setattr(sites, "HttpxFetcher", must_not_open)
-    with pytest.raises(ValueError, match=match):
-        asyncio.run(scrape(site, query="x", **kwargs))
+def test_scrape_rejects_bad_arguments_before_any_request(site, kwargs, error, match):
+    fetcher = StubFetcher({})
+    with pytest.raises(error, match=match):
+        asyncio.run(scrape(site, query="x", fetcher=fetcher, **kwargs))
+    assert fetcher.requests == []
 
 
 @pytest.mark.parametrize(
     ("site", "kwargs", "ignored", "applied_by"),
     [
-        ("linkedin", {"location": "Seattle", "remote": True}, "remote", "indeed"),
+        # One case per filter. The wrong-typed values show an ignored filter goes unchecked.
+        ("linkedin", {"location": "Seattle", "remote": "yes"}, "remote", "indeed"),
+        ("linkedin", {"location": "Seattle", "language": "not a code"}, "language", "indeed"),
         ("linkedin", {"location": "Seattle", "attributes": ["3CQB7"]}, "attributes", "indeed"),
         ("indeed", {"country": "usa", "easy_apply": True}, "easy_apply", "linkedin"),
-        ("indeed", {"country": "usa", "early_applicant": True}, "early_applicant", "linkedin"),
-        # A bad value for an ignored filter draws the same warning and searches on.
-        ("linkedin", {"location": "Seattle", "remote": "yes"}, "remote", "indeed"),
         ("indeed", {"country": "usa", "early_applicant": 1}, "early_applicant", "linkedin"),
     ],
 )
@@ -60,7 +56,7 @@ def test_a_filter_the_provider_cannot_apply_is_ignored_with_a_warning(
 
     assert jobs == []
     assert fetcher.requests, "an unsupported filter stopped the search"
-    assert f"{site} ignores {ignored}" in caplog.text
+    assert caplog.text.count(f"{site} ignores {ignored}") == 1
     assert f"Run the search on {applied_by}" in caplog.text
 
 
@@ -73,33 +69,20 @@ def test_the_filter_checks_reject_an_unknown_filter_or_site():
 
 
 @pytest.mark.parametrize(
-    ("site", "kwargs", "match"),
+    ("name", "value"),
     [
-        ("indeed", {"remote": "false"}, "remote"),
-        ("indeed", {"language": ["en"]}, "language"),
-        ("indeed", {"attributes": "3CQB7"}, "attributes"),
-        ("linkedin", {"easy_apply": "false"}, "easy_apply"),
-        ("linkedin", {"early_applicant": "false"}, "early_applicant"),
-        ("indeed", {"companies": "fe219df7f711aa73"}, "companies"),
-        ("indeed", {"companies": [123]}, "company ID"),
-        ("linkedin", {"companies": "1173"}, "companies"),
-        ("linkedin", {"companies": [1173]}, "company ID"),
-        ("linkedin", {"results": float("nan")}, "results"),
-        ("linkedin", {"results": 2.5}, "results"),
-        ("linkedin", {"results": True}, "results"),
-        ("linkedin", {"radius": float("inf")}, "radius"),
-        ("linkedin", {"radius": False}, "radius"),
-        ("linkedin", {"max_age_hours": 1.5}, "max_age_hours"),
-        ("linkedin", {"max_age_hours": True}, "max_age_hours"),
+        ("results", float("nan")),
+        ("results", 2.5),
+        ("results", True),
+        ("radius", float("inf")),
+        ("radius", False),
+        ("max_age_hours", 1.5),
+        ("max_age_hours", True),
     ],
 )
-def test_scrape_rejects_invalid_argument_types(kwargs, match, monkeypatch, site):
-    def must_not_open():
-        raise AssertionError("opened transport before validating arguments")
-
-    monkeypatch.setattr(sites, "HttpxFetcher", must_not_open)
-    with pytest.raises(TypeError, match=match):
-        asyncio.run(scrape(site, query="x", location="Seattle", country="usa", **kwargs))
+def test_numeric_options_reject_non_integers(name, value):
+    with pytest.raises(TypeError, match=name):
+        utils.check_bounds(**{name: value})
 
 
 def test_scrape_accepts_an_explicit_zero_radius(monkeypatch):
@@ -109,65 +92,35 @@ def test_scrape_accepts_an_explicit_zero_radius(monkeypatch):
     assert len(fetcher.requests) == 1
 
 
-@pytest.mark.parametrize(
-    ("site", "companies", "remote", "easy_apply", "early_applicant", "language"),
-    [
-        ("linkedin", None, False, False, True, "not a code"),
-        ("linkedin", ["1173", "2220078"], False, True, False, None),
-        ("indeed", None, True, False, False, "EN"),
-    ],
-)
-def test_scrape_passes_search_options(
-    monkeypatch, site, companies, remote, easy_apply, early_applicant, language
-):
-    options = {}
+def test_scrape_forwards_every_search_option(monkeypatch):
+    received = {}
 
-    async def capture(fetcher, **kwargs):
-        options.update(kwargs)
+    async def capture(fetcher, **options):
+        received.update(options)
         return []
 
-    monkeypatch.setattr(sites, "site_searchers", lambda: {site: capture})
-    asyncio.run(
-        scrape(
-            site,
-            query="x",
-            country="usa",
-            geoid="12345",
-            companies=companies,
-            remote=remote,
-            language=language,
-            attributes=["3CQB7", "6QC5F"],
-            easy_apply=easy_apply,
-            early_applicant=early_applicant,
-            fetcher=StubFetcher({}),
-        )
-    )
-
-    assert options["radius"] is None
-    assert options["results"] == defaults.RESULTS
-    assert options["max_age_hours"] == defaults.MAX_AGE_HOURS
-    assert options["details"] is defaults.DETAILS
-    assert options["cache"] is defaults.CACHE
-    assert options["location"] is None
-    assert options["geoid"] == "12345"
-    assert options["companies"] == companies
-    assert options["remote"] is remote
-    assert options["language"] == language
-    assert options["attributes"] == ["3CQB7", "6QC5F"]
-    assert options["easy_apply"] is easy_apply
-    assert options["early_applicant"] is early_applicant
-
-
-def test_provider_searches_validate_the_filters_they_apply():
-    fetcher = StubFetcher({})
-    applied = {"indeed": "remote", "linkedin": "easy_apply"}
-    for site, search in sites.site_searchers().items():
-        name = applied[site]
-        with pytest.raises(TypeError, match=f"{name} must be a boolean"):
-            asyncio.run(
-                search(fetcher, query="x", location="Seattle", country="usa", **{name: "false"})
-            )
-    assert fetcher.requests == []
+    monkeypatch.setattr(sites, "site_searchers", lambda: {"stub": capture})
+    given = {
+        "query": "x",
+        "location": "Seattle",
+        "country": "usa",
+        "radius": 5,
+        "results": 3,
+        "max_age_hours": 24,
+        "details": True,
+        "cache": False,
+        "geoid": "12345",
+        "companies": ["1173"],
+        "remote": True,
+        "language": "en",
+        "attributes": ["3CQB7"],
+        "easy_apply": True,
+        "early_applicant": True,
+    }
+    # A new scrape parameter must join this dict, which then proves it is forwarded.
+    assert given.keys() == inspect.signature(scrape).parameters.keys() - {"site", "fetcher"}
+    asyncio.run(scrape("stub", fetcher=StubFetcher({}), **given))
+    assert received == given
 
 
 def test_scrape_does_not_close_injected_fetcher():

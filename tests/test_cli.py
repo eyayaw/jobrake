@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from fakes import StubFetcher
 
 from jobrake import cli, defaults, sites
 from jobrake.models import JOB_FIELDS, make_job
@@ -286,8 +287,6 @@ def test_invalid_provider_arguments_fail_before_scraping(monkeypatch):
         ["attributes", "indeed", "data scientist"],
         ["attributes", "linkedin", "data scientist"],
         ["linkedin", "-q", "x", "-l", "Seattle", "--attribute", "3CQB7"],
-        ["linkedin", "-q", "x"],
-        ["linkedin", "-q", "x", "--geoid"],
         ["linkedin", "-q", "x", "-l", "Seattle", "--detail"],
         ["linkedin", "-q", "x", "-l", "Seattle", "--remote"],
         ["linkedin", "-q", "x", "-l", "Seattle", "--language", "en"],
@@ -300,35 +299,21 @@ def test_invalid_provider_arguments_fail_before_scraping(monkeypatch):
 @pytest.mark.parametrize(
     ("argv", "message"),
     [
-        (["linkedin", "-l", "Netherlands", "--company", "Acme"], "must use digits 0-9"),
-        (["indeed", "-c", "netherlands", "--company", " "], "employer key is blank"),
-        (["indeed", "-c", "usa", "--attribute", " "], "attribute code is blank"),
-        (
-            ["indeed", "-c", "netherlands", "--language", " "],
-            "language ' ' must contain exactly two ASCII letters",
-        ),
-        (
-            ["indeed", "-c", "netherlands", "--language", "en-US"],
-            "language 'en-US' must contain exactly two ASCII letters",
-        ),
-        (
-            ["indeed", "-c", "netherlands", "--company", "a", "--company", "b"],
-            "one Indeed employer key per search",
-        ),
+        (["linkedin", "--geoid"], "location is required unless geoid is an ID"),
+        (["indeed", "-c", "atlantis"], "unknown Indeed country 'atlantis'"),
     ],
 )
-def test_invalid_filter_reports_a_cli_error_before_opening_a_fetcher(
+def test_a_search_the_library_rejects_is_a_cli_error_before_any_request(
     monkeypatch, capsys, argv, message
 ):
-    def must_not_open():
-        raise AssertionError("opened transport before validating filters")
-
-    monkeypatch.setattr(sites, "HttpxFetcher", must_not_open)
+    fetcher = StubFetcher({})
+    monkeypatch.setattr(sites, "HttpxFetcher", lambda: fetcher)
     monkeypatch.setattr(sys, "argv", ["jobrake", *argv, "-q", ""])
     with pytest.raises(SystemExit) as error:
         cli.main()
     assert error.value.code == 2
     assert message in capsys.readouterr().err
+    assert fetcher.requests == []
 
 
 def test_default_output_is_json_on_stdout(run_cli, capsys):

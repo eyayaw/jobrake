@@ -9,7 +9,7 @@ from bs4 import BeautifulSoup
 from jobrake import defaults
 from jobrake.fetchkit import Fetcher
 from jobrake.models import make_job
-from jobrake.utils import check_bounds, check_filters, warn_ignored_filters
+from jobrake.utils import check_bounds, check_filters
 
 from .client import SEARCH_URL, job_id, paced_fetch
 from .geo import resolve_geoid
@@ -119,17 +119,16 @@ async def search(
             "location is required unless geoid is an ID. "
             "Try 'Amsterdam, North Holland, Netherlands'"
         )
-    filters = {
-        "companies": companies,
-        "remote": remote,
-        "language": language,
-        "attributes": attributes,
-        "easy_apply": easy_apply,
-        "early_applicant": early_applicant,
-    }
-    check_filters("linkedin", **filters)
-    warn_ignored_filters("linkedin", **filters)
     check_bounds(results=results, radius=radius, max_age_hours=max_age_hours)
+    check_filters(
+        "linkedin",
+        companies=companies,
+        remote=remote,
+        language=language,
+        attributes=attributes,
+        easy_apply=easy_apply,
+        early_applicant=early_applicant,
+    )
     if location:
         logger.info("searching linkedin for %r in %r", query, location)
     else:

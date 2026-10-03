@@ -482,8 +482,6 @@ def main() -> int | None:
             handler.clear()
         # An empty result means every named posting failed, each already reported.
         return _write_jobs(args, jobs, fmt) if jobs else 1
-    if args.provider == "linkedin" and args.location is None and not isinstance(args.geoid, str):
-        parser.error("--location/-l is required unless --geoid receives an ID")
     # Settle the output before the scrape spends any requests.
     fmt = _settle_output(parser, args)
     options = {name: value for name, value in vars(args).items() if name in _SEARCH_OPTIONS}

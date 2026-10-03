@@ -4,7 +4,6 @@ from collections.abc import Callable
 
 from jobrake import defaults
 from jobrake.fetchkit import Fetcher, HttpxFetcher
-from jobrake.utils import check_bounds, check_filters
 
 from . import indeed, linkedin
 
@@ -48,6 +47,7 @@ async def scrape(
     filter unchecked, so a wrong type there cannot stop the search.
 
     Every returned dict has the shared identity and summary keys, with available detail fields added.
+    The provider validates its arguments before the first request.
     An injected fetcher remains open and belongs to the caller. Indeed requires one with JSON POST support.
     Without an injected fetcher, ``scrape`` creates and closes an ``HttpxFetcher``.
 
@@ -59,29 +59,6 @@ async def scrape(
     searchers = site_searchers()
     if site not in searchers:
         raise ValueError(f"unknown site {site!r}. Expected one of {sorted(searchers)}")
-    # Rejecting bad values here keeps the transport closed. The warnings for
-    # unused filters come from the provider search, which direct callers reach too.
-    check_filters(
-        site,
-        companies=companies,
-        remote=remote,
-        language=language,
-        attributes=attributes,
-        easy_apply=easy_apply,
-        early_applicant=early_applicant,
-    )
-    if site == "linkedin":
-        if isinstance(geoid, str) and not geoid.strip():
-            raise ValueError("geoid is blank")
-        if not isinstance(geoid, str) and (location is None or not location.strip()):
-            raise ValueError(
-                f"location is required for site='{site}' unless geoid is an ID. Try 'London, England'"
-            )
-    elif site == "indeed":
-        if country is None:
-            raise ValueError(f"country is required for site='{site}'. Try 'usa' or 'germany'")
-    check_bounds(results=results, radius=radius, max_age_hours=max_age_hours)
-
     owns_fetcher = fetcher is None
     if owns_fetcher:
         fetcher = HttpxFetcher()
