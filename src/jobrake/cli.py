@@ -101,7 +101,7 @@ def _add_linkedin_args(parser: argparse.ArgumentParser) -> None:
     )
     parser.add_argument(
         "--company",
-        dest="companies",
+        dest="company_ids",
         action="append",
         metavar="ID",
         help="filter job results by company ID, repeat for several companies",
@@ -152,8 +152,7 @@ def _add_indeed_args(parser: argparse.ArgumentParser) -> None:
     )
     parser.add_argument(
         "--company",
-        dest="companies",
-        action="append",
+        dest="employer_key",
         metavar="KEY",
         help="filter jobs by employer key (one company per search)",
     )

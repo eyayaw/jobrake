@@ -76,7 +76,8 @@ async def search(
     details: bool = defaults.DETAILS,
     cache: bool = defaults.CACHE,
     geoid: str | bool = defaults.GEOID,
-    companies: list[str] | None = None,
+    company_ids: list[str] | None = None,
+    employer_key: str | None = None,
     remote: bool = False,
     language: str | None = None,
     attributes: list[str] | None = None,
@@ -90,12 +91,12 @@ async def search(
     Otherwise ``location`` is required and works best with a region and country.
     ``geoid=True`` resolves ``location`` through :func:`resolve_geoid`, and a failed resolution returns no jobs with a warning.
     ``radius`` reaches LinkedIn through its undocumented ``distance`` parameter.
-    ``companies`` lists numeric employer IDs. ``easy_apply`` keeps jobs with the Easy Apply form,
+    ``company_ids`` lists numeric employer IDs. ``easy_apply`` keeps jobs with the Easy Apply form,
     and ``early_applicant`` keeps jobs LinkedIn lists with fewer than 10 applicants.
     ``query=""`` searches without keywords. An option set to ``None``, ``False``, or ``[]`` applies no restriction.
     Filters combine and travel with every page.
     ``details`` hydrates posting pages, and ``cache`` controls their reuse.
-    ``country`` is accepted and unused. ``remote``, ``language``, and ``attributes`` belong to Indeed.
+    ``country`` is accepted and unused. ``employer_key``, ``remote``, ``language``, and ``attributes`` belong to Indeed.
     A value in one of them draws a warning and goes unchecked.
     The caller owns ``fetcher``.
 
@@ -123,7 +124,8 @@ async def search(
     check_bounds(results=results, radius=radius, max_age_hours=max_age_hours)
     check_filters(
         "linkedin",
-        companies=companies,
+        company_ids=company_ids,
+        employer_key=employer_key,
         remote=remote,
         language=language,
         attributes=attributes,
@@ -163,7 +165,7 @@ async def search(
             # Newest first. The guest endpoint ignores it today and ranks by
             # relevance.
             "sortBy": "DD",
-            "f_C": ",".join(companies) if companies else None,
+            "f_C": ",".join(company_ids) if company_ids else None,
             "f_AL": "true" if easy_apply else None,
             "f_EA": "true" if early_applicant else None,
         }

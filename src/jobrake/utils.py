@@ -71,21 +71,27 @@ def check_text(**values: object) -> None:
             raise TypeError(f"{name} must be a string, got {value!r}")
 
 
-def check_flag(name: str, value: object, *, site: str) -> None:
+def _strings(name: str, value: object, item: str) -> list[str]:
+    """Read an optional list filter, requiring a string for every entry."""
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        raise TypeError(f"{name} must be a list of {item} strings")
+    for entry in value:
+        if not isinstance(entry, str):
+            raise TypeError(f"{item} {entry!r} must be a string")
+    return value
+
+
+def check_flag(name: str, value: object) -> None:
     """Require a Boolean for one search flag."""
     if not isinstance(value, bool):
         raise TypeError(f"{name} must be a boolean, got {value!r}")
 
 
-def check_attributes(name: str, value: object, *, site: str) -> None:
+def check_attributes(name: str, value: object) -> None:
     """Require a list of nonblank attribute codes when supplied."""
-    if value is None:
-        return
-    if not isinstance(value, list):
-        raise TypeError(f"{name} must be a list of code strings")
-    for code in value:
-        if not isinstance(code, str):
-            raise TypeError(f"attribute code {code!r} must be a string")
+    for code in _strings(name, value, "attribute code"):
         if not code.strip():
             raise ValueError(
                 "attribute code is blank. Find codes with "
@@ -93,7 +99,7 @@ def check_attributes(name: str, value: object, *, site: str) -> None:
             )
 
 
-def check_language(name: str, value: object, *, site: str) -> None:
+def check_language(name: str, value: object) -> None:
     """Validate an optional two-letter language code."""
     if value is None:
         return
@@ -103,45 +109,39 @@ def check_language(name: str, value: object, *, site: str) -> None:
         raise ValueError(f"{name} {value!r} must contain exactly two ASCII letters, such as 'en'")
 
 
-def check_companies(name: str, value: object, *, site: str) -> None:
-    """Validate LinkedIn company IDs or one Indeed employer key."""
+def check_company_ids(name: str, value: object) -> None:
+    """Require a list of LinkedIn company IDs when supplied."""
+    for company in _strings(name, value, "company ID"):
+        if not (company.isascii() and company.isdigit()):
+            raise ValueError(f"company ID {company!r} must use digits 0-9, such as '1173'")
+
+
+def check_employer_key(name: str, value: object) -> None:
+    """Require a nonblank Indeed employer key when supplied."""
     if value is None:
         return
-    if not isinstance(value, list):
-        raise TypeError(f"{name} must be a list of company ID strings")
-    if site == "indeed" and len(value) > 1:
-        raise ValueError("jobrake supports one Indeed employer key per search. Supply a single key")
-    for company in value:
-        if not isinstance(company, str):
-            raise TypeError(f"company ID {company!r} must be a string")
-        if site == "linkedin":
-            if not (company.isascii() and company.isdigit()):
-                raise ValueError(f"company ID {company!r} must use digits 0-9, such as '1173'")
-        elif not company.strip():
-            raise ValueError(
-                "Indeed employer key is blank. Find a key with "
-                "'jobrake companies indeed NAME --country EDITION'"
-            )
+    if not isinstance(value, str):
+        raise TypeError(f"{name} must be a string, got {value!r}")
+    if not value.strip():
+        raise ValueError(
+            "Indeed employer key is blank. Find a key with "
+            "'jobrake companies indeed NAME --country EDITION'"
+        )
 
 
-class _Filter(NamedTuple):
-    """How one search filter is checked and which providers apply it."""
-
-    check: Callable[..., None]
-    providers: tuple[str, ...]
-
-
-# Any provider outside a filter's row accepts the argument and runs anyway.
-_FILTERS = {
-    "companies": _Filter(check_companies, ("indeed", "linkedin")),
-    "remote": _Filter(check_flag, ("indeed",)),
-    "language": _Filter(check_language, ("indeed",)),
-    "attributes": _Filter(check_attributes, ("indeed",)),
-    "easy_apply": _Filter(check_flag, ("linkedin",)),
-    "early_applicant": _Filter(check_flag, ("linkedin",)),
+# Each filter names the providers that apply it and the check each one runs.
+# A provider outside a filter's row accepts the argument and searches without it.
+_FILTERS: dict[str, dict[str, Callable[[str, object], None]]] = {
+    "company_ids": {"linkedin": check_company_ids},
+    "employer_key": {"indeed": check_employer_key},
+    "remote": {"indeed": check_flag},
+    "language": {"indeed": check_language},
+    "attributes": {"indeed": check_attributes},
+    "easy_apply": {"linkedin": check_flag},
+    "early_applicant": {"linkedin": check_flag},
 }
 
-_SITES = frozenset(site for entry in _FILTERS.values() for site in entry.providers)
+_SITES = frozenset(site for checks in _FILTERS.values() for site in checks)
 
 
 def check_filters(site: str, **filters: object) -> None:
@@ -163,9 +163,9 @@ def check_filters(site: str, **filters: object) -> None:
         raise ValueError(f"unknown site {site!r}. Expected one of {sorted(_SITES)}")
     ignored = []
     for name, value in filters.items():
-        entry = _FILTERS[name]
-        if site in entry.providers:
-            entry.check(name, value, site=site)
+        checks = _FILTERS[name]
+        if site in checks:
+            checks[site](name, value)
         elif value:
             ignored.append(name)
     for name in ignored:
@@ -173,7 +173,7 @@ def check_filters(site: str, **filters: object) -> None:
             "%s ignores %s and searches without it. Run the search on %s to apply it",
             site,
             name,
-            " or ".join(_FILTERS[name].providers),
+            " or ".join(_FILTERS[name]),
         )
 
 

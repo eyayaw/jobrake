@@ -320,7 +320,7 @@ def test_resolve_geoid_typeahead_top_hit_or_none(unlimited, caplog):
 
 
 @pytest.mark.parametrize(
-    ("companies", "query", "easy_apply", "early_applicant"),
+    ("company_ids", "query", "easy_apply", "early_applicant"),
     [
         (None, "data", False, False),
         ([], "", True, False),
@@ -329,7 +329,7 @@ def test_resolve_geoid_typeahead_top_hit_or_none(unlimited, caplog):
     ],
 )
 def test_paginated_search_preserves_filters(
-    unlimited, companies, query, easy_apply, early_applicant
+    unlimited, company_ids, query, easy_apply, early_applicant
 ):
     fetcher = PagedFetcher([linkedin_card("111"), linkedin_card("222")])
     jobs = asyncio.run(
@@ -337,7 +337,7 @@ def test_paginated_search_preserves_filters(
             fetcher,
             query=query,
             geoid="102890719",
-            companies=companies,
+            company_ids=company_ids,
             easy_apply=easy_apply,
             early_applicant=early_applicant,
             language="not a code",
@@ -356,14 +356,14 @@ def test_paginated_search_preserves_filters(
             "start": [str(start)],
             "f_TPR": ["r172800"],
             "sortBy": ["DD"],
-            **({"f_C": [",".join(companies)]} if companies else {}),
+            **({"f_C": [",".join(company_ids)]} if company_ids else {}),
             **({"f_AL": ["true"]} if easy_apply else {}),
             **({"f_EA": ["true"]} if early_applicant else {}),
         }
 
 
 @pytest.mark.parametrize(
-    ("companies", "error"),
+    ("company_ids", "error"),
     [
         ([""], ValueError),
         (["1173,2220078"], ValueError),
@@ -372,12 +372,12 @@ def test_paginated_search_preserves_filters(
         ("1173", TypeError),
     ],
 )
-def test_company_ids_are_validated_before_geoid_lookup(companies: Any, error):
+def test_company_ids_are_validated_before_geoid_lookup(company_ids: Any, error):
     fetcher = StubFetcher({})
     with pytest.raises(error, match="compan"):
         asyncio.run(
             linkedin.search(
-                fetcher, query="", location="Netherlands", geoid=True, companies=companies
+                fetcher, query="", location="Netherlands", geoid=True, company_ids=company_ids
             )
         )
     assert fetcher.requests == []

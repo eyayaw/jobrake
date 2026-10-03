@@ -88,18 +88,17 @@ def test_company_lookup_distinguishes_no_matches_from_failure(caplog):
         assert bool(caplog.records) == (expected is None)
 
 
-def test_indeed_rejects_invalid_company_arguments_before_searching():
+def test_indeed_rejects_an_invalid_employer_key_before_searching():
     cases: list[tuple[Any, type[Exception]]] = [
-        ("fe219df7f711aa73", TypeError),
-        ([123], TypeError),
-        ([" "], ValueError),
-        (["fe219df7f711aa73", "8e8f030e53ea29e4"], ValueError),
+        (["fe219df7f711aa73"], TypeError),
+        (123, TypeError),
+        (" ", ValueError),
     ]
     fetcher = StubFetcher({})
-    for companies, error in cases:
-        with pytest.raises(error):
+    for employer_key, error in cases:
+        with pytest.raises(error, match="employer.key"):
             asyncio.run(
-                indeed.search(fetcher, query="", country="netherlands", companies=companies)
+                indeed.search(fetcher, query="", country="netherlands", employer_key=employer_key)
             )
     assert fetcher.requests == []
 
@@ -169,17 +168,17 @@ def test_indeed_keeps_a_job_whose_date_is_not_milliseconds(caplog):
 
 
 @pytest.mark.parametrize(
-    ("companies", "age", "remote", "language", "attributes", "expected_keys"),
+    ("employer_key", "age", "remote", "language", "attributes", "expected_keys"),
     [
         (None, 168, False, None, None, []),
-        ([], None, False, None, [], []),
-        (["fe219df7f711aa73"], None, False, None, [" 3CQB7 "], ["3CQB7"]),
-        (["fe219df7f711aa73"], 168, False, None, ["CF3CP", "6QC5F"], ["CF3CP", "6QC5F"]),
+        (None, None, False, None, [], []),
+        (" fe219df7f711aa73\n", None, False, None, [" 3CQB7 "], ["3CQB7"]),
+        ("fe219df7f711aa73", 168, False, None, ["CF3CP", "6QC5F"], ["CF3CP", "6QC5F"]),
         (None, 168, True, "Iw", None, ["DSQF7"]),
-        ([], None, True, None, [" DSQF7 "], ["DSQF7"]),
-        (["fe219df7f711aa73"], None, True, "in", ["3CQB7"], ["3CQB7", "DSQF7"]),
+        (None, None, True, None, [" DSQF7 "], ["DSQF7"]),
+        ("fe219df7f711aa73", None, True, "in", ["3CQB7"], ["3CQB7", "DSQF7"]),
         (
-            ["fe219df7f711aa73"],
+            "fe219df7f711aa73",
             168,
             True,
             "EN",
@@ -190,7 +189,7 @@ def test_indeed_keeps_a_job_whose_date_is_not_milliseconds(caplog):
     ],
 )
 def test_indeed_requests_full_pages_throughout_a_cursor_chain(
-    companies, age, remote, language, attributes, expected_keys
+    employer_key, age, remote, language, attributes, expected_keys
 ):
     # Indeed binds the page size to its cursor and rejects a changed limit
     # with BAD_USER_INPUT, so every request in a chain asks for a full page.
@@ -214,7 +213,7 @@ def test_indeed_requests_full_pages_throughout_a_cursor_chain(
             query="x",
             country="usa",
             results=3,
-            companies=companies,
+            employer_key=employer_key,
             max_age_hours=age,
             remote=remote,
             language=language,
@@ -229,8 +228,8 @@ def test_indeed_requests_full_pages_throughout_a_cursor_chain(
     assert all("limit: 100" in query for query in fetcher.queries)
     assert all("language" in query.split() for query in fetcher.queries)
     for query in fetcher.queries:
-        assert ('field: "indeedEmployerKey"' in query) == bool(companies)
-        assert ('keys: ["fe219df7f711aa73"]' in query) == bool(companies)
+        assert ('field: "indeedEmployerKey"' in query) == bool(employer_key)
+        assert ('keys: ["fe219df7f711aa73"]' in query) == bool(employer_key)
         assert ('date: { field: "dateOnIndeed", start: "168h" }' in query) == bool(age)
         if expected_keys:
             assert f'keyword: {{ field: "attributes", keys: {json.dumps(expected_keys)} }}' in query
@@ -242,9 +241,9 @@ def test_indeed_requests_full_pages_throughout_a_cursor_chain(
             assert 'field: "language"' not in query
         else:
             assert '{ keyword: { field: "language", keys: ["' + language.lower() + '"] } }' in query
-        if (companies or expected_keys or language) and age:
+        if (employer_key or expected_keys or language) and age:
             assert "} }, { keyword:" in query
-        if not companies and not expected_keys and language is None and age is None:
+        if not employer_key and not expected_keys and language is None and age is None:
             assert "filters:" not in query
     assert len(fetcher.queries) == 2
     assert attributes == original_attributes

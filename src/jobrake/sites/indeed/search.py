@@ -81,7 +81,7 @@ def build_query(
     radius: int | None,
     max_age_hours: int | None,
     cursor: str | None,
-    company: str | None = None,
+    employer_key: str | None = None,
     remote: bool = False,
     language: str | None = None,
     attributes: list[str] | None = None,
@@ -90,9 +90,11 @@ def build_query(
     filters = []
     if max_age_hours:
         filters.append(f'{{ date: {{ field: "dateOnIndeed", start: "{max_age_hours}h" }} }}')
-    if company is not None:
+    if employer_key is not None:
         filters.append(
-            '{ keyword: { field: "indeedEmployerKey", keys: [' + json.dumps(company) + "] } }"
+            '{ keyword: { field: "indeedEmployerKey", keys: ['
+            + json.dumps(employer_key.strip())
+            + "] } }"
         )
     attribute_keys = list(dict.fromkeys(code.strip() for code in attributes or []))
     if remote and "DSQF7" not in attribute_keys:
@@ -287,7 +289,8 @@ async def search(
     details: bool = defaults.DETAILS,
     cache: bool = defaults.CACHE,
     geoid: str | bool = defaults.GEOID,
-    companies: list[str] | None = None,
+    company_ids: list[str] | None = None,
+    employer_key: str | None = None,
     remote: bool = False,
     language: str | None = None,
     attributes: list[str] | None = None,
@@ -299,13 +302,13 @@ async def search(
 
     ``country`` selects the edition, and ``location`` narrows it to a place within that edition.
     ``radius`` is in kilometers, and ``None`` uses ``defaults.INDEED_RADIUS``.
-    ``companies`` keeps jobs at one employer, given as a list holding its employer key.
-    ``attributes`` keeps postings carrying every listed code, with whitespace around each code removed.
+    ``employer_key`` keeps jobs at one employer, and ``attributes`` keeps postings carrying every listed code.
+    Whitespace around the key and the codes is removed.
     ``remote=True`` adds Indeed's Remote attribute, ``"DSQF7"``, to those codes.
     ``language`` takes Indeed's two-letter code in either case, such as ``"en"``, including the legacy codes ``"iw"`` and ``"in"``.
     ``None``, ``False``, and ``[]`` each keep an option out of the search. The filters that remain combine on every page.
     Age uses Indeed's ``dateOnIndeed`` field, which can differ from the publication timestamp returned as ``posted_at``.
-    ``details``, ``cache``, and ``geoid`` are accepted and unused. ``easy_apply`` and ``early_applicant`` belong to LinkedIn.
+    ``details``, ``cache``, and ``geoid`` are accepted and unused. ``company_ids``, ``easy_apply``, and ``early_applicant`` belong to LinkedIn.
     Indeed warns when one of them carries a value and leaves its type unexamined.
     The caller owns ``fetcher``.
 
@@ -319,8 +322,7 @@ async def search(
     Raises:
         TypeError: An argument Indeed applies has the wrong type.
         ValueError: The country is missing or unknown, a numeric argument is out of range,
-            the company list holds a blank key or more than one, an attribute code is blank,
-            or ``language`` is not two ASCII letters.
+            the employer key or an attribute code is blank, or ``language`` is not two ASCII letters.
     """
     check_text(query=query, location=location, country=country)
     if country is None:
@@ -330,7 +332,8 @@ async def search(
     check_bounds(results=results, radius=radius, max_age_hours=max_age_hours)
     check_filters(
         "indeed",
-        companies=companies,
+        company_ids=company_ids,
+        employer_key=employer_key,
         remote=remote,
         language=language,
         attributes=attributes,
@@ -354,7 +357,7 @@ async def search(
             radius,
             max_age_hours,
             cursor,
-            companies[0] if companies else None,
+            employer_key,
             remote=remote,
             language=language,
             attributes=attributes,

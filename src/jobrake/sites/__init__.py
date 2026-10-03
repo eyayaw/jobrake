@@ -25,7 +25,8 @@ async def scrape(
     details: bool = defaults.DETAILS,
     cache: bool = defaults.CACHE,
     geoid: str | bool = defaults.GEOID,
-    companies: list[str] | None = None,
+    company_ids: list[str] | None = None,
+    employer_key: str | None = None,
     remote: bool = False,
     language: str | None = None,
     attributes: list[str] | None = None,
@@ -36,10 +37,10 @@ async def scrape(
     """
     Route a search through one provider.
 
-    Both providers take ``query``, ``location``, ``radius``, ``results``, ``max_age_hours``, and ``companies``.
+    Both providers take ``query``, ``location``, ``radius``, ``results``, and ``max_age_hours``.
     Searches cover the past seven days by default, and ``max_age_hours=None`` lifts the age limit.
-    Indeed requires ``country`` and applies ``remote``, ``language``, and ``attributes``.
-    LinkedIn requires a ``location`` or a geoId string and applies ``geoid``, ``easy_apply``, ``early_applicant``, ``details``, and ``cache``.
+    Indeed requires ``country`` and applies ``employer_key``, ``remote``, ``language``, and ``attributes``.
+    LinkedIn requires a ``location`` or a geoId string and applies ``geoid``, ``company_ids``, ``easy_apply``, ``early_applicant``, ``details``, and ``cache``.
     Each provider's ``search`` documents the values its options accept.
 
     One signature covers both providers, so a caller can send the same options
@@ -72,7 +73,8 @@ async def scrape(
         "details": details,
         "cache": cache,
         "geoid": geoid,
-        "companies": companies,
+        "company_ids": company_ids,
+        "employer_key": employer_key,
         "remote": remote,
         "language": language,
         "attributes": attributes,
