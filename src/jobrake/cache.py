@@ -17,7 +17,7 @@ POSTINGS = "postings"
 ADDRESSES = "addresses"
 GEOIDS = "geoids"
 TTL = 7 * 24 * 3600  # seconds
-# Startup applies retention only to rows with posting fields, tombstones stay.
+# Startup deletes posting rows past retention, tombstones included.
 RETENTION = 30 * 24 * 3600
 
 # Each table version identifies the field set and parsing of its rows.
@@ -99,8 +99,9 @@ class Cache:
     Store postings, their addresses, and LinkedIn place resolutions in SQLite tables.
 
     Posting values expire after ``ttl`` seconds and are deleted after
-    ``retention`` seconds. Posting tombstones, addresses, and geoId
-    resolutions do not expire. A storage or decoding failure logs once and
+    ``retention`` seconds. A posting tombstone lasts ``retention`` seconds, so
+    a posting once reported gone is requested again after that. Addresses and
+    geoId resolutions do not expire. A storage or decoding failure logs once and
     disables this instance. Callers receive misses and continue scraping. A
     site keeps its own keys separate within each table, and each table's
     stored format version keeps values apart from those an earlier field set
@@ -109,7 +110,7 @@ class Cache:
     Attributes:
         path: SQLite database path. The cache opens it on first access.
         ttl: Seconds a field row remains fresh.
-        retention: Seconds a field row remains on disk.
+        retention: Seconds a field row remains on disk and a tombstone stays in force.
     """
 
     def __init__(
@@ -174,7 +175,7 @@ class Cache:
                         f"DELETE FROM {table} WHERE version != ?", (_VERSIONS[table],)
                     )
                 self._conn.execute(
-                    f"DELETE FROM {POSTINGS} WHERE fields IS NOT NULL AND stored_at < ?",
+                    f"DELETE FROM {POSTINGS} WHERE stored_at < ?",
                     (time.time() - self.retention,),
                 )
                 self._conn.commit()
@@ -199,7 +200,8 @@ class Cache:
         Read values for the requested keys in one table and site.
 
         Posting values honor ``ttl``. Address and geoId values do not expire.
-        A ``None`` posting value is a tombstone marking the posting as gone.
+        A ``None`` posting value is a tombstone marking the posting as gone,
+        returned until it is ``retention`` seconds old.
         Missing keys are stale, absent, or malformed rows.
         Storage and decoding failures disable the cache and return an empty dict.
         """
@@ -215,17 +217,17 @@ class Cache:
                 f" WHERE version = ? AND site = ? AND key IN ({placeholders})",
                 [_VERSIONS[table], site, *keys],
             )
-            stale = time.time() - self.ttl if table == POSTINGS else None
+            now = time.time()
             found = {}
             for key, stored, stored_at in rows:
-                if stored is None:
-                    if table == POSTINGS:
-                        found[key] = None
-                    continue
                 # SQLite may return a nonnumeric value despite the REAL declaration.
                 if not isinstance(stored_at, int | float) or not math.isfinite(stored_at):
                     raise ValueError(f"cache stored_at is not a finite number: {stored_at!r}")
-                if stale is None or stored_at >= stale:
+                if stored is None:
+                    if table == POSTINGS and stored_at >= now - self.retention:
+                        found[key] = None
+                    continue
+                if table != POSTINGS or stored_at >= now - self.ttl:
                     try:
                         decoded = json.loads(stored, parse_constant=_reject_constant)
                     except _NonstandardConstant:

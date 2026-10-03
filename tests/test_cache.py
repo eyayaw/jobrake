@@ -37,7 +37,7 @@ def test_sites_do_not_collide(tmp_path):
     assert cache.get(POSTINGS, "indeed", ["111"]) == {}
 
 
-def test_expiry_applies_to_postings_but_not_tombstones_or_geoids(tmp_path):
+def test_tombstones_and_geoids_outlive_the_freshness_period(tmp_path):
     cache = make_cache(tmp_path)
     cache.put(POSTINGS, "linkedin", {"111": POSTING, "222": None})
     place = {"geoId": "7", "displayName": "Enschede, Overijssel, Netherlands"}
@@ -49,13 +49,15 @@ def test_expiry_applies_to_postings_but_not_tombstones_or_geoids(tmp_path):
     assert cache.get(GEOIDS, "linkedin", ["enschede"]) == {"enschede": place}
 
 
-def test_retention_purges_fields_but_keeps_tombstones(tmp_path):
+def test_retention_ends_tombstones_and_purges_posting_rows(tmp_path):
     cache = make_cache(tmp_path)
     cache.put(POSTINGS, "linkedin", {"111": POSTING, "222": None})
     age_rows(cache, RETENTION + 1)
+    # The open cache stops honoring the tombstone, and the next startup deletes both rows.
+    assert cache.get(POSTINGS, "linkedin", ["111", "222"]) == {}
     reopened = make_cache(tmp_path)
-    assert reopened.get(POSTINGS, "linkedin", ["111", "222"]) == {"222": None}
-    assert reopened._conn.execute("SELECT count(*) FROM postings").fetchone() == (1,)
+    assert reopened.get(POSTINGS, "linkedin", ["111", "222"]) == {}
+    assert reopened._conn.execute("SELECT count(*) FROM postings").fetchone() == (0,)
 
 
 def test_nonfinite_row_is_a_miss_without_disabling_the_cache(tmp_path):
