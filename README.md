@@ -97,7 +97,7 @@ jobrake places indeed -c netherlands "amsterdam"
 
 The CLI writes JSON to stdout by default.
 `--format | -f` selects JSON, JSONL, or CSV, and `--output | -o` writes to a file.
-See [usage and output](https://github.com/eyayaw/jobrake/blob/main/docs/usage.md) for file formats, returned fields, custom fetchers, and piping.
+See the [guide](https://github.com/eyayaw/jobrake/blob/main/docs/guide.md#read-and-save-results) for file formats, returned fields, custom fetchers, and piping.
 
 ### As a library
 
@@ -127,7 +127,7 @@ jobs = asyncio.run(main())
 | `linkedin` | Login-free guest API | Optional, paced, and cached |
 
 Indeed requires `country`. LinkedIn accepts either `location` or a geoId.
-See [provider behavior](https://github.com/eyayaw/jobrake/blob/main/docs/providers.md) for search queries, geography, filters, pagination, rate limits, retries, and LinkedIn detail fetching.
+See the [guide](https://github.com/eyayaw/jobrake/blob/main/docs/guide.md) for search queries, geography, filters, pagination, rate limits, retries, and LinkedIn detail fetching.
 
 ## Credits
 

@@ -11,7 +11,7 @@
   examples, and the author's voice. Use punctuation where it improves clarity.
 - Wrap only genuinely long passages, tables, and code. Keep short prose sentences on one line even when they cross the usual line length.
 - Always write `jobrake` in lowercase.
-- Keep the README as a short landing page. Put detailed usage and output behavior in `docs/usage.md`, and provider-specific behavior in `docs/providers.md`.
+- Keep the README as a short landing page. Put detailed usage, output, and provider-specific behavior in `docs/guide.md`.
 
 ## Changelog
 
