@@ -9,7 +9,7 @@ from gettext import ngettext
 from jobrake import defaults
 from jobrake.fetchkit import PostFetcher
 from jobrake.models import employment_type, make_job
-from jobrake.utils import check_bounds, check_filters, epoch_ms_to_iso, html_text
+from jobrake.utils import check_bounds, check_filters, check_text, epoch_ms_to_iso, html_text
 
 from .client import API_HEADERS, API_URL
 from .countries import indeed_domain
@@ -322,6 +322,7 @@ async def search(
             the company list holds a blank key or more than one, an attribute code is blank,
             or ``language`` is not two ASCII letters.
     """
+    check_text(query=query, location=location, country=country)
     if country is None:
         # scrape() forwards its own default when the caller names no edition.
         raise ValueError("country is required for Indeed. Try 'usa' or 'germany'")

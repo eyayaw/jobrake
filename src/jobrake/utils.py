@@ -64,6 +64,13 @@ def check_bounds(**values: int | None) -> None:
             raise ValueError(f"{name} ({value}) must be {bound.requirement}")
 
 
+def check_text(**values: object) -> None:
+    """Require a string for each search text that carries a value."""
+    for name, value in values.items():
+        if value is not None and not isinstance(value, str):
+            raise TypeError(f"{name} must be a string, got {value!r}")
+
+
 def check_flag(name: str, value: object, *, site: str) -> None:
     """Require a Boolean for one search flag."""
     if not isinstance(value, bool):

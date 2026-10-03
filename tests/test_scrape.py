@@ -19,10 +19,12 @@ from jobrake.sites.linkedin import client
         # Each provider's search owns its own argument checks. These are the
         # ones scrape's defaults reach, plus one applied filter per provider.
         ("indeed", {}, ValueError, "country is required"),
+        ("indeed", {"country": 5}, TypeError, "country"),
         ("indeed", {"country": "usa", "companies": ["a", "b"]}, ValueError, "one Indeed employer"),
         ("indeed", {"country": "usa", "remote": "false"}, TypeError, "remote must be a boolean"),
         ("linkedin", {}, ValueError, "location is required"),
         ("linkedin", {"geoid": True}, ValueError, "location is required"),
+        ("linkedin", {"location": 5}, TypeError, "location"),
         ("linkedin", {"geoid": " "}, ValueError, "geoid is blank"),
         ("linkedin", {"location": "Seattle", "companies": ["Acme"]}, ValueError, "company ID"),
         ("linkedin", {"location": "Seattle", "easy_apply": "false"}, TypeError, "easy_apply must"),

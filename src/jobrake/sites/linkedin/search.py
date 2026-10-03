@@ -9,7 +9,7 @@ from bs4 import BeautifulSoup
 from jobrake import defaults
 from jobrake.fetchkit import Fetcher
 from jobrake.models import make_job
-from jobrake.utils import check_bounds, check_filters
+from jobrake.utils import check_bounds, check_filters, check_text
 
 from .client import SEARCH_URL, job_id, paced_fetch
 from .geo import resolve_geoid
@@ -110,6 +110,7 @@ async def search(
         ValueError: The location is missing or blank, the geoId is blank, a numeric option
             is out of range, or a company ID uses characters other than digits 0-9.
     """
+    check_text(query=query, location=location)
     if isinstance(geoid, str):
         geoid = geoid.strip()
         if not geoid:
