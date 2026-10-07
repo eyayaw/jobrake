@@ -578,11 +578,14 @@ jobrake asks LinkedIn for the newest postings first, but the guest endpoint igno
 The order can also change between two runs of the same search.
 To collect only new postings, repeat the search with `--max-age` covering the time since the last run.
 
-LinkedIn limits traffic per IP. jobrake permits a short burst, then waits about three seconds between requests.
+LinkedIn limits guest traffic per IP and per data center, and pins a client to one data center with a cookie.
+jobrake spreads its requests over the data centers it sees, three in our tests, so each stays inside its own limit and a search runs at about one request per second.
 Each process has its own limiter, so concurrent runs on the same IP can reach the limit sooner.
+LinkedIn requests carry only the data-center cookie, so cookies seeded on the fetcher are not sent to LinkedIn.
 
-After a 429, jobrake waits for the `Retry-After` value or 10 seconds, then retries once.
-A `Retry-After` over one minute skips the retry. If the 429 remains, jobrake returns what it has collected so far.
+After heavy traffic, LinkedIn refuses some requests whatever the pace, so jobrake retries a 429 up to three times.
+A retry goes at once to another data center when jobrake knows one. It waits for the `Retry-After` value when LinkedIn sends one, and otherwise waits 12 seconds before the last retry or when no other data center is known.
+A `Retry-After` over one minute skips the retries. If the 429 remains, jobrake returns what it has collected so far.
 
 On a data center IP, such as a VPS, LinkedIn refuses posting pages with [HTTP 999](https://http.dev/999). Searches and lookups keep working, but every detail fetch fails.
 

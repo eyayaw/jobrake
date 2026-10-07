@@ -9,9 +9,11 @@ class StubFetcher:
     def __init__(self, responses: dict[str, FetchResult]):
         self.responses = responses
         self.requests: list[str] = []
+        self.headers: list[dict[str, str]] = []
 
-    def _lookup(self, url: str) -> FetchResult:
+    def _lookup(self, url: str, headers: dict[str, str] | None = None) -> FetchResult:
         self.requests.append(url)
+        self.headers.append(headers or {})
         for fragment, result in self.responses.items():
             if fragment in url:
                 return FetchResult(
@@ -24,10 +26,10 @@ class StubFetcher:
         return FetchResult(url=url, error=FetchError(ErrorCategory.CLIENT, "no stub"))
 
     async def fetch(self, url, headers=None):
-        return self._lookup(url)
+        return self._lookup(url, headers)
 
     async def post(self, url, json_body, headers=None):
-        return self._lookup(url)
+        return self._lookup(url, headers)
 
     async def close(self):
         pass
