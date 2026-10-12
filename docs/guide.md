@@ -579,15 +579,13 @@ The order can also change between two runs of the same search.
 To collect only new postings, repeat the search with `--max-age` covering the time since the last run.
 
 LinkedIn limits guest traffic per IP and per data center, and pins a client to one data center with a cookie.
-jobrake spreads its requests over the data centers it sees, three in our tests, and sends about one request per second once it has found them.
-The first few requests of a process look for the data centers and go out 2.5 seconds apart.
-Each data center stays inside its limit unless LinkedIn moves a request to another data center, which can cost one retry.
+jobrake spreads its requests over the three data centers that answered in our tests and sends about one request per second.
+If LinkedIn stops routing requests to a data center that jobrake names, jobrake looks for another with requests 2.5 seconds apart.
+Within one process, jobrake keeps each data center under the limit we measured, unless LinkedIn moves a request to another data center, which can cost one retry.
 Each process has its own limiter, so concurrent runs on the same IP can reach the limit sooner.
 LinkedIn requests carry only the data-center cookie, so cookies seeded on the fetcher reach LinkedIn only when it redirects a request.
 
-LinkedIn refuses some requests whatever the pace, up to a quarter of them in our tests, so jobrake retries a 429 up to three times.
-While jobrake is still looking for data centers, a retry goes out at the normal pace.
-After that, a retry goes out at the normal pace until the request has been tried as many times as there are data centers jobrake knows, and each later retry waits 12 seconds first.
+LinkedIn refuses some requests whatever the pace, up to a quarter of them in our tests, so jobrake retries a 429 up to three times, first on the other data centers and then after a 12-second wait.
 If the 429 remains, jobrake returns what it has collected so far.
 
 On a data center IP, such as a VPS, LinkedIn refuses posting pages with [HTTP 999](https://http.dev/999). Searches and lookups keep working, but every detail fetch fails.
