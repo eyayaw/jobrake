@@ -19,5 +19,5 @@ def isolated_cache(tmp_path, monkeypatch):
 
 @pytest.fixture(autouse=True)
 def fresh_fabrics(monkeypatch):
-    """Start every test with no LinkedIn fabric known."""
+    """Start every test with a new fabric pool, as a new process does."""
     monkeypatch.setattr(client, "POOL", client.Fabrics())
