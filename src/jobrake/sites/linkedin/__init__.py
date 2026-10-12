@@ -6,7 +6,6 @@ from . import client
 from .client import (
     BASE_URL,
     HEADERS,
-    LIMITER,
     SEARCH_URL,
     TYPEAHEAD_URL,
     job_id,
@@ -30,7 +29,6 @@ __all__ = [
     "CACHE",
     "FRAGMENT_URL",
     "HEADERS",
-    "LIMITER",
     "MAX_START",
     "SEARCH_URL",
     "TYPEAHEAD_URL",
