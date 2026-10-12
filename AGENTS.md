@@ -35,9 +35,9 @@ LinkedIn's guest API and Indeed's GraphQL API. It depends on `httpx` and `bs4`.
   so far. A short result is normal.
 - The transport is injected. Code takes a `Fetcher` and leaves it open, and
   the caller that created it closes it. Indeed needs `PostFetcher` for `post()`.
-- LinkedIn requests go through `paced_fetch`, which learns LinkedIn's data
-  centers and pins requests to them in turn, paces them with one token bucket
-  per process, and retries a 429 up to three times. Posting fields, posting
+- LinkedIn requests go through `paced_fetch`, which pins requests to
+  LinkedIn's data centers in turn, paces them with one token bucket per
+  process, and retries a 429 up to three times. Posting fields, posting
   addresses, and place resolutions are cached in one SQLite file, configured
   by the `JOBRAKE_CACHE_*` environment variables. Indeed is neither paced nor
   cached.
