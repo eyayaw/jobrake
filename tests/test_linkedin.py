@@ -150,6 +150,13 @@ class Routing(StubFetcher):
 
 
 def test_paced_fetch_pins_each_request_to_a_fabric_in_turn(unlimited):
+    # A new process starts pinned to the fabrics in FABRICS.
+    fetcher = StubFetcher({"linkedin.com": ok("hi")})
+    for _ in range(3):
+        asyncio.run(client.paced_fetch(fetcher, "https://www.linkedin.com/x"))
+    assert [h["cookie"] for h in fetcher.headers] == [f"lidc={c}" for c in client.FABRICS.values()]
+
+    client.POOL.known = {}
     fetcher = Routing(["prod-a", "prod-b", "prod-a", "prod-c"])
     for _ in range(8):
         assert asyncio.run(client.paced_fetch(fetcher, "https://www.linkedin.com/x")).ok
