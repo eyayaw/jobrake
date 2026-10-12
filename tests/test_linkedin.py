@@ -129,51 +129,6 @@ def test_linkedin_persistent_429_returns_partial(unlimited, caplog, monkeypatch)
     assert any("429" in record.message for record in caplog.records)
 
 
-def test_paced_fetch_retry_after_policy(unlimited, monkeypatch):
-    sleeps = []
-
-    async def recording_sleep(seconds):
-        sleeps.append(seconds)
-
-    monkeypatch.setattr(client.asyncio, "sleep", recording_sleep)
-
-    class FlakyOnce(StubFetcher):
-        def __init__(self, responses, first):
-            super().__init__(responses)
-            self.first = first
-
-        async def fetch(self, url, headers=None):
-            if not self.requests:
-                self.requests.append(url)
-                return self.first
-            return await super().fetch(url, headers)
-
-    fetcher = FlakyOnce({"linkedin.com": ok("hi")}, rate_limited({"retry-after": "42"}))
-    result = asyncio.run(client.paced_fetch(fetcher, "https://www.linkedin.com/x"))
-    assert result.ok
-    assert sleeps == [42.0]  # the server's ask
-
-    # an ask beyond MAX_RETRY_DELAY returns the 429 without a retry
-    fetcher = StubFetcher({"linkedin.com": rate_limited({"retry-after": "600"})})
-    result = asyncio.run(client.paced_fetch(fetcher, "https://www.linkedin.com/x"))
-    assert not result.ok
-    assert len(fetcher.requests) == 1
-    assert sleeps == [42.0]
-
-    # a date-form header falls back to the default delay
-    date = rate_limited({"retry-after": "Wed, 21 Oct 2026 07:28:00 GMT"})
-    fetcher = FlakyOnce({"linkedin.com": ok("hi")}, date)
-    result = asyncio.run(client.paced_fetch(fetcher, "https://www.linkedin.com/x"))
-    assert result.ok
-    assert sleeps == [42.0, client.RETRY_DELAY]
-
-    # so does a Unicode digit, which passes isdigit but not float()
-    fetcher = FlakyOnce({"linkedin.com": ok("hi")}, rate_limited({"retry-after": "²"}))
-    result = asyncio.run(client.paced_fetch(fetcher, "https://www.linkedin.com/x"))
-    assert result.ok
-    assert sleeps == [42.0, client.RETRY_DELAY, client.RETRY_DELAY]
-
-
 def test_linkedin_keeps_collected_jobs_after_a_later_page_failure(unlimited):
     class DownAfterFirst(StubFetcher):
         async def fetch(self, url, headers=None):

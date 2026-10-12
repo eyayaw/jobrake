@@ -49,10 +49,9 @@ def network_down() -> FetchResult:
     return FetchResult(url="stub", error=FetchError(ErrorCategory.NETWORK, "connection reset"))
 
 
-def rate_limited(headers: dict[str, str] | None = None) -> FetchResult:
+def rate_limited() -> FetchResult:
     return FetchResult(
         url="stub",
         status_code=429,
-        headers=headers or {},
         error=FetchError(ErrorCategory.RATE_LIMITED, "rate limited (HTTP 429)", http_status=429),
     )

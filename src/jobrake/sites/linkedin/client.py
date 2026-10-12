@@ -34,21 +34,10 @@ HEADERS = {
 # LinkedIn applies the budget per IP.
 LIMITER = TokenBucket(capacity=2, refill_interval=3.0)
 
-# A 429 remains after five seconds and clears around ten. A seconds-form
-# Retry-After takes precedence. jobrake will not wait longer than a minute:
-# past that, the 429 goes back to the caller unretried.
+# A 429 remains after five seconds and clears around ten. Measured on
+# 2026-08-27 and 2026-10-12: LinkedIn's guest 429 responses carry no
+# Retry-After header.
 RETRY_DELAY = 10.0
-MAX_RETRY_DELAY = 60.0
-
-
-def _retry_delay(result: FetchResult) -> float | None:
-    """Choose a retry delay within the local wait limit."""
-    value = result.headers.get("retry-after", "")
-    # Unicode digits such as "²" pass isdigit but not float().
-    if not (value.isascii() and value.isdigit()):
-        return RETRY_DELAY
-    seconds = float(value)
-    return seconds if seconds <= MAX_RETRY_DELAY else None
 
 
 def __getattr__(name: str) -> Cache:
@@ -63,21 +52,16 @@ def __getattr__(name: str) -> Cache:
 
 async def paced_fetch(fetcher: Fetcher, url: str) -> FetchResult:
     """
-    Pace one LinkedIn request and retry a 429 within the wait limit.
+    Pace one LinkedIn request and retry a 429 once after ``RETRY_DELAY``.
 
-    A seconds-form ``Retry-After`` sets the wait. A missing or unreadable value
-    uses ``RETRY_DELAY``. A delay above ``MAX_RETRY_DELAY`` skips the retry. A
-    persistent 429 is returned for the caller to decide whether the larger
+    A persistent 429 is returned for the caller to decide whether the larger
     operation should stop. Both attempts use the supplied transport, which
     remains open afterward.
     """
     await LIMITER.acquire()
     result = await fetcher.fetch(url, headers=HEADERS)
     if rate_limited(result):
-        delay = _retry_delay(result)
-        if delay is None:
-            return result
-        await asyncio.sleep(delay)
+        await asyncio.sleep(RETRY_DELAY)
         await LIMITER.acquire()
         result = await fetcher.fetch(url, headers=HEADERS)
     return result
