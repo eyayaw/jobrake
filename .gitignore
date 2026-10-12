@@ -6,4 +6,13 @@ __pycache__/
 .ruff_cache/
 .pytest_cache/
 dist/
-__*.md
+
+_*.md
+.*/
+!.github/
+# Git cannot re-include a file whose parent directory is excluded
+docs/assets/logo/*
+!docs/assets/logo/svg/
+docs/assets/logo/svg/*
+!docs/assets/logo/svg/jobrake-stacked-color.svg
+!docs/assets/logo/svg/jobrake-stacked-dark.svg
