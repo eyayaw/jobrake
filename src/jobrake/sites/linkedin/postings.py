@@ -401,10 +401,8 @@ async def fetch_postings(
         attempted.add(identity)
         result = await paced_fetch(fetcher, _canonical(url))
         if rate_limited(result):
-            # The retry inside paced_fetch already waited and failed. The
-            # limit belongs to the IP, so the next posting would fare no
-            # better; spending a wait per posting turns one block into a
-            # stall over the whole list.
+            # paced_fetch has spent its retries, so the next posting would likely be
+            # refused too. Stop instead of repeating them for every remaining posting.
             stopped = True
             break
         if result.error and result.error.http_status in (404, 410):
@@ -531,8 +529,8 @@ async def fetch_details(
             continue
         result = await paced_fetch(fetcher, f"{FRAGMENT_URL}/{posting_id}?_l=en_US")
         if rate_limited(result):
-            # The limit belongs to the IP, so every further request would buy
-            # another wait and another refusal.
+            # paced_fetch has spent its retries, so later postings would likely be
+            # refused too. Stop rather than retry each of them.
             stopped = True
             break
         if result.error:

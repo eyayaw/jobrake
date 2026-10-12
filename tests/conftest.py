@@ -1,4 +1,4 @@
-"""Fixtures that give every test an isolated cache."""
+"""Fixtures that give every test an isolated cache and fabric pool."""
 
 import pytest
 
@@ -15,3 +15,9 @@ def isolated_cache(tmp_path, monkeypatch):
     cache = Cache(tmp_path / "jobrake.sqlite3")
     monkeypatch.setattr(client, "CACHE", cache)
     return cache
+
+
+@pytest.fixture(autouse=True)
+def fresh_fabrics(monkeypatch):
+    """Start every test with no LinkedIn fabric known."""
+    monkeypatch.setattr(client, "POOL", client.Fabrics())
