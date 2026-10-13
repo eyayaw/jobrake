@@ -45,16 +45,20 @@ HEADERS = {
 # sliding 11.5-second window. The same three fabrics answer from North
 # America, Europe, Asia, and Oceania.
 #
-# LinkedIn routes on the fabric letter at the start of the cookie's b= field
-# and ignores the rest. 18 of 18 requests with a cookie built from the
-# letter alone, or with a forged signature, reached the named fabric.
+# A cookie holding only the b= field pins a request to the fabric its first
+# letter names, and LinkedIn routes it without checking a signature.
 # paced_fetch therefore starts from FABRICS and pins each request to
-# the fabric whose turn it is. When a pin drops, it sends requests without
-# the cookie to learn a replacement. The fabrics take strict turns, so one
-# pacer at PACE / number of fabrics gives each fabric PACE between its
-# requests. A request that LinkedIn reroutes to another fabric lands there
-# out of turn and can put one request too many in that fabric's window. The
-# pacer coordinates this process only; LinkedIn counts every process on the IP.
+# the least recently used fabric. When a pin drops, it sends requests without
+# the cookie to learn a replacement. If LinkedIn starts ignoring these
+# cookies, their pins drop the same way.
+# One pacer at PACE / number of fabrics spaces the requests, which gives each
+# fabric PACE between its requests while the fabrics take turns. A retry
+# skips the fabrics it tried, so it can reach a fabric before that fabric's
+# turn. pick therefore keeps each fabric's latest send time, and a request
+# that reaches a fabric early waits for the rest of PACE.
+# A request that LinkedIn reroutes to another fabric lands there out of turn
+# and can put one request too many in that fabric's window. The pacer
+# coordinates this process only; LinkedIn counts every process on the IP.
 FABRICS = {"prod-lor1": '"b=OGST02"', "prod-ltx1": '"b=TGST02"', "prod-lva1": '"b=VGST02"'}
 PACE = 2.5  # seconds between requests to one fabric: five per window, 1 s to spare
 FABRICS_WANTED = len(FABRICS)  # distinct fabrics to look for before every request is pinned
