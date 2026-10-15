@@ -125,8 +125,147 @@ def test_linkedin_persistent_429_returns_partial(unlimited, caplog, monkeypatch)
     fetcher = StubFetcher({"seeMoreJobPostings": rate_limited()})
     with caplog.at_level(logging.WARNING, logger="jobrake.sites.linkedin"):
         assert asyncio.run(linkedin.search(fetcher, query="x", location="Seattle")) == []
-    assert len(fetcher.requests) == 2  # the one retry, then give up
+    assert len(fetcher.requests) == 1 + client.RETRIES  # the retries, then give up
     assert any("429" in record.message for record in caplog.records)
+
+
+class Routing(StubFetcher):
+    """Answer an unpinned request from the next fabric in ``fabrics``, a pinned one from its own."""
+
+    def __init__(self, fabrics):
+        super().__init__({"linkedin.com": ok("hi")})
+        self.fabrics = fabrics
+        self.intervals: list[float] = []  # the pace at each request
+
+    async def fetch(self, url, headers=None):
+        self.intervals.append(client.LIMITER.refill_interval)
+        cookie = (headers or {})["cookie"]
+        fabric = cookie[6:-1] if cookie != "lidc=" else self.fabrics.pop(0)
+        result = await super().fetch(url, headers)
+        result.headers = {
+            "x-li-fabric": fabric,
+            "set-cookie": f'bcookie="x"; Path=/, lidc="{fabric}"; Path=/',
+        }
+        return result
+
+
+def test_paced_fetch_pins_each_request_to_a_fabric_in_turn(unlimited):
+    # A new process starts pinned to the fabrics in FABRICS.
+    fetcher = StubFetcher({"linkedin.com": ok("hi")})
+    for _ in range(3):
+        asyncio.run(client.paced_fetch(fetcher, "https://www.linkedin.com/x"))
+    assert [h["cookie"] for h in fetcher.headers] == [f"lidc={c}" for c in client.FABRICS.values()]
+
+    client.POOL.known = {}
+    fetcher = Routing(["prod-a", "prod-b", "prod-a", "prod-c"])
+    for _ in range(8):
+        assert asyncio.run(client.paced_fetch(fetcher, "https://www.linkedin.com/x")).ok
+
+    cookies = [h["cookie"] for h in fetcher.headers]
+    # Unpinned until three fabrics are known, then each fabric in turn, least
+    # recently used first: prod-a answered the third request, after prod-b.
+    assert cookies[:4] == ["lidc="] * 4
+    assert cookies[4:] == ['lidc="prod-b"', 'lidc="prod-a"', 'lidc="prod-c"', 'lidc="prod-b"']
+    # Unpinned requests keep the single-fabric pace; three fabrics then share it.
+    assert fetcher.intervals == [client.PACE] * 4 + [client.PACE / 3] * 4
+
+
+def test_paced_fetch_drops_a_pin_whose_request_lands_elsewhere(unlimited, monkeypatch):
+    monkeypatch.setattr(client, "DISCOVERY", 1)
+    client.POOL.known = {name: f'"{name}"' for name in ("prod-a", "prod-b", "prod-c")}
+    client.POOL.unpinned = 1  # discovery is spent
+
+    class Rerouting(Routing):
+        async def fetch(self, url, headers=None):
+            result = await super().fetch(url, headers)
+            if (headers or {})["cookie"] == 'lidc="prod-b"':
+                result.headers = {"x-li-fabric": "prod-a"}
+            return result
+
+    fetcher = Rerouting(["prod-d"])
+    for _ in range(5):
+        asyncio.run(client.paced_fetch(fetcher, "https://www.linkedin.com/x"))
+    # prod-b took the second turn and never another. Its drop restarted
+    # discovery, which found prod-d; the rest go on least recently used first.
+    assert sorted(client.POOL.known) == ["prod-a", "prod-c", "prod-d"]
+    cookies = [h["cookie"] for h in fetcher.headers]
+    assert cookies == ['lidc="prod-a"', 'lidc="prod-b"', "lidc=", 'lidc="prod-c"', 'lidc="prod-a"']
+    assert fetcher.intervals[-1] == client.PACE / 3
+
+
+def test_concurrent_paced_fetch_calls_choose_fabrics_in_send_order(monkeypatch):
+    monkeypatch.setattr(client, "DISCOVERY", 1)
+    client.POOL.known = {name: f'"{name}"' for name in ("prod-a", "prod-b")}
+
+    class Queueing(TokenBucket):
+        async def acquire(self):
+            await asyncio.sleep(0)  # both callers wait at the pacer
+
+    monkeypatch.setattr(client, "LIMITER", Queueing(capacity=10**9, refill_interval=1.0))
+    fetcher = Routing(["prod-c"])
+
+    async def two_callers():
+        url = "https://www.linkedin.com/x"
+        await asyncio.gather(client.paced_fetch(fetcher, url), client.paced_fetch(fetcher, url))
+
+    asyncio.run(two_callers())
+    # The first caller's unpinned request finds prod-c before the second caller
+    # chooses, and keeps the single-fabric pace.
+    assert [h["cookie"] for h in fetcher.headers] == ["lidc=", 'lidc="prod-a"']
+    assert fetcher.intervals == [client.PACE, client.PACE / 3]
+
+
+def test_paced_fetch_retries_a_refusal_on_the_next_fabric(unlimited, monkeypatch):
+    monkeypatch.setattr(client, "DISCOVERY", 0)  # two fabrics are all this process will know
+    sleeps = []
+
+    async def recording_sleep(seconds):
+        sleeps.append(seconds)
+
+    monkeypatch.setattr(client.asyncio, "sleep", recording_sleep)
+    client.POOL.known = {name: f'"{name}"' for name in ("prod-a", "prod-b")}
+
+    class Refusing(StubFetcher):
+        """prod-a refuses every request; prod-b answers unless ``answering`` is off."""
+
+        answering = True
+
+        async def fetch(self, url, headers=None):
+            fabric = (headers or {})["cookie"][6:-1]
+            result = ok("hi") if fabric == "prod-b" and self.answering else rate_limited()
+            self.requests.append(url)
+            self.headers.append(headers or {})
+            result.headers = {**result.headers, "x-li-fabric": fabric}
+            return result
+
+    fetcher = Refusing({})
+    result = asyncio.run(client.paced_fetch(fetcher, "https://www.linkedin.com/x"))
+    assert result.ok
+    assert [h["cookie"] for h in fetcher.headers] == ['lidc="prod-a"', 'lidc="prod-b"']
+    assert sleeps == []  # the other fabric has its own budget
+
+    # When both fabrics refuse, a retry that returns to one waits for the window.
+    fetcher = Refusing({})
+    fetcher.answering = False
+    result = asyncio.run(client.paced_fetch(fetcher, "https://www.linkedin.com/x"))
+    assert not result.ok
+    assert [h["cookie"][6:-1] for h in fetcher.headers] == ["prod-a", "prod-b"] * 2
+    assert sleeps == [client.RETRY_DELAY] * 2
+
+    # With no other fabric known, every retry waits for the window.
+    sleeps.clear()
+    client.POOL.known = {"prod-a": '"prod-a"'}
+    fetcher = Refusing({})
+    assert not asyncio.run(client.paced_fetch(fetcher, "https://www.linkedin.com/x")).ok
+    assert sleeps == [client.RETRY_DELAY] * client.RETRIES
+
+    # While no fabric is known, every retry goes out unpinned without waiting.
+    sleeps.clear()
+    client.POOL.known = {}
+    fetcher = Refusing({})
+    assert not asyncio.run(client.paced_fetch(fetcher, "https://www.linkedin.com/x")).ok
+    assert [h["cookie"] for h in fetcher.headers] == ["lidc="] * (1 + client.RETRIES)
+    assert sleeps == []
 
 
 def test_linkedin_keeps_collected_jobs_after_a_later_page_failure(unlimited):
@@ -397,19 +536,25 @@ def test_linkedin_rejects_bad_arguments_before_any_request(kwargs, match):
     assert fetcher.requests == []
 
 
-def test_every_request_takes_a_token(monkeypatch):
-    acquired = []
+def test_every_request_waits_for_the_pacer_before_it_sends(monkeypatch):
+    events = []
 
-    class Counting(TokenBucket):
+    class Logging(TokenBucket):
         async def acquire(self):
-            acquired.append(1)
+            await super().acquire()
+            events.append("admit")
 
-    monkeypatch.setattr(client, "LIMITER", Counting(capacity=10**9, refill_interval=1.0))
-    fetcher = StubFetcher(
+    class Sending(StubFetcher):
+        async def fetch(self, url, headers=None):
+            events.append("send")
+            return await super().fetch(url, headers)
+
+    monkeypatch.setattr(client, "LIMITER", Logging(capacity=10**9, refill_interval=1.0))
+    fetcher = Sending(
         {"seeMoreJobPostings": ok(linkedin_card("111")), "jobs/view/111": ok(job_page())}
     )
     asyncio.run(linkedin.search(fetcher, query="x", location="Seattle", results=1, details=True))
-    assert len(acquired) == len(fetcher.requests) == 2
+    assert events == ["admit", "send"] * 2
 
 
 def test_search_details_hydrate_from_the_canonical_page(unlimited):
@@ -762,7 +907,7 @@ def test_fetch_postings_three_outcomes_and_what_each_costs_again(unlimited, monk
     assert fetcher.requests == [flaky]
 
 
-def test_fetch_postings_stops_hydration_when_the_429_retry_also_fails(
+def test_fetch_postings_stops_hydration_when_the_429_retries_also_fail(
     unlimited, caplog, monkeypatch, isolated_cache
 ):
     monkeypatch.setattr(client, "RETRY_DELAY", 0)
@@ -771,7 +916,7 @@ def test_fetch_postings_stops_hydration_when_the_429_retry_also_fails(
     with caplog.at_level(logging.WARNING, logger="jobrake.sites.linkedin"):
         got = asyncio.run(linkedin.fetch_postings(fetcher, [CANONICAL, other]))
     assert got == {}  # nothing hydrated, everything retryable later
-    assert len(fetcher.requests) == 2  # one posting's try and retry; the rest spared
+    assert len(fetcher.requests) == 1 + client.RETRIES  # one posting's tries; the rest spared
     assert any("rate limiting" in record.message for record in caplog.records)
 
     # a persistently limited fragment stops hydration too, after the partial
@@ -786,7 +931,7 @@ def test_fetch_postings_stops_hydration_when_the_429_retry_also_fails(
     assert hydrated(got, CANONICAL)["description"] == "Great & big role"
     assert other not in got  # spared the futile canonical attempt
     fragment = f"{FRAGMENT_URL}/111?_l=en_US"
-    assert fetcher.requests == [CANONICAL, fragment, fragment]  # fragment try and retry
+    assert fetcher.requests == [CANONICAL] + [fragment] * (1 + client.RETRIES)  # fragment tries
     # the partial was cached before the stop: a rerun spends nothing on it
     fetcher.requests.clear()
     again = asyncio.run(linkedin.fetch_postings(fetcher, [CANONICAL]))
@@ -802,7 +947,7 @@ def test_fetch_postings_stops_hydration_when_the_429_retry_also_fails(
     with caplog.at_level(logging.WARNING, logger="jobrake.sites.linkedin"):
         got = asyncio.run(linkedin.fetch_postings(fetcher, [first, cached]))
     assert got == {cached: {"description": "Cached role"}}
-    assert len(fetcher.requests) == 2  # only the first posting was attempted
+    assert len(fetcher.requests) == 1 + client.RETRIES  # only the first posting was attempted
     assert any("1 of 2" in record.message for record in caplog.records)
 
 
@@ -998,8 +1143,8 @@ def test_fetch_details_stops_looking_up_ids_once_rate_limited(unlimited, monkeyp
     fetcher = StubFetcher({"jobPosting": rate_limited()})
     with caplog.at_level(logging.WARNING, logger="jobrake.sites.linkedin"):
         assert asyncio.run(linkedin.fetch_details(fetcher, ["111", "222", "333"])) == []
-    # the limit belongs to the IP: the retry inside paced_fetch, then give up
-    assert fetcher.requests == [f"{FRAGMENT_URL}/111?_l=en_US"] * 2
+    # the retries inside paced_fetch, then give up
+    assert fetcher.requests == [f"{FRAGMENT_URL}/111?_l=en_US"] * (1 + client.RETRIES)
     assert any("rate limiting" in record.message for record in caplog.records)
 
 
@@ -1056,7 +1201,7 @@ def test_fetch_details_makes_no_request_after_a_rate_limited_lookup(
     fetcher.requests.clear()
     with caplog.at_level(logging.WARNING, logger="jobrake.sites.linkedin"):
         jobs = asyncio.run(linkedin.fetch_details(fetcher, references))
-    # the limit belongs to the IP, so the collected page is never requested
-    assert fetcher.requests == [f"{FRAGMENT_URL}/222?_l=en_US"] * 2
+    # the retries failed, so the collected page is never requested
+    assert fetcher.requests == [f"{FRAGMENT_URL}/222?_l=en_US"] * (1 + client.RETRIES)
     assert [job["id"] for job in jobs] == ["111"]  # what the cache already held
     assert any("rate limiting" in record.message for record in caplog.records)
