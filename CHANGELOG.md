@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.18.0](https://github.com/eyayaw/jobrake/releases/tag/v0.18.0) (2026-10-18)
+
+### Changed
+
+- **Breaking:** `linkedin.LIMITER` is removed. jobrake sets the LinkedIn pace from the number of data centers it knows, so a caller's own setting would be overwritten.
+- **Breaking:** `linkedin.RETRY_DELAY` is removed. Assigning it never changed the retry delay, because jobrake reads its own copy.
+- **Breaking:** LinkedIn requests carry only the data-center cookie, so cookies seeded on the fetcher reach LinkedIn only when it redirects a request.
+- LinkedIn requests go out about three times as fast. jobrake spreads them over LinkedIn's three data centers, each with its own limit. jobrake retries a 429 up to three times instead of once.
+
+### Removed
+
+- Reading `Retry-After` on LinkedIn 429 responses, which the guest API does not send.
+
 ## [0.17.0](https://github.com/eyayaw/jobrake/releases/tag/v0.17.0) (2026-10-04)
 
 ### Added
