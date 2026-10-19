@@ -1,5 +1,6 @@
 """SQLite cache for posting fields, posting addresses, and LinkedIn place resolutions."""
 
+import contextlib
 import json
 import logging
 import math
@@ -183,16 +184,18 @@ class Cache:
                 self._give_up(error)
         return self._conn
 
+    def close(self) -> None:
+        """Close the SQLite connection. A working cache reopens it on the next read or write."""
+        if self._conn is not None:
+            conn, self._conn = self._conn, None
+            conn.close()
+
     def _give_up(self, error: Exception) -> None:
         if self._broken:
             return
         self._broken = True
-        if self._conn is not None:
-            try:
-                self._conn.close()
-            except sqlite3.Error:
-                pass
-            self._conn = None
+        with contextlib.suppress(sqlite3.Error):
+            self.close()
         logger.warning("cache disabled (%s): %s", self.path, error)
 
     def get(self, table: str, site: str, keys: Iterable[str]) -> dict[str, dict | None]:

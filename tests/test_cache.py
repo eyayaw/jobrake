@@ -1,5 +1,6 @@
 """Cache tests for stored fields, expiry, and corrupt data."""
 
+import contextlib
 import json
 import math
 import os
@@ -15,18 +16,32 @@ from jobrake.cache import _VERSIONS, GEOIDS, POSTINGS, RETENTION, TTL, Cache
 POSTING = {"description": "Role", "applicants": 25}
 
 
-def make_cache(tmp_path, **kwargs):
-    return Cache(tmp_path / "jobrake.sqlite3", **kwargs)
+@pytest.fixture
+def make_cache(tmp_path):
+    caches = []
+
+    def make():
+        cache = Cache(tmp_path / "jobrake.sqlite3")
+        caches.append(cache)
+        return cache
+
+    yield make
+    for cache in caches:
+        cache.close()
+
+
+def run_sql(cache, sql, params=()):
+    with contextlib.closing(sqlite3.connect(cache.path)) as conn, conn:
+        return conn.execute(sql, params).fetchall()
 
 
 def age_rows(cache, seconds):
     """Backdate every row, as if it were written ``seconds`` ago."""
-    cache._conn.execute("UPDATE postings SET stored_at = stored_at - ?", (seconds,))
-    cache._conn.commit()
+    run_sql(cache, "UPDATE postings SET stored_at = stored_at - ?", (seconds,))
 
 
-def test_roundtrip_including_tombstones(tmp_path):
-    cache = make_cache(tmp_path)
+def test_roundtrip_including_tombstones(make_cache):
+    cache = make_cache()
     cache.put(POSTINGS, "linkedin", {"111": POSTING, "222": None})
     assert cache.get(POSTINGS, "linkedin", ["111", "222", "999"]) == {
         "111": POSTING,
@@ -34,73 +49,71 @@ def test_roundtrip_including_tombstones(tmp_path):
     }
 
 
-def test_sites_do_not_collide(tmp_path):
-    cache = make_cache(tmp_path)
+def test_sites_do_not_collide(make_cache):
+    cache = make_cache()
     cache.put(POSTINGS, "linkedin", {"111": POSTING})
     assert cache.get(POSTINGS, "indeed", ["111"]) == {}
 
 
-def test_tombstones_and_geoids_outlive_the_freshness_period(tmp_path):
-    cache = make_cache(tmp_path)
+def test_tombstones_and_geoids_outlive_the_freshness_period(make_cache):
+    cache = make_cache()
     cache.put(POSTINGS, "linkedin", {"111": POSTING, "222": None})
     place = {"geoId": "7", "displayName": "Enschede, Overijssel, Netherlands"}
     cache.put(GEOIDS, "linkedin", {"enschede": place})
     age_rows(cache, TTL + 1)
-    cache._conn.execute("UPDATE geoids SET stored_at = stored_at - ?", (TTL + 1,))
-    cache._conn.commit()
+    run_sql(cache, "UPDATE geoids SET stored_at = stored_at - ?", (TTL + 1,))
     assert cache.get(POSTINGS, "linkedin", ["111", "222"]) == {"222": None}
     assert cache.get(GEOIDS, "linkedin", ["enschede"]) == {"enschede": place}
 
 
-def test_retention_ends_tombstones_and_purges_posting_rows(tmp_path):
-    cache = make_cache(tmp_path)
+def test_retention_ends_tombstones_and_purges_posting_rows(make_cache):
+    cache = make_cache()
     cache.put(POSTINGS, "linkedin", {"111": POSTING, "222": None})
     age_rows(cache, RETENTION + 1)
     # The open cache stops honoring the tombstone, and the next startup deletes both rows.
     assert cache.get(POSTINGS, "linkedin", ["111", "222"]) == {}
-    reopened = make_cache(tmp_path)
+    reopened = make_cache()
     assert reopened.get(POSTINGS, "linkedin", ["111", "222"]) == {}
-    assert reopened._conn.execute("SELECT count(*) FROM postings").fetchone() == (0,)
+    assert run_sql(reopened, "SELECT count(*) FROM postings") == [(0,)]
 
 
-def test_nonfinite_row_is_a_miss_without_disabling_the_cache(tmp_path):
+def test_nonfinite_row_is_a_miss_without_disabling_the_cache(make_cache):
     # json.dumps writes NaN by default, so rows predating the finite-number
     # rule can carry it. Such a row must miss, and only that row.
-    cache = make_cache(tmp_path)
+    cache = make_cache()
     cache.put(POSTINGS, "linkedin", {"111": {"salary_min": float("nan")}, "222": POSTING})
     assert cache.get(POSTINGS, "linkedin", ["111", "222"]) == {"222": POSTING}
-    assert not cache._broken
+    assert cache.get(POSTINGS, "linkedin", ["222"]) == {"222": POSTING}  # still enabled
 
 
-def test_corrupt_json_disables_cache_instead_of_escaping(tmp_path, caplog):
-    cache = make_cache(tmp_path)
+def test_corrupt_json_disables_cache_instead_of_escaping(make_cache, caplog):
+    cache = make_cache()
     cache.put(POSTINGS, "linkedin", {"111": POSTING})
-    cache._conn.execute("UPDATE postings SET fields = 'not json'")
-    cache._conn.commit()
+    run_sql(cache, "UPDATE postings SET fields = 'not json'")
 
     assert cache.get(POSTINGS, "linkedin", ["111"]) == {}
-    assert cache._broken
     assert "disabled" in caplog.text
 
 
-def test_corrupt_timestamp_disables_cache_instead_of_escaping(tmp_path, caplog):
-    cache = make_cache(tmp_path)
+def test_corrupt_timestamp_disables_cache_instead_of_escaping(make_cache, caplog):
+    cache = make_cache()
     cache.put(POSTINGS, "linkedin", {"111": POSTING})
-    cache._conn.execute("UPDATE postings SET stored_at = 'bad'")
-    cache._conn.commit()
+    run_sql(cache, "UPDATE postings SET stored_at = 'bad'")
 
     assert cache.get(POSTINGS, "linkedin", ["111"]) == {}
-    assert cache._broken
     assert "disabled" in caplog.text
     assert cache.get(POSTINGS, "linkedin", ["111"]) == {}  # later lookups miss quietly
 
 
-def test_unserializable_fields_disable_cache(tmp_path):
-    cache = make_cache(tmp_path)
+def test_unserializable_fields_disable_cache(make_cache, caplog):
+    cache = make_cache()
+    cache.put(POSTINGS, "linkedin", {"111": POSTING})
 
-    cache.put(POSTINGS, "linkedin", {"111": {"bad": object()}})
+    cache.put(POSTINGS, "linkedin", {"222": {"bad": object()}})
 
-    assert cache._broken
+    # The stored row would hit on a cache that stayed enabled.
+    assert cache.get(POSTINGS, "linkedin", ["111"]) == {}
+    assert "disabled" in caplog.text
 
 
 @pytest.mark.parametrize(
@@ -165,53 +178,46 @@ assert linkedin.CACHE is client.CACHE
     subprocess.run([sys.executable, "-c", code], env=env, check=True)
 
 
-def test_rows_of_another_format_are_invisible(tmp_path):
+def test_rows_of_another_format_are_invisible(make_cache):
     # Stored values belong to the code that wrote them, so a jobrake whose
     # fields or parsers have moved on neither serves another format's rows nor
     # loses its own to them.
-    path = tmp_path / "jobrake.sqlite3"
-    cache = Cache(path)
+    cache = make_cache()
     cache.put(POSTINGS, "linkedin", {"111": POSTING})
     moved_on = json.dumps({"description": "Role", "headcount": 4})
-    with sqlite3.connect(path) as other:
-        other.executemany(
+    for key in ("111", "222"):
+        run_sql(
+            cache,
             f"INSERT OR REPLACE INTO {POSTINGS} VALUES (?, ?, ?, ?, ?)",
-            [
-                (_VERSIONS[POSTINGS] + 1, "linkedin", "111", moved_on, time.time()),
-                (_VERSIONS[POSTINGS] + 1, "linkedin", "222", moved_on, time.time()),
-            ],
+            (_VERSIONS[POSTINGS] + 1, "linkedin", key, moved_on, time.time()),
         )
     assert cache.get(POSTINGS, "linkedin", ["111", "222"]) == {"111": POSTING}
-    assert not cache._broken
 
 
-def test_table_versions_are_independent(tmp_path, monkeypatch):
+def test_table_versions_are_independent(make_cache, monkeypatch):
     # Place resolutions cost paced requests, so a reworked posting parser leaves
     # them in place.
-    path = tmp_path / "jobrake.sqlite3"
     place = {"geoId": "102011674"}
-    cache = Cache(path)
+    cache = make_cache()
     cache.put(POSTINGS, "linkedin", {"111": POSTING})
     cache.put(GEOIDS, "linkedin", {"enschede": place})
 
     monkeypatch.setitem(_VERSIONS, POSTINGS, _VERSIONS[POSTINGS] + 1)
-    moved_on = Cache(path)
+    moved_on = make_cache()
     assert moved_on.get(POSTINGS, "linkedin", ["111"]) == {}
     assert moved_on.get(GEOIDS, "linkedin", ["enschede"]) == {"enschede": place}
 
 
-def test_a_table_from_an_older_jobrake_is_rebuilt(tmp_path):
+def test_a_table_from_an_older_jobrake_is_rebuilt(make_cache):
     # A shape from before the current columns cannot take today's rows, so
     # opening the database replaces the table and starts collecting again.
-    path = tmp_path / "jobrake.sqlite3"
-    with sqlite3.connect(path) as old:
-        old.execute(f"CREATE TABLE {POSTINGS} (scope TEXT, key TEXT, value TEXT, stored_at REAL)")
-        old.execute(
-            f"INSERT INTO {POSTINGS} VALUES (?, ?, ?, ?)",
-            ("linkedin", "111", json.dumps(POSTING), time.time()),
-        )
-    cache = Cache(path)
+    cache = make_cache()
+    run_sql(cache, f"CREATE TABLE {POSTINGS} (scope TEXT, key TEXT, value TEXT, stored_at REAL)")
+    run_sql(
+        cache,
+        f"INSERT INTO {POSTINGS} VALUES (?, ?, ?, ?)",
+        ("linkedin", "111", json.dumps(POSTING), time.time()),
+    )
     assert cache.get(POSTINGS, "linkedin", ["111"]) == {}
-    assert not cache._broken  # it starts over instead of giving up
     cache.put(POSTINGS, "linkedin", {"111": POSTING})
     assert cache.get(POSTINGS, "linkedin", ["111"]) == {"111": POSTING}

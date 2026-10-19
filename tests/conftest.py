@@ -14,7 +14,8 @@ def isolated_cache(tmp_path, monkeypatch):
         monkeypatch.delenv(name, raising=False)
     cache = Cache(tmp_path / "jobrake.sqlite3")
     monkeypatch.setattr(client, "CACHE", cache)
-    return cache
+    yield cache
+    cache.close()
 
 
 @pytest.fixture(autouse=True)
