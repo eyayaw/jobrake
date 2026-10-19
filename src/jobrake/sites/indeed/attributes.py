@@ -51,7 +51,7 @@ async def attributes(fetcher: PostFetcher, query: str, country: str) -> list[dic
         hits = json.loads(result.text)["data"]["jobSearch"]["results"]
         if not isinstance(hits, list):
             raise TypeError("results must be a list")
-    except (ValueError, KeyError, TypeError):
+    except ValueError, KeyError, TypeError:
         logger.warning("could not read Indeed's attributes for %r. Try again later", query)
         return None
     candidates = {}
@@ -61,7 +61,7 @@ async def attributes(fetcher: PostFetcher, query: str, country: str) -> list[dic
             entries = hit["job"]["attributes"]
             if not isinstance(entries, list):
                 raise TypeError("attributes must be a list")
-        except (KeyError, TypeError):
+        except KeyError, TypeError:
             malformed = True
             continue
         for entry in entries:

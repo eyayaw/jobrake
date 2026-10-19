@@ -3,7 +3,7 @@ name = "jobrake"
 version = "0.18.0"
 description = "The job boards shed new postings every day. Bring a rake."
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.14"
 authors = [{ name = "Eyayaw Beze" }]
 license = "MIT"
 license-files = ["LICENSE", "THIRD_PARTY_NOTICES"]
@@ -35,7 +35,6 @@ jobrake = "jobrake.cli:main"
 
 [tool.ruff]
 line-length = 100
-target-version = "py311"
 
 # NumPy-style multiline openings with Google-style sections.
 [tool.ruff.lint]
