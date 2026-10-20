@@ -3,11 +3,12 @@
 import csv
 import io
 import json
+from typing import Any
 
-from .models import JOB_FIELDS
+from .models import JOB_FIELDS, JobDict
 
 
-def to_json(obj: list, **kwargs) -> str:
+def to_json(obj: list[JobDict], **kwargs: Any) -> str:
     """
     Serialize a list as JSON without escaping non-ASCII text.
 
@@ -18,12 +19,12 @@ def to_json(obj: list, **kwargs) -> str:
     return json.dumps(obj, **kwargs)
 
 
-def to_jsonl(jobs: list[dict]) -> str:
+def to_jsonl(jobs: list[JobDict]) -> str:
     """Serialize one job per line, including a final newline."""
     return "".join(json.dumps(job, ensure_ascii=False) + "\n" for job in jobs)
 
 
-def to_csv(jobs: list[dict]) -> str:
+def to_csv(jobs: list[JobDict]) -> str:
     """
     Serialize jobs with a header and one column for every model field.
 

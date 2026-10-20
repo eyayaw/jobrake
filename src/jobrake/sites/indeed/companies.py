@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 COMPANY_URL = "https://autocomplete.indeed.com/api/v0/suggestions/company"
 
 
-async def companies(fetcher: Fetcher, name: str, country: str) -> list[dict] | None:
+async def companies(fetcher: Fetcher, name: str, country: str) -> list[dict[str, str]] | None:
     """
     Find company names and employer keys through an Indeed edition's autocomplete.
 

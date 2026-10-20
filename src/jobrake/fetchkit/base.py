@@ -5,7 +5,7 @@ import logging
 import math
 import random
 from collections.abc import Awaitable
-from typing import Protocol, Self
+from typing import Any, Protocol, Self
 
 from .types import ErrorCategory, FetchError, FetchResult
 
@@ -33,7 +33,7 @@ class PostFetcher(Fetcher, Protocol):
     """A fetcher with JSON POST support."""
 
     async def post(
-        self, url: str, json_body: dict, headers: dict[str, str] | None = None
+        self, url: str, json_body: dict[str, Any], headers: dict[str, str] | None = None
     ) -> FetchResult:
         """Post JSON. Cancellation and unexpected exceptions may propagate."""
         ...

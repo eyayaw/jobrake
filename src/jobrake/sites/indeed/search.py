@@ -5,10 +5,11 @@ import logging
 import math
 import re
 from gettext import ngettext
+from typing import Any
 
 from jobrake import defaults
 from jobrake.fetchkit import PostFetcher
-from jobrake.models import employment_type, make_job
+from jobrake.models import JobDict, employment_type, make_job
 from jobrake.utils import check_bounds, check_filters, check_text, epoch_ms_to_iso, html_text
 
 from .client import API_HEADERS, API_URL
@@ -149,7 +150,7 @@ def _scrub_css(text: str) -> str:
     return "\n".join(line for line in lines if line)
 
 
-def _timestamp(job: dict, field: str) -> str | None:
+def _timestamp(job: dict[str, Any], field: str) -> str | None:
     """Read an epoch-millisecond field, logging and dropping invalid values."""
     if (ms := job.get(field)) is None:
         return None
@@ -161,15 +162,15 @@ def _timestamp(job: dict, field: str) -> str | None:
         return None
 
 
-def _dict_value(value) -> dict:
+def _dict_value(value: object) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
 
-def _string_value(value) -> str | None:
+def _string_value(value: object) -> str | None:
     return value if isinstance(value, str) else None
 
 
-def _finite_value(value) -> float | None:
+def _finite_value(value: object) -> float | None:
     if isinstance(value, bool) or not isinstance(value, int | float):
         return None
     try:
@@ -179,7 +180,7 @@ def _finite_value(value) -> float | None:
         return None
 
 
-def _parse_job(job: dict, base_url: str) -> dict:
+def _parse_job(job: dict[str, Any], base_url: str) -> JobDict:
     """Normalize one Indeed result into the shared job model."""
     key = job["key"].strip() if isinstance(job["key"], str) else ""
     # The provider key becomes both the job ID and the URL's ``jk`` parameter.
@@ -248,7 +249,7 @@ def _graphql_error_message(payload: object) -> str | None:
     return None
 
 
-def parse_jobs(data: dict, base_url: str) -> tuple[list[dict], str | None, int]:
+def parse_jobs(data: dict[str, Any], base_url: str) -> tuple[list[JobDict], str | None, int]:
     """
     Parse one GraphQL page while isolating malformed results.
 
@@ -297,7 +298,7 @@ async def search(
     attributes: list[str] | None = None,
     easy_apply: bool = False,
     early_applicant: bool = False,
-) -> list[dict]:
+) -> list[JobDict]:
     """
     Search one Indeed country edition through its GraphQL API.
 
@@ -348,7 +349,7 @@ async def search(
         "searching indeed for %r in %r", query, f"{location}, {country}" if location else country
     )
 
-    jobs: list[dict] = []
+    jobs: list[JobDict] = []
     seen: set[str] = set()
     cursors: set[str] = set()
     cursor: str | None = None

@@ -19,7 +19,7 @@ query {{
 """
 
 
-async def attributes(fetcher: PostFetcher, query: str, country: str) -> list[dict] | None:
+async def attributes(fetcher: PostFetcher, query: str, country: str) -> list[dict[str, str]] | None:
     """
     Collect attribute codes and labels from the first 100 matching Indeed jobs.
 
@@ -54,7 +54,7 @@ async def attributes(fetcher: PostFetcher, query: str, country: str) -> list[dic
     except ValueError, KeyError, TypeError:
         logger.warning("could not read Indeed's attributes for %r. Try again later", query)
         return None
-    candidates = {}
+    candidates: dict[str, dict[str, str]] = {}
     malformed = False
     for hit in hits:
         try:

@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 AUTOCOMPLETE_URL = "https://autocomplete.indeed.com/api/v0/suggestions/location"
 
 
-async def places(fetcher: Fetcher, name: str, country: str) -> list[dict] | None:
+async def places(fetcher: Fetcher, name: str, country: str) -> list[dict[str, str | None]] | None:
     """
     List Indeed's location suggestions for a name in one country edition, best match first.
 

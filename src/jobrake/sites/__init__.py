@@ -1,14 +1,15 @@
 """Supported sites and the public ``scrape`` entrypoint."""
 
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 
 from jobrake import defaults
 from jobrake.fetchkit import Fetcher, HttpxFetcher
+from jobrake.models import JobDict
 
 from . import indeed, linkedin
 
 
-def site_searchers() -> dict[str, Callable]:
+def site_searchers() -> dict[str, Callable[..., Awaitable[list[JobDict]]]]:
     """Map supported site names to their search entrypoints."""
     return {"indeed": indeed.search, "linkedin": linkedin.search}
 
@@ -33,7 +34,7 @@ async def scrape(
     easy_apply: bool = False,
     early_applicant: bool = False,
     fetcher: Fetcher | None = None,
-) -> list[dict]:
+) -> list[JobDict]:
     """
     Route a search through one provider.
 

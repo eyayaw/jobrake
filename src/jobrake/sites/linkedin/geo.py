@@ -25,7 +25,7 @@ def _parse_place(geoid: object, display: object) -> tuple[str, str] | None:
     return (geoid, display) if geoid and _name_key(display) else None
 
 
-def _named(candidates: list[dict], name_key: str) -> dict:
+def _named(candidates: list[dict[str, str]], name_key: str) -> dict[str, str]:
     """Pick the candidate carrying the requested name, or else the first."""
     # LinkedIn ranks a region above the city that shares its name, so
     # "Utrecht, Utrecht, Netherlands" arrives behind the province.
@@ -39,7 +39,7 @@ def _saved(name: str) -> tuple[str, str] | None:
     return _parse_place(entry.get("geoId"), entry.get("displayName"))
 
 
-async def places(fetcher: Fetcher, name: str) -> list[dict] | None:
+async def places(fetcher: Fetcher, name: str) -> list[dict[str, str]] | None:
     """
     List LinkedIn's candidate places for a name, best match first.
 
@@ -69,7 +69,7 @@ async def places(fetcher: Fetcher, name: str) -> list[dict] | None:
     if not isinstance(hits, list):
         logger.warning("geoId lookup for %r returned an unreadable response", name)
         return None
-    candidates = []
+    candidates: list[dict[str, str]] = []
     for hit in hits:
         if not isinstance(hit, dict):
             continue

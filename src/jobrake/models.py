@@ -2,6 +2,7 @@
 
 import re
 from dataclasses import asdict, dataclass, fields
+from typing import Any
 
 from jobrake.utils import iso_date
 
@@ -57,7 +58,7 @@ class Job:
     experience_months: int | None = None
     education: str | None = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Normalize strings and derive the calendar date."""
         for name in IDENTITY_FIELDS:
             setattr(self, name, (getattr(self, name) or "").strip())
@@ -73,7 +74,11 @@ class Job:
         self.date = iso_date(self.date or self.posted_at)
 
 
-def make_job(**scraped) -> dict:
+# The public job is the flat dictionary make_job builds. Job is the normalizing dataclass behind it.
+type JobDict = dict[str, Any]
+
+
+def make_job(**scraped: Any) -> JobDict:
     """
     Build the public job dictionary from provider fields.
 

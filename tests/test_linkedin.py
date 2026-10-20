@@ -234,7 +234,7 @@ class QueuedOnOneFabric:
         monkeypatch.setattr(client, "LIMITER", Logging(capacity=10**9, refill_interval=1.0))
         client.POOL.known = {name: f'"{name}"' for name in ("prod-a", "prod-b", "prod-c")}
         self.now = 0.0
-        self.parked: list[asyncio.Future] = []  # sleepers, woken only by wake_all
+        self.parked: list[asyncio.Future[None]] = []  # sleepers, woken only by wake_all
         self.sends: list[float] = []
         self.yield_ = asyncio.sleep
         monkeypatch.setattr(client, "monotonic", lambda: self.now)
@@ -1048,7 +1048,7 @@ def test_parse_posting_reads_the_en_us_markup_labels():
     assert fields["company_logo"] == "https://media.licdn.com/acme-logo.png"
 
 
-def hydrated(postings, url) -> dict:
+def hydrated(postings, url) -> dict[str, Any]:
     """Return posting fields and fail for a gone or unfetched posting."""
     posting = postings.get(url)
     assert posting is not None

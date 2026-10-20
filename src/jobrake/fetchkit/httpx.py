@@ -2,6 +2,7 @@
 
 import math
 from collections.abc import Awaitable
+from typing import Any
 
 import httpx
 
@@ -69,7 +70,7 @@ class HttpxFetcher(BaseFetcher):
         )
 
     async def post(
-        self, url: str, json_body: dict, headers: dict[str, str] | None = None
+        self, url: str, json_body: dict[str, Any], headers: dict[str, str] | None = None
     ) -> FetchResult:
         """Send JSON without GET jitter and capture request exceptions."""
         operation = self._client.post(url, json=json_body, headers=headers)

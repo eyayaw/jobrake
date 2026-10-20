@@ -11,7 +11,7 @@ from . import client
 logger = logging.getLogger(__name__)
 
 
-async def companies(fetcher: Fetcher, name: str) -> list[dict] | None:
+async def companies(fetcher: Fetcher, name: str) -> list[dict[str, str]] | None:
     """
     List LinkedIn's company suggestions for a name.
 

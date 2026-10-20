@@ -10,13 +10,14 @@ import sys
 import time
 from contextlib import suppress
 from pathlib import Path
-from typing import Never
+from typing import Never, TextIO
 
 from jobrake import __version__, scrape
 
 from . import defaults
 from .fetchkit import HttpxFetcher
 from .io import RENDERERS
+from .models import JobDict
 from .sites import indeed, linkedin, site_searchers
 
 logger = logging.getLogger(__name__)
@@ -35,7 +36,7 @@ class _ArgumentParser(argparse.ArgumentParser):
         self.exit(2, f"{self.prog}: error: {message}\nRun '{self.prog} -h' for help.\n")
 
 
-class _StatusHandler(logging.StreamHandler):
+class _StatusHandler(logging.StreamHandler[TextIO]):
     """
     Stderr handler with terse prefixes and a terminal progress line.
 
@@ -371,7 +372,9 @@ def _write_stdout(text: str) -> int | None:
     return None
 
 
-async def _lookup_candidates(args: argparse.Namespace) -> list[dict] | None:
+async def _lookup_candidates(
+    args: argparse.Namespace,
+) -> list[dict[str, str]] | list[dict[str, str | None]] | None:
     """Look up places, companies, or attributes with a fetcher of its own."""
     fetcher = HttpxFetcher()
     try:
@@ -392,7 +395,7 @@ async def _lookup_candidates(args: argparse.Namespace) -> list[dict] | None:
         await fetcher.close()
 
 
-async def _fetch_details(args: argparse.Namespace) -> list[dict]:
+async def _fetch_details(args: argparse.Namespace) -> list[JobDict]:
     """Fetch the named LinkedIn postings with a fetcher of its own."""
     fetcher = HttpxFetcher()
     try:
@@ -427,7 +430,7 @@ def _settle_output(parser: _ArgumentParser, args: argparse.Namespace) -> str:
     return fmt
 
 
-def _write_jobs(args: argparse.Namespace, jobs: list[dict], fmt: str) -> int | None:
+def _write_jobs(args: argparse.Namespace, jobs: list[JobDict], fmt: str) -> int | None:
     """
     Render jobs to stdout or to the output file.
 

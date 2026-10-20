@@ -10,6 +10,7 @@ import sys
 import time
 from collections.abc import Iterable, Mapping
 from pathlib import Path
+from typing import Any, NoReturn
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +52,7 @@ class _NonstandardConstant(Exception):
     """A nonstandard JSON number treated as a row-level cache miss."""
 
 
-def _reject_constant(name: str):
+def _reject_constant(name: str) -> NoReturn:
     raise _NonstandardConstant(name)
 
 
@@ -198,7 +199,7 @@ class Cache:
             self.close()
         logger.warning("cache disabled (%s): %s", self.path, error)
 
-    def get(self, table: str, site: str, keys: Iterable[str]) -> dict[str, dict | None]:
+    def get(self, table: str, site: str, keys: Iterable[str]) -> dict[str, dict[str, Any] | None]:
         """
         Read values for the requested keys in one table and site.
 
@@ -244,7 +245,7 @@ class Cache:
             self._give_up(error)
             return {}
 
-    def put(self, table: str, site: str, values: Mapping[str, dict | None]) -> None:
+    def put(self, table: str, site: str, values: Mapping[str, dict[str, Any] | None]) -> None:
         """
         Store dicts in one table and site.
 

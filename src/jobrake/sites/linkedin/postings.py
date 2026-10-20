@@ -7,6 +7,7 @@ import re
 from collections.abc import Iterable
 from gettext import ngettext
 from html import unescape
+from typing import Any
 from urllib.parse import urlsplit
 
 from bs4 import BeautifulSoup
@@ -14,7 +15,7 @@ from bs4 import BeautifulSoup
 from jobrake import defaults
 from jobrake.cache import ADDRESSES, POSTINGS
 from jobrake.fetchkit import Fetcher
-from jobrake.models import SUMMARY_FIELDS, employment_type, make_job
+from jobrake.models import SUMMARY_FIELDS, JobDict, employment_type, make_job
 from jobrake.utils import html_text
 
 from . import client
@@ -31,13 +32,13 @@ FRAGMENT_URL = "https://www.linkedin.com/jobs-guest/jobs/api/jobPosting"
 
 # schema.org fields may be a scalar, a list, or a value in the wrong shape.
 # For list-valued fields, LinkedIn's first item is the one we use.
-def _obj(value) -> dict:
+def _obj(value: object) -> dict[str, Any]:
     if isinstance(value, list):
         value = value[0] if value else None
     return value if isinstance(value, dict) else {}
 
 
-def _text_value(value) -> str | None:
+def _text_value(value: object) -> str | None:
     """Read a schema.org string, decoding the entities its script block escaped."""
     # LinkedIn HTML-escapes the JSON it embeds in the page, and entities inside
     # a script element reach the parser undecoded. A logo URL arrives with
@@ -47,7 +48,7 @@ def _text_value(value) -> str | None:
     return unescape(value) if isinstance(value, str) else None
 
 
-def _number_value(value) -> float | None:
+def _number_value(value: object) -> float | None:
     if isinstance(value, list):
         value = value[0] if value else None
     # json.loads admits NaN and the infinities, which strict JSON output
@@ -61,13 +62,13 @@ def _number_value(value) -> float | None:
         return None
 
 
-def _url(value) -> str | None:
+def _url(value: object) -> str | None:
     """Unwrap a bare schema.org URL or an object's ``url`` field."""
     obj = _obj(value)
     return _text_value(obj.get("url")) if obj else _text_value(value)
 
 
-def _job_posting(soup: BeautifulSoup) -> dict:
+def _job_posting(soup: BeautifulSoup) -> dict[str, Any]:
     """Find the first ``JobPosting`` in page JSON-LD or an ``@graph``."""
     for block in soup.find_all("script", type="application/ld+json"):
         try:
@@ -115,7 +116,7 @@ _SALARY_BOUND = re.compile(r"([A-Z]{3})\s?([\d,]+(?:\.\d+)?)/(yr|mo|wk|day|hr)")
 _SALARY_PERIODS = {"yr": "YEAR", "mo": "MONTH", "wk": "WEEK", "day": "DAY", "hr": "HOUR"}
 
 
-def _salary(soup: BeautifulSoup) -> dict:
+def _salary(soup: BeautifulSoup) -> dict[str, Any]:
     """
     Parse a two-bound en-US salary range from topcard markup.
 
@@ -146,7 +147,7 @@ def _salary(soup: BeautifulSoup) -> dict:
     }
 
 
-def _company(soup: BeautifulSoup) -> dict:
+def _company(soup: BeautifulSoup) -> dict[str, Any]:
     """Extract company URL and logo fields from topcard markup."""
     link = soup.select_one("a.topcard__org-name-link")
     logo = soup.select_one("img.artdeco-entity-image")
@@ -174,7 +175,7 @@ def _applicants(soup: BeautifulSoup) -> int | None:
     return int(found.group()) if found else None
 
 
-def parse_posting(html: str) -> dict:
+def parse_posting(html: str) -> dict[str, Any]:
     """
     Extract model fields from a canonical posting page.
 
@@ -190,7 +191,7 @@ def parse_posting(html: str) -> dict:
     return fields
 
 
-def _parse_posting(soup: BeautifulSoup) -> tuple[dict, bool]:
+def _parse_posting(soup: BeautifulSoup) -> tuple[dict[str, Any], bool]:
     """Extract posting fields and report whether structured data was present."""
     posting = _job_posting(soup)
     org = _obj(posting.get("hiringOrganization"))
@@ -328,7 +329,7 @@ def _fragment_url(html: str, posting_id: str) -> str | None:
     return url
 
 
-def _cache_posting(posting_id: str, posting: dict | None) -> None:
+def _cache_posting(posting_id: str, posting: dict[str, Any] | None) -> None:
     """
     Store a posting's fields, or ``None`` for a posting that is gone.
 
@@ -344,7 +345,7 @@ def _cache_posting(posting_id: str, posting: dict | None) -> None:
 
 async def fetch_postings(
     fetcher: Fetcher, urls: Iterable[str], *, cache: bool = defaults.CACHE
-) -> dict[str, dict | None]:
+) -> dict[str, dict[str, Any] | None]:
     """
     Fetch LinkedIn detail fields for a collection of posting URLs.
 
@@ -446,7 +447,7 @@ async def fetch_postings(
 
     # Assemble results in input order. After a rate-limit stop, URLs never
     # visited still take cached and already resolved values.
-    postings: dict[str, dict | None] = {}
+    postings: dict[str, dict[str, Any] | None] = {}
     for url in wanted:
         identity = ids[url] or url
         if identity in resolved:
@@ -474,7 +475,7 @@ def _is_posting_id(reference: str) -> bool:
 
 async def fetch_details(
     fetcher: Fetcher, references: Iterable[str], *, cache: bool = defaults.CACHE
-) -> list[dict]:
+) -> list[JobDict]:
     """
     Build one job per posting reference, in the order given.
 
@@ -567,7 +568,7 @@ async def fetch_details(
         postings = await fetch_postings(fetcher, list(urls.values()), cache=cache)
     # A posting page need not name every summary field, and make_job wants all of them.
     blanks = dict.fromkeys(SUMMARY_FIELDS)
-    jobs = []
+    jobs: list[JobDict] = []
     for posting_id, url in urls.items():
         if url not in postings:
             continue  # fetch_postings reported why

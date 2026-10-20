@@ -8,7 +8,7 @@ from bs4 import BeautifulSoup
 
 from jobrake import defaults
 from jobrake.fetchkit import Fetcher
-from jobrake.models import make_job
+from jobrake.models import JobDict, make_job
 from jobrake.utils import check_bounds, check_filters, check_text
 
 from .client import SEARCH_URL, job_id, paced_fetch
@@ -21,7 +21,7 @@ MAX_START = 1000  # the guest API stops serving past this offset
 KM_PER_MILE = 1.609344
 
 
-def parse_cards(html: str) -> list[dict]:
+def parse_cards(html: str) -> list[JobDict]:
     """
     Parse summaries in card order.
 
@@ -30,7 +30,7 @@ def parse_cards(html: str) -> list[dict]:
     return _parse_page(html)[0]
 
 
-def _parse_page(html: str) -> tuple[list[dict], int]:
+def _parse_page(html: str) -> tuple[list[JobDict], int]:
     """Parse job summaries while retaining the provider's raw card count."""
     # Search cards contain only summary fields. fetch_postings() reads the
     # detail fields from each posting page.
@@ -84,7 +84,7 @@ async def search(
     attributes: list[str] | None = None,
     easy_apply: bool = False,
     early_applicant: bool = False,
-) -> list[dict]:
+) -> list[JobDict]:
     """
     Search LinkedIn's login-free guest endpoint.
 
@@ -151,7 +151,7 @@ async def search(
             logger.info("linkedin search finished with 0 jobs")
             return []
         geoid = resolved
-    jobs: list[dict] = []
+    jobs: list[JobDict] = []
     seen: set[str] = set()
     start = 0
     while len(jobs) < results and start < MAX_START:

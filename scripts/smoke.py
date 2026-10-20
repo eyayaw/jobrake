@@ -5,12 +5,12 @@ import asyncio
 from jobrake import scrape
 
 
-def column(value, width):
+def column(value: str | None, width: int) -> str:
     # Title, company, and location are nullable summary fields.
     return f"{(value or '?')[:width]:<{width + 1}}"
 
 
-async def main():
+async def main() -> None:
     """Run one small search per provider and print representative fields."""
     for site in ("indeed", "linkedin"):
         try:
