@@ -56,10 +56,8 @@ def test_httpx_fetcher_maps_get_and_post_responses():
             assert request.headers["x-test"] == "yes"
             return httpx.Response(200 if request.method == "GET" else 503, text=request.method)
 
-        fetcher = HttpxFetcher(headers={"x-test": "yes"}, jitter=0)
-        await fetcher._client.aclose()
-        fetcher._client = httpx.AsyncClient(
-            headers={"x-test": "yes"}, transport=httpx.MockTransport(respond)
+        fetcher = HttpxFetcher(
+            headers={"x-test": "yes"}, jitter=0, transport=httpx.MockTransport(respond)
         )
         try:
             get = await fetcher.fetch("https://example.test/get")
@@ -94,9 +92,7 @@ def test_httpx_fetcher_classifies_transport_failures(error, category):
         def explode(request):
             raise error
 
-        fetcher = HttpxFetcher(jitter=0)
-        await fetcher._client.aclose()
-        fetcher._client = httpx.AsyncClient(transport=httpx.MockTransport(explode))
+        fetcher = HttpxFetcher(jitter=0, transport=httpx.MockTransport(explode))
         try:
             return await fetcher.fetch("https://example.test")
         finally:

@@ -34,6 +34,7 @@ class HttpxFetcher(BaseFetcher):
         follow_redirects: bool = True,
         cookies: dict[str, str] | None = None,
         jitter: float = 0.1,
+        transport: httpx.AsyncBaseTransport | None = None,
     ) -> None:
         """
         Configure the pooled client and GET pacing.
@@ -41,7 +42,8 @@ class HttpxFetcher(BaseFetcher):
         ``timeout`` applies to each network operation. Headers override the
         browser-like defaults, and cookies seed the client session. Responses
         report the final URL when redirects are enabled. ``jitter`` delays GET
-        requests only. Both time values are in seconds.
+        requests only. Both time values are in seconds. ``transport`` replaces
+        the network, as ``httpx.MockTransport`` does in tests.
 
         Raises:
             ValueError: ``timeout`` or ``jitter`` is outside its valid range.
@@ -57,6 +59,7 @@ class HttpxFetcher(BaseFetcher):
             headers=DEFAULT_HEADERS | (headers or {}),
             follow_redirects=follow_redirects,
             cookies=cookies,
+            transport=transport,
         )
 
     async def _fetch(self, url: str, headers: dict[str, str] | None) -> FetchResult:
