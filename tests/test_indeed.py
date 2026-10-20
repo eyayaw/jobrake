@@ -21,7 +21,7 @@ def test_query_escapes_graphql_strings_as_json():
     assert 'where: "Brussels \\"center\\""' in query
     assert "radius: 0" in query
     company = 'key\\"quoted'
-    with_company = indeed.build_query("", None, None, None, None, company)
+    with_company = indeed.build_query("", None, None, None, None, employer_key=company)
     assert f'field: "indeedEmployerKey", keys: [{json.dumps(company)}]' in with_company
     with_attributes = indeed.build_query("", None, None, None, None, attributes=[company])
     assert f'field: "attributes", keys: [{json.dumps(company)}]' in with_attributes

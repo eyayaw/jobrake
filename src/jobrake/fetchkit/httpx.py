@@ -29,6 +29,7 @@ class HttpxFetcher(BaseFetcher):
     def __init__(
         self,
         timeout: float = HTTP_TIMEOUT,
+        *,
         headers: dict[str, str] | None = None,
         follow_redirects: bool = True,
         cookies: dict[str, str] | None = None,
