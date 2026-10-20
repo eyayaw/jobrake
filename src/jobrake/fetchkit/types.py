@@ -2,10 +2,10 @@
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 
 
-class ErrorCategory(str, Enum):
+class ErrorCategory(StrEnum):
     """Failure categories used by retry and reporting code."""
 
     NETWORK = "network"
