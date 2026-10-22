@@ -222,6 +222,6 @@ async def _fetch_on_turn(fetcher: Fetcher, url: str, tried: set[str]) -> FetchRe
 
 def job_id(url: str) -> str:
     """Extract a numeric posting ID, using ``""`` when the URL has none."""
-    slug = url.split("?")[0].rstrip("/").rsplit("/", 1)[-1]
+    slug = url.split("?", maxsplit=1)[0].rstrip("/").rsplit("/", 1)[-1]
     tail = slug.rsplit("-", 1)[-1]
     return tail if tail.isdigit() else ""

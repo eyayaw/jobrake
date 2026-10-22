@@ -26,7 +26,7 @@ def __getattr__(name: str) -> Cache:
 
 __all__ = [
     "BASE_URL",
-    "CACHE",
+    "CACHE",  # noqa: F822  served by __getattr__ above
     "FRAGMENT_URL",
     "HEADERS",
     "MAX_START",

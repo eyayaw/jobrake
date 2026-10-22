@@ -72,7 +72,7 @@ class _StatusHandler(logging.StreamHandler[TextIO]):
                 self._showing_progress = True
                 self.stream.write(f"[{bar:<20}] [{done}/{total}] ")
                 self.flush()
-        except Exception:
+        except Exception:  # noqa: BLE001  Handler.emit must not raise; handleError reports it
             self.handleError(record)
 
     def clear(self) -> None:
@@ -366,7 +366,7 @@ def _write_stdout(text: str) -> int | None:
         # Keep this handler local. SIGPIPE, signal(SIGPIPE, SIG_DFL),
         # works only on Unix and changes signal handling for the whole process.
         # Point stdout at /dev/null so the exit-time flush stays quiet.
-        with open(os.devnull, "w") as devnull:
+        with Path(os.devnull).open("w") as devnull:
             os.dup2(devnull.fileno(), sys.stdout.fileno())
         return 1
     return None
@@ -446,7 +446,7 @@ def _write_jobs(args: argparse.Namespace, jobs: list[JobDict], fmt: str) -> int 
         with args.output.open("x", encoding="utf-8") as output:
             output.write(RENDERERS[fmt](jobs))
     except OSError as error:
-        logger.error("could not write %s: %s", args.output, error)
+        logger.error("could not write %s: %s", args.output, error)  # noqa: TRY400  the user needs the message, not a traceback
         return 1
     logger.info("wrote %d jobs to %s", len(jobs), args.output)
     return None

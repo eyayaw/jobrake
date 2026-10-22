@@ -358,7 +358,7 @@ def test_no_jobs_does_not_create_output(run_cli, monkeypatch, tmp_path):
 def test_closed_pipe_ends_quietly(run_cli, monkeypatch):
     read_end, write_end = os.pipe()
     os.close(read_end)
-    with open(write_end, "w") as stdout:
+    with os.fdopen(write_end, "w") as stdout:
         monkeypatch.setattr(sys, "stdout", stdout)
         assert run_cli() == 1
 
@@ -369,7 +369,7 @@ def test_closed_pipe_ends_quietly(run_cli, monkeypatch):
     monkeypatch.setattr(sys, "argv", ["jobrake", "places", "linkedin", "a"])
     read_end, write_end = os.pipe()
     os.close(read_end)
-    with open(write_end, "w") as stdout:
+    with os.fdopen(write_end, "w") as stdout:
         monkeypatch.setattr(sys, "stdout", stdout)
         assert cli.main() == 1
 
@@ -421,7 +421,7 @@ def test_status_handler_progress():
             return True
 
     stream = Tty()
-    handler = cli._StatusHandler(stream)
+    handler = cli._StatusHandler(stream)  # noqa: SLF001  the handler is the unit under test; the CLI only wires it
     emit(handler, "details", progress=(1, 2))
     emit(handler, "failed", level=logging.ERROR, exc_info=(ValueError, ValueError("bad"), None))
     emit(handler, "details", progress=(2, 2))
@@ -441,7 +441,7 @@ def test_status_handler_progress():
 
     # A non-terminal stream keeps ordinary records and drops progress.
     plain = io.StringIO()
-    handler = cli._StatusHandler(plain)
+    handler = cli._StatusHandler(plain)  # noqa: SLF001  the handler is the unit under test; the CLI only wires it
     emit(handler, "details", progress=(1, 2))
     emit(handler, "finished")
     assert "1/2" not in plain.getvalue()

@@ -29,7 +29,7 @@ async def main() -> None:
                     f"{column(job['company'], 20)} {column(job['location'], 24)} "
                     f"desc={len(job.get('description', ''))}ch"
                 )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001  a smoke run reports each site's failure and goes on
             print(f"{site}: FAILED {type(e).__name__}: {e}")
         await asyncio.sleep(3)
 

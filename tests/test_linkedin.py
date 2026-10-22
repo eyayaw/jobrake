@@ -255,7 +255,8 @@ class QueuedOnOneFabric:
 
     def request(self):
         url = "https://www.linkedin.com/x"
-        return asyncio.ensure_future(client._fetch_on_turn(self, url, {"prod-b", "prod-c"}))
+        turn = client._fetch_on_turn(self, url, {"prod-b", "prod-c"})  # noqa: SLF001  the pacing primitive is the unit under test
+        return asyncio.ensure_future(turn)
 
     async def wake_all(self):
         waiters, self.parked = self.parked, []
@@ -278,7 +279,7 @@ def test_waiters_on_a_fabric_stay_paced_after_an_event_loop_stall(monkeypatch):
 
     asyncio.run(run())
     assert len(queue.sends) == 7
-    assert all(b - a >= client.PACE for a, b in zip(queue.sends, queue.sends[1:]))
+    assert all(b - a >= client.PACE for a, b in itertools.pairwise(queue.sends))
 
 
 def test_waiters_take_a_new_turn_when_discovery_starts(monkeypatch):
@@ -471,7 +472,7 @@ def test_concurrent_retries_try_each_fabric_once_and_keep_each_fabric_paced(monk
     assert len(target) == 1 + client.RETRIES
     assert sorted(target[:3]) == list(fabrics)  # all three before any again
     for fabric, times in sends.items():
-        assert all(b - a >= client.PACE for a, b in zip(times, times[1:])), fabric
+        assert all(b - a >= client.PACE for a, b in itertools.pairwise(times)), fabric
 
 
 def test_linkedin_keeps_collected_jobs_after_a_later_page_failure(unlimited):
@@ -521,7 +522,7 @@ def test_companies_lists_usable_candidates_in_provider_order(unlimited):
         {"id": " 1173 ", "displayName": " ABN AMRO Bank N.V. ", "trackingId": "unused"},
         {"id": "2948083", "displayName": "ABN AMRO MeesPierson"},
         {"id": "company-slug", "displayName": "Acme"},
-        {"id": "１２３", "displayName": "Acme"},
+        {"id": "１２３", "displayName": "Acme"},  # noqa: RUF001  fullwidth digits are the input under test
         {"id": "456", "displayName": "   "},
         {"id": 789, "displayName": "Acme"},
         None,
@@ -681,7 +682,7 @@ def test_paginated_search_preserves_filters(
     [
         ([""], ValueError),
         (["1173,2220078"], ValueError),
-        (["１２３"], ValueError),
+        (["１２３"], ValueError),  # noqa: RUF001  fullwidth digits are the input under test
         ([1173], TypeError),
         ("1173", TypeError),
     ],

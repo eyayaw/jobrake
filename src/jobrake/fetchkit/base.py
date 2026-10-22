@@ -73,7 +73,7 @@ class BaseFetcher:
     async def _capture_result(self, url: str, operation: Awaitable[FetchResult]) -> FetchResult:
         try:
             return await operation
-        except Exception as error:
+        except Exception as error:  # noqa: BLE001  every fetch exception becomes a FetchError
             category = (
                 ErrorCategory.NETWORK
                 if isinstance(error, self.network_errors)
@@ -99,10 +99,10 @@ class BaseFetcher:
 
 
 __all__ = [
-    "BaseFetcher",
     "DEFAULT_ACCEPT",
     "DEFAULT_USER_AGENT",
-    "Fetcher",
     "HTTP_TIMEOUT",
+    "BaseFetcher",
+    "Fetcher",
     "PostFetcher",
 ]

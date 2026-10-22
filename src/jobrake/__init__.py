@@ -11,4 +11,4 @@ try:
 except PackageNotFoundError:
     __version__ = "0.0.0"
 
-__all__ = ["__version__", "HttpxFetcher", "scrape"]
+__all__ = ["HttpxFetcher", "__version__", "scrape"]

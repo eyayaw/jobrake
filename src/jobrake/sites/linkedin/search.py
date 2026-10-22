@@ -112,7 +112,7 @@ async def search(
     *,
     query: str,
     location: str | None = None,
-    country: str | None = None,
+    country: str | None = None,  # noqa: ARG001  shared signature; LinkedIn has no country editions
     radius: int | None = defaults.LINKEDIN_RADIUS,
     results: int = defaults.RESULTS,
     max_age_hours: int | None = defaults.MAX_AGE_HOURS,

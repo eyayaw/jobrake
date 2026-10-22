@@ -288,8 +288,8 @@ async def search(
     radius: int | None = defaults.INDEED_RADIUS,
     results: int = defaults.RESULTS,
     max_age_hours: int | None = defaults.MAX_AGE_HOURS,
-    details: bool = defaults.DETAILS,
-    cache: bool = defaults.CACHE,
+    details: bool = defaults.DETAILS,  # noqa: ARG001  shared signature; Indeed results carry their details
+    cache: bool = defaults.CACHE,  # noqa: ARG001  shared signature; Indeed is not cached
     geoid: str | bool = defaults.GEOID,
     company_ids: list[str] | None = None,
     employer_key: str | None = None,
