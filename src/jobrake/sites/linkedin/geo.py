@@ -71,13 +71,11 @@ async def places(fetcher: Fetcher, name: str) -> list[dict[str, str]] | None:
         return None
     candidates: list[dict[str, str]] = []
     for hit in hits:
-        if not isinstance(hit, dict):
-            continue
-        place = _parse_place(hit.get("id"), hit.get("displayName"))
-        if place is None:
-            continue
-        geoid, display = place
-        candidates.append({"geoId": geoid, "displayName": display})
+        place = (
+            _parse_place(hit.get("id"), hit.get("displayName")) if isinstance(hit, dict) else None
+        )
+        if place is not None:
+            candidates.append({"geoId": place[0], "displayName": place[1]})
     if hits and not candidates:
         logger.warning("geoId lookup for %r returned an unreadable response", name)
         return None

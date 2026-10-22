@@ -19,6 +19,15 @@ query {{
 """
 
 
+def _attribute(entry: object) -> dict[str, str] | None:
+    if not isinstance(entry, dict):
+        return None
+    key, label = entry.get("key"), entry.get("label")
+    if not (isinstance(key, str) and key.strip() and isinstance(label, str) and label.strip()):
+        return None
+    return {"key": key.strip(), "label": label.strip()}
+
+
 async def attributes(fetcher: PostFetcher, query: str, country: str) -> list[dict[str, str]] | None:
     """
     Collect attribute codes and labels from the first 100 matching Indeed jobs.
@@ -57,25 +66,17 @@ async def attributes(fetcher: PostFetcher, query: str, country: str) -> list[dic
     candidates: dict[str, dict[str, str]] = {}
     malformed = False
     for hit in hits:
-        try:
-            entries = hit["job"]["attributes"]
-            if not isinstance(entries, list):
-                raise TypeError("attributes must be a list")
-        except KeyError, TypeError:
+        job = hit.get("job") if isinstance(hit, dict) else None
+        entries = job.get("attributes") if isinstance(job, dict) else None
+        if not isinstance(entries, list):
             malformed = True
             continue
         for entry in entries:
-            if isinstance(entry, dict):
-                key, label = entry.get("key"), entry.get("label")
-                if (
-                    isinstance(key, str)
-                    and key.strip()
-                    and isinstance(label, str)
-                    and label.strip()
-                ):
-                    candidates.setdefault(key.strip(), {"key": key.strip(), "label": label.strip()})
-                    continue
-            malformed = True
+            attribute = _attribute(entry)
+            if attribute is None:
+                malformed = True
+            else:
+                candidates.setdefault(attribute["key"], attribute)
     if malformed and not candidates:
         logger.warning("could not read Indeed's attributes for %r. Try again later", query)
         return None

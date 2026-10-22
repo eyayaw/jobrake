@@ -65,6 +65,48 @@ def _parse_page(html: str) -> tuple[list[JobDict], int]:
     return jobs, len(cards)
 
 
+async def _collect_pages(
+    fetcher: Fetcher, params: dict[str, object], results: int, *, location: str | None
+) -> tuple[list[JobDict], int]:
+    """Return the unique cards and the next offset, paging until ``results`` cards, an empty page, an error, or ``MAX_START``."""
+    jobs: list[JobDict] = []
+    seen: set[str] = set()
+    start = 0
+    while len(jobs) < results and start < MAX_START:
+        page = {k: v for k, v in (params | {"start": start}).items() if v is not None}
+        result = await paced_fetch(fetcher, f"{SEARCH_URL}?{urlencode(page)}")
+        if result.error:
+            logger.warning(
+                "linkedin search stopped: %s. Keeping the %s already collected",
+                result.error.message,
+                ngettext("%d job", "%d jobs", len(jobs)) % len(jobs),
+            )
+            break
+        cards, raw = _parse_page(result.text)
+        if not raw:
+            if start == 0 and params["geoId"]:
+                logger.warning("linkedin returned no jobs for geoId=%s", params["geoId"])
+            elif start == 0:
+                # An unresolvable location and a genuine no-results page both return an
+                # empty 200. The guest geocoder often needs a region and country. "Berlin"
+                # works, while bare "Amsterdam" does not.
+                logger.warning(
+                    "linkedin returned no jobs for location=%r. "
+                    "A location without its region and country may not resolve; try "
+                    "'Amsterdam, North Holland, Netherlands'",
+                    location,
+                )
+            break
+        for job in cards:
+            if job["id"] not in seen:
+                seen.add(job["id"])
+                jobs.append(job)
+        # Offsets can overlap, and some cards cannot be parsed. Only a page
+        # without cards marks the end. Advance by the server's own card count.
+        start += raw
+    return jobs, start
+
+
 async def search(
     fetcher: Fetcher,
     *,
@@ -151,60 +193,22 @@ async def search(
             logger.info("linkedin search finished with 0 jobs")
             return []
         geoid = resolved
-    jobs: list[JobDict] = []
-    seen: set[str] = set()
-    start = 0
-    while len(jobs) < results and start < MAX_START:
-        params = {
-            "keywords": query,
-            "location": location or None,
-            # A geoId outranks LinkedIn's own geocoding of the location text.
-            "geoId": geoid or None,
-            # LinkedIn names its radius parameter ``distance`` and reads it in miles.
-            "distance": None if radius is None else round(radius / KM_PER_MILE),
-            "start": start,
-            "f_TPR": f"r{max_age_hours * 3600}" if max_age_hours else None,
-            # Newest first. The guest endpoint ignores it today and ranks by
-            # relevance.
-            "sortBy": "DD",
-            "f_C": ",".join(company_ids) if company_ids else None,
-            "f_AL": "true" if easy_apply else None,
-            "f_EA": "true" if early_applicant else None,
-        }
-        query_string = urlencode({k: v for k, v in params.items() if v is not None})
-        result = await paced_fetch(fetcher, f"{SEARCH_URL}?{query_string}")
-        if result.error:
-            logger.warning(
-                "linkedin search stopped: %s. Keeping the %s already collected",
-                result.error.message,
-                ngettext("%d job", "%d jobs", len(jobs)) % len(jobs),
-            )
-            break
-        cards, raw = _parse_page(result.text)
-        if not raw:
-            if start == 0:
-                if geoid:
-                    logger.warning("linkedin returned no jobs for geoId=%s", geoid)
-                else:
-                    # An unresolvable location and a genuine no-results page both
-                    # return an empty 200. The guest geocoder often needs a region
-                    # and country. "Berlin" works, while bare "Amsterdam" does not.
-                    logger.warning(
-                        "linkedin returned no jobs for location=%r. "
-                        "A location without its region and country may not resolve; try "
-                        "'Amsterdam, North Holland, Netherlands'",
-                        location,
-                    )
-            break
-        for job in cards:
-            if job["id"] in seen:
-                continue
-            seen.add(job["id"])
-            jobs.append(job)
-        # Offsets can overlap, and some cards cannot be parsed. Only a page
-        # without cards marks the end. Advance by the server's own card count.
-        start += raw
-
+    params: dict[str, object] = {
+        "keywords": query,
+        "location": location or None,
+        # A geoId outranks LinkedIn's own geocoding of the location text.
+        "geoId": geoid or None,
+        # LinkedIn names its radius parameter ``distance`` and reads it in miles.
+        "distance": None if radius is None else round(radius / KM_PER_MILE),
+        "f_TPR": f"r{max_age_hours * 3600}" if max_age_hours else None,
+        # Newest first. The guest endpoint ignores it today and ranks by
+        # relevance.
+        "sortBy": "DD",
+        "f_C": ",".join(company_ids) if company_ids else None,
+        "f_AL": "true" if easy_apply else None,
+        "f_EA": "true" if early_applicant else None,
+    }
+    jobs, start = await _collect_pages(fetcher, params, results, location=location)
     if len(jobs) < results and start >= MAX_START:
         logger.warning(
             "linkedin's guest search serves nothing past offset %d; returning "

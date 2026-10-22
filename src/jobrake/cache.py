@@ -159,30 +159,27 @@ class Cache:
     def _connect(self) -> sqlite3.Connection | None:
         if self._broken:
             return None
-        if self._conn is None:
-            try:
-                self.path.parent.mkdir(parents=True, exist_ok=True)
-                self._conn = sqlite3.connect(self.path)
-                for table in _TABLES:
-                    columns = tuple(
-                        row[1] for row in self._conn.execute(f"PRAGMA table_info({table})")
-                    )
-                    if columns and columns != _COLUMNS:
-                        # A table built by an older jobrake cannot take today's rows.
-                        self._conn.execute(f"DROP TABLE {table}")
-                    self._conn.execute(_SCHEMA.format(table=table))
-                    # Rows of another format are already invisible to this one,
-                    # so dropping them only reclaims the space they hold.
-                    self._conn.execute(
-                        f"DELETE FROM {table} WHERE version != ?", (_VERSIONS[table],)
-                    )
-                self._conn.execute(
-                    f"DELETE FROM {POSTINGS} WHERE stored_at < ?",
-                    (time.time() - self.retention,),
-                )
-                self._conn.commit()
-            except (sqlite3.Error, OSError) as error:
-                self._give_up(error)
+        if self._conn is not None:
+            return self._conn
+        try:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            self._conn = sqlite3.connect(self.path)
+            for table in _TABLES:
+                columns = tuple(row[1] for row in self._conn.execute(f"PRAGMA table_info({table})"))
+                if columns and columns != _COLUMNS:
+                    # A table built by an older jobrake cannot take today's rows.
+                    self._conn.execute(f"DROP TABLE {table}")
+                self._conn.execute(_SCHEMA.format(table=table))
+                # Rows of another format are already invisible to this one,
+                # so dropping them only reclaims the space they hold.
+                self._conn.execute(f"DELETE FROM {table} WHERE version != ?", (_VERSIONS[table],))
+            self._conn.execute(
+                f"DELETE FROM {POSTINGS} WHERE stored_at < ?",
+                (time.time() - self.retention,),
+            )
+            self._conn.commit()
+        except (sqlite3.Error, OSError) as error:
+            self._give_up(error)
         return self._conn
 
     def close(self) -> None:
@@ -227,19 +224,19 @@ class Cache:
                 # SQLite may return a nonnumeric value despite the REAL declaration.
                 if not isinstance(stored_at, int | float) or not math.isfinite(stored_at):
                     raise ValueError(f"cache stored_at is not a finite number: {stored_at!r}")
-                if stored is None:
-                    if table == POSTINGS and stored_at >= now - self.retention:
-                        found[key] = None
+                if stored is None and table == POSTINGS and stored_at >= now - self.retention:
+                    found[key] = None  # a tombstone still within retention
                     continue
-                if table != POSTINGS or stored_at >= now - self.ttl:
-                    try:
-                        decoded = json.loads(stored, parse_constant=_reject_constant)
-                    except _NonstandardConstant:
-                        # Treat nonstandard numeric constants as a cache miss. A successful refetch replaces the row.
-                        continue
-                    if not isinstance(decoded, dict):
-                        raise ValueError("cached value is not a JSON object")
-                    found[key] = decoded
+                if stored is None or (table == POSTINGS and stored_at < now - self.ttl):
+                    continue
+                try:
+                    decoded = json.loads(stored, parse_constant=_reject_constant)
+                except _NonstandardConstant:
+                    # A nonstandard numeric constant is a miss. A successful refetch replaces the row.
+                    continue
+                if not isinstance(decoded, dict):
+                    raise TypeError("cached value is not a JSON object")
+                found[key] = decoded
             return found
         except (json.JSONDecodeError, OSError, sqlite3.Error, TypeError, ValueError) as error:
             self._give_up(error)
