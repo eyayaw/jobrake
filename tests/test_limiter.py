@@ -1,11 +1,16 @@
 """Token-bucket reservation and acquisition with real and stubbed clocks."""
 
 import asyncio
+import math
 import time
 
 import pytest
+from hypothesis import given
+from hypothesis import strategies as st
 
 from jobrake.fetchkit import TokenBucket
+
+NOT_FINITE = st.sampled_from([math.nan, math.inf])
 
 
 def test_burst_is_free_then_debt_compounds():
@@ -107,17 +112,15 @@ def test_canceled_waiter_does_not_delay_its_follower(monkeypatch):
     asyncio.run(run())
 
 
-@pytest.mark.parametrize(
-    "capacity, refill_interval",
-    [
-        (0, 1.0),
-        (1, 0),
-        (float("nan"), 1.0),  # nan passes `< 1` checks and disables pacing
-        (1, float("nan")),
-        (float("inf"), 1.0),
-        (1, float("inf")),  # an infinite interval means an infinite wait
-    ],
-)
-def test_rejects_invalid_parameters(capacity, refill_interval):
-    with pytest.raises(ValueError):
-        TokenBucket(capacity, refill_interval)
+@given(capacity=st.floats(max_value=1, exclude_max=True) | NOT_FINITE)
+def test_rejects_a_capacity_below_one_or_not_finite(capacity):
+    # nan passes `< 1` checks and would disable pacing
+    with pytest.raises(ValueError, match=r"^capacity must be finite"):
+        TokenBucket(capacity, 1.0)
+
+
+@given(refill_interval=st.floats(max_value=0) | NOT_FINITE)
+def test_rejects_a_refill_interval_not_positive_or_not_finite(refill_interval):
+    # an infinite interval means an infinite wait
+    with pytest.raises(ValueError, match=r"^refill_interval must be finite"):
+        TokenBucket(1, refill_interval)

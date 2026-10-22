@@ -53,88 +53,73 @@ def run_cli(monkeypatch):
     return run
 
 
-def test_lookup_commands_print_candidates_and_report_failure(monkeypatch, capsys):
-    linkedin_hits = [{"geoId": "102011674", "displayName": "Amsterdam, North Holland, Netherlands"}]
-    indeed_hits = [{"suggestion": "Boston, MA", "locationType": "CITY"}]
-    company_hits = [{"companyId": "1173", "displayName": "ABN AMRO Bank N.V."}]
-    indeed_company_hits = [{"employerKey": "fe219df7f711aa73", "suggestion": "ABN AMRO"}]
-    attribute_hits = [{"key": "3CQB7", "label": "Spatial analysis"}]
+@pytest.mark.parametrize(
+    ("argv", "lookup", "expected", "hits"),
+    [
+        (
+            ["places", "linkedin", "amsterdam"],
+            "linkedin.places",
+            ("amsterdam",),
+            [{"geoId": "102011674", "displayName": "Amsterdam, North Holland, Netherlands"}],
+        ),
+        (
+            ["places", "indeed", "boston", "-c", "usa"],
+            "indeed.places",
+            ("boston", "usa"),
+            [{"suggestion": "Boston, MA", "locationType": "CITY"}],
+        ),
+        (
+            ["companies", "linkedin", "ABN AMRO"],
+            "linkedin.companies",
+            ("ABN AMRO",),
+            [{"companyId": "1173", "displayName": "ABN AMRO Bank N.V."}],
+        ),
+        (
+            ["companies", "indeed", "ABN AMRO", "-c", "netherlands"],
+            "indeed.companies",
+            ("ABN AMRO", "netherlands"),
+            [{"employerKey": "fe219df7f711aa73", "suggestion": "ABN AMRO"}],
+        ),
+        (
+            ["attributes", "indeed", "-c", "usa", "data scientist"],
+            "indeed.attributes",
+            ("data scientist", "usa"),
+            [{"key": "3CQB7", "label": "Spatial analysis"}],
+        ),
+    ],
+)
+def test_lookup_commands_print_candidates_and_report_failure(
+    monkeypatch, capsys, argv, lookup, expected, hits
+):
+    answers = [hits, [], None]
 
     class StubHttpx:
-        instances: list = []
-
         def __init__(self):
             self.closed = False
-            StubHttpx.instances.append(self)
+            created.append(self)
 
         async def close(self):
             self.closed = True
 
-    async def fake_linkedin(fetcher, name):
-        assert name == "amsterdam"
-        return linkedin_hits
+    created: list[StubHttpx] = []
 
-    async def fake_indeed(fetcher, name, country):
-        assert (name, country) == ("boston", "usa")
-        return indeed_hits
+    async def fake_lookup(fetcher, *args):
+        assert args == expected
+        return answers.pop(0)
 
-    async def fake_companies(fetcher, name):
-        assert name == "ABN AMRO"
-        return company_hits
-
-    async def fake_indeed_companies(fetcher, name, country):
-        assert (name, country) == ("ABN AMRO", "netherlands")
-        return indeed_company_hits
-
-    async def fake_attributes(fetcher, query, country):
-        assert (query, country) == ("data scientist", "usa")
-        return attribute_hits
-
+    site, name = lookup.split(".")
     monkeypatch.setattr(cli, "HttpxFetcher", StubHttpx)
-    monkeypatch.setattr(cli.indeed, "attributes", fake_attributes)
-    monkeypatch.setattr(cli.indeed, "companies", fake_indeed_companies)
-    monkeypatch.setattr(cli.linkedin, "companies", fake_companies)
-    monkeypatch.setattr(cli.linkedin, "places", fake_linkedin)
-    monkeypatch.setattr(cli.indeed, "places", fake_indeed)
-    monkeypatch.setattr(sys, "argv", ["jobrake", "places", "linkedin", "amsterdam"])
+    monkeypatch.setattr(getattr(cli, site), name, fake_lookup)
+    monkeypatch.setattr(sys, "argv", ["jobrake", *argv])
     assert cli.main() is None
-    assert json.loads(capsys.readouterr().out) == linkedin_hits
-    monkeypatch.setattr(sys, "argv", ["jobrake", "places", "indeed", "boston", "-c", "usa"])
-    assert cli.main() is None
-    assert json.loads(capsys.readouterr().out) == indeed_hits
-    linkedin_hits = None  # a failed lookup exits nonzero with nothing on stdout
-    monkeypatch.setattr(sys, "argv", ["jobrake", "places", "linkedin", "amsterdam"])
-    assert cli.main() == 1
-    assert capsys.readouterr().out == ""
-    monkeypatch.setattr(sys, "argv", ["jobrake", "companies", "linkedin", "ABN AMRO"])
-    assert cli.main() is None
-    assert json.loads(capsys.readouterr().out) == company_hits
-    company_hits = []
+    assert json.loads(capsys.readouterr().out) == hits
     assert cli.main() is None
     assert json.loads(capsys.readouterr().out) == []
-    company_hits = None
+    # A failed lookup exits nonzero with nothing on stdout.
     assert cli.main() == 1
     assert capsys.readouterr().out == ""
-    monkeypatch.setattr(
-        sys, "argv", ["jobrake", "companies", "indeed", "ABN AMRO", "-c", "netherlands"]
-    )
-    assert cli.main() is None
-    assert json.loads(capsys.readouterr().out) == indeed_company_hits
-    indeed_company_hits = None
-    assert cli.main() == 1
-    assert capsys.readouterr().out == ""
-    monkeypatch.setattr(
-        sys, "argv", ["jobrake", "attributes", "indeed", "-c", "usa", "data scientist"]
-    )
-    assert cli.main() is None
-    assert json.loads(capsys.readouterr().out) == attribute_hits
-    attribute_hits = []
-    assert cli.main() is None
-    assert json.loads(capsys.readouterr().out) == []
-    attribute_hits = None
-    assert cli.main() == 1
-    assert capsys.readouterr().out == ""
-    assert StubHttpx.instances and all(f.closed for f in StubHttpx.instances)
+    assert len(created) == 3
+    assert all(f.closed for f in created)
 
 
 def test_details_command_renders_what_it_resolved(monkeypatch, capsys):

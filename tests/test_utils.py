@@ -32,9 +32,9 @@ def test_epoch_ms_to_iso():
 def test_epoch_ms_to_iso_rejects_what_cannot_be_milliseconds():
     with pytest.raises(ValueError, match="not epoch milliseconds"):
         epoch_ms_to_iso("not a timestamp")
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="looks like epoch seconds"):
         epoch_ms_to_iso(1717200000)  # seconds: reads as 1970-01-20
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="not epoch milliseconds"):
         epoch_ms_to_iso(1e18)  # past what datetime can represent
 
 

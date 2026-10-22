@@ -8,12 +8,16 @@ import sqlite3
 import subprocess
 import sys
 import time
+from unittest import mock
 
 import pytest
+from hypothesis import example, given
+from hypothesis import strategies as st
 
 from jobrake.cache import _VERSIONS, GEOIDS, POSTINGS, RETENTION, TTL, Cache
 
 POSTING = {"description": "Role", "applicants": 25}
+NOT_FINITE = st.sampled_from([math.nan, math.inf])
 
 
 @pytest.fixture
@@ -116,17 +120,21 @@ def test_unserializable_fields_disable_cache(make_cache, caplog):
     assert "disabled" in caplog.text
 
 
-@pytest.mark.parametrize(
-    ("ttl", "retention"),
-    [
-        (math.nan, RETENTION),
-        (TTL, TTL - 1),  # rows would purge before going stale
-        (None, -1),  # a retention the caller stated is never repaired
-    ],
+@given(ttl=st.floats(max_value=0) | NOT_FINITE)
+def test_a_ttl_that_is_not_finite_and_positive_is_rejected(ttl):
+    with pytest.raises(ValueError, match=r"^ttl "):
+        Cache("unused.sqlite3", ttl=ttl)
+
+
+@given(
+    ttl=st.none() | st.just(TTL),
+    retention=st.floats(max_value=TTL, exclude_max=True) | NOT_FINITE,
 )
-def test_invalid_policy_rejected(tmp_path, ttl, retention):
-    with pytest.raises(ValueError):
-        Cache(tmp_path / "jobrake.sqlite3", ttl=ttl, retention=retention)
+@example(ttl=None, retention=math.nextafter(TTL, 0))
+def test_a_stated_retention_below_ttl_or_not_finite_is_rejected(ttl, retention):
+    # Rows would purge before going stale, and a retention the caller stated is never repaired.
+    with pytest.raises(ValueError, match=r"^retention "):
+        Cache("unused.sqlite3", ttl=ttl, retention=retention)
 
 
 def test_environment_supplies_path_and_lifetimes(tmp_path, monkeypatch):
@@ -144,11 +152,10 @@ def test_environment_supplies_path_and_lifetimes(tmp_path, monkeypatch):
     assert Cache(tmp_path / "given.sqlite3", ttl=60).ttl == 60
 
 
-@pytest.mark.parametrize("seconds", ["", "weekly", "0", "-5", "inf", "nan"])
-def test_unusable_environment_lifetime_falls_back(monkeypatch, seconds):
-    monkeypatch.setenv("JOBRAKE_CACHE_TTL", seconds)
-
-    assert Cache().ttl == TTL
+@given(seconds=st.floats(max_value=0).map(str) | st.sampled_from(["", "weekly", "inf", "nan"]))
+def test_an_unusable_environment_lifetime_falls_back(seconds):
+    with mock.patch.dict(os.environ, {"JOBRAKE_CACHE_TTL": seconds}):
+        assert Cache().ttl == TTL
 
 
 def test_environment_ttl_lifts_retention(monkeypatch):

@@ -5,6 +5,8 @@ import math
 
 import httpx
 import pytest
+from hypothesis import given
+from hypothesis import strategies as st
 
 from jobrake.fetchkit import BaseFetcher, ErrorCategory, HttpxFetcher, build_result
 
@@ -73,10 +75,10 @@ def test_httpx_fetcher_maps_get_and_post_responses():
     assert post.text == "POST"
 
 
-@pytest.mark.parametrize("value", [0, -1, math.nan, math.inf])
-def test_httpx_fetcher_rejects_invalid_timeouts(value):
-    with pytest.raises(ValueError):
-        HttpxFetcher(timeout=value)
+@given(timeout=st.floats(max_value=0) | st.sampled_from([math.nan, math.inf]))
+def test_httpx_fetcher_rejects_a_timeout_not_positive_or_not_finite(timeout):
+    with pytest.raises(ValueError, match="timeout must be finite"):
+        HttpxFetcher(timeout=timeout)
 
 
 @pytest.mark.parametrize(

@@ -18,6 +18,7 @@ Changelog = "https://github.com/eyayaw/jobrake/blob/main/CHANGELOG.md"
 
 [dependency-groups]
 dev = [
+    "hypothesis>=6.169.0",
     "pytest>=8.0",
     "ruff>=0.16.3",
     "ty>=0.0.71",

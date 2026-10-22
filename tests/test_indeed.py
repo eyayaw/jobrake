@@ -68,8 +68,11 @@ def test_company_lookup_keeps_usable_keys_in_provider_order():
     params = parse_qs(urlparse(fetcher.requests[0]).query)
     assert params["query"] == ["ABN & AMRO"]
     assert params["country"] == ["NL"]
-    for name, country in [(" ", "usa"), ("ABN", "atlantis")]:
-        with pytest.raises(ValueError):
+    for name, country, message in [
+        (" ", "usa", "is blank"),
+        ("ABN", "atlantis", "unknown Indeed country"),
+    ]:
+        with pytest.raises(ValueError, match=message):
             asyncio.run(indeed.companies(fetcher, name, country))
     assert len(fetcher.requests) == 1
 
@@ -96,7 +99,7 @@ def test_indeed_rejects_an_invalid_employer_key_before_searching():
     ]
     fetcher = StubFetcher({})
     for employer_key, error in cases:
-        with pytest.raises(error, match="employer.key"):
+        with pytest.raises(error, match=r"employer.key"):
             asyncio.run(
                 indeed.search(fetcher, query="", country="netherlands", employer_key=employer_key)
             )
@@ -547,8 +550,11 @@ def test_attribute_lookup_preserves_distinct_codes_and_skips_malformed_entries()
         {"key": "5DH8C", "label": "Economics"},
     ]
     assert len(fetcher.requests) == 1
-    for query, country in ((" ", "usa"), ("data", "unknown")):
-        with pytest.raises(ValueError):
+    for query, country, message in (
+        (" ", "usa", "is blank"),
+        ("data", "unknown", "unknown Indeed country"),
+    ):
+        with pytest.raises(ValueError, match=message):
             asyncio.run(indeed.attributes(fetcher, query, country))
     assert len(fetcher.requests) == 1
 
