@@ -1,0 +1,5 @@
+# With this file present, uv ignores [tool.uv] settings in pyproject.toml ([tool.uv.sources] still applies).
+required-version = ">=0.13.1"
+# Resolves only to releases at least a week old, so a broken or yanked release is seen before it lands.
+# For a security fix that cannot wait, name the package under [exclude-newer-package] with a later date.
+exclude-newer = "7 days"

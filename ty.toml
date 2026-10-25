@@ -1,0 +1,2 @@
+[rules]
+missing-type-argument = "error" # a bare list or dict in an annotation

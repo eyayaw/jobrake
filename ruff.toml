@@ -1,0 +1,45 @@
+line-length = 100
+output-prefer-rule-codes = true # preview output would name rules, and noqa takes codes
+
+[format]
+docstring-code-format = true
+
+[lint]
+preview = true # PLR1702 needs it; preview also sharpens some stable rules (F401, F811, F822)
+explicit-preview-rules = true
+select = [
+  "F", "E4", "E7", "E9", "W605", # pyflakes and the pycodestyle errors the formatter cannot fix
+  "B", "PL", "RUF", "ASYNC", "LOG", "T10", # likely bugs, pylint checks and size limits, blocking calls in async code
+  "BLE", "S110", "S112", "TRY002", "TRY004", "TRY201", "TRY203", "TRY400", "TRY401", # exception handling that hides errors
+  "C4", "PIE", "SIM", "RET", "PERF", "FURB", "UP", "PTH", "C90", "PLR1702", # shorter and current idioms; complexity over 10; blocks nested past three
+  "ARG", "ERA", # unused arguments, commented-out code
+  "SLF", "FBT001", "FBT002", "TID251", "PGH", # private access, positional bools, banned APIs, blanket ignores
+  "ANN", # ty types an unannotated return as Unknown
+  "I", "PT", # import order, pytest style
+  "D", "D213", # docstring shape
+]
+ignore = [
+  "D1", # presence is a prose rule; a linter cannot tell filler from substance
+  "D212", # D213 puts the summary on the second line
+  "D417", # would force one Args entry per parameter once a section exists
+  "PLR0913", # total arguments; PLR0917 caps the positional ones
+  "PLR2004", # magic values; the fix would be a single-use constant
+  "PT018", # pytest already shows each part of a compound assert
+]
+
+[lint.per-file-ignores]
+"tests/**" = ["D", "ANN", "ARG", "FBT", "PLR0917"] # fixtures and stubs take parameters they never read
+"test_*.py" = ["D", "ANN", "ARG", "FBT", "PLR0917"]
+"scripts/**" = ["D"]
+
+[lint.pydocstyle]
+convention = "google"
+
+[lint.pylint]
+max-nested-blocks = 3
+
+[lint.flake8-annotations]
+allow-star-arg-any = true
+
+[lint.flake8-tidy-imports.banned-api]
+"__future__.annotations".msg = "Python 3.14 defers annotations (PEP 649)."

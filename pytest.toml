@@ -1,0 +1,9 @@
+[pytest]
+testpaths = ["tests"]
+addopts = ["-ra"]
+strict = true
+filterwarnings = ["error"]
+log_level = "INFO"
+# A string until the next pytest release: a TOML number raises TypeError (pytest-dev/pytest#15132).
+faulthandler_timeout = "60"
+faulthandler_exit_on_timeout = true

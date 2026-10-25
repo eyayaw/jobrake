@@ -1,0 +1,32 @@
+[[repos]]
+repo = "local"
+
+[[repos.hooks]]
+id = "ruff"
+name = "ruff check"
+language = "system"
+entry = "uv run --locked ruff check --force-exclude"
+types_or = ["python", "pyi"]
+
+[[repos.hooks]]
+id = "ruff-format"
+name = "ruff format"
+language = "system"
+entry = "uv run --locked ruff format --check --force-exclude"
+types_or = ["python", "pyi"]
+
+[[repos.hooks]]
+id = "ty"
+name = "ty check"
+language = "system"
+entry = "uv run --locked ty check"
+pass_filenames = false
+files = '\.(py|pyi|toml|lock)$' # code, config, and the lock; a docs-only commit skips it
+
+[[repos.hooks]]
+id = "pytest"
+name = "pytest"
+language = "system"
+entry = "uv run --locked pytest -q"
+pass_filenames = false
+files = '\.(py|pyi|toml|lock)$' # code, config, and the lock; a docs-only commit skips it
