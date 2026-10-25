@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.18.0](https://github.com/eyayaw/jobrake/releases/tag/v0.18.0) (2026-10-18)
+## [0.18.0](https://github.com/eyayaw/jobrake/releases/tag/v0.18.0) - 2026-10-18
 
 ### Changed
 
@@ -13,7 +13,7 @@
 
 - Reading `Retry-After` on LinkedIn 429 responses, which the guest API does not send.
 
-## [0.17.0](https://github.com/eyayaw/jobrake/releases/tag/v0.17.0) (2026-10-04)
+## [0.17.0](https://github.com/eyayaw/jobrake/releases/tag/v0.17.0) - 2026-10-04
 
 ### Added
 
@@ -36,7 +36,8 @@
 - Search query documentation now explains that jobrake forwards text unchanged.
   - Indeed recognizes field restrictions, such as `title:` and `company:`.
   - LinkedIn's documented Boolean operators do not work on its guest endpoint.
-- `jobrake details` and `fetch_details()` cache each posting's canonical URL and remember postings whose lookup found them gone. A rerun over the same IDs or `www` URLs sends no lookups, where 100 IDs used to spend about five minutes on them. `--no-cache` still sends every lookup.- `--geoid` and `resolve_geoid()` pick the candidate whose name equals the requested one. LinkedIn lists a region ahead of the city that shares its name, so `Utrecht, Utrecht, Netherlands` used to search the province. A name with no exact candidate still takes the first one. This release clears cached place resolutions, so each name resolves again on first use.
+- `jobrake details` and `fetch_details()` cache each posting's canonical URL and remember postings whose lookup found them gone. A rerun over the same IDs or `www` URLs sends no lookups, where 100 IDs used to spend about five minutes on them. `--no-cache` still sends every lookup.
+- `--geoid` and `resolve_geoid()` pick the candidate whose name equals the requested one. LinkedIn lists a region ahead of the city that shares its name, so `Utrecht, Utrecht, Netherlands` used to search the province. A name with no exact candidate still takes the first one. This release clears cached place resolutions, so each name resolves again on first use.
 - Gone-posting markers expire after `JOBRAKE_CACHE_RETENTION`, 30 days by default. A posting that once returned 404 or 410 used to be skipped on every later cached run.
 - Indeed warns when a search passes it a `geoid`, which only LinkedIn applies.
 - `--no-cache` and `cache=False` refresh the posting cache instead of bypassing it, so later cached runs see what a refetch found. A refetched page without the schema.org block leaves a fresh cached copy that has the block in place, with its dates, coordinates, and requirements.
@@ -46,7 +47,7 @@
 - `jobrake details` and `fetch_details()` stop warning that a US posting's `www` URL serves no schema.org block. That URL is the posting's canonical address, and its dates and coordinates come through.
 - An Indeed search raises `TypeError` for a non-string `query`, `location`, or `country`. A LinkedIn search does so for `query` and `location`, and for a `geoid` that is neither a string nor a Boolean. These used to surface as `AttributeError` or as a missing-location error.
 
-## [0.16.0](https://github.com/eyayaw/jobrake/releases/tag/v0.16.0) (2026-09-05)
+## [0.16.0](https://github.com/eyayaw/jobrake/releases/tag/v0.16.0) - 2026-09-05
 
 ### Added
 
@@ -67,7 +68,7 @@
 - Rejecting a timestamp says why. A value that resolves before the year 2000 is reported as epoch seconds rather than milliseconds.
 - A numeric search argument that is not an integer now raises `TypeError` naming the argument. Previously `results=2.5` failed at page slicing, a non-finite `radius` or `max_age_hours` reached Indeed inside a malformed query, and `radius=False` searched a 0 km radius instead of omitting it.
 
-## [0.15.0](https://github.com/eyayaw/jobrake/releases/tag/v0.15.0) (2026-09-02)
+## [0.15.0](https://github.com/eyayaw/jobrake/releases/tag/v0.15.0) - 2026-09-02
 
 ### Added
 
@@ -81,7 +82,7 @@
 - **Breaking:** Search arguments are renamed: `search_term` to `query`, `results_wanted` to `results`, `hours_old` to `max_age_hours`, `distance` to `radius`, and `detail` to `details`. The CLI renames `--search-term` to `--query`, `--results-wanted` to `--results`, `--hours-old` to `--max-age`, and `--detail` to `--details`.
 - jobrake stores posting details and LinkedIn geoId resolutions in separate tables within `jobrake.sqlite3`.
 
-## [0.14.0](https://github.com/eyayaw/jobrake/releases/tag/v0.14.0) (2026-08-26)
+## [0.14.0](https://github.com/eyayaw/jobrake/releases/tag/v0.14.0) - 2026-08-25
 
 ### Added
 
@@ -96,7 +97,7 @@
 
 - `--output` rejects a directory path or a missing parent directory before any provider requests, and a failed write reports the error instead of a traceback.
 
-## [0.13.0](https://github.com/eyayaw/jobrake/releases/tag/v0.13.0) (2026-08-24)
+## [0.13.0](https://github.com/eyayaw/jobrake/releases/tag/v0.13.0) - 2026-08-24
 
 ### Added
 
@@ -132,7 +133,7 @@
 - Cached LinkedIn rows containing `NaN` or an infinity are treated as misses
   instead of being returned.
 
-## [0.12.0](https://github.com/eyayaw/jobrake/releases/tag/v0.12.0) (2026-08-21)
+## [0.12.0](https://github.com/eyayaw/jobrake/releases/tag/v0.12.0) - 2026-08-21
 
 ### Added
 
@@ -156,7 +157,7 @@
 - A closed pipe detected while writing to stdout (`jobrake ... | head`) ends
   the run quietly with exit code 1 instead of a `BrokenPipeError` traceback.
 
-## [0.11.0](https://github.com/eyayaw/jobrake/releases/tag/v0.11.0) (2026-08-20)
+## [0.11.0](https://github.com/eyayaw/jobrake/releases/tag/v0.11.0) - 2026-08-20
 
 ### Changed
 
@@ -182,7 +183,7 @@
   several URLs refer to it or its first request fails transiently.
 
 
-## [0.10.0](https://github.com/eyayaw/jobrake/releases/tag/v0.10.0) (2026-08-18)
+## [0.10.0](https://github.com/eyayaw/jobrake/releases/tag/v0.10.0) - 2026-08-18
 
 ### Fixed
 
@@ -207,7 +208,7 @@
 - Punctuation-only employment labels resolve to `None`, and invalid
   epoch-millisecond values receive a consistent `ValueError`.
 
-## [0.9.0](https://github.com/eyayaw/jobrake/releases/tag/v0.9.0) (2026-08-15)
+## [0.9.0](https://github.com/eyayaw/jobrake/releases/tag/v0.9.0) - 2026-08-16
 
 Jobs now share a single cross-site data model: a field means the same thing
 whichever site a row came from. `site`, `id`, and `url` address the posting;
@@ -245,7 +246,7 @@ fetched.
 - **Breaking:** `linkedin.fetch_descriptions` and `parse_description`. The
   fragment they read costs one request, the same as the whole posting, and carries only the description.
 
-## [0.8.0](https://github.com/eyayaw/jobrake/releases/tag/v0.8.0) (2026-08-13)
+## [0.8.0](https://github.com/eyayaw/jobrake/releases/tag/v0.8.0) - 2026-08-13
 
 Each site scraper is a package now: `jobrake.linkedin` and `jobrake.indeed`
 split into `client` and `search` modules (LinkedIn also `descriptions`), with
@@ -262,7 +263,7 @@ the public names unchanged.
 - LinkedIn's request pacing is public API: `linkedin.client.paced_fetch`
   (the former `_paced_fetch`).
 
-## [0.7.0](https://github.com/eyayaw/jobrake/releases/tag/v0.7.0) (2026-08-11)
+## [0.7.0](https://github.com/eyayaw/jobrake/releases/tag/v0.7.0) - 2026-08-11
 
 Results now land wherever your tools want them: `--output` writes JSON, JSONL,
 or CSV, resolved from the file extension.
@@ -273,7 +274,7 @@ or CSV, resolved from the file extension.
 - JSONL output holds one job per line, so files from separate runs merge with a plain `cat runs/*.jsonl`.
 - The writers are library API too: `jobrake.io.write_json`, `write_jsonl`, and `write_csv` save a job list exactly as the CLI does, with the CSV header derived from the job dict itself.
 
-## [0.6.0](https://github.com/eyayaw/jobrake/releases/tag/v0.6.0) (2026-08-10)
+## [0.6.0](https://github.com/eyayaw/jobrake/releases/tag/v0.6.0) - 2026-08-10
 
 Fetched descriptions now persist in an on-disk cache, so repeat searches only
 pay for postings they have not seen: a ~430-job sweep that took ~24 minutes
@@ -301,7 +302,7 @@ reruns in ~2.
 - README: the cache promoted up top, the hand-rolled store recipe replaced by
   it, sections reordered around the reader; this changelog added.
 
-## [0.5.0](https://github.com/eyayaw/jobrake/releases/tag/v0.5.0) (2026-08-10)
+## [0.5.0](https://github.com/eyayaw/jobrake/releases/tag/v0.5.0) - 2026-08-10
 
 The LinkedIn scraper was rebuilt around the site's measured request budget, and
 fetched descriptions now persist in an on-disk cache. A 25-job search with
@@ -343,21 +344,21 @@ descriptions dropped from ~100s and ~8MB to ~80s and ~0.9MB, and repeating a
 - `TokenBucket` and `DescriptionCache` validate their parameters instead of
   accepting values that would misbehave; a canceled wait refunds its token.
 
-## [0.4.0](https://github.com/eyayaw/jobrake/releases/tag/v0.4.0) (2026-08-08)
+## [0.4.0](https://github.com/eyayaw/jobrake/releases/tag/v0.4.0) - 2026-08-08
 
 ### Changed
 
 - **Breaking:** `HttpxFetcher` provides JSON `post` itself; `HttpxPostFetcher`
   dropped.
 
-## [0.3.0](https://github.com/eyayaw/jobrake/releases/tag/v0.3.0) (2026-08-08)
+## [0.3.0](https://github.com/eyayaw/jobrake/releases/tag/v0.3.0) - 2026-08-08
 
 ### Added
 
 - The `PostFetcher` protocol names what the Indeed scraper requires; no
   dependency on the private fetchkit package.
 
-## [0.2.0](https://github.com/eyayaw/jobrake/releases/tag/v0.2.0) (2026-08-07)
+## [0.2.0](https://github.com/eyayaw/jobrake/releases/tag/v0.2.0) - 2026-08-07
 
 ### Added
 
