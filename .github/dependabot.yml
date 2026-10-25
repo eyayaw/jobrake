@@ -9,10 +9,12 @@ updates:
     groups:
       actions:
         patterns: ["*"]
-  - package-ecosystem: uv # uv.toml's exclude-newer already holds back fresh releases
+  - package-ecosystem: uv
     directory: /
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7 # uv.toml's exclude-newer rejects any release younger than this
     groups:
       python:
         patterns: ["*"]
