@@ -96,19 +96,6 @@ in `utils.py`, and `_SITE_ARGS` and `_SITE_LABELS` in `cli.py`.
 
 ## Checks
 
-- A change passes when these exit 0: `uv run -m pytest tests/ -q`,
-  `uv run ruff check`, `uv run ruff format --check`, and `uv run ty check`.
-
-## Changelog
-
-- Use `[version] (date)`, an `Unreleased` section, and the standard change
-  categories. Treat released entries as historical records; correct errors
-  without broadly restyling their prose.
-- Keep `Unreleased` changelog edits uncommitted until release.
-- Write release notes for people. Lead with what changed and why it matters.
-  Include only the details needed to understand the release.
-- Prefix an entry that breaks existing callers with `**Breaking:**` and list
-  it first under Changed.
-- A release is one commit, `chore: bump version to X.Y.Z`, with `CHANGELOG.md`,
-  the version in `pyproject.toml`, and `uv.lock`, plus an annotated tag
-  `vX.Y.Z`. Dependency bumps get their own `chore` commit before it.
+- A change passes when `prek run --all-files` exits 0. It runs ruff check,
+  ruff format, ty, and pytest from the locked environment. CI runs the same
+  hooks, and so does every commit once `prek install` has run in the clone.
