@@ -79,6 +79,13 @@ in `utils.py`, and `_SITE_ARGS` and `_SITE_LABELS` in `cli.py`.
 - Wrap only genuinely long passages, tables, and code. Keep short prose
   sentences on one line even when they cross the usual line length.
 - Always write `jobrake` in lowercase.
+- Inside `sites/`, prose uses each site's nouns: postings, cards, and fields.
+  "Job" and "job dict" appear only where the package promises them, in `models`, `scrape`,
+  and the README. Indeed's API says "job", so the word stays in its code.
+- Describe detail fields as what we extract, when present, and avoid "the
+  posting states". "Hydrate" stays in code docstrings, and the README says "fetch" or "fill".
+- The tagline is one image with no feature list: "The job boards shed new
+  postings every day. Bring a rake."
 - Keep the README as a short landing page. Put detailed usage, output, and
   provider-specific behavior in `docs/guide.md`.
 - Keep CLI help terse. Caveats and provider quirks go in the guide.
