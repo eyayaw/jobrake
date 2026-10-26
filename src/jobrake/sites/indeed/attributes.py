@@ -3,7 +3,7 @@
 import json
 import logging
 
-from jobrake.fetchkit import PostFetcher
+from jobrake.fetchkit import Fetcher
 
 from .client import API_HEADERS, API_URL
 from .countries import indeed_domain
@@ -28,7 +28,7 @@ def _attribute(entry: object) -> dict[str, str] | None:
     return {"key": key.strip(), "label": label.strip()}
 
 
-async def attributes(fetcher: PostFetcher, query: str, country: str) -> list[dict[str, str]] | None:
+async def attributes(fetcher: Fetcher, query: str, country: str) -> list[dict[str, str]] | None:
     """
     Collect attribute codes and labels from the first 100 matching Indeed jobs.
 
@@ -46,15 +46,13 @@ async def attributes(fetcher: PostFetcher, query: str, country: str) -> list[dic
     if not query:
         raise ValueError("attribute lookup query is blank. Try 'data scientist'")
     _, code = indeed_domain(country)
-    result = await fetcher.post(
+    result = await fetcher.fetch(
         API_URL,
-        {"query": QUERY.format(query=json.dumps(query))},
         headers={**API_HEADERS, "indeed-co": code},
+        json={"query": QUERY.format(query=json.dumps(query))},
     )
     if result.error:
-        logger.warning(
-            "attribute lookup for %r failed: %s. Try again later", query, result.error.message
-        )
+        logger.warning("attribute lookup for %r failed: %s. Try again later", query, result.error)
         return None
     try:
         hits = json.loads(result.text)["data"]["jobSearch"]["results"]

@@ -78,7 +78,7 @@ async def _collect_pages(
         if result.error:
             logger.warning(
                 "linkedin search stopped: %s. Keeping the %s already collected",
-                result.error.message,
+                result.error,
                 ngettext("%d job", "%d jobs", len(jobs)) % len(jobs),
             )
             break

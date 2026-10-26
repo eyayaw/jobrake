@@ -50,7 +50,7 @@ async def scrape(
 
     Every returned dict has the shared identity and summary keys, with available detail fields added.
     The provider validates its arguments before the first request.
-    An injected fetcher remains open and belongs to the caller. Indeed requires one with JSON POST support.
+    An injected fetcher remains open and belongs to the caller.
     Without an injected fetcher, ``scrape`` creates and closes an ``HttpxFetcher``.
 
     Raises:

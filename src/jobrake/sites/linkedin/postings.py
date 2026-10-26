@@ -19,7 +19,7 @@ from jobrake.models import SUMMARY_FIELDS, JobDict, employment_type, make_job
 from jobrake.utils import html_text
 
 from . import client
-from .client import job_id, paced_fetch, rate_limited
+from .client import job_id, paced_fetch
 
 logger = logging.getLogger(__name__)
 
@@ -353,7 +353,7 @@ async def _with_fragment(fetcher: Fetcher, posting_id: str, posting: dict[str, A
     # A blockless page arrives localized, so its employment and salary labels
     # may not parse. Fetch the en-US fragment once for those fields.
     fragment = await paced_fetch(fetcher, f"{FRAGMENT_URL}/{posting_id}?_l=en_US")
-    if rate_limited(fragment):
+    if fragment.status == 429:
         # resolved=True keeps the canonical fields; fetch_postings caches them before it stops.
         return _Fetched(posting, resolved=True, stopped=True)
     if fragment.error:
@@ -361,7 +361,7 @@ async def _with_fragment(fetcher: Fetcher, posting_id: str, posting: dict[str, A
             "posting %s: its en-US fragment failed (%s). Keeping the fields parsed "
             "from the posting page",
             posting_id,
-            fragment.error.message,
+            fragment.error,
         )
         return _Fetched(posting, resolved=True, stopped=False)
     return _Fetched(parse_posting(fragment.text) | posting, resolved=True, stopped=False)
@@ -369,14 +369,14 @@ async def _with_fragment(fetcher: Fetcher, posting_id: str, posting: dict[str, A
 
 async def _fetch_fields(fetcher: Fetcher, url: str, posting_id: str) -> _Fetched:
     result = await paced_fetch(fetcher, _canonical(url))
-    if rate_limited(result):
+    if result.status == 429:
         # paced_fetch has spent its retries, so the next posting would likely be
         # refused too. Stop instead of repeating them for every remaining posting.
         return _Fetched(None, resolved=False, stopped=True)
-    if result.error and result.error.http_status in (404, 410):
+    if result.status in (404, 410):
         return _Fetched(None, resolved=True, stopped=False)
     if result.error:
-        logger.warning("skipping posting %s: %s. A rerun retries it", url, result.error.message)
+        logger.warning("skipping posting %s: %s. A rerun retries it", url, result.error)
         return _Fetched(None, resolved=False, stopped=False)
     posting, structured = _parse_posting(BeautifulSoup(result.text, "html.parser"))
     if not posting:
@@ -506,11 +506,11 @@ async def _lookup_address(fetcher: Fetcher, posting_id: str) -> tuple[str | None
     The flag is True after a persistent 429.
     """
     result = await paced_fetch(fetcher, f"{FRAGMENT_URL}/{posting_id}?_l=en_US")
-    if rate_limited(result):
+    if result.status == 429:
         # paced_fetch has spent its retries, so later postings would likely be
         # refused too. Stop rather than retry each of them.
         return None, True
-    if result.error and result.error.http_status in (404, 410):
+    if result.status in (404, 410):
         logger.warning(
             "skipping posting %s. LinkedIn has no such posting, or it was taken down",
             posting_id,
@@ -521,7 +521,7 @@ async def _lookup_address(fetcher: Fetcher, posting_id: str) -> tuple[str | None
         logger.warning(
             "skipping posting %s: %s. Pass its URL to fetch the posting without this lookup",
             posting_id,
-            result.error.message,
+            result.error,
         )
         return None, False
     url = _fragment_url(result.text, posting_id)

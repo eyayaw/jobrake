@@ -8,7 +8,7 @@ from gettext import ngettext
 from typing import Any
 
 from jobrake import defaults
-from jobrake.fetchkit import PostFetcher
+from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, employment_type, make_job
 from jobrake.utils import check_bounds, check_filters, check_text, epoch_ms_to_iso, html_text
 
@@ -280,7 +280,7 @@ def parse_jobs(data: dict[str, Any], base_url: str) -> tuple[list[JobDict], str 
 
 
 async def search(
-    fetcher: PostFetcher,
+    fetcher: Fetcher,
     *,
     query: str,
     location: str | None = None,
@@ -365,11 +365,11 @@ async def search(
             language=language,
             attributes=attributes,
         )
-        result = await fetcher.post(API_URL, {"query": graphql}, headers=headers)
+        result = await fetcher.fetch(API_URL, headers=headers, json={"query": graphql})
         if result.error:
             logger.warning(
                 "indeed search stopped: %s. Keeping the %s already collected",
-                result.error.message,
+                result.error,
                 ngettext("%d job", "%d jobs", len(jobs)) % len(jobs),
             )
             break

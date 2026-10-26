@@ -165,7 +165,7 @@ def test_scrape_closes_its_default_fetcher_after_a_search_failure(monkeypatch):
     closed = []
 
     class Dying(StubFetcher):
-        async def fetch(self, url, headers=None):
+        async def fetch(self, url, *, headers=None, json=None):
             raise RuntimeError("interrupted")
 
         async def close(self):

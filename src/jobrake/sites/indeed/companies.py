@@ -37,9 +37,7 @@ async def companies(fetcher: Fetcher, name: str, country: str) -> list[dict[str,
     )
     result = await fetcher.fetch(f"{COMPANY_URL}?{params}", headers=AUTOCOMPLETE_HEADERS)
     if result.error:
-        logger.warning(
-            "company lookup for %r failed: %s. Try again later", name, result.error.message
-        )
+        logger.warning("company lookup for %r failed: %s. Try again later", name, result.error)
         return None
     try:
         hits = json.loads(result.text)

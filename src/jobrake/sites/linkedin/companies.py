@@ -31,9 +31,7 @@ async def companies(fetcher: Fetcher, name: str) -> list[dict[str, str]] | None:
     query = urlencode({"query": name, "typeaheadType": "COMPANY"})
     result = await client.paced_fetch(fetcher, f"{client.TYPEAHEAD_URL}?{query}")
     if result.error:
-        logger.warning(
-            "company lookup for %r failed: %s. Try again later", name, result.error.message
-        )
+        logger.warning("company lookup for %r failed: %s. Try again later", name, result.error)
         return None
     try:
         hits = json.loads(result.text)

@@ -60,7 +60,7 @@ async def places(fetcher: Fetcher, name: str) -> list[dict[str, str]] | None:
     query = urlencode({"query": name.strip(), "typeaheadType": "GEO"})
     result = await client.paced_fetch(fetcher, f"{client.TYPEAHEAD_URL}?{query}")
     if result.error:
-        logger.warning("geoId lookup for %r failed: %s", name, result.error.message)
+        logger.warning("geoId lookup for %r failed: %s", name, result.error)
         return None
     try:
         hits = json.loads(result.text)

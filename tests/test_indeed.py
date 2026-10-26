@@ -8,7 +8,7 @@ from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 import pytest
-from fakes import StubFetcher, ok, rate_limited
+from fakes import PagedFetcher, StubFetcher, ok, rate_limited
 
 from jobrake.models import IDENTITY_FIELDS, SUMMARY_FIELDS
 from jobrake.sites import indeed
@@ -131,12 +131,7 @@ def test_places_lists_edition_suggestions():
 def test_indeed_parses_and_paginates():
     pages = [indeed_payload(["a", "b"], cursor="next"), indeed_payload(["b", "c"])]
 
-    class Paged(StubFetcher):
-        async def post(self, url, json_body, headers=None):
-            self.requests.append(url)
-            return ok(json.dumps(pages[len(self.requests) - 1]))
-
-    fetcher = Paged({})
+    fetcher = PagedFetcher([json.dumps(page) for page in pages])
     jobs = asyncio.run(indeed.search(fetcher, query="economist", country="usa", results=10))
     assert [j["title"] for j in jobs] == ["Job a", "Job b", "Job c"]
     assert jobs[0]["id"] == "a"
@@ -198,17 +193,7 @@ def test_indeed_requests_full_pages_throughout_a_cursor_chain(
     # with BAD_USER_INPUT, so every request in a chain asks for a full page.
     pages = [indeed_payload(["a", "b"], cursor="next"), indeed_payload(["b", "c", "d"])]
 
-    class Paged(StubFetcher):
-        def __init__(self):
-            super().__init__({})
-            self.queries = []
-
-        async def post(self, url, json_body, headers=None):
-            self.requests.append(url)
-            self.queries.append(json_body["query"])
-            return ok(json.dumps(pages[len(self.requests) - 1]))
-
-    fetcher = Paged()
+    fetcher = PagedFetcher([json.dumps(page) for page in pages])
     original_attributes = attributes.copy() if attributes is not None else None
     jobs = asyncio.run(
         indeed.search(
@@ -224,13 +209,14 @@ def test_indeed_requests_full_pages_throughout_a_cursor_chain(
             location="Seattle",
         )
     )
+    queries = [body["query"] for body in fetcher.bodies]
     # The second page overlaps the first, the limit stays at 100, and the
     # final slice returns three unique jobs.
     assert [job["id"] for job in jobs] == ["a", "b", "c"]
-    assert all('what: "x"' in query for query in fetcher.queries)
-    assert all("limit: 100" in query for query in fetcher.queries)
-    assert all("language" in query.split() for query in fetcher.queries)
-    for query in fetcher.queries:
+    assert all('what: "x"' in query for query in queries)
+    assert all("limit: 100" in query for query in queries)
+    assert all("language" in query.split() for query in queries)
+    for query in queries:
         assert ('field: "indeedEmployerKey"' in query) == bool(employer_key)
         assert ('keys: ["fe219df7f711aa73"]' in query) == bool(employer_key)
         assert ('date: { field: "dateOnIndeed", start: "168h" }' in query) == bool(age)
@@ -248,7 +234,7 @@ def test_indeed_requests_full_pages_throughout_a_cursor_chain(
             assert "} }, { keyword:" in query
         if not employer_key and not expected_keys and language is None and age is None:
             assert "filters:" not in query
-    assert len(fetcher.queries) == 2
+    assert len(queries) == 2
     assert attributes == original_attributes
 
 
@@ -259,12 +245,7 @@ def test_indeed_graphql_error_reports_the_provider_message(caplog):
     }
     pages = [indeed_payload(["a"], cursor="next"), rejected]
 
-    class Paged(StubFetcher):
-        async def post(self, url, json_body, headers=None):
-            self.requests.append(url)
-            return ok(json.dumps(pages[len(self.requests) - 1]))
-
-    fetcher = Paged({})
+    fetcher = PagedFetcher([json.dumps(page) for page in pages])
     with caplog.at_level(logging.WARNING, logger="jobrake.sites.indeed"):
         jobs = asyncio.run(indeed.search(fetcher, query="x", country="usa", results=10))
     assert [job["id"] for job in jobs] == ["a"]  # earlier pages survive
@@ -333,12 +314,7 @@ def test_indeed_all_malformed_page_keeps_paginating():
     bad["data"]["jobSearch"]["results"] = [{"job": None}]
     pages = [bad, indeed_payload(["b"])]
 
-    class Paged(StubFetcher):
-        async def post(self, url, json_body, headers=None):
-            self.requests.append(url)
-            return ok(json.dumps(pages[len(self.requests) - 1]))
-
-    fetcher = Paged({})
+    fetcher = PagedFetcher([json.dumps(page) for page in pages])
     jobs = asyncio.run(indeed.search(fetcher, query="x", country="usa", results=10))
     assert [job["id"] for job in jobs] == ["b"]  # the cursor survives the bad page
 
@@ -346,12 +322,7 @@ def test_indeed_all_malformed_page_keeps_paginating():
 def test_indeed_malformed_later_page_keeps_collected_jobs(caplog):
     pages = [indeed_payload(["a"], cursor="next"), {"data": {"jobSearch": None}}]
 
-    class Paged(StubFetcher):
-        async def post(self, url, json_body, headers=None):
-            self.requests.append(url)
-            return ok(json.dumps(pages[len(self.requests) - 1]))
-
-    fetcher = Paged({})
+    fetcher = PagedFetcher([json.dumps(page) for page in pages])
     with caplog.at_level(logging.WARNING, logger="jobrake.sites.indeed"):
         jobs = asyncio.run(indeed.search(fetcher, query="x", country="usa", results=10))
     assert [job["id"] for job in jobs] == ["a"]
@@ -374,12 +345,7 @@ def test_indeed_damaged_page_info_ends_the_search_with_the_page_kept(damage):
     damage(last["data"]["jobSearch"])
     pages = [indeed_payload(["a"], cursor="next"), last]
 
-    class Paged(StubFetcher):
-        async def post(self, url, json_body, headers=None):
-            self.requests.append(url)
-            return ok(json.dumps(pages[len(self.requests) - 1]))
-
-    fetcher = Paged({})
+    fetcher = PagedFetcher([json.dumps(page) for page in pages])
     jobs = asyncio.run(indeed.search(fetcher, query="x", country="usa", results=10))
     assert [job["id"] for job in jobs] == ["a", "b"]  # Both pages survive the bad cursor.
 
@@ -534,21 +500,17 @@ def test_attribute_lookup_preserves_distinct_codes_and_skips_malformed_entries()
         }
     }
 
-    class Recording(StubFetcher):
-        async def post(self, url, json_body, headers=None):
-            assert headers is not None
-            assert headers["indeed-co"] == "NL"
-            assert "attributes { key label }" in json_body["query"]
-            assert "limit: 100" in json_body["query"]
-            assert json.dumps('data "scientist"') in json_body["query"]
-            assert "filters:" not in json_body["query"]
-            return await super().post(url, json_body, headers)
-
-    fetcher = Recording({"apis.indeed.com": ok(json.dumps(payload))})
+    fetcher = StubFetcher({"apis.indeed.com": ok(json.dumps(payload))})
     assert asyncio.run(indeed.attributes(fetcher, 'data "scientist"', "netherlands")) == [
         {"key": "4N39D", "label": "Economics"},
         {"key": "5DH8C", "label": "Economics"},
     ]
+    assert fetcher.headers[0]["indeed-co"] == "NL"
+    graphql = fetcher.bodies[0]["query"]
+    assert "attributes { key label }" in graphql
+    assert "limit: 100" in graphql
+    assert json.dumps('data "scientist"') in graphql
+    assert "filters:" not in graphql
     assert len(fetcher.requests) == 1
     for query, country, message in (
         (" ", "usa", "is blank"),

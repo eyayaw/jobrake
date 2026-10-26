@@ -7,14 +7,9 @@ from math import inf
 from time import monotonic
 
 from jobrake.cache import Cache
-from jobrake.fetchkit import ErrorCategory, Fetcher, FetchResult, TokenBucket
+from jobrake.fetchkit import Fetcher, FetchResult, TokenBucket
 
 logger = logging.getLogger(__name__)
-
-
-def rate_limited(result: FetchResult) -> bool:
-    """Check for a rate-limited error."""
-    return result.error is not None and result.error.category is ErrorCategory.RATE_LIMITED
 
 
 BASE_URL = "https://www.linkedin.com"
@@ -132,7 +127,7 @@ class Fabrics:
         logger.debug(
             "linkedin %s %s %s",
             fabric,
-            "refused" if rate_limited(result) else "answered",
+            "refused" if result.status == 429 else "answered",
             f"a request pinned to {pinned}" if pinned else "an unpinned request",
         )
         if pinned and fabric and fabric != pinned:
@@ -177,7 +172,7 @@ async def paced_fetch(fetcher: Fetcher, url: str) -> FetchResult:
     tried: set[str] = set()
     result = await _fetch_on_turn(fetcher, url, tried)
     for _ in range(RETRIES):
-        if not rate_limited(result):
+        if result.status != 429:
             break
         # A pinned retry goes to a fabric this request has not tried, which
         # has its own budget. Once it has tried every known fabric, it waits

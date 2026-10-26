@@ -46,7 +46,7 @@ async def places(fetcher: Fetcher, name: str, country: str) -> list[dict[str, st
     )
     result = await fetcher.fetch(f"{AUTOCOMPLETE_URL}?{params}", headers=AUTOCOMPLETE_HEADERS)
     if result.error:
-        logger.warning("location lookup for %r failed: %s", name, result.error.message)
+        logger.warning("location lookup for %r failed: %s", name, result.error)
         return None
     try:
         hits = json.loads(result.text)
