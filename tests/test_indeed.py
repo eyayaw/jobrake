@@ -20,7 +20,7 @@ def test_query_escapes_graphql_strings_as_json():
     assert 'where: "Brussels \\"center\\""' in query
     assert "radius: 0" in query
     company = 'key\\"quoted'
-    with_company = indeed.build_query("", None, 40, None, None, employer_key=company)
+    with_company = indeed.build_query("", None, 40, None, None, company_ids=[company])
     assert f'field: "indeedEmployerKey", keys: [{json.dumps(company)}]' in with_company
     with_attributes = indeed.build_query("", None, 40, None, None, attributes=[company])
     assert f'field: "attributes", keys: [{json.dumps(company)}]' in with_attributes
@@ -150,17 +150,17 @@ def test_indeed_keeps_a_job_whose_date_is_not_milliseconds(caplog):
 
 
 @pytest.mark.parametrize(
-    ("employer_key", "age", "remote", "language", "attributes", "expected_keys"),
+    ("company_ids", "age", "remote", "language", "attributes", "expected_keys"),
     [
         (None, 168, False, None, None, []),
         (None, None, False, None, [], []),
-        (" fe219df7f711aa73\n", None, False, None, [" 3CQB7 "], ["3CQB7"]),
-        ("fe219df7f711aa73", 168, False, None, ["CF3CP", "6QC5F"], ["CF3CP", "6QC5F"]),
+        ([" fe219df7f711aa73\n"], None, False, None, [" 3CQB7 "], ["3CQB7"]),
+        (["fe219df7f711aa73"], 168, False, None, ["CF3CP", "6QC5F"], ["CF3CP", "6QC5F"]),
         (None, 168, True, "Iw", None, ["DSQF7"]),
         (None, None, True, None, [" DSQF7 "], ["DSQF7"]),
-        ("fe219df7f711aa73", None, True, "in", ["3CQB7"], ["3CQB7", "DSQF7"]),
+        (["fe219df7f711aa73"], None, True, "in", ["3CQB7"], ["3CQB7", "DSQF7"]),
         (
-            "fe219df7f711aa73",
+            ["fe219df7f711aa73"],
             168,
             True,
             "EN",
@@ -171,7 +171,7 @@ def test_indeed_keeps_a_job_whose_date_is_not_milliseconds(caplog):
     ],
 )
 def test_indeed_requests_full_pages_throughout_a_cursor_chain(
-    employer_key, age, remote, language, attributes, expected_keys
+    company_ids, age, remote, language, attributes, expected_keys
 ):
     # Indeed binds the page size to its cursor and rejects a changed limit
     # with BAD_USER_INPUT, so every request in a chain asks for a full page.
@@ -185,7 +185,7 @@ def test_indeed_requests_full_pages_throughout_a_cursor_chain(
             query="x",
             country="usa",
             results=3,
-            employer_key=employer_key,
+            company_ids=company_ids,
             max_age_hours=age,
             remote=remote,
             language=language,
@@ -201,8 +201,8 @@ def test_indeed_requests_full_pages_throughout_a_cursor_chain(
     assert all("limit: 100" in query for query in queries)
     assert all("language" in query.split() for query in queries)
     for query in queries:
-        assert ('field: "indeedEmployerKey"' in query) == bool(employer_key)
-        assert ('keys: ["fe219df7f711aa73"]' in query) == bool(employer_key)
+        assert ('field: "indeedEmployerKey"' in query) == bool(company_ids)
+        assert ('keys: ["fe219df7f711aa73"]' in query) == bool(company_ids)
         assert ('date: { field: "dateOnIndeed", start: "168h" }' in query) == bool(age)
         if expected_keys:
             assert f'keyword: {{ field: "attributes", keys: {json.dumps(expected_keys)} }}' in query
@@ -214,9 +214,9 @@ def test_indeed_requests_full_pages_throughout_a_cursor_chain(
             assert 'field: "language"' not in query
         else:
             assert '{ keyword: { field: "language", keys: ["' + language.lower() + '"] } }' in query
-        if (employer_key or expected_keys or language) and age:
+        if (company_ids or expected_keys or language) and age:
             assert "} }, { keyword:" in query
-        if not employer_key and not expected_keys and language is None and age is None:
+        if not company_ids and not expected_keys and language is None and age is None:
             assert "filters:" not in query
     assert len(queries) == 2
     assert attributes == original_attributes

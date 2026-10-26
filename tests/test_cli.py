@@ -219,7 +219,7 @@ def test_provider_commands_dispatch_expected_options(monkeypatch):
                 "radius": 0,
                 "results": 3,
                 "max_age_hours": 48,
-                "employer_key": "fe219df7f711aa73",
+                "company_ids": ["fe219df7f711aa73"],
                 "remote": True,
                 "language": "EN",
                 "attributes": ["3CQB7", "6QC5F"],

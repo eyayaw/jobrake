@@ -71,7 +71,8 @@ def test_a_site_meets_the_site_contract(site):
         ("indeed", {"country": "usa", "max_age_hours": 0}, ValueError, "max_age_hours"),
         # The checks each site makes of the values it accepts.
         ("indeed", {"country": "atlantis"}, ValueError, "unknown Indeed country"),
-        ("indeed", {"country": "usa", "employer_key": " "}, ValueError, "employer key is blank"),
+        ("indeed", {"country": "usa", "company_ids": [" "]}, ValueError, "company ID is blank"),
+        ("indeed", {"country": "usa", "company_ids": ["a", "b"]}, ValueError, "one company ID"),
         ("linkedin", {}, ValueError, "location is required"),
         ("linkedin", {"geoid": "Amsterdam"}, ValueError, "must use digits"),
         ("linkedin", {"location": "Seattle", "company_ids": ["Acme"]}, ValueError, "company ID"),

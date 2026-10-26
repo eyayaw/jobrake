@@ -160,10 +160,11 @@ def _add_indeed_args(parser: argparse.ArgumentParser) -> None:
     )
     parser.add_argument(
         "--company",
-        dest="employer_key",
+        dest="company_ids",
+        action="append",
         default=argparse.SUPPRESS,
-        metavar="KEY",
-        help="filter jobs by employer key (one company per search)",
+        metavar="ID",
+        help="filter jobs by company ID (one per search)",
     )
     parser.add_argument(
         "--remote",
@@ -308,8 +309,8 @@ def _build_parser() -> _ArgumentParser:
     companies = subparsers.add_parser(
         "companies",
         allow_abbrev=False,
-        help="find company IDs or employer keys by name",
-        description="Find company IDs or employer keys by name",
+        help="find company IDs by name",
+        description="Find company IDs by name",
     )
     company_sites = companies.add_subparsers(dest="site", required=True)
     company_linkedin = company_sites.add_parser(

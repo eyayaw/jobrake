@@ -82,7 +82,7 @@ def build_query(
     max_age_hours: int | None,
     cursor: str | None,
     *,
-    employer_key: str | None = None,
+    company_ids: list[str] | None = None,
     remote: bool = False,
     language: str | None = None,
     attributes: list[str] | None = None,
@@ -91,11 +91,10 @@ def build_query(
     filters = []
     if max_age_hours:
         filters.append(f'{{ date: {{ field: "dateOnIndeed", start: "{max_age_hours}h" }} }}')
-    if employer_key is not None:
+    if company_ids:
+        keys = [company.strip() for company in company_ids]
         filters.append(
-            '{ keyword: { field: "indeedEmployerKey", keys: ['
-            + json.dumps(employer_key.strip())
-            + "] } }"
+            '{ keyword: { field: "indeedEmployerKey", keys: ' + json.dumps(keys) + " } }"
         )
     attribute_keys = list(dict.fromkeys(code.strip() for code in attributes or []))
     if remote and "DSQF7" not in attribute_keys:
@@ -278,12 +277,17 @@ def parse_jobs(data: dict[str, Any], base_url: str) -> tuple[list[JobDict], str 
 
 
 def _check_filters(
-    employer_key: str | None, language: str | None, attributes: list[str] | None
+    company_ids: list[str] | None, language: str | None, attributes: list[str] | None
 ) -> None:
-    if employer_key is not None and not employer_key.strip():
+    # Indeed intersects the employer keys it receives, so a search takes one.
+    if len(company_ids or []) > 1:
         raise ValueError(
-            "Indeed employer key is blank. Find a key with "
-            "'jobrake companies indeed NAME --country EDITION'"
+            "indeed takes one company ID per search. "
+            "Search each company on its own and combine the results"
+        )
+    if any(not company.strip() for company in company_ids or []):
+        raise ValueError(
+            "company ID is blank. Find IDs with 'jobrake companies indeed NAME --country EDITION'"
         )
     if language is not None and re.fullmatch(r"[A-Za-z]{2}", language) is None:
         raise ValueError(
@@ -304,7 +308,7 @@ async def search(
     radius: Annotated[int, "search radius in kilometers"] = 40,
     results: Annotated[int, "maximum number of postings"] = 10,
     max_age_hours: Annotated[int | None, "maximum posting age in hours"] = 168,
-    employer_key: Annotated[str | None, "Indeed employer key"] = None,
+    company_ids: Annotated[list[str] | None, "Indeed company ID, one per search"] = None,
     remote: Annotated[bool, "only postings Indeed tags Remote"] = False,
     language: Annotated[str | None, "two-letter posting language code, e.g., en"] = None,
     attributes: Annotated[list[str] | None, "attribute codes a posting must all carry"] = None,
@@ -313,7 +317,7 @@ async def search(
     Search one Indeed country edition through its GraphQL API.
 
     ``country`` selects the edition, and ``location`` narrows it to a place within that edition.
-    ``employer_key`` keeps jobs at one employer, and ``attributes`` keeps postings carrying every listed code.
+    ``company_ids`` takes one employer key and keeps jobs at that employer, and ``attributes`` keeps postings carrying every listed code.
     Whitespace around the key and the codes is removed.
     ``remote=True`` adds Indeed's Remote attribute, ``"DSQF7"``, to those codes.
     ``language`` takes Indeed's two-letter code in either case, such as ``"en"``, including the legacy codes ``"iw"`` and ``"in"``.
@@ -329,11 +333,12 @@ async def search(
     invalid field costs only that field.
 
     Raises:
-        ValueError: The country is unknown, the employer key or an attribute
-            code is blank, or ``language`` is not two ASCII letters.
+        ValueError: The country is unknown, ``company_ids`` holds more than one
+            ID or a blank one, an attribute code is blank, or ``language`` is
+            not two ASCII letters.
     """
     subdomain, api_code = indeed_domain(country)
-    _check_filters(employer_key, language, attributes)
+    _check_filters(company_ids, language, attributes)
     base_url = f"https://{subdomain}.indeed.com"
     headers = {**API_HEADERS, "indeed-co": api_code}
     logger.info(
@@ -351,7 +356,7 @@ async def search(
             radius,
             max_age_hours,
             cursor,
-            employer_key=employer_key,
+            company_ids=company_ids,
             remote=remote,
             language=language,
             attributes=attributes,
