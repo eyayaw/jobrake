@@ -2,14 +2,13 @@
 
 import logging
 from gettext import ngettext
+from typing import Annotated
 from urllib.parse import urlencode
 
 from bs4 import BeautifulSoup
 
-from jobrake import defaults
 from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, make_job
-from jobrake.utils import check_bounds, check_filters, check_text
 
 from .client import SEARCH_URL, job_id, paced_fetch
 from .postings import fetch_postings
@@ -30,7 +29,7 @@ def parse_cards(html: str) -> list[JobDict]:
 
 
 def _parse_page(html: str) -> tuple[list[JobDict], int]:
-    """Parse job summaries while retaining the provider's raw card count."""
+    """Parse card summaries, and count every card LinkedIn served, parsable or not."""
     # Search cards contain only summary fields. fetch_postings() reads the
     # detail fields from each posting page.
     soup = BeautifulSoup(html, "html.parser")
@@ -109,67 +108,55 @@ async def _collect_pages(
 async def search(
     fetcher: Fetcher,
     *,
-    query: str,
-    location: str | None = None,
-    country: str | None = None,  # noqa: ARG001  shared signature; LinkedIn has no country editions
-    radius: int | None = defaults.LINKEDIN_RADIUS,
-    results: int = defaults.RESULTS,
-    max_age_hours: int | None = defaults.MAX_AGE_HOURS,
-    details: bool = defaults.DETAILS,
-    cache: bool = defaults.CACHE,
-    geoid: str | None = None,
-    company_ids: list[str] | None = None,
-    employer_key: str | None = None,
-    remote: bool = False,
-    language: str | None = None,
-    attributes: list[str] | None = None,
-    easy_apply: bool = False,
-    early_applicant: bool = False,
+    query: Annotated[str, "job title or keywords"],
+    location: Annotated[str | None, "place, preferably with region and country"] = None,
+    geoid: Annotated[str | None, "LinkedIn place ID, in place of a location"] = None,
+    radius: Annotated[int | None, "search radius in kilometers"] = None,
+    results: Annotated[int, "maximum number of postings"] = 10,
+    max_age_hours: Annotated[int | None, "maximum posting age in hours"] = 168,
+    company_ids: Annotated[list[str] | None, "LinkedIn company IDs"] = None,
+    easy_apply: Annotated[bool, "only postings with LinkedIn's Easy Apply form"] = False,
+    early_applicant: Annotated[bool, "only postings with fewer than 10 applicants"] = False,
+    details: Annotated[bool, "fetch posting pages for descriptions and other details"] = False,
+    cache: Annotated[bool, "reuse cached posting details"] = True,
 ) -> list[JobDict]:
     """
     Search LinkedIn's login-free guest endpoint.
 
     ``geoid``, a place ID from :func:`places`, names the search area and makes ``location`` optional.
     Otherwise ``location`` is required and works best with a region and country.
-    ``radius`` is in kilometers and reaches LinkedIn's undocumented ``distance`` parameter as whole miles.
+    ``radius`` reaches LinkedIn's undocumented ``distance`` parameter as whole miles.
     A search by geoId ignores the radius for some places.
-    ``company_ids`` lists numeric employer IDs. ``easy_apply`` keeps jobs with the Easy Apply form,
-    and ``early_applicant`` keeps jobs LinkedIn lists with fewer than 10 applicants.
     ``query=""`` searches without keywords. A filter left at its default, or given ``[]``, applies no restriction.
     Filters combine and travel with every page.
     ``details`` hydrates posting pages, and ``cache`` controls their reuse.
-    ``country`` is accepted and unused. ``employer_key``, ``remote``, ``language``, and ``attributes`` belong to Indeed.
-    A value in one of them draws a warning and goes unchecked.
     The caller owns ``fetcher``.
 
     Search requests share the process-wide limiter. A persistent 429 ends the
-    search with the jobs already collected. The guest endpoint serves about
+    search with the postings already collected. The guest endpoint serves about
     ten cards per page and stops at offset ``MAX_START``, limiting one search
     to roughly 1,000 cards. Results retain guest-search order and stop at
     ``results``.
 
     Raises:
-        TypeError: An argument LinkedIn applies has the wrong type.
-        ValueError: The location is missing or blank, a numeric option is out of range,
-            or the geoid or a company ID uses characters other than digits 0-9.
+        ValueError: The location is missing or blank, or the geoid or a
+            company ID uses characters other than digits 0-9.
     """
-    check_text(query=query, location=location)
     if geoid is None and (location is None or not location.strip()):
         raise ValueError(
             "location is required without a geoid. Try 'Amsterdam, North Holland, Netherlands'"
         )
-    check_bounds(results=results, radius=radius, max_age_hours=max_age_hours)
-    check_filters(
-        "linkedin",
-        geoid=geoid,
-        company_ids=company_ids,
-        employer_key=employer_key,
-        remote=remote,
-        language=language,
-        attributes=attributes,
-        easy_apply=easy_apply,
-        early_applicant=early_applicant,
-    )
+    if geoid is not None and not (geoid.isascii() and geoid.isdigit()):
+        raise ValueError(
+            f"geoid {geoid!r} must use digits 0-9, such as '102011674'. "
+            "Find IDs with 'jobrake places linkedin NAME'"
+        )
+    for company in company_ids or []:
+        if not (company.isascii() and company.isdigit()):
+            raise ValueError(
+                f"company ID {company!r} must use digits 0-9, such as '1173'. "
+                "Find IDs with 'jobrake companies linkedin NAME'"
+            )
     if location:
         logger.info("searching linkedin for %r in %r", query, location)
     else:

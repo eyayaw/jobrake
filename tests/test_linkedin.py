@@ -590,8 +590,6 @@ def test_paginated_search_preserves_filters(
             company_ids=company_ids,
             easy_apply=easy_apply,
             early_applicant=early_applicant,
-            language="not a code",
-            attributes=["3CQB7"],
             max_age_hours=48,
             radius=40,
             results=2,
@@ -616,18 +614,16 @@ def test_paginated_search_preserves_filters(
 
 
 @pytest.mark.parametrize(
-    ("company_ids", "error"),
+    "company_ids",
     [
-        ([""], ValueError),
-        (["1173,2220078"], ValueError),
-        (["１２３"], ValueError),  # noqa: RUF001  fullwidth digits are the input under test
-        ([1173], TypeError),
-        ("1173", TypeError),
+        [""],
+        ["1173,2220078"],
+        ["１２３"],  # noqa: RUF001  fullwidth digits are the input under test
     ],
 )
-def test_company_ids_are_validated_before_any_request(company_ids: Any, error):
+def test_company_ids_are_validated_before_any_request(company_ids):
     fetcher = StubFetcher({})
-    with pytest.raises(error, match="compan"):
+    with pytest.raises(ValueError, match="company ID"):
         asyncio.run(
             linkedin.search(fetcher, query="", location="Netherlands", company_ids=company_ids)
         )
@@ -644,9 +640,6 @@ def test_search_by_geoid_needs_no_location(unlimited):
 @pytest.mark.parametrize(
     ("kwargs", "match"),
     [
-        ({"location": "Seattle", "max_age_hours": -1}, "max_age_hours"),
-        ({"location": "Seattle", "results": -5}, "results"),
-        ({"location": "Seattle", "radius": -1}, "radius"),
         ({"location": "   "}, "location"),
         ({"geoid": ""}, "geoid"),
         ({"geoid": "Amsterdam"}, "geoid"),

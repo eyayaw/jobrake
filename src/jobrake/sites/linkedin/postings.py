@@ -12,7 +12,6 @@ from urllib.parse import urlsplit
 
 from bs4 import BeautifulSoup
 
-from jobrake import defaults
 from jobrake.cache import ADDRESSES, POSTINGS
 from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, employment_type, make_job
@@ -392,7 +391,7 @@ async def _fetch_fields(fetcher: Fetcher, url: str, posting_id: str) -> _Fetched
 
 
 async def fetch_postings(
-    fetcher: Fetcher, urls: Iterable[str], *, cache: bool = defaults.CACHE
+    fetcher: Fetcher, urls: Iterable[str], *, cache: bool = True
 ) -> dict[str, dict[str, Any] | None]:
     """
     Fetch LinkedIn detail fields for a collection of posting URLs.
@@ -544,7 +543,7 @@ def _jobs(urls: dict[str, str], postings: Mapping[str, dict[str, Any] | None]) -
 
 
 async def fetch_details(
-    fetcher: Fetcher, references: Iterable[str], *, cache: bool = defaults.CACHE
+    fetcher: Fetcher, references: Iterable[str], *, cache: bool = True
 ) -> list[JobDict]:
     """
     Build one job per posting reference, in the order given.

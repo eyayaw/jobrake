@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 from fakes import StubFetcher
 
-from jobrake import cli, defaults, sites
+from jobrake import cli, sites
 from jobrake.models import JOB_FIELDS, make_job
 
 JOBS = [
@@ -207,15 +207,15 @@ def test_provider_commands_dispatch_expected_options(monkeypatch):
         monkeypatch.setattr(sys, "argv", ["jobrake", *argv])
         cli.main()
 
-    # Each provider forwards the options its own subparser offers. The rest are
-    # left to scrape's own defaults.
+    # Each site receives the options given on its command line, and its search
+    # supplies the rest.
     assert calls == [
         (
             "indeed",
             {
                 "query": "x",
-                "location": "Seattle",
                 "country": "usa",
+                "location": "Seattle",
                 "radius": 0,
                 "results": 3,
                 "max_age_hours": 48,
@@ -230,30 +230,18 @@ def test_provider_commands_dispatch_expected_options(monkeypatch):
             {
                 "query": "x",
                 "location": "Seattle",
-                "radius": None,
-                "results": defaults.RESULTS,
-                "max_age_hours": defaults.MAX_AGE_HOURS,
                 "details": True,
                 "cache": False,
-                "geoid": None,
-                "company_ids": None,
                 "easy_apply": True,
-                "early_applicant": False,
             },
         ),
         (
             "linkedin",
             {
                 "query": "",
-                "location": None,
-                "radius": 40,
-                "results": defaults.RESULTS,
-                "max_age_hours": defaults.MAX_AGE_HOURS,
-                "details": defaults.DETAILS,
-                "cache": defaults.CACHE,
                 "geoid": "12345",
+                "radius": 40,
                 "company_ids": ["1173", "2220078"],
-                "easy_apply": False,
                 "early_applicant": True,
             },
         ),

@@ -1,10 +1,11 @@
 """Shared parsing and search-argument helpers."""
 
+import inspect
 import logging
-import re
 from collections.abc import Callable
 from datetime import UTC, datetime
-from typing import NamedTuple
+from types import NoneType
+from typing import NamedTuple, Union, get_args, get_origin
 
 from bs4 import BeautifulSoup
 
@@ -34,164 +35,75 @@ def html_text(html: str) -> str:
     return "\n".join(line for line in lines if line)
 
 
-class _Bound(NamedTuple):
-    """What one numeric search option accepts."""
+class Option(NamedTuple):
+    """One keyword option a site function declares as ``Annotated[kind, help]``."""
 
-    minimum: int
-    requirement: str
-    optional: bool = False
-
-
-_BOUNDS = {
-    "results": _Bound(1, "positive"),
-    "radius": _Bound(0, "zero or more", optional=True),
-    "max_age_hours": _Bound(1, "positive", optional=True),
-}
+    kind: object  # str, int, bool, or list[str]
+    optional: bool  # whether the annotation adds ``| None``
+    help: str
+    default: object  # inspect.Parameter.empty for a required option
 
 
-def check_bounds(**values: int | None) -> None:
-    """Require each numeric search option to be an integer within its bound."""
-    for name, value in values.items():
-        bound = _BOUNDS[name]
-        if value is None and bound.optional:
+def site_options(function: Callable[..., object]) -> dict[str, Option]:
+    """Read the keyword-only options of a site function from its annotations, in order."""
+    options = {}
+    for param in inspect.signature(function).parameters.values():
+        if param.kind is not param.KEYWORD_ONLY:
             continue
-        # Page slicing and Indeed's query text need real integers. Booleans
-        # satisfy isinstance(value, int) on their own, and ``radius=False``
-        # would search a 0 km radius where ``None`` omits it.
-        if isinstance(value, bool) or not isinstance(value, int):
-            raise TypeError(f"{name} must be an integer, got {value!r}")
-        if value < bound.minimum:
-            raise ValueError(f"{name} ({value}) must be {bound.requirement}")
+        kind, help_text = get_args(param.annotation)
+        members = get_args(kind) if get_origin(kind) is Union else ()
+        optional = NoneType in members
+        if optional:
+            (kind,) = (member for member in members if member is not NoneType)
+        options[param.name] = Option(kind, optional, help_text, param.default)
+    return options
 
 
-def check_text(**values: object) -> None:
-    """Require a string for each search text that carries a value."""
-    for name, value in values.items():
-        if value is not None and not isinstance(value, str):
-            raise TypeError(f"{name} must be a string, got {value!r}")
-
-
-def _strings(name: str, value: object, item: str) -> list[str]:
-    """Read an optional list filter, requiring a string for every entry."""
-    if value is None:
-        return []
-    if not isinstance(value, list):
-        raise TypeError(f"{name} must be a list of {item} strings")
-    for entry in value:
-        if not isinstance(entry, str):
-            raise TypeError(f"{item} {entry!r} must be a string")
-    return value
-
-
-def check_flag(name: str, value: object) -> None:
-    """Require a Boolean for one search flag."""
-    if not isinstance(value, bool):
-        raise TypeError(f"{name} must be a boolean, got {value!r}")
-
-
-def check_attributes(name: str, value: object) -> None:
-    """Require a list of nonblank attribute codes when supplied."""
-    for code in _strings(name, value, "attribute code"):
-        if not code.strip():
-            raise ValueError(
-                "attribute code is blank. Find codes with "
-                "'jobrake attributes indeed -c EDITION QUERY'"
-            )
-
-
-def check_language(name: str, value: object) -> None:
-    """Validate an optional two-letter language code."""
-    if value is None:
-        return
-    if not isinstance(value, str):
-        raise TypeError(f"{name} must be a string or None, got {value!r}")
-    if re.fullmatch(r"[A-Za-z]{2}", value) is None:
-        raise ValueError(f"{name} {value!r} must contain exactly two ASCII letters, such as 'en'")
-
-
-def check_company_ids(name: str, value: object) -> None:
-    """Require a list of LinkedIn company IDs when supplied."""
-    for company in _strings(name, value, "company ID"):
-        if not (company.isascii() and company.isdigit()):
-            raise ValueError(
-                f"company ID {company!r} must use digits 0-9, such as '1173'. "
-                "Find IDs with 'jobrake companies linkedin NAME'"
-            )
-
-
-def check_employer_key(name: str, value: object) -> None:
-    """Require a nonblank Indeed employer key when supplied."""
-    if value is None:
-        return
-    if not isinstance(value, str):
-        raise TypeError(f"{name} must be a string, got {value!r}")
-    if not value.strip():
-        raise ValueError(
-            "Indeed employer key is blank. Find a key with "
-            "'jobrake companies indeed NAME --country EDITION'"
-        )
-
-
-def check_geoid(name: str, value: object) -> None:
-    """Require a LinkedIn geoId of digits 0-9 when supplied."""
-    if value is None:
-        return
-    if not isinstance(value, str):
-        raise TypeError(f"{name} must be a string, got {value!r}")
-    if not (value.isascii() and value.isdigit()):
-        raise ValueError(
-            f"{name} {value!r} must use digits 0-9, such as '102011674'. "
-            "Find IDs with 'jobrake places linkedin NAME'"
-        )
-
-
-# Each filter names the providers that apply it and the check each one runs.
-# A provider outside a filter's row accepts the argument and searches without it.
-_FILTERS: dict[str, dict[str, Callable[[str, object], None]]] = {
-    "geoid": {"linkedin": check_geoid},
-    "company_ids": {"linkedin": check_company_ids},
-    "employer_key": {"indeed": check_employer_key},
-    "remote": {"indeed": check_flag},
-    "language": {"indeed": check_language},
-    "attributes": {"indeed": check_attributes},
-    "easy_apply": {"linkedin": check_flag},
-    "early_applicant": {"linkedin": check_flag},
+# Each option type a site may declare, with its description and its check.
+# bool is a subclass of int, so an int option rejects it.
+_TYPES: dict[object, tuple[str, Callable[[object], bool]]] = {
+    str: ("a string", lambda value: isinstance(value, str)),
+    int: ("an integer", lambda value: isinstance(value, int) and not isinstance(value, bool)),
+    bool: ("a boolean", lambda value: isinstance(value, bool)),
+    list[str]: (
+        "a list of strings",
+        lambda value: isinstance(value, list) and all(isinstance(item, str) for item in value),
+    ),
 }
 
-_SITES = frozenset(site for checks in _FILTERS.values() for site in checks)
+# Options that keep one meaning on every site that declares them, with their smallest value.
+_MINIMUMS = {"results": 1, "radius": 0, "max_age_hours": 1}
 
 
-def check_filters(site: str, **filters: object) -> None:
+def check_options(site: str, function: Callable[..., object], given: dict[str, object]) -> None:
     """
-    Validate each filter the provider applies and warn for each one it ignores.
-
-    An ignored filter goes unchecked, and its warning is the only sign that the
-    restriction took no effect. A falsy value asks for no restriction and
-    passes in silence. Warnings follow the last check, so a rejected search
-    logs none.
+    Reject options a site function does not declare, or whose values do not fit its annotations.
 
     Raises:
-        KeyError: No provider applies the filter.
-        TypeError: An applied filter has the wrong type.
-        ValueError: The site is unknown, or an applied filter has an unusable value.
+        TypeError: An option is unknown, a required option is missing, or a
+            value does not match its annotation.
+        ValueError: ``results``, ``radius``, or ``max_age_hours`` is below its minimum.
     """
-    if site not in _SITES:
-        # An unknown site matches no row, which would leave every filter unchecked.
-        raise ValueError(f"unknown site {site!r}. Expected one of {sorted(_SITES)}")
-    ignored = []
-    for name, value in filters.items():
-        checks = _FILTERS[name]
-        if site in checks:
-            checks[site](name, value)
-        elif value:
-            ignored.append(name)
-    for name in ignored:
-        logger.warning(
-            "%s ignores %s and searches without it. Run the search on %s to apply it",
-            site,
-            name,
-            " or ".join(_FILTERS[name]),
-        )
+    options = site_options(function)
+    listing = ", ".join(options)
+    if unknown := [name for name in given if name not in options]:
+        raise TypeError(f"{site} has no option {', '.join(unknown)}. Its options are {listing}")
+    required = [
+        name for name, option in options.items() if option.default is inspect.Parameter.empty
+    ]
+    if missing := [name for name in required if name not in given]:
+        raise TypeError(f"{site} requires {', '.join(missing)}. Its options are {listing}")
+    for name, value in given.items():
+        option = options[name]
+        if value is None and option.optional:
+            continue
+        description, accepts = _TYPES[option.kind]
+        if not accepts(value):
+            expected = description + (" or None" if option.optional else "")
+            raise TypeError(f"{name} must be {expected}, got {value!r}")
+        minimum = _MINIMUMS.get(name)
+        if minimum is not None and isinstance(value, int) and value < minimum:
+            raise ValueError(f"{name} ({value}) must be at least {minimum}")
 
 
 def iso_date(value: str | None) -> str | None:

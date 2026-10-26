@@ -2,7 +2,6 @@
 
 import argparse
 import asyncio
-import inspect
 import json
 import logging
 import os
@@ -14,19 +13,15 @@ from typing import Never, TextIO
 
 from jobrake import __version__, scrape
 
-from . import defaults
 from .fetchkit import HttpxFetcher
 from .io import RENDERERS
 from .models import JobDict
-from .sites import indeed, linkedin, site_searchers
+from .sites import SITES, indeed, linkedin
+from .utils import Option, site_options
 
 logger = logging.getLogger(__name__)
 
 _CLEAR_LINE = "\r\x1b[2K"
-
-# The scrape options a search subparser can fill. An option without a flag on
-# the selected provider reaches scrape as its declared default.
-_SEARCH_OPTIONS = frozenset(inspect.signature(scrape).parameters) - {"site", "fetcher"}
 
 
 class _ArgumentParser(argparse.ArgumentParser):
@@ -89,17 +84,20 @@ def _add_linkedin_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--location",
         "-l",
+        default=argparse.SUPPRESS,
         help="location, preferably with region and country. Optional with --geoid ID",
     )
     parser.add_argument(
         "--geoid",
         "-g",
+        default=argparse.SUPPRESS,
         metavar="ID",
         help="LinkedIn place ID from 'jobrake places linkedin', in place of --location",
     )
     parser.add_argument(
         "--radius",
         "-r",
+        default=argparse.SUPPRESS,
         type=int,
         help="search radius in kilometers (default: unset)",
     )
@@ -107,23 +105,26 @@ def _add_linkedin_args(parser: argparse.ArgumentParser) -> None:
         "--company",
         dest="company_ids",
         action="append",
+        default=argparse.SUPPRESS,
         metavar="ID",
         help="filter jobs by company ID (repeat for several companies)",
     )
     parser.add_argument(
         "--easy-apply",
         action="store_true",
+        default=argparse.SUPPRESS,
         help="restrict results to jobs with LinkedIn's Easy Apply form",
     )
     parser.add_argument(
         "--early-applicant",
         action="store_true",
+        default=argparse.SUPPRESS,
         help="use LinkedIn's filter for fewer than 10 applicants",
     )
     parser.add_argument(
         "--details",
         "-d",
-        default=defaults.DETAILS,
+        default=argparse.SUPPRESS,
         action="store_true",
         help="fetch posting pages for descriptions and other details",
     )
@@ -131,13 +132,18 @@ def _add_linkedin_args(parser: argparse.ArgumentParser) -> None:
         "--no-cache",
         dest="cache",
         action="store_false",
-        default=defaults.CACHE,
+        default=argparse.SUPPRESS,
         help="refetch posting details and refresh their cached copies",
     )
 
 
 def _add_indeed_args(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--location", "-l", help="city or area within the selected country")
+    parser.add_argument(
+        "--location",
+        "-l",
+        default=argparse.SUPPRESS,
+        help="city or area within the selected country",
+    )
     parser.add_argument(
         "--country",
         "-c",
@@ -148,23 +154,26 @@ def _add_indeed_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--radius",
         "-r",
-        default=defaults.INDEED_RADIUS,
+        default=argparse.SUPPRESS,
         type=int,
-        help=f"search radius in kilometers (default: {defaults.INDEED_RADIUS})",
+        help=f"search radius in kilometers (default: {site_options(indeed.search)['radius'].default})",
     )
     parser.add_argument(
         "--company",
         dest="employer_key",
+        default=argparse.SUPPRESS,
         metavar="KEY",
         help="filter jobs by employer key (one company per search)",
     )
     parser.add_argument(
         "--remote",
         action="store_true",
+        default=argparse.SUPPRESS,
         help="restrict results to postings tagged Remote by Indeed",
     )
     parser.add_argument(
         "--language",
+        default=argparse.SUPPRESS,
         metavar="CODE",
         help="restrict postings by Indeed language code (two letters, e.g., EN or NL)",
     )
@@ -172,6 +181,7 @@ def _add_indeed_args(parser: argparse.ArgumentParser) -> None:
         "--attribute",
         dest="attributes",
         action="append",
+        default=argparse.SUPPRESS,
         metavar="CODE",
         help="filter jobs by attribute code (repeat to require all codes)",
     )
@@ -183,7 +193,7 @@ _SITE_ARGS = {"linkedin": _add_linkedin_args, "indeed": _add_indeed_args}
 _SITE_LABELS = {"linkedin": "LinkedIn", "indeed": "Indeed"}
 
 
-def _add_search_args(parser: argparse.ArgumentParser) -> None:
+def _add_search_args(parser: argparse.ArgumentParser, options: dict[str, Option]) -> None:
     parser.add_argument(
         "--query",
         "-q",
@@ -194,18 +204,18 @@ def _add_search_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--results",
         "-n",
-        default=defaults.RESULTS,
+        default=argparse.SUPPRESS,
         type=int,
-        help=f"maximum number of unique jobs to return (default: {defaults.RESULTS})",
+        help=f"maximum number of unique jobs to return (default: {options['results'].default})",
     )
     parser.add_argument(
         "--max-age",
         "-a",
         dest="max_age_hours",
-        default=defaults.MAX_AGE_HOURS,
+        default=argparse.SUPPRESS,
         metavar="HOURS",
         type=int,
-        help=f"maximum posting age in hours (default: {defaults.MAX_AGE_HOURS})",
+        help=f"maximum posting age in hours (default: {options['max_age_hours'].default})",
     )
 
 
@@ -231,12 +241,12 @@ def _build_parser() -> _ArgumentParser:
     # The version action exits before argparse checks the required subcommand.
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     subparsers = parser.add_subparsers(dest="provider", required=True)
-    for name in sorted(site_searchers()):
+    for name in sorted(SITES):
         subparser = subparsers.add_parser(
             name, allow_abbrev=False, help=f"search {_SITE_LABELS[name]} for job postings"
         )
         # Mutate this subparser by adding arguments.
-        _add_search_args(subparser)
+        _add_search_args(subparser, site_options(SITES[name].search))
         _add_output_args(subparser)
         _SITE_ARGS[name](subparser)
     details = subparsers.add_parser(
@@ -262,7 +272,6 @@ def _build_parser() -> _ArgumentParser:
         "--no-cache",
         dest="cache",
         action="store_false",
-        default=defaults.CACHE,
         help="refetch posting details and refresh their cached copies",
     )
     _add_output_args(details_linkedin)
@@ -490,7 +499,8 @@ def main() -> int | None:
         return _write_jobs(args, jobs, fmt) if jobs else 1
     # Settle the output before the scrape spends any requests.
     fmt = _settle_output(parser, args)
-    options = {name: value for name, value in vars(args).items() if name in _SEARCH_OPTIONS}
+    accepted = site_options(SITES[args.provider].search)
+    options = {name: value for name, value in vars(args).items() if name in accepted}
     try:
         jobs = asyncio.run(scrape(args.provider, **options))
     except ValueError as e:

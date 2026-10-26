@@ -1,7 +1,9 @@
-"""Fixtures that give every test an isolated cache and fabric pool."""
+"""Fixtures that isolate each test's cache and fabric pool, and a fake third site."""
 
+import fakesite
 import pytest
 
+from jobrake import sites
 from jobrake.cache import Cache
 from jobrake.sites.linkedin import client
 
@@ -22,3 +24,11 @@ def isolated_cache(tmp_path, monkeypatch):
 def fresh_fabrics(monkeypatch):
     """Start every test with a new fabric pool, as a new process does."""
     monkeypatch.setattr(client, "POOL", client.Fabrics())
+
+
+@pytest.fixture
+def fake_site(monkeypatch):
+    """Register the fake job board in tests/fakesite.py as a third site."""
+    monkeypatch.setitem(sites.SITES, "fakesite", fakesite)
+    monkeypatch.setattr(fakesite, "calls", [])
+    return fakesite

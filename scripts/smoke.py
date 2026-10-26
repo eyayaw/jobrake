@@ -1,8 +1,15 @@
 """Query each site once, in sequence, with ``uv run scripts/smoke.py``."""
 
 import asyncio
+from typing import Any
 
 from jobrake import scrape
+
+# Each site names the United States its own way.
+PLACES: dict[str, dict[str, Any]] = {
+    "indeed": {"country": "usa"},
+    "linkedin": {"location": "United States"},
+}
 
 
 def column(value: str | None, width: int) -> str:
@@ -11,17 +18,10 @@ def column(value: str | None, width: int) -> str:
 
 
 async def main() -> None:
-    """Run one small search per provider and print representative fields."""
-    for site in ("indeed", "linkedin"):
+    """Run one small search per site and print representative fields."""
+    for site, place in PLACES.items():
         try:
-            jobs = await scrape(
-                site,
-                query="economist",
-                location="United States",
-                country="usa",
-                results=10,
-                max_age_hours=168,
-            )
+            jobs = await scrape(site, query="economist", results=10, max_age_hours=168, **place)
             print(f"{site}: {len(jobs)} jobs")
             for job in jobs[:3]:
                 print(

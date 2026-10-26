@@ -5,12 +5,11 @@ import logging
 import math
 import re
 from gettext import ngettext
-from typing import Any
+from typing import Annotated, Any
 
-from jobrake import defaults
 from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, employment_type, make_job
-from jobrake.utils import check_bounds, check_filters, check_text, epoch_ms_to_iso, html_text
+from jobrake.utils import epoch_ms_to_iso, html_text
 
 from .client import API_HEADERS, API_URL
 from .countries import indeed_domain
@@ -79,7 +78,7 @@ EMPLOYMENT_TYPES = ("Full-time", "Part-time", "Contract", "Temporary", "Internsh
 def build_query(
     query: str,
     location: str | None,
-    radius: int | None,
+    radius: int,
     max_age_hours: int | None,
     cursor: str | None,
     *,
@@ -116,8 +115,7 @@ def build_query(
         what=f"what: {json.dumps(query)}" if query else "",
         location=(
             f"location: {{ where: {json.dumps(location)}, "
-            f"radius: {defaults.INDEED_RADIUS if radius is None else radius}, "
-            f"radiusUnit: {defaults.INDEED_RADIUS_UNIT} }}"
+            f"radius: {radius}, radiusUnit: KILOMETERS }}"
             if location
             else ""
         ),
@@ -183,7 +181,7 @@ def _finite_value(value: object) -> float | None:
 def _parse_job(job: dict[str, Any], base_url: str) -> JobDict:
     """Normalize one Indeed result into the shared job model."""
     key = job["key"].strip() if isinstance(job["key"], str) else ""
-    # The provider key becomes both the job ID and the URL's ``jk`` parameter.
+    # Indeed's job key becomes both the job ID and the URL's ``jk`` parameter.
     if not key:
         raise TypeError(f"job key {job['key']!r} is blank or not a string")
     loc = _dict_value(job.get("location"))
@@ -256,7 +254,7 @@ def parse_jobs(data: dict[str, Any], base_url: str) -> tuple[list[JobDict], str 
     ``base_url`` supplies the origin for posting and company links.
 
     Returns:
-        Parsed jobs, a usable next cursor, and the provider's raw result count.
+        Parsed jobs, a usable next cursor, and the count of results Indeed sent.
         The raw count includes malformed results so pagination still advances.
 
     Raises:
@@ -279,70 +277,63 @@ def parse_jobs(data: dict[str, Any], base_url: str) -> tuple[list[JobDict], str 
     return jobs, cursor if isinstance(cursor, str) else None, len(results)
 
 
+def _check_filters(
+    employer_key: str | None, language: str | None, attributes: list[str] | None
+) -> None:
+    if employer_key is not None and not employer_key.strip():
+        raise ValueError(
+            "Indeed employer key is blank. Find a key with "
+            "'jobrake companies indeed NAME --country EDITION'"
+        )
+    if language is not None and re.fullmatch(r"[A-Za-z]{2}", language) is None:
+        raise ValueError(
+            f"language {language!r} must contain exactly two ASCII letters, such as 'en'"
+        )
+    if any(not code.strip() for code in attributes or []):
+        raise ValueError(
+            "attribute code is blank. Find codes with 'jobrake attributes indeed -c EDITION QUERY'"
+        )
+
+
 async def search(
     fetcher: Fetcher,
     *,
-    query: str,
-    location: str | None = None,
-    country: str,
-    radius: int | None = defaults.INDEED_RADIUS,
-    results: int = defaults.RESULTS,
-    max_age_hours: int | None = defaults.MAX_AGE_HOURS,
-    details: bool = defaults.DETAILS,  # noqa: ARG001  shared signature; Indeed results carry their details
-    cache: bool = defaults.CACHE,  # noqa: ARG001  shared signature; Indeed is not cached
-    geoid: str | None = None,
-    company_ids: list[str] | None = None,
-    employer_key: str | None = None,
-    remote: bool = False,
-    language: str | None = None,
-    attributes: list[str] | None = None,
-    easy_apply: bool = False,
-    early_applicant: bool = False,
+    query: Annotated[str, "job title or keywords"],
+    country: Annotated[str, "Indeed country edition, e.g., usa, uk, or netherlands"],
+    location: Annotated[str | None, "city or area within the country"] = None,
+    radius: Annotated[int, "search radius in kilometers"] = 40,
+    results: Annotated[int, "maximum number of postings"] = 10,
+    max_age_hours: Annotated[int | None, "maximum posting age in hours"] = 168,
+    employer_key: Annotated[str | None, "Indeed employer key"] = None,
+    remote: Annotated[bool, "only postings Indeed tags Remote"] = False,
+    language: Annotated[str | None, "two-letter posting language code, e.g., en"] = None,
+    attributes: Annotated[list[str] | None, "attribute codes a posting must all carry"] = None,
 ) -> list[JobDict]:
     """
     Search one Indeed country edition through its GraphQL API.
 
     ``country`` selects the edition, and ``location`` narrows it to a place within that edition.
-    ``radius`` is in kilometers, and ``None`` uses ``defaults.INDEED_RADIUS``.
     ``employer_key`` keeps jobs at one employer, and ``attributes`` keeps postings carrying every listed code.
     Whitespace around the key and the codes is removed.
     ``remote=True`` adds Indeed's Remote attribute, ``"DSQF7"``, to those codes.
     ``language`` takes Indeed's two-letter code in either case, such as ``"en"``, including the legacy codes ``"iw"`` and ``"in"``.
     A filter stays out of the search at its default and as ``[]``. The filters that remain combine on every page.
     Age uses Indeed's ``dateOnIndeed`` field, which can differ from the publication timestamp returned as ``posted_at``.
-    ``details`` and ``cache`` are accepted and unused. ``geoid``, ``company_ids``, ``easy_apply``, and ``early_applicant`` belong to LinkedIn.
-    Indeed warns when one of them carries a value and leaves its type unexamined.
     The caller owns ``fetcher``.
 
     Each request asks for 100 jobs, newest first. The returned list keeps
     that order and trims the final page to ``results``. Requests are
-    neither paced nor retried. A transport failure, provider error without
-    usable data, or unreadable response ends the search with a warning and the
-    jobs already collected. A malformed result costs only that result. An
+    neither paced nor retried. A transport failure, an Indeed error without
+    usable data, or an unreadable response ends the search with a warning and
+    the jobs already collected. A malformed result costs only that result. An
     invalid field costs only that field.
 
     Raises:
-        TypeError: An argument Indeed applies has the wrong type.
-        ValueError: The country is missing or unknown, a numeric argument is out of range,
-            the employer key or an attribute code is blank, or ``language`` is not two ASCII letters.
+        ValueError: The country is unknown, the employer key or an attribute
+            code is blank, or ``language`` is not two ASCII letters.
     """
-    check_text(query=query, location=location, country=country)
-    if country is None:
-        # scrape() forwards its own default when the caller names no edition.
-        raise ValueError("country is required for Indeed. Try 'usa' or 'germany'")
     subdomain, api_code = indeed_domain(country)
-    check_bounds(results=results, radius=radius, max_age_hours=max_age_hours)
-    check_filters(
-        "indeed",
-        geoid=geoid,
-        company_ids=company_ids,
-        employer_key=employer_key,
-        remote=remote,
-        language=language,
-        attributes=attributes,
-        easy_apply=easy_apply,
-        early_applicant=early_applicant,
-    )
+    _check_filters(employer_key, language, attributes)
     base_url = f"https://{subdomain}.indeed.com"
     headers = {**API_HEADERS, "indeed-co": api_code}
     logger.info(

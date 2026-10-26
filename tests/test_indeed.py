@@ -4,7 +4,6 @@ import asyncio
 import json
 import logging
 import math
-from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 import pytest
@@ -21,9 +20,9 @@ def test_query_escapes_graphql_strings_as_json():
     assert 'where: "Brussels \\"center\\""' in query
     assert "radius: 0" in query
     company = 'key\\"quoted'
-    with_company = indeed.build_query("", None, None, None, None, employer_key=company)
+    with_company = indeed.build_query("", None, 40, None, None, employer_key=company)
     assert f'field: "indeedEmployerKey", keys: [{json.dumps(company)}]' in with_company
-    with_attributes = indeed.build_query("", None, None, None, None, attributes=[company])
+    with_attributes = indeed.build_query("", None, 40, None, None, attributes=[company])
     assert f'field: "attributes", keys: [{json.dumps(company)}]' in with_attributes
     assert 'cursor: "next\\\\\\""' in query
 
@@ -89,21 +88,6 @@ def test_company_lookup_distinguishes_no_matches_from_failure(caplog):
         fetcher = StubFetcher({"suggestions/company": response})
         assert asyncio.run(indeed.companies(fetcher, "ABN", "netherlands")) == expected
         assert bool(caplog.records) == (expected is None)
-
-
-def test_indeed_rejects_an_invalid_employer_key_before_searching():
-    cases: list[tuple[Any, type[Exception]]] = [
-        (["fe219df7f711aa73"], TypeError),
-        (123, TypeError),
-        (" ", ValueError),
-    ]
-    fetcher = StubFetcher({})
-    for employer_key, error in cases:
-        with pytest.raises(error, match=r"employer.key"):
-            asyncio.run(
-                indeed.search(fetcher, query="", country="netherlands", employer_key=employer_key)
-            )
-    assert fetcher.requests == []
 
 
 def test_places_lists_edition_suggestions():
@@ -263,24 +247,18 @@ def test_indeed_returns_the_requested_number_of_results():
 
 
 @pytest.mark.parametrize(
-    ("bad", "error", "match"),
+    ("bad", "match"),
     [
-        ({"attributes": "3CQB7"}, TypeError, "attributes"),
-        ({"attributes": [1]}, TypeError, "attribute code"),
-        ({"attributes": [" "]}, ValueError, "attribute code is blank"),
-        ({"max_age_hours": 0}, ValueError, "max_age_hours"),
-        ({"results": 0}, ValueError, "results"),
-        ({"radius": -1}, ValueError, "radius"),
+        ({"attributes": [" "]}, "attribute code is blank"),
         *[
-            ({"language": value}, ValueError, "two ASCII letters")
+            ({"language": value}, "two ASCII letters")
             for value in ("", " ", " en ", "e", "eng", "en-US", "en_US", "e1", "éñ", "en\n")
         ],
-        *[({"language": value}, TypeError, "language") for value in (False, 1, ["en"])],
     ],
 )
-def test_indeed_rejects_bad_arguments_before_any_request(bad, error, match):
+def test_indeed_rejects_bad_arguments_before_any_request(bad, match):
     fetcher = StubFetcher({})
-    with pytest.raises(error, match=match):
+    with pytest.raises(ValueError, match=match):
         asyncio.run(indeed.search(fetcher, query="x", country="usa", **bad))
     assert fetcher.requests == []
 
@@ -296,7 +274,7 @@ def test_indeed_skips_malformed_results_and_keeps_valid_siblings(caplog):
     payload = indeed_payload(["a", "b"])
     results = payload["data"]["jobSearch"]["results"]
     results[1:1] = [
-        {"job": None},  # the provider sent a null job
+        {"job": None},  # Indeed sent a null job
         {"job": {"key": None, "title": "Job null-key"}},  # would become id "" and jk=None
         {"job": {"key": "", "title": "Job empty-key"}},
         {"job": {"key": "   ", "title": "Job blank-key"}},
