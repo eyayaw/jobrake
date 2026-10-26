@@ -324,7 +324,7 @@ def test_output_csv_roundtrips_hostile_fields(run_cli, tmp_path, capsys):
     assert rows[0].keys() == set(JOB_FIELDS)
     # Unavailable summaries and absent details read back as empty cells.
     expected = [
-        {name: "" if job.get(name) is None else str(job[name]) for name in JOB_FIELDS}
+        {name: "" if (value := job.get(name)) is None else str(value) for name in JOB_FIELDS}
         for job in JOBS
     ]
     assert rows == expected

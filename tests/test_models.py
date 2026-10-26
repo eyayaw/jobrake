@@ -1,5 +1,7 @@
 """Tests for the job data model."""
 
+import pytest
+
 from jobrake.models import IDENTITY_FIELDS, SUMMARY_FIELDS, employment_type, make_job
 
 
@@ -41,3 +43,11 @@ def test_date_falls_back_to_the_posting_timestamp():
     )
     assert job["date"] == "2026-08-05"
     assert job["posted_at"] == "2026-08-05T08:04:27.000Z"  # kept whole
+
+
+def test_make_job_rejects_a_record_outside_job_dict():
+    # A cached row from an older field set must fail here rather than reach callers.
+    with pytest.raises(TypeError, match="headcount"):
+        make_job(site="linkedin", id="1", url="u", headcount=4)
+    with pytest.raises(TypeError, match="url"):
+        make_job(site="linkedin", id="1")

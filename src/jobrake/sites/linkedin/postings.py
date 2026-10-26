@@ -15,7 +15,7 @@ from bs4 import BeautifulSoup
 from jobrake import defaults
 from jobrake.cache import ADDRESSES, POSTINGS
 from jobrake.fetchkit import Fetcher
-from jobrake.models import SUMMARY_FIELDS, JobDict, employment_type, make_job
+from jobrake.models import JobDict, employment_type, make_job
 from jobrake.utils import html_text
 
 from . import client
@@ -531,8 +531,6 @@ async def _lookup_address(fetcher: Fetcher, posting_id: str) -> tuple[str | None
 
 
 def _jobs(urls: dict[str, str], postings: Mapping[str, dict[str, Any] | None]) -> list[JobDict]:
-    # A posting page need not name every summary field, and make_job wants all of them.
-    blanks = dict.fromkeys(SUMMARY_FIELDS)
     jobs: list[JobDict] = []
     for posting_id, url in urls.items():
         if url not in postings:
@@ -541,7 +539,7 @@ def _jobs(urls: dict[str, str], postings: Mapping[str, dict[str, Any] | None]) -
         if fields is None:
             logger.warning("posting %s is no longer on linkedin", posting_id)
             continue
-        jobs.append(make_job(site="linkedin", id=posting_id, url=url, **(blanks | fields)))
+        jobs.append(make_job(site="linkedin", id=posting_id, url=url, **fields))
     return jobs
 
 
