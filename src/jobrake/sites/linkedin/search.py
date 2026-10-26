@@ -19,15 +19,6 @@ MAX_START = 1000  # the guest API stops serving past this offset
 KM_PER_MILE = 1.609344
 
 
-def parse_cards(html: str) -> list[JobDict]:
-    """
-    Parse summaries in card order.
-
-    Cards without a URL or numeric posting ID are omitted.
-    """
-    return _parse_page(html)[0]
-
-
 def _parse_page(html: str) -> tuple[list[JobDict], int]:
     """Parse card summaries, and count every card LinkedIn served, parsable or not."""
     # Search cards contain only summary fields. fetch_pages() reads the

@@ -16,17 +16,26 @@ from jobrake.sites import indeed
 
 
 def test_query_escapes_graphql_strings_as_json():
-    query = indeed.build_query('C:\\jobs "quoted"', 'Brussels "center"', 0, None, 'next\\"')
-
+    tricky = 'key\\"quoted'
+    first = indeed_payload(["a"], cursor='next\\"')
+    fetcher = PagedFetcher([json.dumps(first), json.dumps(indeed_payload([]))])
+    asyncio.run(
+        indeed.search(
+            fetcher,
+            query='C:\\jobs "quoted"',
+            country="usa",
+            location='Brussels "center"',
+            radius=0,
+            company_ids=[tricky],
+            attributes=[tricky],
+        )
+    )
+    query, next_query = (body["query"] for body in fetcher.bodies)
     assert 'what: "C:\\\\jobs \\"quoted\\""' in query
-    assert 'where: "Brussels \\"center\\""' in query
-    assert "radius: 0" in query
-    company = 'key\\"quoted'
-    with_company = indeed.build_query("", None, 40, None, None, company_ids=[company])
-    assert f'field: "indeedEmployerKey", keys: [{json.dumps(company)}]' in with_company
-    with_attributes = indeed.build_query("", None, 40, None, None, attributes=[company])
-    assert f'field: "attributes", keys: [{json.dumps(company)}]' in with_attributes
-    assert 'cursor: "next\\\\\\""' in query
+    assert 'where: "Brussels \\"center\\"", radius: 0' in query
+    assert 'field: "indeedEmployerKey", keys: ["key\\\\\\"quoted"]' in query
+    assert 'field: "attributes", keys: ["key\\\\\\"quoted"]' in query
+    assert 'cursor: "next\\\\\\""' in next_query
 
 
 def indeed_payload(keys, cursor=None):
@@ -107,6 +116,19 @@ def test_places_lists_edition_suggestions():
     with pytest.raises(ValueError, match="blank"):
         asyncio.run(indeed.places(fetcher, "", country="usa"))
     assert len(fetcher.requests) == 1
+
+
+def test_a_country_alias_selects_its_edition():
+    for country, code, host in (
+        ("usa", "US", "www"),
+        ("United States", "US", "www"),
+        ("uk", "GB", "uk"),
+        ("netherlands", "NL", "nl"),
+    ):
+        fetcher = StubFetcher({"apis.indeed.com": ok(json.dumps(indeed_payload(["a"])))})
+        (job,) = asyncio.run(indeed.search(fetcher, query="x", country=country))
+        assert fetcher.headers[0]["indeed-co"] == code
+        assert job["url"] == f"https://{host}.indeed.com/viewjob?jk=a"
 
 
 def test_indeed_parses_and_paginates():
@@ -360,7 +382,9 @@ def rich_job(**overrides):
 
 def parse_one(job):
     payload = {"data": {"jobSearch": {"pageInfo": {}, "results": [{"job": job}]}}}
-    return indeed.parse_jobs(payload, "https://www.indeed.com")[0][0]
+    fetcher = StubFetcher({"apis.indeed.com": ok(json.dumps(payload))})
+    (parsed,) = asyncio.run(indeed.search(fetcher, query="x", country="usa"))
+    return parsed
 
 
 @pytest.mark.parametrize("language", ["en", "nl"])

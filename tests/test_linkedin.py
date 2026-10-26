@@ -109,11 +109,16 @@ def test_linkedin_persistent_429_stops_the_search(unlimited, monkeypatch):
     assert len(fetcher.requests) == 1 + client.RETRIES  # the retries, then give up
 
 
+def paced(fetcher, name="x"):
+    """Send one paced request through the company lookup, which reads ``[]`` as no match."""
+    return linkedin.companies(fetcher, name)
+
+
 class Routing(StubFetcher):
     """Answer an unpinned request from the next fabric in ``fabrics``, a pinned one from its own."""
 
     def __init__(self, fabrics):
-        super().__init__({"linkedin.com": ok("hi")})
+        super().__init__({"linkedin.com": ok("[]")})
         self.fabrics = fabrics
         self.intervals: list[float] = []  # the pace at each request
 
@@ -129,17 +134,17 @@ class Routing(StubFetcher):
         return result
 
 
-def test_paced_fetch_pins_each_request_to_a_fabric_in_turn(unlimited):
+def test_pacing_pins_each_request_to_a_fabric_in_turn(unlimited):
     # A new process starts pinned to the fabrics in FABRICS.
-    fetcher = StubFetcher({"linkedin.com": ok("hi")})
+    fetcher = StubFetcher({"linkedin.com": ok("[]")})
     for _ in range(3):
-        asyncio.run(client.paced_fetch(fetcher, "https://www.linkedin.com/x"))
+        asyncio.run(paced(fetcher))
     assert [h["cookie"] for h in fetcher.headers] == [f"lidc={c}" for c in client.FABRICS.values()]
 
     client.POOL.known = {}
     fetcher = Routing(["prod-a", "prod-b", "prod-a", "prod-c"])
     for _ in range(8):
-        assert asyncio.run(client.paced_fetch(fetcher, "https://www.linkedin.com/x")).ok
+        assert asyncio.run(paced(fetcher)) == []
 
     cookies = [h["cookie"] for h in fetcher.headers]
     # Unpinned until three fabrics are known, then each fabric in turn, least
@@ -150,7 +155,7 @@ def test_paced_fetch_pins_each_request_to_a_fabric_in_turn(unlimited):
     assert fetcher.intervals == [client.PACE] * 4 + [client.PACE / 3] * 4
 
 
-def test_paced_fetch_drops_a_pin_whose_request_lands_elsewhere(unlimited, monkeypatch):
+def test_pacing_drops_a_pin_whose_request_lands_elsewhere(unlimited, monkeypatch):
     monkeypatch.setattr(client, "DISCOVERY", 1)
     client.POOL.known = {name: f'"{name}"' for name in ("prod-a", "prod-b", "prod-c")}
     client.POOL.unpinned = 1  # discovery is spent
@@ -164,7 +169,7 @@ def test_paced_fetch_drops_a_pin_whose_request_lands_elsewhere(unlimited, monkey
 
     fetcher = Rerouting(["prod-d"])
     for _ in range(5):
-        asyncio.run(client.paced_fetch(fetcher, "https://www.linkedin.com/x"))
+        asyncio.run(paced(fetcher))
     # prod-b took the second turn and never another. Its drop restarted
     # discovery, which found prod-d; the rest go on least recently used first.
     assert sorted(client.POOL.known) == ["prod-a", "prod-c", "prod-d"]
@@ -173,7 +178,7 @@ def test_paced_fetch_drops_a_pin_whose_request_lands_elsewhere(unlimited, monkey
     assert fetcher.intervals[-1] == client.PACE / 3
 
 
-def test_concurrent_paced_fetch_calls_choose_fabrics_in_send_order(monkeypatch):
+def test_concurrent_requests_choose_fabrics_in_send_order(monkeypatch):
     monkeypatch.setattr(client, "DISCOVERY", 1)
     client.POOL.known = {name: f'"{name}"' for name in ("prod-a", "prod-b")}
 
@@ -185,8 +190,7 @@ def test_concurrent_paced_fetch_calls_choose_fabrics_in_send_order(monkeypatch):
     fetcher = Routing(["prod-c"])
 
     async def two_callers():
-        url = "https://www.linkedin.com/x"
-        await asyncio.gather(client.paced_fetch(fetcher, url), client.paced_fetch(fetcher, url))
+        await asyncio.gather(paced(fetcher), paced(fetcher))
 
     asyncio.run(two_callers())
     # The first caller's unpinned request finds prod-c before the second caller
@@ -196,7 +200,7 @@ def test_concurrent_paced_fetch_calls_choose_fabrics_in_send_order(monkeypatch):
 
 
 class QueuedOnOneFabric:
-    """Requests that tried prod-b and prod-c wait on prod-a, under a clock the test moves."""
+    """Requests that wait on prod-a, the one fabric known, under a clock the test moves."""
 
     def __init__(self, monkeypatch):
         events = self.events = []  # "admit" for each turn from the pacer, "send" for each request
@@ -206,9 +210,9 @@ class QueuedOnOneFabric:
                 await super().acquire()
                 events.append("admit")
 
-        monkeypatch.setattr(client, "DISCOVERY", 0)
+        monkeypatch.setattr(client, "DISCOVERY", 0)  # no unpinned requests to find more fabrics
         monkeypatch.setattr(client, "LIMITER", Logging(capacity=10**9, refill_interval=1.0))
-        client.POOL.known = {name: f'"{name}"' for name in ("prod-a", "prod-b", "prod-c")}
+        client.POOL.known = {"prod-a": '"prod-a"'}
         self.now = 0.0
         self.parked: list[asyncio.Future[None]] = []  # sleepers, woken only by wake_all
         self.sends: list[float] = []
@@ -224,15 +228,13 @@ class QueuedOnOneFabric:
     async def fetch(self, url, *, headers=None, json=None):
         self.sends.append(self.now)
         self.events.append("send")
-        return FetchResult(url=url, status=200, headers={"x-li-fabric": "prod-a"})
+        return FetchResult(url=url, status=200, text="[]", headers={"x-li-fabric": "prod-a"})
 
     async def close(self):
         pass
 
     def request(self):
-        url = "https://www.linkedin.com/x"
-        turn = client._fetch_on_turn(self, url, {"prod-b", "prod-c"})  # noqa: SLF001  the pacing primitive is the unit under test
-        return asyncio.ensure_future(turn)
+        return asyncio.ensure_future(paced(self))
 
     async def wake_all(self):
         waiters, self.parked = self.parked, []
@@ -264,9 +266,8 @@ def test_waiters_take_a_new_turn_when_discovery_starts(monkeypatch):
     async def run():
         requests = [queue.request() for _ in range(4)]
         await queue.yield_(0)  # one sends at once, three wait
+        # With one fabric known and requests to spare, discovery starts.
         monkeypatch.setattr(client, "DISCOVERY", 12)
-        for name in ("prod-b", "prod-c"):  # reroutes drop two pins, so discovery starts
-            del client.POOL.known[name]
         while queue.parked:
             queue.now += client.PACE
             await queue.wake_all()
@@ -293,8 +294,8 @@ def test_an_unpinned_request_waits_until_every_fabric_is_paced(monkeypatch):
     # request 0.5 s ago, and the unpinned request might land there.
     client.POOL.known = {"prod-a": '"prod-a"'}
     client.POOL.sent = {"prod-a": 0.0, "prod-b": 1.0}
-    fetcher = StubFetcher({"linkedin.com": ok("hi")})
-    asyncio.run(client.paced_fetch(fetcher, "https://www.linkedin.com/x"))
+    fetcher = StubFetcher({"linkedin.com": ok("[]")})
+    asyncio.run(paced(fetcher))
     assert [h["cookie"] for h in fetcher.headers] == ["lidc="]
     assert sleeps == [pytest.approx(client.PACE - 0.5)]
 
@@ -308,13 +309,13 @@ def test_a_retry_skips_the_fabric_that_refused_an_unpinned_attempt(unlimited):
         async def fetch(self, url, *, headers=None, json=None):
             cookie = (headers or {})["cookie"]
             fabric = cookie[6:-1] if cookie != "lidc=" else "prod-b"
-            result = rate_limited() if fabric == "prod-b" else ok("hi")
+            result = rate_limited() if fabric == "prod-b" else ok("[]")
             result.headers = {"x-li-fabric": fabric}
             self.headers.append(headers or {})
             return result
 
     fetcher = Refusing({})
-    assert asyncio.run(client.paced_fetch(fetcher, "https://www.linkedin.com/x")).ok
+    assert asyncio.run(paced(fetcher)) == []
     assert [h["cookie"] for h in fetcher.headers] == ["lidc=", 'lidc="prod-a"']
 
 
@@ -336,7 +337,7 @@ def test_a_canceled_wait_leaves_the_fabric_free(monkeypatch):
     assert queue.sends == [0.0, client.PACE]
 
 
-def test_paced_fetch_retries_a_refusal_on_an_untried_fabric(unlimited, monkeypatch):
+def test_pacing_retries_a_refusal_on_an_untried_fabric(unlimited, monkeypatch):
     monkeypatch.setattr(client, "DISCOVERY", 0)  # discovery stops once a fabric is known
     sleeps = []
 
@@ -353,23 +354,22 @@ def test_paced_fetch_retries_a_refusal_on_an_untried_fabric(unlimited, monkeypat
 
         async def fetch(self, url, *, headers=None, json=None):
             fabric = (headers or {})["cookie"][6:-1]
-            result = ok("hi") if fabric == "prod-b" and self.answering else rate_limited()
+            result = ok("[]") if fabric == "prod-b" and self.answering else rate_limited()
             self.requests.append(url)
             self.headers.append(headers or {})
             result.headers = {**result.headers, "x-li-fabric": fabric}
             return result
 
     fetcher = Refusing({})
-    result = asyncio.run(client.paced_fetch(fetcher, "https://www.linkedin.com/x"))
-    assert result.ok
+    assert asyncio.run(paced(fetcher)) == []
     assert [h["cookie"] for h in fetcher.headers] == ['lidc="prod-a"', 'lidc="prod-b"']
     assert sleeps == []  # the other fabric has its own budget
 
     # When both fabrics refuse, a retry that returns to one waits for the window.
     fetcher = Refusing({})
     fetcher.answering = False
-    result = asyncio.run(client.paced_fetch(fetcher, "https://www.linkedin.com/x"))
-    assert not result.ok
+    with pytest.raises(Stopped):
+        asyncio.run(paced(fetcher))
     assert [h["cookie"][6:-1] for h in fetcher.headers] == ["prod-a", "prod-b"] * 2
     assert sleeps == [client.RETRY_DELAY] * 2
 
@@ -377,14 +377,16 @@ def test_paced_fetch_retries_a_refusal_on_an_untried_fabric(unlimited, monkeypat
     sleeps.clear()
     client.POOL.known = {"prod-a": '"prod-a"'}
     fetcher = Refusing({})
-    assert not asyncio.run(client.paced_fetch(fetcher, "https://www.linkedin.com/x")).ok
+    with pytest.raises(Stopped):
+        asyncio.run(paced(fetcher))
     assert sleeps == [client.RETRY_DELAY] * client.RETRIES
 
     # While no fabric is known, every retry goes out unpinned without waiting.
     sleeps.clear()
     client.POOL.known = {}
     fetcher = Refusing({})
-    assert not asyncio.run(client.paced_fetch(fetcher, "https://www.linkedin.com/x")).ok
+    with pytest.raises(Stopped):
+        asyncio.run(paced(fetcher))
     assert [h["cookie"] for h in fetcher.headers] == ["lidc="] * (1 + client.RETRIES)
     assert sleeps == []
 
@@ -417,9 +419,9 @@ def test_concurrent_retries_try_each_fabric_once_and_keep_each_fabric_paced(monk
         async def fetch(self, url, *, headers=None, json=None):
             fabric = (headers or {})["cookie"][6:-1]
             sends.setdefault(fabric, []).append(clock)
-            if url.endswith("target"):
+            if "query=target" in url:
                 target.append(fabric)
-            result = rate_limited() if url.endswith("target") else ok("hi")
+            result = rate_limited() if "query=target" in url else ok("[]")
             result.headers = {**result.headers, "x-li-fabric": fabric}
             return result
 
@@ -427,12 +429,12 @@ def test_concurrent_retries_try_each_fabric_once_and_keep_each_fabric_paced(monk
 
     async def caller(name):
         for i in range(6):
-            await client.paced_fetch(fetcher, f"https://www.linkedin.com/{name}{i}")
+            await paced(fetcher, f"{name}{i}")
 
     async def drive():
         nonlocal clock
         tasks = [
-            asyncio.ensure_future(client.paced_fetch(fetcher, "https://www.linkedin.com/target")),
+            asyncio.ensure_future(paced(fetcher, "target")),
             asyncio.ensure_future(caller("b")),
             asyncio.ensure_future(caller("c")),
         ]
@@ -442,9 +444,10 @@ def test_concurrent_retries_try_each_fabric_once_and_keep_each_fabric_paced(monk
             clock = max(clock, wake)
             waiter.set_result(None)
             await real_sleep(0)
-        await asyncio.gather(*tasks)
+        return await asyncio.gather(*tasks, return_exceptions=True)
 
-    asyncio.run(drive())
+    refused, *_ = asyncio.run(drive())
+    assert isinstance(refused, Stopped)
     assert len(target) == 1 + client.RETRIES
     assert sorted(target[:3]) == list(fabrics)  # all three before any again
     for fabric, times in sends.items():

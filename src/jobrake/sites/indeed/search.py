@@ -78,7 +78,7 @@ MAX_RESULTS = 1000
 EMPLOYMENT_TYPES = ("Full-time", "Part-time", "Contract", "Temporary", "Internship", "Per diem")
 
 
-def build_query(
+def _build_query(
     query: str,
     location: str | None,
     radius: int,
@@ -249,7 +249,7 @@ def _graphql_error_message(payload: object) -> str | None:
     return None
 
 
-def parse_jobs(data: dict[str, Any], base_url: str) -> tuple[list[JobDict], str | None, int]:
+def _parse_jobs(data: dict[str, Any], base_url: str) -> tuple[list[JobDict], str | None, int]:
     """
     Parse one GraphQL page while isolating malformed results.
 
@@ -355,7 +355,7 @@ async def search(
     cursor: str | None = None
     served = 0  # results Indeed has sent, malformed ones included
     while len(jobs) < results:
-        graphql = build_query(
+        graphql = _build_query(
             query,
             location,
             radius,
@@ -375,7 +375,7 @@ async def search(
         payload = None
         try:
             payload = json.loads(result.text)
-            page, cursor, raw = parse_jobs(payload, base_url)
+            page, cursor, raw = _parse_jobs(payload, base_url)
         except (json.JSONDecodeError, KeyError, TypeError) as error:
             # A GraphQL error arrives as HTTP 200 with null data. Usable data
             # alongside errors parses above and is kept.

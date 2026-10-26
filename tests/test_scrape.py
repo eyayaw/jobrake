@@ -60,6 +60,9 @@ def without_none(kind):
 def test_a_site_meets_the_site_contract(site):
     module = SITES[site]
     assert (module.__doc__ or "").splitlines()[0]  # the CLI help
+    # search, and only the optional functions the CLI knows how to run
+    assert "search" in module.__all__
+    assert set(module.__all__) <= {"search", "places", "companies", "attributes", "postings"}
     for lookup in ("places", "companies", "attributes"):
         if hasattr(module, lookup):
             options_of(getattr(module, lookup), str)

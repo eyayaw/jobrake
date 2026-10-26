@@ -4,7 +4,7 @@ from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _get_version
 
 from jobrake.fetchkit import HttpxFetcher
-from jobrake.models import Stopped
+from jobrake.models import JobDict, Stopped
 from jobrake.sites import scrape
 
 try:
@@ -12,4 +12,4 @@ try:
 except PackageNotFoundError:
     __version__ = "0.0.0"
 
-__all__ = ["HttpxFetcher", "Stopped", "__version__", "scrape"]
+__all__ = ["HttpxFetcher", "JobDict", "Stopped", "__version__", "scrape"]
