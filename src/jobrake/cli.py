@@ -250,32 +250,32 @@ def _build_parser() -> _ArgumentParser:
         _add_search_args(subparser, site_options(SITES[name].search))
         _add_output_args(subparser)
         _SITE_ARGS[name](subparser)
-    details = subparsers.add_parser(
-        "details",
+    postings = subparsers.add_parser(
+        "postings",
         allow_abbrev=False,
         help="fetch known postings by ID or URL",
         description="Fetch known postings by ID or URL",
     )
-    details_sites = details.add_subparsers(dest="site", required=True)
-    details_linkedin = details_sites.add_parser(
+    postings_sites = postings.add_subparsers(dest="site", required=True)
+    postings_linkedin = postings_sites.add_parser(
         "linkedin",
         allow_abbrev=False,
         help="fetch LinkedIn postings by ID or URL",
         description="Fetch LinkedIn postings by ID or URL",
     )
-    details_linkedin.add_argument(
-        "posting",
+    postings_linkedin.add_argument(
+        "references",
         nargs="+",
         metavar="ID|URL",
         help="numeric LinkedIn posting ID or posting URL",
     )
-    details_linkedin.add_argument(
+    postings_linkedin.add_argument(
         "--no-cache",
         dest="cache",
         action="store_false",
         help="refetch posting details and refresh their cached copies",
     )
-    _add_output_args(details_linkedin)
+    _add_output_args(postings_linkedin)
     lookup = subparsers.add_parser(
         "places",
         allow_abbrev=False,
@@ -400,13 +400,22 @@ async def _lookup_candidates(args: argparse.Namespace) -> list[dict[str, str]]:
         await fetcher.close()
 
 
-async def _fetch_details(args: argparse.Namespace) -> list[JobDict]:
-    """Fetch the named LinkedIn postings with a fetcher of its own."""
+async def _fetch_postings(args: argparse.Namespace) -> list[JobDict]:
+    """
+    Fetch the named postings with a fetcher of its own, one record per posting in reference order.
+
+    A reference to a posting the site reports gone logs a warning.
+    """
     fetcher = HttpxFetcher()
     try:
-        return await linkedin.fetch_details(fetcher, args.posting, cache=args.cache)
+        found = await linkedin.postings(fetcher, args.references, cache=args.cache)
     finally:
         await fetcher.close()
+    for reference, job in found.items():
+        if job is None:
+            logger.warning("%s is no longer on %s", reference, args.site)
+    jobs = (job for job in found.values() if job is not None)
+    return list({(job["site"], job["id"]): job for job in jobs}.values())
 
 
 def _settle_output(parser: _ArgumentParser, args: argparse.Namespace) -> str:
@@ -487,10 +496,10 @@ def main() -> int | None:
                 args.name,
             )
         return _write_stdout(json.dumps(hits, indent=2, ensure_ascii=False) + "\n")
-    if args.provider == "details":
+    if args.provider == "postings":
         fmt = _settle_output(parser, args)
         try:
-            jobs = asyncio.run(_fetch_details(args))
+            jobs = asyncio.run(_fetch_postings(args))
         except ValueError as e:
             parser.error(str(e))
         finally:

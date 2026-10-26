@@ -100,28 +100,32 @@ def test_lookup_commands_print_candidates_and_report_failure(
     assert all(f.closed for f in created)
 
 
-def test_details_command_renders_what_it_resolved(monkeypatch, capsys):
+def test_postings_command_renders_what_it_fetched(monkeypatch, capsys, caplog):
     calls = []
 
     class StubHttpx:
         async def close(self):
             pass
 
-    async def fake_details(fetcher, references, *, cache):
+    async def fake_postings(fetcher, references, *, cache):
         calls.append((list(references), cache))
-        return JOBS if cache else []
+        if not cache:
+            return {"111": None}
+        # two references to one posting, one gone, one failed and so absent
+        return {"111": JOBS[0], "https://nl.linkedin.com/jobs/view/x-1": JOBS[0], "222": None}
 
     monkeypatch.setattr(cli, "HttpxFetcher", StubHttpx)
-    monkeypatch.setattr(cli.linkedin, "fetch_details", fake_details)
-    argv = ["jobrake", "details", "linkedin", "111", "https://nl.linkedin.com/jobs/view/x-222"]
-    monkeypatch.setattr(sys, "argv", argv)
+    monkeypatch.setattr(cli.linkedin, "postings", fake_postings)
+    references = ["111", "https://nl.linkedin.com/jobs/view/x-1", "222", "333"]
+    monkeypatch.setattr(sys, "argv", ["jobrake", "postings", "linkedin", *references])
     assert cli.main() is None
-    assert json.loads(capsys.readouterr().out) == JOBS
-    # nothing resolved: the failures were already reported, so stdout stays empty
-    monkeypatch.setattr(sys, "argv", ["jobrake", "details", "linkedin", "111", "--no-cache"])
+    assert json.loads(capsys.readouterr().out) == JOBS[:1]  # one record per posting
+    assert "222 is no longer on linkedin" in caplog.text
+    # nothing fetched: the failures were already reported, so stdout stays empty
+    monkeypatch.setattr(sys, "argv", ["jobrake", "postings", "linkedin", "111", "--no-cache"])
     assert cli.main() == 1
     assert capsys.readouterr().out == ""
-    assert calls == [(argv[3:], True), (["111"], False)]
+    assert calls == [(references, True), (["111"], False)]
 
 
 def test_provider_commands_dispatch_expected_options(monkeypatch):

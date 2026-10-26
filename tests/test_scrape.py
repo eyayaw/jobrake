@@ -2,6 +2,7 @@
 
 import asyncio
 import inspect
+from collections.abc import Iterable
 from types import NoneType
 from typing import Annotated, get_args, get_origin
 
@@ -16,12 +17,12 @@ from jobrake.sites.linkedin import client
 OPTION_TYPES = [str, int, bool, list[str], str | None, int | None, bool | None, list[str] | None]
 
 
-def options_of(function, positional):
+def options_of(function, *positional):
     """
     Map each keyword option of a site function to the type inside its Annotated.
 
-    The function takes the fetcher, then ``positional`` annotated text arguments,
-    then only keyword options.
+    The function takes the fetcher, then one annotated argument of each type
+    in ``positional``, then only keyword options.
     """
     fetcher, *parameters = inspect.signature(function).parameters.values()
     assert fetcher.kind is inspect.Parameter.POSITIONAL_OR_KEYWORD
@@ -30,8 +31,9 @@ def options_of(function, positional):
         assert get_origin(parameter.annotation) is Annotated, parameter.name
         kind, help_text = get_args(parameter.annotation)
         assert help_text.strip(), parameter.name
-        if index < positional:
-            assert (parameter.kind, kind) == (inspect.Parameter.POSITIONAL_OR_KEYWORD, str)
+        if index < len(positional):
+            assert parameter.kind is inspect.Parameter.POSITIONAL_OR_KEYWORD, parameter.name
+            assert kind == positional[index], parameter.name
             continue
         assert parameter.kind is inspect.Parameter.KEYWORD_ONLY, parameter.name
         assert kind in OPTION_TYPES, parameter.name
@@ -40,7 +42,7 @@ def options_of(function, positional):
 
 
 def search_options(module):
-    return options_of(module.search, positional=0)
+    return options_of(module.search)
 
 
 def without_none(kind):
@@ -58,7 +60,9 @@ def test_a_site_meets_the_site_contract(site):
     assert (module.__doc__ or "").splitlines()[0]  # the CLI help
     for lookup in ("places", "companies", "attributes"):
         if hasattr(module, lookup):
-            options_of(getattr(module, lookup), positional=1)
+            options_of(getattr(module, lookup), str)
+    if hasattr(module, "postings"):
+        options_of(module.postings, Iterable[str])
     options = search_options(module)
     # A name two sites share keeps one type, apart from accepting None.
     for other in SITES.values():

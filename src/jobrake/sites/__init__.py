@@ -8,7 +8,7 @@ from jobrake.utils import check_options
 
 from . import indeed, linkedin
 
-# One entry per site. A site package exports search() and any of the lookups.
+# One entry per site. A site package exports search() and any of the lookups and postings().
 SITES: dict[str, ModuleType] = {"indeed": indeed, "linkedin": linkedin}
 
 

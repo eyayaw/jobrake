@@ -11,7 +11,7 @@ from .client import (
     job_id,
 )
 from .lookups import companies, places
-from .postings import FRAGMENT_URL, fetch_details, fetch_postings, parse_posting
+from .pages import FRAGMENT_URL, postings
 from .search import MAX_START, parse_cards, search
 
 
@@ -32,11 +32,9 @@ __all__ = [
     "SEARCH_URL",
     "TYPEAHEAD_URL",
     "companies",
-    "fetch_details",
-    "fetch_postings",
     "job_id",
     "parse_cards",
-    "parse_posting",
     "places",
+    "postings",
     "search",
 ]

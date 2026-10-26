@@ -11,7 +11,7 @@ from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, Stopped, make_job
 
 from .client import SEARCH_URL, job_id, paced_fetch
-from .postings import fetch_postings
+from .pages import fetch_pages
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +30,7 @@ def parse_cards(html: str) -> list[JobDict]:
 
 def _parse_page(html: str) -> tuple[list[JobDict], int]:
     """Parse card summaries, and count every card LinkedIn served, parsable or not."""
-    # Search cards contain only summary fields. fetch_postings() reads the
+    # Search cards contain only summary fields. fetch_pages() reads the
     # detail fields from each posting page.
     soup = BeautifulSoup(html, "html.parser")
     cards = soup.find_all("div", class_="base-search-card")
@@ -197,10 +197,10 @@ async def search(
         "linkedin search finished with %s", ngettext("%d job", "%d jobs", len(jobs)) % len(jobs)
     )
     if details:
-        postings = await fetch_postings(fetcher, (job["url"] for job in jobs), cache=cache)
-        # Keep summary fields when a posting disappears or fails during hydration.
-        jobs = [make_job(**{**job, **(postings.get(job["url"]) or {})}) for job in jobs]
-        if missing := sum(job["url"] not in postings for job in jobs):
+        found = await fetch_pages(fetcher, {job["id"]: dict(job) for job in jobs}, cache=cache)
+        # A posting that is gone, or failed, keeps its card.
+        jobs = [found.get(job["id"]) or job for job in jobs]
+        if missing := sum(job["id"] not in found for job in jobs):
             raise Stopped(
                 f"linkedin could not fetch the details of {missing} of {len(jobs)} postings. "
                 "A rerun retries them",
