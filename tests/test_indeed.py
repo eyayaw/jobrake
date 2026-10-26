@@ -52,7 +52,7 @@ def indeed_payload(keys, cursor=None):
     }
 
 
-def test_company_lookup_keeps_usable_keys_in_provider_order():
+def test_company_lookup_keeps_usable_keys_in_indeed_order():
     hits = [
         {"employerKey": " fe219df7f711aa73 ", "suggestion": " ABN AMRO "},
         {},
@@ -62,9 +62,9 @@ def test_company_lookup_keeps_usable_keys_in_provider_order():
         {"employerKey": "6495c5a19835b81b", "suggestion": "Abn amro, bouwfonds"},
     ]
     fetcher = StubFetcher({"suggestions/company": ok(json.dumps(hits))})
-    assert asyncio.run(indeed.companies(fetcher, " ABN & AMRO ", "netherlands")) == [
-        {"employerKey": "fe219df7f711aa73", "suggestion": "ABN AMRO"},
-        {"employerKey": "6495c5a19835b81b", "suggestion": "Abn amro, bouwfonds"},
+    assert asyncio.run(indeed.companies(fetcher, " ABN & AMRO ", country="netherlands")) == [
+        {"id": "fe219df7f711aa73", "name": "ABN AMRO"},
+        {"id": "6495c5a19835b81b", "name": "Abn amro, bouwfonds"},
     ]
     params = parse_qs(urlparse(fetcher.requests[0]).query)
     assert params["query"] == ["ABN & AMRO"]
@@ -74,17 +74,17 @@ def test_company_lookup_keeps_usable_keys_in_provider_order():
         ("ABN", "atlantis", "unknown Indeed country"),
     ]:
         with pytest.raises(ValueError, match=message):
-            asyncio.run(indeed.companies(fetcher, name, country))
+            asyncio.run(indeed.companies(fetcher, name, country=country))
     assert len(fetcher.requests) == 1
 
 
 def test_company_lookup_distinguishes_no_matches_from_failure():
     fetcher = StubFetcher({"suggestions/company": ok("[]")})
-    assert asyncio.run(indeed.companies(fetcher, "ABN", "netherlands")) == []
+    assert asyncio.run(indeed.companies(fetcher, "ABN", country="netherlands")) == []
     for response in (ok("[{}]"), ok("{}"), ok("not JSON"), rate_limited()):
         fetcher = StubFetcher({"suggestions/company": response})
         with pytest.raises(Stopped, match="company"):
-            asyncio.run(indeed.companies(fetcher, "ABN", "netherlands"))
+            asyncio.run(indeed.companies(fetcher, "ABN", country="netherlands"))
 
 
 def test_places_lists_edition_suggestions():
@@ -96,16 +96,16 @@ def test_places_lists_edition_suggestions():
         {"suggestion": "Boston Massacre Marker, MA", "payload": {"locationType": "MISC"}},
     ]
     fetcher = StubFetcher({"suggestions/location": ok(json.dumps(hits))})
-    assert asyncio.run(indeed.places(fetcher, "boston", "usa")) == [
-        {"suggestion": "Boston, MA", "locationType": "CITY"},
-        {"suggestion": "Boston Common, MA", "locationType": None},
-        {"suggestion": "Boston Massacre Marker, MA", "locationType": "MISC"},
+    assert asyncio.run(indeed.places(fetcher, "boston", country="usa")) == [
+        {"id": "Boston, MA", "name": "Boston, MA"},
+        {"id": "Boston Common, MA", "name": "Boston Common, MA"},
+        {"id": "Boston Massacre Marker, MA", "name": "Boston Massacre Marker, MA"},
     ]
     assert "country=US" in fetcher.requests[0]
     with pytest.raises(ValueError, match="country"):
-        asyncio.run(indeed.places(fetcher, "boston", "atlantis"))
+        asyncio.run(indeed.places(fetcher, "boston", country="atlantis"))
     with pytest.raises(ValueError, match="blank"):
-        asyncio.run(indeed.places(fetcher, "", "usa"))
+        asyncio.run(indeed.places(fetcher, "", country="usa"))
     assert len(fetcher.requests) == 1
 
 
@@ -481,9 +481,9 @@ def test_attribute_lookup_preserves_distinct_codes_and_skips_malformed_entries()
     }
 
     fetcher = StubFetcher({"apis.indeed.com": ok(json.dumps(payload))})
-    assert asyncio.run(indeed.attributes(fetcher, 'data "scientist"', "netherlands")) == [
-        {"key": "4N39D", "label": "Economics"},
-        {"key": "5DH8C", "label": "Economics"},
+    assert asyncio.run(indeed.attributes(fetcher, 'data "scientist"', country="netherlands")) == [
+        {"id": "4N39D", "name": "Economics"},
+        {"id": "5DH8C", "name": "Economics"},
     ]
     assert fetcher.headers[0]["indeed-co"] == "NL"
     graphql = fetcher.bodies[0]["query"]
@@ -497,7 +497,7 @@ def test_attribute_lookup_preserves_distinct_codes_and_skips_malformed_entries()
         ("data", "unknown", "unknown Indeed country"),
     ):
         with pytest.raises(ValueError, match=message):
-            asyncio.run(indeed.attributes(fetcher, query, country))
+            asyncio.run(indeed.attributes(fetcher, query, country=country))
     assert len(fetcher.requests) == 1
 
 
@@ -512,11 +512,11 @@ def test_attribute_lookup_distinguishes_empty_results_from_failure():
     ):
         fetcher = StubFetcher({"apis.indeed.com": ok(json.dumps(payload))})
         if found:
-            assert asyncio.run(indeed.attributes(fetcher, "data", "usa")) == []
+            assert asyncio.run(indeed.attributes(fetcher, "data", country="usa")) == []
         else:
             with pytest.raises(Stopped, match="attributes"):
-                asyncio.run(indeed.attributes(fetcher, "data", "usa"))
+                asyncio.run(indeed.attributes(fetcher, "data", country="usa"))
     for response in (ok("not json"), rate_limited()):
         fetcher = StubFetcher({"apis.indeed.com": response})
         with pytest.raises(Stopped, match="attribute"):
-            asyncio.run(indeed.attributes(fetcher, "data", "usa"))
+            asyncio.run(indeed.attributes(fetcher, "data", country="usa"))

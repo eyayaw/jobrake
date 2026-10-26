@@ -12,7 +12,7 @@ from jobrake.models import JobDict, Stopped, employment_type, make_job
 from jobrake.utils import epoch_ms_to_iso, html_text
 
 from .client import API_HEADERS, API_URL
-from .countries import indeed_domain
+from .countries import Country, indeed_domain
 
 logger = logging.getLogger(__name__)
 
@@ -306,7 +306,7 @@ async def search(
     fetcher: Fetcher,
     *,
     query: Annotated[str, "job title or keywords"],
-    country: Annotated[str, "Indeed country edition, e.g., usa, uk, or netherlands"],
+    country: Country,
     location: Annotated[str | None, "city or area within the country"] = None,
     radius: Annotated[int, "search radius in kilometers"] = 40,
     results: Annotated[int, "maximum number of postings"] = 10,

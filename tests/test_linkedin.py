@@ -507,7 +507,7 @@ def test_no_warning_when_pagination_simply_ends(unlimited, caplog):
     assert caplog.records == []
 
 
-def test_companies_lists_usable_candidates_in_provider_order(unlimited):
+def test_companies_lists_usable_candidates_in_linkedin_order(unlimited):
     hits = [
         {"id": " 1173 ", "displayName": " ABN AMRO Bank N.V. ", "trackingId": "unused"},
         {"id": "2948083", "displayName": "ABN AMRO MeesPierson"},
@@ -519,8 +519,8 @@ def test_companies_lists_usable_candidates_in_provider_order(unlimited):
     ]
     fetcher = StubFetcher({"typeaheadHits": ok(json.dumps(hits))})
     assert asyncio.run(linkedin.companies(fetcher, " ABN & AMRO ")) == [
-        {"companyId": "1173", "displayName": "ABN AMRO Bank N.V."},
-        {"companyId": "2948083", "displayName": "ABN AMRO MeesPierson"},
+        {"id": "1173", "name": "ABN AMRO Bank N.V."},
+        {"id": "2948083", "name": "ABN AMRO MeesPierson"},
     ]
     assert len(fetcher.requests) == 1
     assert parse_qs(urlsplit(fetcher.requests[0]).query) == {
@@ -561,9 +561,9 @@ def test_places_lists_usable_candidates_in_order(unlimited):
     ]
     fetcher = StubFetcher({"typeaheadHits": ok(json.dumps(hits))})
     assert asyncio.run(linkedin.places(fetcher, "amsterdam, ")) == [
-        {"geoId": "1", "displayName": "Amsterdam, North Holland, Netherlands"},
-        {"geoId": "2", "displayName": "Amsterdam, New York, United States"},
-        {"geoId": "4", "displayName": "Amsterdam North Holland Netherlands"},
+        {"id": "1", "name": "Amsterdam, North Holland, Netherlands"},
+        {"id": "2", "name": "Amsterdam, New York, United States"},
+        {"id": "4", "name": "Amsterdam North Holland Netherlands"},
     ]
     assert "query=amsterdam%2C&" in fetcher.requests[0]
     with pytest.raises(ValueError, match="blank"):

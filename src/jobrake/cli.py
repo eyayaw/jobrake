@@ -286,7 +286,7 @@ def _build_parser() -> _ArgumentParser:
     li = sites.add_parser(
         "linkedin",
         allow_abbrev=False,
-        help="print LinkedIn geoIds for a name",
+        help="print LinkedIn place IDs for a name",
         description="Print LinkedIn's candidate places for the name, best match first, as JSON",
     )
     ind = sites.add_parser(
@@ -316,14 +316,14 @@ def _build_parser() -> _ArgumentParser:
     company_linkedin = company_sites.add_parser(
         "linkedin",
         allow_abbrev=False,
-        help="print LinkedIn company names and IDs",
+        help="print LinkedIn company IDs for a name",
         description="List LinkedIn's suggested company names and IDs as JSON",
     )
     company_indeed = company_sites.add_parser(
         "indeed",
         allow_abbrev=False,
-        help="print Indeed company names and employer keys",
-        description="List an Indeed edition's company suggestions and employer keys as JSON",
+        help="print Indeed company IDs for a name",
+        description="List an Indeed edition's company suggestions and IDs as JSON",
     )
     for sub in (company_linkedin, company_indeed):
         sub.add_argument("name", help="company name, e.g., 'ABN AMRO'")
@@ -379,9 +379,7 @@ def _write_stdout(text: str) -> int | None:
     return None
 
 
-async def _lookup_candidates(
-    args: argparse.Namespace,
-) -> list[dict[str, str]] | list[dict[str, str | None]]:
+async def _lookup_candidates(args: argparse.Namespace) -> list[dict[str, str]]:
     """Look up places, companies, or attributes with a fetcher of its own."""
     fetcher = HttpxFetcher()
     try:
@@ -392,10 +390,10 @@ async def _lookup_candidates(
                 return await linkedin.places(fetcher, args.name)
             case "indeed":
                 if args.provider == "attributes":
-                    return await indeed.attributes(fetcher, args.name, args.country)
+                    return await indeed.attributes(fetcher, args.name, country=args.country)
                 if args.provider == "companies":
-                    return await indeed.companies(fetcher, args.name, args.country)
-                return await indeed.places(fetcher, args.name, args.country)
+                    return await indeed.companies(fetcher, args.name, country=args.country)
+                return await indeed.places(fetcher, args.name, country=args.country)
             case _:
                 raise ValueError(f"unknown provider {args.site}")
     finally:

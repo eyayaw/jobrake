@@ -1,5 +1,10 @@
 """Indeed country editions and their name aliases."""
 
+from typing import Annotated
+
+# The country option of every Indeed function that searches one edition.
+Country = Annotated[str, "Indeed country edition, e.g., usa, uk, or netherlands"]
+
 # Ported from jobspy's Country enum, keeping only what Indeed needs. A value
 # is the subdomain; where the API code differs it is "subdomain:code".
 # fmt: off

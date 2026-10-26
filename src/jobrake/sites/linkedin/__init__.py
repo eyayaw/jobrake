@@ -10,8 +10,7 @@ from .client import (
     TYPEAHEAD_URL,
     job_id,
 )
-from .companies import companies
-from .geo import places
+from .lookups import companies, places
 from .postings import FRAGMENT_URL, fetch_details, fetch_postings, parse_posting
 from .search import MAX_START, parse_cards, search
 

@@ -54,43 +54,19 @@ def run_cli(monkeypatch):
 
 
 @pytest.mark.parametrize(
-    ("argv", "lookup", "expected", "hits"),
+    ("argv", "lookup", "expected"),
     [
-        (
-            ["places", "linkedin", "amsterdam"],
-            "linkedin.places",
-            ("amsterdam",),
-            [{"geoId": "102011674", "displayName": "Amsterdam, North Holland, Netherlands"}],
-        ),
-        (
-            ["places", "indeed", "boston", "-c", "usa"],
-            "indeed.places",
-            ("boston", "usa"),
-            [{"suggestion": "Boston, MA", "locationType": "CITY"}],
-        ),
-        (
-            ["companies", "linkedin", "ABN AMRO"],
-            "linkedin.companies",
-            ("ABN AMRO",),
-            [{"companyId": "1173", "displayName": "ABN AMRO Bank N.V."}],
-        ),
-        (
-            ["companies", "indeed", "ABN AMRO", "-c", "netherlands"],
-            "indeed.companies",
-            ("ABN AMRO", "netherlands"),
-            [{"employerKey": "fe219df7f711aa73", "suggestion": "ABN AMRO"}],
-        ),
-        (
-            ["attributes", "indeed", "-c", "usa", "data scientist"],
-            "indeed.attributes",
-            ("data scientist", "usa"),
-            [{"key": "3CQB7", "label": "Spatial analysis"}],
-        ),
+        (["places", "linkedin", "amsterdam"], "linkedin.places", {}),
+        (["places", "indeed", "boston", "-c", "usa"], "indeed.places", {"country": "usa"}),
+        (["companies", "linkedin", "boston"], "linkedin.companies", {}),
+        (["companies", "indeed", "boston", "-c", "uk"], "indeed.companies", {"country": "uk"}),
+        (["attributes", "indeed", "boston", "-c", "usa"], "indeed.attributes", {"country": "usa"}),
     ],
 )
 def test_lookup_commands_print_candidates_and_report_failure(
-    monkeypatch, capsys, argv, lookup, expected, hits
+    monkeypatch, capsys, argv, lookup, expected
 ):
+    hits = [{"id": "1", "name": "Boston, MA"}]
     answers = [hits, [], None]
 
     class StubHttpx:
@@ -103,8 +79,8 @@ def test_lookup_commands_print_candidates_and_report_failure(
 
     created: list[StubHttpx] = []
 
-    async def fake_lookup(fetcher, *args):
-        assert args == expected
+    async def fake_lookup(fetcher, text, **options):
+        assert (text, options) == (argv[2], expected)
         if (answer := answers.pop(0)) is None:
             raise Stopped("lookup failed", partial=[])
         return answer
@@ -362,7 +338,7 @@ def test_closed_pipe_ends_quietly(run_cli, monkeypatch):
         assert run_cli() == 1
 
     async def fake_places(fetcher, name):
-        return [{"geoId": "1", "displayName": "A"}]
+        return [{"id": "1", "name": "A"}]
 
     monkeypatch.setattr(cli.linkedin, "places", fake_places)
     monkeypatch.setattr(sys, "argv", ["jobrake", "places", "linkedin", "a"])
