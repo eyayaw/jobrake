@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+## [0.19.0](https://github.com/eyayaw/jobrake/releases/tag/v0.19.0) - 2026-10-26
+
+### Added
+
+- `HttpxFetcher(transport=...)` replaces the network with an httpx transport, as `httpx.MockTransport` does in tests.
+- `Cache.close()` closes the SQLite connection. A working cache reopens it on the next read or write.
+- `models.JobDict` types the job dictionaries that `make_job` builds and searches return.
+
+### Changed
+
+- **Breaking:** jobrake requires Python 3.14.
+- **Breaking:** `HttpxFetcher` takes every option after `timeout` by keyword, and `indeed.build_query` takes its filters by keyword.
+- **Breaking:** `ErrorCategory` is a `StrEnum`, so `str(ErrorCategory.NETWORK)` is `"network"` instead of `"ErrorCategory.NETWORK"`.
+
 ## [0.18.0](https://github.com/eyayaw/jobrake/releases/tag/v0.18.0) - 2026-10-18
 
 ### Changed
