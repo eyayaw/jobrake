@@ -14,7 +14,7 @@ Run `jobrake -h`, and `jobrake <command> -h` for commands and options.
 
 ## Search for jobs
 
-Choose a provider and supply a job title or keywords:
+Choose a site and supply a job title or keywords:
 
 ```sh
 jobrake indeed -q "data scientist" -c Netherlands -l Amsterdam -n 2
@@ -27,11 +27,11 @@ LinkedIn has no editions: pass the place as text to `--location`, or its ID to `
 
 Three more options shape the result set rather than its content. By default, they return **10 jobs** from the **past seven days**.
 
-| Option                  | CLI               | Library         | Accepted values                                     |
-| ----------------------- | ----------------- | --------------- | --------------------------------------------------- |
-| Result limit            | `--results`, `-n` | `results`       | a positive integer                                  |
-| Posting age in hours    | `--max-age`, `-a` | `max_age_hours` | a positive integer, or `None` for no age limit      |
-| Search radius in km     | `--radius`, `-r`  | `radius`        | $\ge 0$, or `None` for the provider's default  |
+| Option               | CLI                     | Library         | Accepted values                                  |
+| -------------------- | ----------------------- | --------------- | ------------------------------------------------ |
+| Result limit         | `--results`, `-n`       | `results`       | a positive integer                               |
+| Posting age in hours | `--max-age-hours`, `-a` | `max_age_hours` | a positive integer, or `None` for no age limit   |
+| Search radius in km  | `--radius`, `-r`        | `radius`        | $\ge 0$, or `None` on LinkedIn to send no radius |
 
 > [!NOTE]
 > Indeed measures posting age against `dateOnIndeed`, so a job inside your age window can still carry an older `posted_at`, the publication timestamp the search returns.
@@ -64,7 +64,7 @@ title:analyst -senior
 However, plain terms behave differently. They can match posting descriptions or
 other indexed content, so `data OR research` may return jobs with neither word in the title.
 You may be tempted to try `description:<term>`, but it does not reliably restrict
-results to descriptions. `AND`, `OR`, and `NOT` act as provider search hints on their own.
+results to descriptions. `AND`, `OR`, and `NOT` act as Indeed search hints on their own.
 Their results can differ from Boolean union, intersection, and exclusion.
 Importantly, we do not advise mixing geography and posting age with search queries
 (e.g., `"data science jobs in England last 24 hours"`), rather use their own arguments.
@@ -84,8 +84,8 @@ are `USA`, `US`, and `UK`. `location` may contain a city or another place within
 that country.
 
 `jobrake places indeed <name> --country <edition>` prints the edition's location
-suggestions as JSON, best match first. Each `suggestion` can be passed directly
-to `location`. For library calls use `jobrake.sites.indeed.places`.
+suggestions as JSON, best match first. Each `id` can be passed directly
+to `--location`. For library calls use `jobrake.sites.indeed.places`.
 
 #### LinkedIn locations
 
@@ -98,30 +98,25 @@ jobs for an **ambiguous place name**. Include the region and country whenever po
 -l "Amsterdam, North Holland, Netherlands" # Good
 ```
 
-`--geoid | -g` works two ways. On its own it resolves `location` through LinkedIn's
-place lookup, reports the place it chose, and caches that answer for later runs.
-It picks the candidate whose name equals yours, and LinkedIn's first candidate when none does.
-jobrake takes care of that internally. Note that a resolution that fails returns no jobs.
-Alternatively, you can also directly pass a geoid like `--geoid 102011674`.
+`--geoid | -g` takes a geoid, such as `--geoid 102011674`.
 This sends that ID straight to LinkedIn and `location` becomes optional.
-Library call equivalents of the two forms are `geoid=True` and `geoid="102011674"`.
+The library call equivalent is `geoid="102011674"`.
 Note that leaving the geoid option out is fine, jobrake just searches by location text.
 
 If you want to know the geoid of a place name, you can use `jobrake places linkedin <name>`,
-which prints LinkedIn's candidates as JSON, best match first, and caches them.
-Cache matching ignores case, commas, surrounding punctuation, and repeated spaces.
+which prints LinkedIn's candidates as JSON, best match first.
 
 ```sh
 jobrake places linkedin Birmingham
 
 [
   {
-    "geoId": "100356971",
-    "displayName": "Birmingham, England, United Kingdom"
+    "id": "100356971",
+    "name": "Birmingham, England, United Kingdom"
   },
   {
-    "geoId": "102905961",
-    "displayName": "Birmingham, Alabama, United States"
+    "id": "102905961",
+    "name": "Birmingham, Alabama, United States"
   },
   ...
 ]
@@ -134,41 +129,40 @@ jobrake linkedin -q "data scientist" -l "Birmingham, England, United Kingdom"
 jobrake linkedin -q "data scientist" -g 100356971
 ```
 
-Library callers use `jobrake.sites.linkedin.places` and `resolve_geoid`.
+Library callers use `jobrake.sites.linkedin.places`.
 
 ### Lookup commands
 
-The `places`, `companies`, and `attributes` commands print JSON lists, and their library functions return
-lists of the same entries. An empty list means the lookup found no matches. A failed request or unreadable
-response logs a warning and returns `None` to library callers. The CLI exits nonzero on failure.
+The `places`, `companies`, and `attributes` commands print JSON lists of `{"id", "name"}` entries, and their
+library functions return the same lists. Each `id` is the value a search takes. An empty list means the lookup
+found no matches. A failed request or unreadable response raises `Stopped` in a library call. The CLI exits nonzero on failure.
 
 ## Narrow the results
 
 Search filters apply on every page, alongside keywords and geography, **before the result limit is applied**.
-Each one has a CLI option and a library argument of the same meaning.
-Pass the library argument to `scrape()` or the provider's `search()` function.
+Each one has a CLI option and a library argument of the same name.
+Pass the library argument to `scrape()` or the site's `search()` function.
 
-| Filter           | CLI                 | Library                | Provider | Unset   |
-| ---------------- | ------------------- | ---------------------- | -------- | ------- |
-| Employers        | `--company`         | `company_ids=[...]`    | LinkedIn | `None`  |
-| Employer         | `--company`         | `employer_key="..."`   | Indeed   | `None`  |
-| Posting language | `--language`        | `language="en"`        | Indeed   | `None`  |
-| Job attribute    | `--attribute`       | `attributes=[...]`     | Indeed   | `None`  |
-| Remote           | `--remote`          | `remote=True`          | Indeed   | `False` |
-| Easy Apply       | `--easy-apply`      | `easy_apply=True`      | LinkedIn | `False` |
-| Early applicant  | `--early-applicant` | `early_applicant=True` | LinkedIn | `False` |
+| Filter           | CLI                 | Library                | Site               | Unset   |
+| ---------------- | ------------------- | ---------------------- | ------------------ | ------- |
+| Employers        | `--company-ids`     | `company_ids=[...]`    | LinkedIn, Indeed   | `None`  |
+| Posting language | `--language`        | `language="en"`        | Indeed             | `None`  |
+| Job attributes   | `--attributes`      | `attributes=[...]`     | Indeed             | `None`  |
+| Remote           | `--remote`          | `remote=True`          | Indeed             | `False` |
+| Easy Apply       | `--easy-apply`      | `easy_apply=True`      | LinkedIn           | `False` |
+| Early applicant  | `--early-applicant` | `early_applicant=True` | LinkedIn           | `False` |
 
 An option left at its **unset** value (or an empty list) stays out of the search.
+A list option takes several values after one flag, `--attributes CF3CP 6QC5F`, or across repeats.
 
 > [!NOTE]
-> The CLI offers each option under its own provider alone.
-> A library search takes all of them but applies the ones relevant to a provider.
-> The rest pass unchecked, so `scrape("linkedin", remote="yes")` returns LinkedIn
-> jobs, and a warning names each one that carried a restriction.
+> Each site takes only the filters it applies.
+> `scrape("linkedin", remote=True)` raises `TypeError` before any request and lists LinkedIn's options,
+> and `jobrake linkedin --remote` fails as an unrecognized argument.
 
 ### Companies
 
-Both providers filter by **employer identifier**, and both need a lookup to turn a name into one.
+Both sites filter by **employer identifier**, and both need a lookup to turn a name into one.
 The identifiers differ in form, and so does the number of companies a single search accepts.
 
 #### Indeed employers
@@ -181,40 +175,40 @@ jobrake companies indeed "Booking" -c Netherlands
 ```json
 [
   {
-    "employerKey": "8e8f030e53ea29e4",
-    "suggestion": "Booking.com"
+    "id": "8e8f030e53ea29e4",
+    "name": "Booking.com"
   },
   {
-    "employerKey": "aee0b02548b689e2",
-    "suggestion": "Booking Experts"
+    "id": "aee0b02548b689e2",
+    "name": "Booking Experts"
   },
   {
-    "employerKey": "542f63b11393c5a9",
-    "suggestion": "BookingGo"
+    "id": "542f63b11393c5a9",
+    "name": "BookingGo"
   }
 ]
 ```
 
-Each JSON entry pairs an `employerKey` with a company name in `suggestion`.
+Each JSON entry pairs an employer key in `id` with a company name in `name`.
 Results follow Indeed's suggestion order and may include related companies.
 Choose the employer whose jobs you want.
-Library callers use `jobrake.sites.indeed.companies(fetcher, name, country)`.
+Library callers use `jobrake.sites.indeed.companies(fetcher, name, country=...)`.
 
 Use the selected key to restrict job results to that employer:
 
 ```sh
-jobrake indeed -c Netherlands -q "data scientist" --company 8e8f030e53ea29e4
-jobrake indeed -c Netherlands -q "" --company 8e8f030e53ea29e4
+jobrake indeed -c Netherlands -q "data scientist" --company-ids 8e8f030e53ea29e4
+jobrake indeed -c Netherlands -q "" --company-ids 8e8f030e53ea29e4
 ```
 
 This key selects _Booking.com_. An empty query searches its postings without keywords.
-For a library search, pass `employer_key="8e8f030e53ea29e4"` to `scrape()`.
+For a library search, pass `company_ids=["8e8f030e53ea29e4"]` to `scrape()`.
 
 > [!TIP]
 > Use `-q ""` to search without keywords, works for both Indeed and LinkedIn.
 > One good use case is searching for openings from a certain company.
 
-Indeed intersects the keys it receives, so a search takes one employer key. A repeated `--company` keeps the last key.
+Indeed intersects the keys it receives, so a search takes one employer key and rejects more.
 Search one employer at a time and combine the results.
 
 #### LinkedIn employers
@@ -227,59 +221,59 @@ jobrake companies linkedin "Booking"
 ```json
 [
   {
-    "companyId": "11348",
-    "displayName": "Booking.com"
+    "id": "11348",
+    "name": "Booking.com"
   },
   {
-    "companyId": "10198247",
-    "displayName": "Booking Holdings (NASDAQ: BKNG)"
+    "id": "10198247",
+    "name": "Booking Holdings (NASDAQ: BKNG)"
   },
   {
-    "companyId": "17896204",
-    "displayName": "Booking Experts B.V."
+    "id": "17896204",
+    "name": "Booking Experts B.V."
   },
   {
-    "companyId": "92790319",
-    "displayName": "Booking Express"
+    "id": "92790319",
+    "name": "Booking Express"
   },
   {
-    "companyId": "5268984",
-    "displayName": "bookingkit"
+    "id": "5268984",
+    "name": "bookingkit"
   },
   {
-    "companyId": "7795107",
-    "displayName": "BookingJini"
+    "id": "7795107",
+    "name": "BookingJini"
   },
   {
-    "companyId": "99898831",
-    "displayName": "BooKing"
+    "id": "99898831",
+    "name": "BooKing"
   },
   {
-    "companyId": "34581028",
-    "displayName": "Booking Shake"
+    "id": "34581028",
+    "name": "Booking Shake"
   },
   {
-    "companyId": "6793622",
-    "displayName": "Booking Health GmbH"
+    "id": "6793622",
+    "name": "Booking Health GmbH"
   },
   {
-    "companyId": "109254975",
-    "displayName": "Booking Hub"
+    "id": "109254975",
+    "name": "Booking Hub"
   }
 ]
 ```
 
-The command lists suggested companies as JSON, with `companyId` and `displayName` for each entry.
+The command lists suggested companies as JSON, with `id` and `name` for each entry.
 LinkedIn determines the order. Subsidiaries and regional branches can have separate IDs, so choose
 the intended employer or try a more specific name.
 Library callers use `jobrake.sites.linkedin.companies(fetcher, name)`.
 
-Pass an employer's numeric (a string of digits `0-9`) ID to `--company ID` to find
+Pass an employer's numeric (a string of digits `0-9`) ID to `--company-ids` to find
 job postings at that company. Unlike with Indeed, here we can provide several employers.
 
 ```sh
-jobrake linkedin -l "Netherlands" -q "data scientist" --company 11348
-jobrake linkedin -l "Netherlands" -q "" --company 11348 --company 215713
+jobrake linkedin -l "Netherlands" -q "data scientist" --company-ids 11348
+jobrake linkedin -l "Netherlands" -q "" --company-ids 11348 215713
 ```
 
 These IDs select _Booking.com_ and _ING Nederland_. For a library search, pass
@@ -308,26 +302,26 @@ The `attributes` command helps you find codes on postings matching a job title o
 jobrake attributes indeed -c usa "data scientist"
 ```
 
-The command reads the first 100 matching postings and prints a JSON list of `key` and `label` pairs.
+The command reads the first 100 matching postings and prints a JSON list of code and label pairs, as `id` and `name`.
 It applies no posting-age restriction. Those postings carry several (hundred) attributes between them.
 Search the list by label:
 
 ```sh
 jobrake attributes indeed -c usa "data scientist" \
-  | jq -r '.[] | select(.label | test("python"; "i")) | [.key, .label] | @tsv'
+  | jq -r '.[] | select(.name | test("python"; "i")) | [.id, .name] | @tsv'
 # X62BT	Python
 ```
 
 Each run samples the postings afresh, so a code can be missing from one lookup and present in the next.
 Try the lookup again, or a related query, when a code you expect does not appear.
 Labels can differ by country edition. A label can also belong to several codes, and the lookup keeps each code separately.
-jobrake reads the codes live from Indeed. Library callers use `jobrake.sites.indeed.attributes(fetcher, query, country)`.
+jobrake reads the codes live from Indeed. Library callers use `jobrake.sites.indeed.attributes(fetcher, query, country=...)`.
 
 Once you find the codes you want, then use those codes to filter jobs:
 
 ```sh
-jobrake indeed -q "data scientist" -c usa --attribute X62BT
-jobrake indeed -q economist -c usa --attribute CF3CP --attribute 6QC5F
+jobrake indeed -q "data scientist" -c usa --attributes X62BT
+jobrake indeed -q economist -c usa --attributes CF3CP 6QC5F
 ```
 
 `X62BT` selects Python. The second search requires both Full-time (`CF3CP`) and Doctoral degree (`6QC5F`),
@@ -346,7 +340,7 @@ Pass `--remote` to search postings that Indeed tags Remote:
 jobrake indeed -q "econometrics" -c usa --remote
 ```
 
-`--remote` is shorthand for `--attribute DSQF7`, so a posting must carry the Remote tag and every other code you pass.
+`--remote` is shorthand for `--attributes DSQF7`, so a posting must carry the Remote tag and every other code you pass.
 The tag reflects Indeed's classification. Check the posting for residency and workplace requirements.
 
 ### Easy Apply and early applicants
@@ -378,13 +372,13 @@ See [request limits](#request-limits-and-partial-results) for pacing and retries
 Fetch a LinkedIn posting by ID or URL without repeating a search:
 
 ```sh
-jobrake details linkedin 4449382178
-jobrake details linkedin https://nl.linkedin.com/jobs/view/data-scientist-at-acme-4449382178
+jobrake postings linkedin 4449382178
+jobrake postings linkedin https://nl.linkedin.com/jobs/view/data-scientist-at-acme-4449382178
 ```
 
 LinkedIn takes postings down over time, so the examples above may be gone. Use IDs and URLs from a recent search.
 Name as many postings as you like. Results follow the order given and have the same fields as a search with `--details`. Several references to one posting return one job.
-The command accepts the same `--output | -o`, `--format | -f`, and `--no-cache` options as a LinkedIn search.
+The command accepts the same `--output | -o`, `--format | -f`, and `--refresh` options as a LinkedIn search.
 A posting that is gone or unreachable is reported on stderr and left out. If none resolve, the command exits nonzero and writes nothing.
 A reference that is neither a numeric ID nor a LinkedIn posting URL is an error, and nothing is fetched.
 
@@ -393,9 +387,9 @@ That host is `www.linkedin.com` for the United States and a country subdomain, s
 A posting placed in a whole country, such as "United States" or "Netherlands", comes without those fields at any address.
 
 jobrake fetches a country-subdomain URL with a slug as given. Any other reference costs one lookup first to find the canonical URL.
-The cache keeps that URL, so a cached posting costs no request.
+A cached posting holds its URL, so it costs no request.
 
-Library callers use `jobrake.sites.linkedin.fetch_details`, which returns those jobs as a list.
+Library callers use `jobrake.sites.linkedin.postings`.
 
 ### Fetch selected results
 
@@ -404,8 +398,7 @@ For a large search, omit `-d` and fetch only the postings you want:
 ```python
 import asyncio
 
-from jobrake import scrape
-from jobrake.fetchkit import HttpxFetcher
+from jobrake import HttpxFetcher, scrape
 from jobrake.sites import linkedin
 
 
@@ -419,21 +412,14 @@ async def main():
             fetcher=fetcher,
         )
         urls = [job["url"] for job in jobs if "senior" not in (job["title"] or "").lower()]
-        return await linkedin.fetch_postings(fetcher, urls)
+        return await linkedin.postings(fetcher, urls)
 
 
 postings = asyncio.run(main())
 ```
 
-`fetch_postings()` maps each URL to its detail fields, or to `None` after HTTP 404 or 410.
-A URL that failed for another reason is absent from the result, and calling the function again retries it.
-
-| Function           | Takes       | Returns                        |
-| ------------------ | ----------- | ------------------------------ |
-| `fetch_postings()` | URLs        | detail fields keyed by URL     |
-| `fetch_details()`  | IDs or URLs | whole jobs, in the order given |
-
-Use `fetch_postings()` to add fields to jobs you already hold. Use `fetch_details()` when a posting reference is all you have.
+`postings()` maps each ID or URL to its whole job, or to `None` when LinkedIn reports the posting gone.
+A reference whose request failed is absent from the result, and calling the function again retries it.
 
 ## Read and save results
 
@@ -446,9 +432,9 @@ Every job is a flat dictionary, with three groups of keys.
 - **Detail keys:** included when a value is available.
 
 Identity and summary keys are always present, with `None` for an unavailable summary value.
-A detail key is absent when the provider omits or does not publish the value, or when jobrake did not fetch the posting page.
+A detail key is absent when the site omits or does not publish the value, or when jobrake did not fetch the posting page.
 
-Both providers use the same names for the details they share. A few come from one provider only:
+Both sites use the same names for the details they share. A few come from one site only:
 `apply_type`, `applicants`, `experience_months`, and `education` from LinkedIn, and `is_remote`, `apply_url`, and `language` from Indeed.
 
 A posting can carry two dates. `date` holds the calendar date, such as `2026-09-19`, and `posted_at` holds the full timestamp, such as `2026-09-19T05:00:00+00:00`.
@@ -522,8 +508,7 @@ Use its context manager when several searches should share one connection pool:
 ```python
 import asyncio
 
-from jobrake import scrape
-from jobrake.fetchkit import HttpxFetcher
+from jobrake import HttpxFetcher, scrape
 
 
 async def main():
@@ -550,19 +535,33 @@ async def main():
 nl, us = asyncio.run(main())
 ```
 
-To use another HTTP client or a browser, implement `Fetcher` or subclass `BaseFetcher`.
-An Indeed search also needs `post()` from `PostFetcher`.
-`BaseFetcher` records request exceptions in `FetchResult.error`. An exception your own `Fetcher` raises propagates out of `scrape()`.
+To use another HTTP client or a browser, implement the `Fetcher` protocol from `jobrake.fetchkit`: an async `fetch(url, *, headers=None, json=None)` that sends a POST when `json` is given, and an async `close()`.
+`fetch` returns a `FetchResult` and reports a failed request in its `error`. A status of 400 or more sets `error` on its own.
+An exception your own `Fetcher` raises propagates out of `scrape()`.
 
 ## Request limits and partial results
 
-Both providers return the jobs already collected when a request fails. A short result is normal, and the warning on stderr says what stopped.
+A failed request ends a search with `Stopped`, and its `partial` holds the jobs collected before the failure:
+
+```python
+from jobrake import Stopped, scrape
+
+
+async def main():
+    try:
+        return await scrape("indeed", query="economist", country="usa", results=500)
+    except Stopped as stop:
+        print(stop)  # what failed
+        return stop.partial  # the jobs collected before it
+```
+
+The CLI writes those jobs and exits 1. Reaching a site's own result cap is not a failure. jobrake warns on stderr and returns what the site served.
 
 ### Indeed requests
 
-One search reaches at most 1,000 results.
+One search reaches at most 1,000 results, and jobrake warns when that cap cuts a search short.
 
-Indeed returns jobs newest first by the date the posting reached Indeed, the same date `--max-age` filters on.
+Indeed returns jobs newest first by the date the posting reached Indeed, the same date `--max-age-hours` filters on.
 A reposted job counts as new, so a 24-hour window can include postings published weeks earlier.
 Repeating a search returns the same jobs in the same order.
 
@@ -576,7 +575,7 @@ jobrake warns when that limit cuts a search short.
 
 jobrake asks LinkedIn for the newest postings first, but the guest endpoint ignores the request and ranks by relevance.
 The order can also change between two runs of the same search.
-To collect only new postings, repeat the search with `--max-age` covering the time since the last run.
+To collect only new postings, repeat the search with `--max-age-hours` covering the time since the last run.
 
 LinkedIn limits guest traffic per IP and per data center, and pins a client to one data center with a cookie.
 jobrake spreads its requests over the three data centers that answered in our tests and sends about one request per second.
@@ -587,31 +586,28 @@ LinkedIn requests carry only the data-center cookie, so cookies seeded on the fe
 
 LinkedIn refuses some requests whatever the pace, up to a quarter of them in our tests.
 jobrake retries a 429 up to three times, first on the other data centers and then after a 12-second wait.
-If the 429 remains, jobrake returns what it has collected so far.
+If the 429 remains, the search raises `Stopped` with what it has collected so far.
+A `--details` search that could not fetch every posting's details raises `Stopped` too, holding every posting it found.
 
 On a data center IP, such as a VPS, LinkedIn refuses posting pages with [HTTP 999](https://http.dev/999). Searches and lookups keep working, but every detail fetch fails.
 
 ## Cache location and lifetimes
 
-jobrake keeps posting fields, posting addresses, and LinkedIn place resolutions in one SQLite file under your user cache directory: `~/Library/Caches/jobrake/` on macOS, `$XDG_CACHE_HOME/jobrake/` on Linux, `%LOCALAPPDATA%\jobrake\` on Windows.
+jobrake keeps the LinkedIn postings it fetched in one SQLite file under your user cache directory: `~/Library/Caches/jobrake/` on macOS, `$XDG_CACHE_HOME/jobrake/` on Linux, `%LOCALAPPDATA%\jobrake\` on Windows.
+Indeed is not cached.
 
-Posting fields stay fresh for seven days and are deleted after 30. Fields past their freshness period are fetched again.
-jobrake also remembers a posting that returned HTTP 404 or 410 and skips it for those same 30 days.
-Posting addresses and place resolutions stay indefinitely.
+A cached posting stays fresh for seven days and is fetched again after that. A posting that LinkedIn reports gone is not cached.
+Pass `--refresh` or `refresh=True` to refetch every posting and refresh its cached copy.
+An upgrade keeps the cache, and a posting whose cached copy no longer fits the job fields is fetched again.
 
-Pass `--no-cache` or `cache=False` to refetch every posting and refresh its cached copy.
-A jobrake release that changes what the cache stores ignores the older values and fills the cache again as you search.
+Two environment variables configure the cache:
 
-Three environment variables configure the cache:
+| Variable             | Default             | Effect                                                 |
+| -------------------- | ------------------- | ------------------------------------------------------ |
+| `JOBRAKE_CACHE_PATH` | platform user cache | Path to the SQLite file, with home-directory expansion |
+| `JOBRAKE_CACHE_TTL`  | 604800              | Seconds a cached posting is served before a refetch    |
 
-| Variable                  | Default             | Effect                                                         |
-| ------------------------- | ------------------- | -------------------------------------------------------------- |
-| `JOBRAKE_CACHE_PATH`      | platform user cache | Path to the SQLite file, with home-directory expansion         |
-| `JOBRAKE_CACHE_TTL`       | 604800              | Seconds a stored field is served before a refetch              |
-| `JOBRAKE_CACHE_RETENTION` | 2592000             | Seconds a field stays on disk, counted from when it was stored |
-
-A lifetime must be a positive number of seconds. An invalid value draws a warning and falls back to the default.
-If the retention is shorter than the freshness period, jobrake raises it to match.
+The lifetime must be a positive number of seconds. An invalid value draws a warning and falls back to the default.
 
 A storage failure disables the cache with a warning, and scraping carries on without it.
 

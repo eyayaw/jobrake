@@ -24,7 +24,7 @@ jobrake is a Python package and CLI tool for fetching job postings from LinkedIn
 jobrake linkedin \
   --query "data scientist" \
   --location "amsterdam, netherlands" \
-  --max-age 48 \
+  --max-age-hours 48 \
   --results 5 \
   --details
 ```
@@ -73,7 +73,7 @@ jobrake linkedin \
 
 ## Fetch details
 # You can pass several urls/ids
-jobrake details linkedin \
+jobrake postings linkedin \
         "https://uk.linkedin.com/jobs/view/senior-data-scientist-at-hm-treasury-4461975556"
         # or just 4461975556
 ## Resolve place names
@@ -131,7 +131,7 @@ See the [guide](https://github.com/eyayaw/jobrake/blob/main/docs/guide.md) for s
 
 > [!WARNING]
 > LinkedIn answers posting pages with [HTTP 999](https://http.dev/999) from data center IPs, such as a Hetzner VPS.
-> Searches still work there, but `--details` and `jobrake details linkedin` return no details. So use jobrake from the comfort of your home. :D
+> Searches still work there, but `--details` and `jobrake postings linkedin` return no details. So use jobrake from the comfort of your home. :D
 
 ## Credits
 
