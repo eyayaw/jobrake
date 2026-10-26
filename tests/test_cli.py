@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 from fakes import StubFetcher
 
-from jobrake import cli, sites
+from jobrake import Stopped, cli, sites
 from jobrake.models import JOB_FIELDS, make_job
 
 JOBS = [
@@ -105,7 +105,9 @@ def test_lookup_commands_print_candidates_and_report_failure(
 
     async def fake_lookup(fetcher, *args):
         assert args == expected
-        return answers.pop(0)
+        if (answer := answers.pop(0)) is None:
+            raise Stopped("lookup failed", partial=[])
+        return answer
 
     site, name = lookup.split(".")
     monkeypatch.setattr(cli, "HttpxFetcher", StubHttpx)
@@ -293,6 +295,16 @@ def test_a_search_the_library_rejects_is_a_cli_error_before_any_request(
 def test_default_output_is_json_on_stdout(run_cli, capsys):
     run_cli()
     assert json.loads(capsys.readouterr().out) == JOBS
+
+
+def test_a_stopped_search_writes_what_it_collected_and_fails(run_cli, monkeypatch, capsys, caplog):
+    async def stopped(*args, **kwargs):
+        raise Stopped("indeed search stopped: HTTP 429", partial=JOBS[:1])
+
+    monkeypatch.setattr(cli, "scrape", stopped)
+    assert run_cli() == 1
+    assert json.loads(capsys.readouterr().out) == JOBS[:1]
+    assert "indeed search stopped: HTTP 429" in caplog.text
 
 
 def test_format_selects_stdout_and_overrides_output_extension(run_cli, capsys, tmp_path):

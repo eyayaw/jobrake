@@ -1,4 +1,4 @@
-"""The job record every site returns, and the function that builds it."""
+"""Normalized job fields shared by the site adapters, and ``Stopped``."""
 
 import re
 from typing import Any, NotRequired, TypedDict, cast
@@ -82,6 +82,18 @@ def make_job(**fields: Any) -> JobDict:
     # Prefer the search date. Fall back to the posting timestamp.
     job["date"] = iso_date(job["date"] or job.get("posted_at"))
     return cast(JobDict, job)
+
+
+class Stopped(Exception):
+    """
+    A failed request ended a search or lookup early.
+
+    ``partial`` holds the records collected before the failure, ``[]`` for a lookup.
+    """
+
+    def __init__(self, message: str, *, partial: list[JobDict]) -> None:
+        super().__init__(message)
+        self.partial = partial
 
 
 # schema.org says CONTRACTOR and INTERN where the boards say Contract and Internship.

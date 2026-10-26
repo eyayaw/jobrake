@@ -1,20 +1,18 @@
 """Resolve place names to Indeed's canonical location suggestions."""
 
 import json
-import logging
 from urllib.parse import urlencode
 
 from jobrake.fetchkit import Fetcher
+from jobrake.models import Stopped
 
 from .client import AUTOCOMPLETE_HEADERS
 from .countries import indeed_domain
 
-logger = logging.getLogger(__name__)
-
 AUTOCOMPLETE_URL = "https://autocomplete.indeed.com/api/v0/suggestions/location"
 
 
-async def places(fetcher: Fetcher, name: str, country: str) -> list[dict[str, str | None]] | None:
+async def places(fetcher: Fetcher, name: str, country: str) -> list[dict[str, str | None]]:
     """
     List Indeed's location suggestions for a name in one country edition, best match first.
 
@@ -25,10 +23,10 @@ async def places(fetcher: Fetcher, name: str, country: str) -> list[dict[str, st
     geocodes, ready to use as ``location``. ``locationType`` names the kind of
     match: ``CITY``, ``ADMIN1`` for a state or province, ``POSTAL_PLACE``,
     ``MISC`` for landmarks, and similar. An empty list means the edition
-    offers no such place. A failed request or an unreadable response logs the
-    reason and returns ``None``.
+    offers no such place.
 
     Raises:
+        Stopped: The request failed, or the response held no readable suggestion.
         ValueError: The name is blank, or the country name or alias is unknown.
     """
     if not name.strip():
@@ -46,15 +44,16 @@ async def places(fetcher: Fetcher, name: str, country: str) -> list[dict[str, st
     )
     result = await fetcher.fetch(f"{AUTOCOMPLETE_URL}?{params}", headers=AUTOCOMPLETE_HEADERS)
     if result.error:
-        logger.warning("location lookup for %r failed: %s", name, result.error)
-        return None
+        raise Stopped(
+            f"location lookup for {name!r} failed: {result.error}. Try again later", partial=[]
+        )
     try:
         hits = json.loads(result.text)
     except ValueError:
         hits = None
+    unreadable = f"location lookup for {name!r} returned an unreadable response. Try again later"
     if not isinstance(hits, list):
-        logger.warning("location lookup for %r returned an unreadable response", name)
-        return None
+        raise Stopped(unreadable, partial=[])
     candidates = []
     for hit in hits:
         if not isinstance(hit, dict):
@@ -70,6 +69,5 @@ async def places(fetcher: Fetcher, name: str, country: str) -> list[dict[str, st
         kind = (kind.strip() or None) if isinstance(kind, str) else None
         candidates.append({"suggestion": suggestion, "locationType": kind})
     if hits and not candidates:
-        logger.warning("location lookup for %r returned an unreadable response", name)
-        return None
+        raise Stopped(unreadable, partial=[])
     return candidates

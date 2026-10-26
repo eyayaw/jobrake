@@ -8,7 +8,7 @@ from gettext import ngettext
 from typing import Annotated, Any
 
 from jobrake.fetchkit import Fetcher
-from jobrake.models import JobDict, employment_type, make_job
+from jobrake.models import JobDict, Stopped, employment_type, make_job
 from jobrake.utils import epoch_ms_to_iso, html_text
 
 from .client import API_HEADERS, API_URL
@@ -69,6 +69,9 @@ query GetJobData {{
   }}
 }}
 """
+
+# Indeed ends a cursor chain after this many results.
+MAX_RESULTS = 1000
 
 # Indeed mixes employment types into the attributes bag with skills and
 # benefits. These labels pick them out. The headers pin the en-US locale.
@@ -326,13 +329,14 @@ async def search(
     The caller owns ``fetcher``.
 
     Each request asks for 100 jobs, newest first. The returned list keeps
-    that order and trims the final page to ``results``. Requests are
-    neither paced nor retried. A transport failure, an Indeed error without
-    usable data, or an unreadable response ends the search with a warning and
-    the jobs already collected. A malformed result costs only that result. An
-    invalid field costs only that field.
+    that order and trims the final page to ``results``, which Indeed caps at
+    ``MAX_RESULTS`` with a warning. Requests are neither paced nor retried. A
+    malformed result costs only that result. An invalid field costs only that
+    field.
 
     Raises:
+        Stopped: A request failed, or Indeed answered with an error or an
+            unreadable response. ``partial`` holds the jobs collected before it.
         ValueError: The country is unknown, ``company_ids`` holds more than one
             ID or a blank one, an attribute code is blank, or ``language`` is
             not two ASCII letters.
@@ -349,6 +353,7 @@ async def search(
     seen: set[str] = set()
     cursors: set[str] = set()
     cursor: str | None = None
+    served = 0  # results Indeed has sent, malformed ones included
     while len(jobs) < results:
         graphql = build_query(
             query,
@@ -362,13 +367,11 @@ async def search(
             attributes=attributes,
         )
         result = await fetcher.fetch(API_URL, headers=headers, json={"query": graphql})
+        kept = ngettext("%d job", "%d jobs", len(jobs)) % len(jobs)
         if result.error:
-            logger.warning(
-                "indeed search stopped: %s. Keeping the %s already collected",
-                result.error,
-                ngettext("%d job", "%d jobs", len(jobs)) % len(jobs),
+            raise Stopped(
+                f"indeed search stopped: {result.error}. Kept the {kept} collected", partial=jobs
             )
-            break
         payload = None
         try:
             payload = json.loads(result.text)
@@ -376,25 +379,20 @@ async def search(
         except (json.JSONDecodeError, KeyError, TypeError) as error:
             # A GraphQL error arrives as HTTP 200 with null data. Usable data
             # alongside errors parses above and is kept.
-            if message := _graphql_error_message(payload):
-                logger.warning(
-                    "indeed search stopped by provider error (%s); keeping the %s "
-                    "already collected",
-                    message,
-                    ngettext("%d job", "%d jobs", len(jobs)) % len(jobs),
-                )
-            else:
-                logger.warning(
-                    "indeed sent a response this version cannot read (%r), likely an "
-                    "API change; keeping the %s already collected",
-                    error,
-                    ngettext("%d job", "%d jobs", len(jobs)) % len(jobs),
-                )
-            break
+            message = _graphql_error_message(payload)
+            cause = (
+                f"Indeed reported {message!r}"
+                if message
+                else f"indeed sent a response this version cannot read ({error!r}), likely an API change"
+            )
+            raise Stopped(
+                f"indeed search stopped: {cause}. Kept the {kept} collected", partial=jobs
+            ) from error
         # A page without results ends the search. A page whose results all
         # failed to parse costs only those results; its cursor still advances.
         if not raw:
             break
+        served += raw
         for job in page:
             if job["id"] in seen:
                 continue
@@ -403,6 +401,14 @@ async def search(
         if not cursor or cursor in cursors:
             break
         cursors.add(cursor)
+    if len(jobs) < results and served >= MAX_RESULTS:
+        logger.warning(
+            "indeed serves at most %d results per search; returning %d of the %d jobs "
+            "requested. Narrow the search to reach more of its inventory",
+            MAX_RESULTS,
+            len(jobs),
+            results,
+        )
     jobs = jobs[:results]
     logger.info(
         "indeed search finished with %s", ngettext("%d job", "%d jobs", len(jobs)) % len(jobs)

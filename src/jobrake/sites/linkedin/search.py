@@ -8,7 +8,7 @@ from urllib.parse import urlencode
 from bs4 import BeautifulSoup
 
 from jobrake.fetchkit import Fetcher
-from jobrake.models import JobDict, make_job
+from jobrake.models import JobDict, Stopped, make_job
 
 from .client import SEARCH_URL, job_id, paced_fetch
 from .postings import fetch_postings
@@ -66,7 +66,12 @@ def _parse_page(html: str) -> tuple[list[JobDict], int]:
 async def _collect_pages(
     fetcher: Fetcher, params: dict[str, object], results: int, *, location: str | None
 ) -> tuple[list[JobDict], int]:
-    """Return the unique cards and the next offset, paging until ``results`` cards, an empty page, an error, or ``MAX_START``."""
+    """
+    Return the unique cards and the next offset, paging until ``results`` cards, an empty page, or ``MAX_START``.
+
+    Raises:
+        Stopped: A page request failed. ``partial`` holds the cards collected before it.
+    """
     jobs: list[JobDict] = []
     seen: set[str] = set()
     start = 0
@@ -74,12 +79,11 @@ async def _collect_pages(
         page = {k: v for k, v in (params | {"start": start}).items() if v is not None}
         result = await paced_fetch(fetcher, f"{SEARCH_URL}?{urlencode(page)}")
         if result.error:
-            logger.warning(
-                "linkedin search stopped: %s. Keeping the %s already collected",
-                result.error,
-                ngettext("%d job", "%d jobs", len(jobs)) % len(jobs),
+            collected = ngettext("%d posting", "%d postings", len(jobs)) % len(jobs)
+            raise Stopped(
+                f"linkedin search stopped: {result.error}. Kept the {collected} collected",
+                partial=jobs,
             )
-            break
         cards, raw = _parse_page(result.text)
         if not raw:
             if start == 0 and params["geoId"]:
@@ -132,13 +136,15 @@ async def search(
     ``details`` hydrates posting pages, and ``cache`` controls their reuse.
     The caller owns ``fetcher``.
 
-    Search requests share the process-wide limiter. A persistent 429 ends the
-    search with the postings already collected. The guest endpoint serves about
+    Search requests share the process-wide limiter. The guest endpoint serves about
     ten cards per page and stops at offset ``MAX_START``, limiting one search
     to roughly 1,000 cards. Results retain guest-search order and stop at
     ``results``.
 
     Raises:
+        Stopped: A request failed after its retries, or a posting's details
+            could not be fetched. ``partial`` holds the postings collected,
+            with the details fetched so far.
         ValueError: The location is missing or blank, or the geoid or a
             company ID uses characters other than digits 0-9.
     """
@@ -194,4 +200,10 @@ async def search(
         postings = await fetch_postings(fetcher, (job["url"] for job in jobs), cache=cache)
         # Keep summary fields when a posting disappears or fails during hydration.
         jobs = [make_job(**{**job, **(postings.get(job["url"]) or {})}) for job in jobs]
+        if missing := sum(job["url"] not in postings for job in jobs):
+            raise Stopped(
+                f"linkedin could not fetch the details of {missing} of {len(jobs)} postings. "
+                "A rerun retries them",
+                partial=jobs,
+            )
     return jobs

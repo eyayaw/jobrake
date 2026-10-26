@@ -15,7 +15,7 @@ from jobrake import __version__, scrape
 
 from .fetchkit import HttpxFetcher
 from .io import RENDERERS
-from .models import JobDict
+from .models import JobDict, Stopped
 from .sites import SITES, indeed, linkedin
 from .utils import Option, site_options
 
@@ -381,7 +381,7 @@ def _write_stdout(text: str) -> int | None:
 
 async def _lookup_candidates(
     args: argparse.Namespace,
-) -> list[dict[str, str]] | list[dict[str, str | None]] | None:
+) -> list[dict[str, str]] | list[dict[str, str | None]]:
     """Look up places, companies, or attributes with a fetcher of its own."""
     fetcher = HttpxFetcher()
     try:
@@ -464,7 +464,7 @@ def main() -> int | None:
     Run a search, posting fetch, or lookup.
 
     Returns:
-        ``1`` when stdout closes early, the output file cannot be written, a lookup fails, or no named posting could be fetched. Normal completion returns ``None``.
+        ``1`` when a search or lookup stops on a failed request, no named posting could be fetched, stdout closes early, or the output file cannot be written. Normal completion returns ``None``.
     """
     parser = _build_parser()
     args = parser.parse_args()
@@ -479,7 +479,8 @@ def main() -> int | None:
             hits = asyncio.run(_lookup_candidates(args))
         except ValueError as e:
             parser.error(str(e))
-        if hits is None:
+        except Stopped as stop:
+            logger.error("%s", stop)  # noqa: TRY400  the message says what failed; a traceback adds nothing
             return 1
         if not hits:
             logger.warning(
@@ -502,14 +503,18 @@ def main() -> int | None:
     fmt = _settle_output(parser, args)
     accepted = site_options(SITES[args.provider].search)
     options = {name: value for name, value in vars(args).items() if name in accepted}
+    status = None
     try:
         jobs = asyncio.run(scrape(args.provider, **options))
     except ValueError as e:
         parser.error(str(e))
+    except Stopped as stop:
+        logger.error("%s", stop)  # noqa: TRY400  the message says what failed; a traceback adds nothing
+        jobs, status = stop.partial, 1
     finally:
         # An exceptional exit would otherwise start its traceback beside the progress line.
         handler.clear()
-    return _write_jobs(args, jobs, fmt)
+    return _write_jobs(args, jobs, fmt) or status
 
 
 if __name__ == "__main__":

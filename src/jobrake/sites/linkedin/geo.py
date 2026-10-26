@@ -1,14 +1,12 @@
 """Look up LinkedIn geoIds by place name."""
 
 import json
-import logging
 from urllib.parse import urlencode
 
 from jobrake.fetchkit import Fetcher
+from jobrake.models import Stopped
 
 from . import client
-
-logger = logging.getLogger(__name__)
 
 
 def _parse_place(geoid: object, display: object) -> dict[str, str] | None:
@@ -18,40 +16,40 @@ def _parse_place(geoid: object, display: object) -> dict[str, str] | None:
     return {"geoId": geoid, "displayName": display} if geoid and display else None
 
 
-async def places(fetcher: Fetcher, name: str) -> list[dict[str, str]] | None:
+async def places(fetcher: Fetcher, name: str) -> list[dict[str, str]]:
     """
     List LinkedIn's candidate places for a name, best match first.
 
     Asks the guest GEO typeahead, paced through the shared limiter, and
     returns up to ten ``{"geoId", "displayName"}`` dicts, omitting candidates
     without both strings intact. An empty list means LinkedIn knows no such
-    place. A failed request or an unreadable response logs the reason and
-    returns ``None``.
+    place.
 
     Raises:
+        Stopped: The request failed, or the response held no readable place.
         ValueError: The name is blank.
     """
     name = name.strip()
     if not name:
         raise ValueError("place name is blank. Try 'amsterdam'")
+    unreadable = f"geoId lookup for {name!r} returned an unreadable response. Try again later"
     query = urlencode({"query": name, "typeaheadType": "GEO"})
     result = await client.paced_fetch(fetcher, f"{client.TYPEAHEAD_URL}?{query}")
     if result.error:
-        logger.warning("geoId lookup for %r failed: %s", name, result.error)
-        return None
+        raise Stopped(
+            f"geoId lookup for {name!r} failed: {result.error}. Try again later", partial=[]
+        )
     try:
         hits = json.loads(result.text)
     except ValueError:
         hits = None
     if not isinstance(hits, list):
-        logger.warning("geoId lookup for %r returned an unreadable response", name)
-        return None
+        raise Stopped(unreadable, partial=[])
     candidates = [
         place
         for hit in hits
         if isinstance(hit, dict) and (place := _parse_place(hit.get("id"), hit.get("displayName")))
     ]
     if hits and not candidates:
-        logger.warning("geoId lookup for %r returned an unreadable response", name)
-        return None
+        raise Stopped(unreadable, partial=[])
     return candidates

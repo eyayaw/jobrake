@@ -12,6 +12,7 @@ from urllib.parse import parse_qs, urlsplit
 import pytest
 from fakes import PagedFetcher, StubFetcher, network_down, not_found, ok, rate_limited
 
+from jobrake import Stopped
 from jobrake.cache import POSTINGS, Cache
 from jobrake.fetchkit import FetchResult, TokenBucket
 from jobrake.models import IDENTITY_FIELDS, JOB_FIELDS, SUMMARY_FIELDS
@@ -112,13 +113,13 @@ def test_pagination_counts_unparsable_cards_toward_the_offset(unlimited):
     assert "start=2" in fetcher.requests[1]
 
 
-def test_linkedin_persistent_429_returns_partial(unlimited, caplog, monkeypatch):
+def test_linkedin_persistent_429_stops_the_search(unlimited, monkeypatch):
     monkeypatch.setattr(client, "RETRY_DELAY", 0)
     fetcher = StubFetcher({"seeMoreJobPostings": rate_limited()})
-    with caplog.at_level(logging.WARNING, logger="jobrake.sites.linkedin"):
-        assert asyncio.run(linkedin.search(fetcher, query="x", location="Seattle")) == []
+    with pytest.raises(Stopped, match="HTTP 429") as stop:
+        asyncio.run(linkedin.search(fetcher, query="x", location="Seattle"))
+    assert stop.value.partial == []
     assert len(fetcher.requests) == 1 + client.RETRIES  # the retries, then give up
-    assert any("429" in record.message for record in caplog.records)
 
 
 class Routing(StubFetcher):
@@ -474,8 +475,9 @@ def test_linkedin_keeps_collected_jobs_after_a_later_page_failure(unlimited):
     fetcher = DownAfterFirst(
         {"seeMoreJobPostings": ok(linkedin_card("111") + linkedin_card("222"))}
     )
-    jobs = asyncio.run(linkedin.search(fetcher, query="x", location="Seattle", results=5))
-    assert [j["id"] for j in jobs] == ["111", "222"]  # the first page survives
+    with pytest.raises(Stopped, match=r"connection reset\. Kept the 2 postings") as stop:
+        asyncio.run(linkedin.search(fetcher, query="x", location="Seattle", results=5))
+    assert [j["id"] for j in stop.value.partial] == ["111", "222"]  # the first page survives
 
 
 def test_warns_on_empty_first_page(unlimited, caplog):
@@ -540,13 +542,13 @@ def test_companies_lists_usable_candidates_in_provider_order(unlimited):
         (ok('[{"id": "bad", "displayName": "Acme"}]'), None),
     ],
 )
-def test_company_lookup_distinguishes_no_matches_from_failure(
-    unlimited, caplog, response, expected
-):
+def test_company_lookup_distinguishes_no_matches_from_failure(unlimited, response, expected):
     fetcher = StubFetcher({"typeaheadHits": response})
-    with caplog.at_level(logging.WARNING, logger="jobrake.sites.linkedin"):
+    if expected is None:
+        with pytest.raises(Stopped, match="company"):
+            asyncio.run(linkedin.companies(fetcher, "Acme"))
+    else:
         assert asyncio.run(linkedin.companies(fetcher, "Acme")) == expected
-    assert bool(caplog.records) is (expected is None)
 
 
 def test_places_lists_usable_candidates_in_order(unlimited):
@@ -695,6 +697,18 @@ def test_search_keeps_the_summary_when_the_posting_is_gone(unlimited):
     )
     assert jobs[0]["title"] == "Economist"
     assert "description" not in jobs[0]
+
+
+def test_search_stops_when_a_posting_cannot_be_fetched(unlimited, monkeypatch):
+    monkeypatch.setattr(client, "RETRY_DELAY", 0)
+    fetcher = StubFetcher(
+        {"seeMoreJobPostings": ok(linkedin_card("111")), "jobs/view/111": rate_limited()}
+    )
+    with pytest.raises(Stopped, match="details of 1 of 1 postings") as stop:
+        asyncio.run(
+            linkedin.search(fetcher, query="x", location="Seattle", results=1, details=True)
+        )
+    assert [job["title"] for job in stop.value.partial] == ["Economist"]
 
 
 def test_search_reruns_only_fetch_unseen_postings(unlimited):
