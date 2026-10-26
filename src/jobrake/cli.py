@@ -129,11 +129,10 @@ def _add_linkedin_args(parser: argparse.ArgumentParser) -> None:
         help="fetch posting pages for descriptions and other details",
     )
     parser.add_argument(
-        "--no-cache",
-        dest="cache",
-        action="store_false",
+        "--refresh",
+        action="store_true",
         default=argparse.SUPPRESS,
-        help="refetch posting details and refresh their cached copies",
+        help="refetch postings and refresh their cached copies",
     )
 
 
@@ -270,10 +269,9 @@ def _build_parser() -> _ArgumentParser:
         help="numeric LinkedIn posting ID or posting URL",
     )
     postings_linkedin.add_argument(
-        "--no-cache",
-        dest="cache",
-        action="store_false",
-        help="refetch posting details and refresh their cached copies",
+        "--refresh",
+        action="store_true",
+        help="refetch postings and refresh their cached copies",
     )
     _add_output_args(postings_linkedin)
     lookup = subparsers.add_parser(
@@ -408,7 +406,7 @@ async def _fetch_postings(args: argparse.Namespace) -> list[JobDict]:
     """
     fetcher = HttpxFetcher()
     try:
-        found = await linkedin.postings(fetcher, args.references, cache=args.cache)
+        found = await linkedin.postings(fetcher, args.references, refresh=args.refresh)
     finally:
         await fetcher.close()
     for reference, job in found.items():

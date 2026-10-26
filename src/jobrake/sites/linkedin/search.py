@@ -122,7 +122,7 @@ async def search(
     easy_apply: Annotated[bool, "only postings with LinkedIn's Easy Apply form"] = False,
     early_applicant: Annotated[bool, "only postings with fewer than 10 applicants"] = False,
     details: Annotated[bool, "fetch posting pages for descriptions and other details"] = False,
-    cache: Annotated[bool, "reuse cached posting details"] = True,
+    refresh: Annotated[bool, "refetch postings and refresh their cached copies"] = False,
 ) -> list[JobDict]:
     """
     Search LinkedIn's login-free guest endpoint.
@@ -133,7 +133,7 @@ async def search(
     A search by geoId ignores the radius for some places.
     ``query=""`` searches without keywords. A filter left at its default, or given ``[]``, applies no restriction.
     Filters combine and travel with every page.
-    ``details`` hydrates posting pages, and ``cache`` controls their reuse.
+    ``details`` hydrates posting pages, reusing cached copies unless ``refresh`` is set.
     The caller owns ``fetcher``.
 
     Search requests share the process-wide limiter. The guest endpoint serves about
@@ -197,7 +197,7 @@ async def search(
         "linkedin search finished with %s", ngettext("%d job", "%d jobs", len(jobs)) % len(jobs)
     )
     if details:
-        found = await fetch_pages(fetcher, {job["id"]: dict(job) for job in jobs}, cache=cache)
+        found = await fetch_pages(fetcher, {job["id"]: dict(job) for job in jobs}, refresh=refresh)
         # A posting that is gone, or failed, keeps its card.
         jobs = [found.get(job["id"]) or job for job in jobs]
         if missing := sum(job["id"] not in found for job in jobs):

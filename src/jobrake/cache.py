@@ -1,4 +1,4 @@
-"""SQLite cache for posting fields and posting addresses."""
+"""SQLite cache of fetched postings as whole ``JobDict`` records."""
 
 import contextlib
 import json
@@ -8,50 +8,26 @@ import os
 import sqlite3
 import sys
 import time
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable
+from gettext import ngettext
 from pathlib import Path
-from typing import Any, NoReturn
+
+from jobrake.models import JobDict, make_job
 
 logger = logging.getLogger(__name__)
 
-POSTINGS = "postings"
-# A posting's canonical URL, kept after its fields expire.
-ADDRESSES = "addresses"
 TTL = 7 * 24 * 3600  # seconds
-# Startup deletes posting rows past retention, tombstones included.
-RETENTION = 30 * 24 * 3600
-
-# Each table version identifies the field set and parsing of its rows.
-# Bump the affected version when either changes. Reads select only that version,
-# so a posting version change leaves the cached addresses intact.
-# Fetching those again costs paced requests.
-_VERSIONS = {
-    POSTINGS: 0,
-    ADDRESSES: 0,
-}
-_TABLES = tuple(_VERSIONS)
 
 _SCHEMA = """
-CREATE TABLE IF NOT EXISTS {table} (
-    version INTEGER NOT NULL,
+CREATE TABLE IF NOT EXISTS jobs (
     site TEXT NOT NULL,
-    -- A posting ID.
-    key TEXT NOT NULL,
-    -- The stored JSON object. NULL marks a posting confirmed gone.
-    fields TEXT,
+    id TEXT NOT NULL,
+    -- The JobDict as a JSON object.
+    job TEXT NOT NULL,
     -- Unix time in seconds when the row was written.
     stored_at REAL NOT NULL,
-    PRIMARY KEY (version, site, key)
+    PRIMARY KEY (site, id)
 )"""
-_COLUMNS = ("version", "site", "key", "fields", "stored_at")
-
-
-class _NonstandardConstant(Exception):
-    """A nonstandard JSON number treated as a row-level cache miss."""
-
-
-def _reject_constant(name: str) -> NoReturn:
-    raise _NonstandardConstant(name)
 
 
 def _env_seconds(name: str, default: float) -> float:
@@ -88,68 +64,35 @@ def _default_path() -> Path:
     return base / "jobrake" / "jobrake.sqlite3"
 
 
-def _table_name(table: str) -> str:
-    if table not in _TABLES:
-        raise ValueError(f"unknown cache table {table!r}")
-    return table
-
-
 class Cache:
     """
-    Store postings and their addresses in SQLite tables.
+    Store whole ``JobDict`` records in one SQLite table, keyed by site and posting ID.
 
-    Posting values expire after ``ttl`` seconds and are deleted after
-    ``retention`` seconds. A posting tombstone lasts ``retention`` seconds, so
-    a posting once reported gone is requested again after that. Addresses do
-    not expire. A storage or decoding failure logs once and
-    disables this instance. Callers receive misses and continue scraping. A
-    site keeps its own keys separate within each table, and each table's
-    stored format version keeps values apart from those an earlier field set
-    or parser produced.
+    A row stays fresh for ``ttl`` seconds, and opening the cache deletes
+    expired rows. Each row read passes through ``make_job``, so a row that no
+    longer fits ``JobDict`` is a miss, which the next fetch replaces. A
+    storage or decoding failure logs one warning with the path and disables
+    this instance, so callers see misses and keep fetching.
 
     Attributes:
         path: SQLite database path. The cache opens it on first access.
-        ttl: Seconds a field row remains fresh.
-        retention: Seconds a field row remains on disk and a tombstone stays in force.
+        ttl: Seconds a row remains fresh.
     """
 
-    def __init__(
-        self,
-        path: str | Path | None = None,
-        *,
-        ttl: float | None = None,
-        retention: float | None = None,
-    ) -> None:
+    def __init__(self, path: str | Path | None = None, *, ttl: float | None = None) -> None:
         """
-        Configure lazy storage and field-row lifetimes.
+        Configure lazy storage and the row lifetime.
 
         An omitted ``path`` selects ``JOBRAKE_CACHE_PATH`` or the platform
-        user-cache directory. Omitted lifetimes use ``JOBRAKE_CACHE_TTL``
-        and ``JOBRAKE_CACHE_RETENTION``, with the module defaults as fallbacks.
-        If ``retention`` is omitted, its resolved value is raised to at least
-        ``ttl``. Explicit arguments take precedence over environment variables.
+        user-cache directory. An omitted ``ttl`` uses ``JOBRAKE_CACHE_TTL``,
+        with ``TTL`` as the fallback.
 
         Raises:
-            ValueError: A given lifetime is non-finite, ``ttl`` is not positive,
-                or ``retention`` < ``ttl``.
+            ValueError: ``ttl`` is not finite and positive.
         """
         self.ttl = float(ttl) if ttl is not None else _env_seconds("JOBRAKE_CACHE_TTL", TTL)
-        self.retention = (
-            float(retention)
-            if retention is not None
-            else _env_seconds("JOBRAKE_CACHE_RETENTION", RETENTION)
-        )
-        if self.retention < self.ttl and retention is None:
-            # Adjusting implicit retention keeps environment settings from
-            # failing the first cached fetch, where the shared cache is built.
-            self.retention = self.ttl
         if not math.isfinite(self.ttl) or self.ttl <= 0:
             raise ValueError(f"ttl ({self.ttl:.10g}) must be finite and positive")
-        if not math.isfinite(self.retention) or self.retention < self.ttl:
-            raise ValueError(
-                f"retention ({self.retention:.10g}) must be finite"
-                f" and at least ttl ({self.ttl:.10g})"
-            )
         self.path = Path(path) if path else _default_path()
         self._conn: sqlite3.Connection | None = None
         self._broken = False
@@ -162,19 +105,8 @@ class Cache:
         try:
             self.path.parent.mkdir(parents=True, exist_ok=True)
             self._conn = sqlite3.connect(self.path)
-            for table in _TABLES:
-                columns = tuple(row[1] for row in self._conn.execute(f"PRAGMA table_info({table})"))
-                if columns and columns != _COLUMNS:
-                    # A table built by an older jobrake cannot take today's rows.
-                    self._conn.execute(f"DROP TABLE {table}")
-                self._conn.execute(_SCHEMA.format(table=table))
-                # Rows of another format are already invisible to this one,
-                # so dropping them only reclaims the space they hold.
-                self._conn.execute(f"DELETE FROM {table} WHERE version != ?", (_VERSIONS[table],))
-            self._conn.execute(
-                f"DELETE FROM {POSTINGS} WHERE stored_at < ?",
-                (time.time() - self.retention,),
-            )
+            self._conn.execute(_SCHEMA)
+            self._conn.execute("DELETE FROM jobs WHERE stored_at < ?", (time.time() - self.ttl,))
             self._conn.commit()
         except (sqlite3.Error, OSError) as error:
             self._give_up(error)
@@ -194,79 +126,75 @@ class Cache:
             self.close()
         logger.warning("cache disabled (%s): %s", self.path, error)
 
-    def get(self, table: str, site: str, keys: Iterable[str]) -> dict[str, dict[str, Any] | None]:
+    def get(self, site: str, ids: Iterable[str]) -> dict[str, JobDict]:
         """
-        Read values for the requested keys in one table and site.
+        Read the fresh records of one site for the requested posting IDs.
 
-        Posting values honor ``ttl``. Address values do not expire.
-        A ``None`` posting value is a tombstone marking the posting as gone,
-        returned until it is ``retention`` seconds old.
-        Missing keys are stale, absent, or malformed rows.
-        Storage and decoding failures disable the cache and return an empty dict.
+        A row ``make_job`` rejects is left out, and the count of rejected rows
+        logs at DEBUG. A storage or decoding failure disables the cache and
+        returns an empty dict.
         """
-        table = _table_name(table)
-        keys = list(dict.fromkeys(keys))
+        ids = list(dict.fromkeys(ids))
         conn = self._connect()
-        if conn is None or not keys:
+        if conn is None or not ids:
             return {}
         try:
-            placeholders = ", ".join("?" for _ in keys)
+            placeholders = ", ".join("?" for _ in ids)
             rows = conn.execute(
-                f"SELECT key, fields, stored_at FROM {table}"
-                f" WHERE version = ? AND site = ? AND key IN ({placeholders})",
-                [_VERSIONS[table], site, *keys],
-            )
-            now = time.time()
-            found = {}
-            for key, stored, stored_at in rows:
+                f"SELECT id, job, stored_at FROM jobs WHERE site = ? AND id IN ({placeholders})",
+                [site, *ids],
+            ).fetchall()
+            fresh_after = time.time() - self.ttl
+            found: dict[str, JobDict] = {}
+            rejected = 0
+            for posting_id, stored, stored_at in rows:
                 # SQLite may return a nonnumeric value despite the REAL declaration.
                 if not isinstance(stored_at, int | float) or not math.isfinite(stored_at):
                     raise ValueError(f"cache stored_at is not a finite number: {stored_at!r}")
-                if stored is None and table == POSTINGS and stored_at >= now - self.retention:
-                    found[key] = None  # a tombstone still within retention
-                    continue
-                if stored is None or (table == POSTINGS and stored_at < now - self.ttl):
+                if stored_at < fresh_after:
                     continue
                 try:
-                    decoded = json.loads(stored, parse_constant=_reject_constant)
-                except _NonstandardConstant:
-                    # A nonstandard numeric constant is a miss. A successful refetch replaces the row.
-                    continue
-                if not isinstance(decoded, dict):
-                    raise TypeError("cached value is not a JSON object")
-                found[key] = decoded
-            return found
-        except (json.JSONDecodeError, OSError, sqlite3.Error, TypeError, ValueError) as error:
+                    found[posting_id] = make_job(**json.loads(stored))
+                except TypeError:
+                    rejected += 1
+        except (json.JSONDecodeError, OSError, sqlite3.Error, ValueError) as error:
             self._give_up(error)
             return {}
+        if rejected:
+            rows = ngettext("%d row", "%d rows", rejected) % rejected
+            logger.debug(
+                "cache: %s for %s did not fit JobDict and will be fetched again", rows, site
+            )
+        return found
 
-    def put(self, table: str, site: str, values: Mapping[str, dict[str, Any] | None]) -> None:
+    def put(self, jobs: Iterable[JobDict]) -> None:
         """
-        Store dicts in one table and site.
+        Store records, each under its own site and ID, replacing an older row.
 
-        ``None`` records a posting confirmed gone with a 404 or 410.
-        Storage or serialization failures log once and disable this cache instance.
+        A storage or serialization failure disables the cache.
         """
-        table = _table_name(table)
         conn = self._connect()
-        if conn is None or not values:
+        if conn is None:
             return
         try:
             now = time.time()
             conn.executemany(
-                f"INSERT OR REPLACE INTO {table} (version, site, key, fields, stored_at)"
-                " VALUES (?, ?, ?, ?, ?)",
+                "INSERT OR REPLACE INTO jobs (site, id, job, stored_at) VALUES (?, ?, ?, ?)",
                 (
-                    (
-                        _VERSIONS[table],
-                        site,
-                        key,
-                        None if value is None else json.dumps(value, ensure_ascii=False),
-                        now,
-                    )
-                    for key, value in values.items()
+                    (job["site"], job["id"], json.dumps(job, ensure_ascii=False), now)
+                    for job in jobs
                 ),
             )
             conn.commit()
         except (OSError, sqlite3.Error, TypeError, ValueError) as error:
             self._give_up(error)
+
+
+def __getattr__(name: str) -> Cache:
+    # One cache per process, built when a fetch first reads ``CACHE``. Its
+    # environment settings are read at that moment, so importing jobrake
+    # neither reads them nor warns about them.
+    if name == "CACHE":
+        cache = globals()["CACHE"] = Cache()
+        return cache
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

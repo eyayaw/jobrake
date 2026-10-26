@@ -3,8 +3,7 @@
 import fakesite
 import pytest
 
-from jobrake import sites
-from jobrake.cache import Cache
+from jobrake import cache, sites
 from jobrake.sites.linkedin import client
 
 
@@ -12,12 +11,12 @@ from jobrake.sites.linkedin import client
 def isolated_cache(tmp_path, monkeypatch):
     """Point the shared cache at a per-test database."""
     # A developer's own cache settings must not reach the suite.
-    for name in ("JOBRAKE_CACHE_PATH", "JOBRAKE_CACHE_TTL", "JOBRAKE_CACHE_RETENTION"):
+    for name in ("JOBRAKE_CACHE_PATH", "JOBRAKE_CACHE_TTL"):
         monkeypatch.delenv(name, raising=False)
-    cache = Cache(tmp_path / "jobrake.sqlite3")
-    monkeypatch.setattr(client, "CACHE", cache)
-    yield cache
-    cache.close()
+    isolated = cache.Cache(tmp_path / "jobrake.sqlite3")
+    monkeypatch.setattr(cache, "CACHE", isolated)
+    yield isolated
+    isolated.close()
 
 
 @pytest.fixture(autouse=True)

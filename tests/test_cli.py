@@ -107,9 +107,9 @@ def test_postings_command_renders_what_it_fetched(monkeypatch, capsys, caplog):
         async def close(self):
             pass
 
-    async def fake_postings(fetcher, references, *, cache):
-        calls.append((list(references), cache))
-        if not cache:
+    async def fake_postings(fetcher, references, *, refresh):
+        calls.append((list(references), refresh))
+        if refresh:
             return {"111": None}
         # two references to one posting, one gone, one failed and so absent
         return {"111": JOBS[0], "https://nl.linkedin.com/jobs/view/x-1": JOBS[0], "222": None}
@@ -122,10 +122,10 @@ def test_postings_command_renders_what_it_fetched(monkeypatch, capsys, caplog):
     assert json.loads(capsys.readouterr().out) == JOBS[:1]  # one record per posting
     assert "222 is no longer on linkedin" in caplog.text
     # nothing fetched: the failures were already reported, so stdout stays empty
-    monkeypatch.setattr(sys, "argv", ["jobrake", "postings", "linkedin", "111", "--no-cache"])
+    monkeypatch.setattr(sys, "argv", ["jobrake", "postings", "linkedin", "111", "--refresh"])
     assert cli.main() == 1
     assert capsys.readouterr().out == ""
-    assert calls == [(references, True), (["111"], False)]
+    assert calls == [(references, False), (["111"], True)]
 
 
 def test_provider_commands_dispatch_expected_options(monkeypatch):
@@ -168,7 +168,7 @@ def test_provider_commands_dispatch_expected_options(monkeypatch):
             "-l",
             "Seattle",
             "--details",
-            "--no-cache",
+            "--refresh",
             "--easy-apply",
         ],
         [
@@ -213,7 +213,7 @@ def test_provider_commands_dispatch_expected_options(monkeypatch):
                 "query": "x",
                 "location": "Seattle",
                 "details": True,
-                "cache": False,
+                "refresh": True,
                 "easy_apply": True,
             },
         ),

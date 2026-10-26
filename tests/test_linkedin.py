@@ -11,8 +11,7 @@ from urllib.parse import parse_qs, urlsplit
 import pytest
 from fakes import PagedFetcher, StubFetcher, network_down, not_found, ok, rate_limited
 
-from jobrake import Stopped
-from jobrake.cache import Cache
+from jobrake import Stopped, cache
 from jobrake.fetchkit import FetchResult, TokenBucket
 from jobrake.models import IDENTITY_FIELDS, SUMMARY_FIELDS, JobDict
 from jobrake.sites import linkedin
@@ -722,7 +721,7 @@ def test_search_reruns_only_fetch_unseen_postings(unlimited):
     )
     assert jobs[0]["description"] == rerun[0]["description"] == "Great & big role"
     assert [url for url in rerun_fetcher.requests if "seeMoreJobPostings" not in url] == []
-    # cache=False reaches hydration, so the same search refetches the posting.
+    # refresh reaches the detail fetch, so the same search refetches the posting.
     refetch_fetcher = StubFetcher(responses)
     asyncio.run(
         linkedin.search(
@@ -731,7 +730,7 @@ def test_search_reruns_only_fetch_unseen_postings(unlimited):
             location="Seattle",
             results=1,
             details=True,
-            cache=False,
+            refresh=True,
         )
     )
     assert len([url for url in refetch_fetcher.requests if "jobs/view/111" in url]) == 1
@@ -809,7 +808,7 @@ def fetched(found, reference) -> JobDict:
 def parse(page) -> JobDict | None:
     """Return the record postings() builds from ``page`` served as CANONICAL, or None for no fields."""
     fetcher = StubFetcher({"economist-at-acme-111": ok(page)})
-    return asyncio.run(linkedin.postings(fetcher, [CANONICAL], cache=False)).get(CANONICAL)
+    return asyncio.run(linkedin.postings(fetcher, [CANONICAL], refresh=True)).get(CANONICAL)
 
 
 def parsed(page) -> JobDict:
@@ -1023,13 +1022,14 @@ def test_postings_three_outcomes_and_what_each_costs_again(unlimited, monkeypatc
     assert sum(1 for u in fetcher.requests if u == CANONICAL) == 1  # deduped
     assert sum(1 for u in fetcher.requests if "gone-at" in u) == 1  # so is the alias
 
-    # A retry: fetched and gone come from the cache, only the transient is re-asked.
+    # A retry: the fetched posting comes from the cache. A gone posting is not
+    # cached, so it is asked again with the transient one.
     fetcher.responses["flaky-at"] = ok(job_page())
     fetcher.requests.clear()
     again = asyncio.run(linkedin.postings(fetcher, [CANONICAL, gone, flaky]))
     assert fetched(again, flaky)["employment_type"] == "full_time"
     assert (again[CANONICAL], again[gone]) == (got[CANONICAL], None)
-    assert fetcher.requests == [flaky]
+    assert fetcher.requests == [gone, flaky]
 
 
 def test_postings_stop_when_the_429_retries_also_fail(unlimited, caplog, monkeypatch):
@@ -1092,33 +1092,24 @@ def test_postings_drop_a_trailing_slash(unlimited):
 
 def test_postings_without_the_cache_refetch_and_refresh(unlimited):
     fetcher = StubFetcher({"economist-at-acme-111": ok(job_page())})
-    asyncio.run(linkedin.postings(fetcher, [CANONICAL], cache=False))
-    asyncio.run(linkedin.postings(fetcher, [CANONICAL], cache=False))
+    asyncio.run(linkedin.postings(fetcher, [CANONICAL], refresh=True))
+    asyncio.run(linkedin.postings(fetcher, [CANONICAL], refresh=True))
     assert len(fetcher.requests) == 2
     # the refetches stored what they found, so a cached call needs no request
     asyncio.run(linkedin.postings(fetcher, [CANONICAL]))
     assert len(fetcher.requests) == 2
 
 
-def test_postings_keep_a_cached_block_over_a_blockless_refetch(unlimited):
-    def cached():
-        return fetched(asyncio.run(linkedin.postings(StubFetcher({}), [CANONICAL])), CANONICAL)
-
+def test_a_refreshed_posting_replaces_its_cached_copy(unlimited):
     complete = StubFetcher({"economist-at-acme-111": ok(job_page(description="Old role"))})
     asyncio.run(linkedin.postings(complete, [CANONICAL]))
     blockless = StubFetcher(
         {"economist-at-acme-111": ok(blockless_page()), "jobPosting/111": ok(en_fragment())}
     )
-    got = asyncio.run(linkedin.postings(blockless, [CANONICAL], cache=False))
-    assert "posted_at" not in fetched(got, CANONICAL)  # the caller gets what it fetched
-    assert (cached()["description"], cached()["posted_at"]) == (
-        "Old role",
-        "2026-08-05T08:04:27.000Z",
-    )
-    # a refetch that has the block replaces the cached copy
-    full = StubFetcher({"economist-at-acme-111": ok(job_page())})
-    asyncio.run(linkedin.postings(full, [CANONICAL], cache=False))
-    assert cached()["description"] == "Great & big role"
+    got = asyncio.run(linkedin.postings(blockless, [CANONICAL], refresh=True))
+    cached = asyncio.run(linkedin.postings(StubFetcher({}), [CANONICAL]))
+    assert cached == got  # the cache returns what the last fetch returned
+    assert "posted_at" not in fetched(cached, CANONICAL)
 
 
 def test_postings_are_cached_by_id_not_url(unlimited):
@@ -1156,7 +1147,7 @@ def test_an_interrupted_fetch_keeps_paid_results(unlimited):
 
 def test_a_broken_cache_still_fetches_and_warns_once(unlimited, tmp_path, monkeypatch, caplog):
     (tmp_path / "blocker").write_text("")
-    monkeypatch.setattr(client, "CACHE", Cache(tmp_path / "blocker" / "jobrake.sqlite3"))
+    monkeypatch.setattr(cache, "CACHE", cache.Cache(tmp_path / "blocker" / "jobrake.sqlite3"))
     fetcher = StubFetcher({"economist-at-acme-111": ok(job_page())})
     with caplog.at_level(logging.WARNING, logger="jobrake.cache"):
         got = asyncio.run(linkedin.postings(fetcher, [CANONICAL]))
@@ -1192,7 +1183,7 @@ def test_postings_resolve_an_id_before_fetching_the_page(unlimited):
     # of them can leave a record holding a page without the block
     for address in others:
         fetcher.requests.clear()
-        assert asyncio.run(linkedin.postings(fetcher, [address], cache=False)) == {address: job}
+        assert asyncio.run(linkedin.postings(fetcher, [address], refresh=True)) == {address: job}
         assert fetcher.requests == [f"{FRAGMENT}/111?_l=en_US", CANONICAL]
 
 
@@ -1227,7 +1218,7 @@ def test_postings_distrust_a_lookup_that_names_another_page(unlimited):
 def test_postings_collapse_the_addresses_of_one_posting(unlimited):
     fetcher = StubFetcher({"economist-at-acme-111": ok(job_page(title="Economist"))})
     references = [CANONICAL, "https://uk.linkedin.com/jobs/view/economist-at-acme-111", "111"]
-    got = asyncio.run(linkedin.postings(fetcher, references, cache=False))
+    got = asyncio.run(linkedin.postings(fetcher, references, refresh=True))
     # one posting, fetched once from the first canonical address
     assert fetcher.requests == [CANONICAL]
     assert list(got) == references
@@ -1266,10 +1257,11 @@ def test_postings_keep_what_they_resolved_in_reference_order(unlimited, caplog):
     assert [record.message.split(".")[0] for record in caplog.records] == [
         "skipping posting 333: connection reset",
     ]
-    # a rerun asks again only about the failure that may pass, since 222 is known gone
+    # a rerun asks only about the postings it did not fetch: 444 and 111 come
+    # from the cache with their URLs
     fetcher.requests.clear()
     assert asyncio.run(linkedin.postings(fetcher, references)) == got
-    assert fetcher.requests == [f"{FRAGMENT}/333?_l=en_US"]
+    assert fetcher.requests == [f"{FRAGMENT}/333?_l=en_US", f"{FRAGMENT}/222?_l=en_US"]
 
 
 def test_postings_fetch_a_us_posting_on_www(unlimited, caplog):
