@@ -37,6 +37,8 @@ def options_of(function, *positional):
             continue
         assert parameter.kind is inspect.Parameter.KEYWORD_ONLY, parameter.name
         assert kind in OPTION_TYPES, parameter.name
+        # The CLI turns a boolean option into a flag that sets it.
+        assert kind is not bool or parameter.default is False, parameter.name
         options[parameter.name] = kind
     return options
 

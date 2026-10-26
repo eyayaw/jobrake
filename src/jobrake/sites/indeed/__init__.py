@@ -1,4 +1,4 @@
-"""Indeed job searches and place, company, and attribute lookups."""
+"""Search Indeed job postings through its mobile GraphQL API."""
 
 from .client import API_HEADERS, API_URL, INDEED_APP_KEY
 from .lookups import AUTOCOMPLETE_URL, attributes, companies, places

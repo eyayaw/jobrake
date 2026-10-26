@@ -506,16 +506,17 @@ async def postings(
     refresh: Annotated[bool, "refetch postings and refresh their cached copies"] = False,
 ) -> dict[str, JobDict | None]:
     """
-    Fetch known LinkedIn postings, keyed by the references given.
+    Fetch known LinkedIn postings by ID or URL.
 
-    A reference is a posting URL or a numeric posting ID, and references
-    naming one posting share one fetch and one ``JobDict``. A canonical URL
-    on a country subdomain is fetched as given. Any other reference, including
-    an ID or a US posting's ``www`` URL, costs a guest-fragment request to
-    learn the canonical URL, unless the cache holds the posting. A reference maps to
-    ``None`` when LinkedIn reports its posting gone, and has no key after a
-    failed request or a persistent 429, each logged, so a rerun retries it.
-    The caller owns ``fetcher``.
+    The result is keyed by the references given. A reference is a posting
+    URL or a numeric posting ID, and references naming one posting share one
+    fetch and one ``JobDict``. A canonical URL on a country subdomain is
+    fetched as given. Any other reference, including an ID or a US posting's
+    ``www`` URL, costs a guest-fragment request to learn the canonical URL,
+    unless the cache holds the posting. A reference maps to ``None`` when
+    LinkedIn reports its posting gone, and has no key after a failed request
+    or a persistent 429, each logged, so a rerun retries it. The caller owns
+    ``fetcher``.
 
     Raises:
         ValueError: A reference is neither a numeric posting ID nor a LinkedIn

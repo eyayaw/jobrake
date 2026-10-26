@@ -1,4 +1,4 @@
-"""LinkedIn through the login-free guest API and its HTML job cards."""
+"""Search LinkedIn job postings through its login-free guest API."""
 
 from .client import (
     BASE_URL,

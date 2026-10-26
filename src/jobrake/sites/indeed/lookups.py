@@ -83,11 +83,11 @@ async def places(
     fetcher: Fetcher, name: Annotated[str, "place name, e.g., 'boston'"], *, country: Country
 ) -> list[dict[str, str]]:
     """
-    List an edition's location suggestions for a name as ``{"id", "name"}`` dicts, best match first.
+    List an Indeed edition's location suggestions for a name, best match first.
 
-    ``id`` is the exact string the edition's search geocodes, ready for
-    ``search``'s ``location``. Indeed sends up to ten. An empty list means
-    the edition offers no such place.
+    Each is an ``{"id", "name"}`` dict, and ``id`` is the exact string the
+    edition's search geocodes, ready for ``search``'s ``location``. Indeed
+    sends up to ten. An empty list means the edition offers no such place.
 
     Raises:
         Stopped: The request failed, or the response held no readable suggestion.
@@ -100,10 +100,11 @@ async def companies(
     fetcher: Fetcher, name: Annotated[str, "company name, e.g., 'ABN AMRO'"], *, country: Country
 ) -> list[dict[str, str]]:
     """
-    List an edition's company suggestions for a name as ``{"id", "name"}`` dicts.
+    List an Indeed edition's company suggestions for a name.
 
-    ``id`` is Indeed's employer key, which ``search`` takes in
-    ``company_ids``. An empty list means Indeed returned no suggestions.
+    Each is an ``{"id", "name"}`` dict, and ``id`` is Indeed's employer key,
+    which ``search`` takes in ``company_ids``. An empty list means Indeed
+    returned no suggestions.
 
     Raises:
         Stopped: The request failed, or the response held no readable suggestion.
@@ -116,10 +117,10 @@ async def attributes(
     fetcher: Fetcher, query: Annotated[str, "job title or keywords"], *, country: Country
 ) -> list[dict[str, str]]:
     """
-    Collect the attribute codes on the first 100 matching jobs as ``{"id", "name"}`` dicts.
+    Collect the attribute codes on the first 100 matching Indeed jobs.
 
-    ``id`` is a code that ``search`` takes in ``attributes``, and ``name`` is
-    Indeed's label, which can vary by edition. The search has no posting-age
+    Each is an ``{"id", "name"}`` dict. ``id`` is a code that ``search`` takes
+    in ``attributes``, and ``name`` is Indeed's label, which can vary by edition. The search has no posting-age
     restriction. Codes appear once, in first-seen order, and different codes
     with the same label stay separate. Malformed entries are skipped. A
     search with no attributes returns ``[]``.

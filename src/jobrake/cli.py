@@ -1,23 +1,26 @@
-"""Command-line search and output dispatch."""
+"""Command-line search and output dispatch, built from each site's signatures."""
 
 import argparse
 import asyncio
+import inspect
 import json
 import logging
 import os
 import sys
 import time
+from collections.abc import Awaitable, Callable
 from contextlib import suppress
 from pathlib import Path
-from typing import Never, TextIO
+from types import ModuleType
+from typing import Any, Never, TextIO, get_args
 
 from jobrake import __version__, scrape
 
 from .fetchkit import HttpxFetcher
 from .io import RENDERERS
 from .models import JobDict, Stopped
-from .sites import SITES, indeed, linkedin
-from .utils import Option, site_options
+from .sites import SITES
+from .utils import site_options
 
 logger = logging.getLogger(__name__)
 
@@ -80,143 +83,64 @@ class _StatusHandler(logging.StreamHandler[TextIO]):
                 self.flush()
 
 
-def _add_linkedin_args(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument(
-        "--location",
-        "-l",
-        default=argparse.SUPPRESS,
-        help="location, preferably with region and country. Optional with --geoid ID",
-    )
-    parser.add_argument(
-        "--geoid",
-        "-g",
-        default=argparse.SUPPRESS,
-        metavar="ID",
-        help="LinkedIn place ID from 'jobrake places linkedin', in place of --location",
-    )
-    parser.add_argument(
-        "--radius",
-        "-r",
-        default=argparse.SUPPRESS,
-        type=int,
-        help="search radius in kilometers (default: unset)",
-    )
-    parser.add_argument(
-        "--company",
-        dest="company_ids",
-        action="append",
-        default=argparse.SUPPRESS,
-        metavar="ID",
-        help="filter jobs by company ID (repeat for several companies)",
-    )
-    parser.add_argument(
-        "--easy-apply",
-        action="store_true",
-        default=argparse.SUPPRESS,
-        help="restrict results to jobs with LinkedIn's Easy Apply form",
-    )
-    parser.add_argument(
-        "--early-applicant",
-        action="store_true",
-        default=argparse.SUPPRESS,
-        help="use LinkedIn's filter for fewer than 10 applicants",
-    )
-    parser.add_argument(
-        "--details",
-        "-d",
-        default=argparse.SUPPRESS,
-        action="store_true",
-        help="fetch posting pages for descriptions and other details",
-    )
-    parser.add_argument(
-        "--refresh",
-        action="store_true",
-        default=argparse.SUPPRESS,
-        help="refetch postings and refresh their cached copies",
-    )
+# Short flags for the option names that sites share.
+_SHORT_FLAGS = {
+    "query": "-q",
+    "location": "-l",
+    "country": "-c",
+    "radius": "-r",
+    "results": "-n",
+    "max_age_hours": "-a",
+    "geoid": "-g",
+    "details": "-d",
+}
+
+# The lookups a site may define, with the help of the command that runs them.
+_LOOKUPS = {
+    "places": "find place IDs by name",
+    "companies": "find company IDs by name",
+    "attributes": "find attribute codes in matching postings",
+}
 
 
-def _add_indeed_args(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument(
-        "--location",
-        "-l",
-        default=argparse.SUPPRESS,
-        help="city or area within the selected country",
-    )
-    parser.add_argument(
-        "--country",
-        "-c",
-        required=True,
-        default=argparse.SUPPRESS,
-        help="Indeed country edition, e.g., usa, uk, or netherlands",
-    )
-    parser.add_argument(
-        "--radius",
-        "-r",
-        default=argparse.SUPPRESS,
-        type=int,
-        help=f"search radius in kilometers (default: {site_options(indeed.search)['radius'].default})",
-    )
-    parser.add_argument(
-        "--company",
-        dest="company_ids",
-        action="append",
-        default=argparse.SUPPRESS,
-        metavar="ID",
-        help="filter jobs by company ID (one per search)",
-    )
-    parser.add_argument(
-        "--remote",
-        action="store_true",
-        default=argparse.SUPPRESS,
-        help="restrict results to postings tagged Remote by Indeed",
-    )
-    parser.add_argument(
-        "--language",
-        default=argparse.SUPPRESS,
-        metavar="CODE",
-        help="restrict postings by Indeed language code (two letters, e.g., EN or NL)",
-    )
-    parser.add_argument(
-        "--attribute",
-        dest="attributes",
-        action="append",
-        default=argparse.SUPPRESS,
-        metavar="CODE",
-        help="filter jobs by attribute code (repeat to require all codes)",
-    )
+def _add_parser(
+    add_parser: Callable[..., argparse.ArgumentParser],
+    name: str,
+    target: Callable[..., object] | ModuleType,
+) -> argparse.ArgumentParser:
+    """Add a subcommand described by the first line of ``target``'s docstring."""
+    line = (inspect.getdoc(target) or "").splitlines()[0]
+    help_text = line[:1].lower() + line[1:].removesuffix(".")
+    return add_parser(name, allow_abbrev=False, help=help_text, description=line)
 
 
-_SITE_ARGS = {"linkedin": _add_linkedin_args, "indeed": _add_indeed_args}
+def _add_positional(parser: argparse.ArgumentParser, function: Callable[..., object]) -> None:
+    """Add the argument a lookup or posting fetch takes after the fetcher: one text, or several."""
+    parameter = list(inspect.signature(function).parameters.values())[1]
+    kind, help_text = get_args(parameter.annotation)
+    many: dict[str, Any] = {"nargs": "+"} if kind is not str else {}
+    parser.add_argument(parameter.name, metavar=parameter.name.upper(), help=help_text, **many)
 
-# Spelled out because "linkedin".title() gives "Linkedin".
-_SITE_LABELS = {"linkedin": "LinkedIn", "indeed": "Indeed"}
 
-
-def _add_search_args(parser: argparse.ArgumentParser, options: dict[str, Option]) -> None:
-    parser.add_argument(
-        "--query",
-        "-q",
-        required=True,
-        default=argparse.SUPPRESS,
-        help="job title or keywords, as interpreted by the provider",
-    )
-    parser.add_argument(
-        "--results",
-        "-n",
-        default=argparse.SUPPRESS,
-        type=int,
-        help=f"maximum number of unique jobs to return (default: {options['results'].default})",
-    )
-    parser.add_argument(
-        "--max-age",
-        "-a",
-        dest="max_age_hours",
-        default=argparse.SUPPRESS,
-        metavar="HOURS",
-        type=int,
-        help=f"maximum posting age in hours (default: {options['max_age_hours'].default})",
-    )
+def _add_options(parser: argparse.ArgumentParser, function: Callable[..., object]) -> None:
+    """Add one flag per keyword option of a site function, named after the option."""
+    for name, option in site_options(function).items():
+        flags = [f"--{name.replace('_', '-')}"]
+        if name in _SHORT_FLAGS:
+            flags.append(_SHORT_FLAGS[name])
+        required = option.default is inspect.Parameter.empty
+        help_text = option.help
+        if option.default not in (None, False, inspect.Parameter.empty):
+            help_text += f" (default: {option.default})"
+        # An omitted flag leaves the option to the site function's own default.
+        settings: dict[str, Any] = {"default": argparse.SUPPRESS, "help": help_text}
+        if option.kind is bool:
+            settings["action"] = "store_true"
+        elif option.kind == list[str]:
+            settings |= {"action": "extend", "nargs": "+", "metavar": "ID"}
+        elif option.kind is int:
+            settings["type"] = int
+        parser.add_argument(*flags, dest=name, required=required, **settings)
 
 
 def _add_output_args(parser: argparse.ArgumentParser) -> None:
@@ -240,117 +164,41 @@ def _build_parser() -> _ArgumentParser:
     )
     # The version action exits before argparse checks the required subcommand.
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
-    subparsers = parser.add_subparsers(dest="provider", required=True)
-    for name in sorted(SITES):
-        subparser = subparsers.add_parser(
-            name, allow_abbrev=False, help=f"search {_SITE_LABELS[name]} for job postings"
+    commands = parser.add_subparsers(dest="command", required=True)
+    for site, module in SITES.items():
+        search = _add_parser(commands.add_parser, site, module)
+        _add_options(search, module.search)
+        _add_output_args(search)
+    if fetchers := {site: module for site, module in SITES.items() if hasattr(module, "postings")}:
+        postings = commands.add_parser(
+            "postings",
+            allow_abbrev=False,
+            help="fetch known postings by ID or URL",
+            description="Fetch known postings by ID or URL",
         )
-        # Mutate this subparser by adding arguments.
-        _add_search_args(subparser, site_options(SITES[name].search))
-        _add_output_args(subparser)
-        _SITE_ARGS[name](subparser)
-    postings = subparsers.add_parser(
-        "postings",
-        allow_abbrev=False,
-        help="fetch known postings by ID or URL",
-        description="Fetch known postings by ID or URL",
-    )
-    postings_sites = postings.add_subparsers(dest="site", required=True)
-    postings_linkedin = postings_sites.add_parser(
-        "linkedin",
-        allow_abbrev=False,
-        help="fetch LinkedIn postings by ID or URL",
-        description="Fetch LinkedIn postings by ID or URL",
-    )
-    postings_linkedin.add_argument(
-        "references",
-        nargs="+",
-        metavar="ID|URL",
-        help="numeric LinkedIn posting ID or posting URL",
-    )
-    postings_linkedin.add_argument(
-        "--refresh",
-        action="store_true",
-        help="refetch postings and refresh their cached copies",
-    )
-    _add_output_args(postings_linkedin)
-    lookup = subparsers.add_parser(
-        "places",
-        allow_abbrev=False,
-        help="show how a provider resolves a place name",
-        description="Show how a provider resolves a place name",
-    )
-    sites = lookup.add_subparsers(dest="site", required=True)
-    li = sites.add_parser(
-        "linkedin",
-        allow_abbrev=False,
-        help="print LinkedIn place IDs for a name",
-        description="Print LinkedIn's candidate places for the name, best match first, as JSON",
-    )
-    ind = sites.add_parser(
-        "indeed",
-        allow_abbrev=False,
-        help="print an Indeed edition's location suggestions for a name",
-        description=(
-            "Print an Indeed edition's location suggestions for the name, best match first, as JSON"
-        ),
-    )
-    for sub in (li, ind):
-        sub.add_argument("name", help="place name, e.g., 'amsterdam'")
-    ind.add_argument(
-        "--country",
-        "-c",
-        required=True,
-        default=argparse.SUPPRESS,
-        help="Indeed country edition, e.g., usa, uk, or netherlands",
-    )
-    companies = subparsers.add_parser(
-        "companies",
-        allow_abbrev=False,
-        help="find company IDs by name",
-        description="Find company IDs by name",
-    )
-    company_sites = companies.add_subparsers(dest="site", required=True)
-    company_linkedin = company_sites.add_parser(
-        "linkedin",
-        allow_abbrev=False,
-        help="print LinkedIn company IDs for a name",
-        description="List LinkedIn's suggested company names and IDs as JSON",
-    )
-    company_indeed = company_sites.add_parser(
-        "indeed",
-        allow_abbrev=False,
-        help="print Indeed company IDs for a name",
-        description="List an Indeed edition's company suggestions and IDs as JSON",
-    )
-    for sub in (company_linkedin, company_indeed):
-        sub.add_argument("name", help="company name, e.g., 'ABN AMRO'")
-    company_indeed.add_argument(
-        "--country",
-        "-c",
-        required=True,
-        help="Indeed country edition, e.g., usa, uk, or netherlands",
-    )
-    attributes = subparsers.add_parser(
-        "attributes",
-        allow_abbrev=False,
-        help="discover attribute codes in matching jobs",
-        description="Discover attribute codes in matching jobs",
-    )
-    attribute_sites = attributes.add_subparsers(dest="site", required=True)
-    attribute_indeed = attribute_sites.add_parser(
-        "indeed",
-        allow_abbrev=False,
-        help="print Indeed attribute codes and labels",
-        description="List attribute codes and labels from the first 100 matching jobs as JSON",
-    )
-    attribute_indeed.add_argument("name", metavar="QUERY", help="job title or keywords")
-    attribute_indeed.add_argument(
-        "--country",
-        "-c",
-        required=True,
-        help="Indeed country edition, e.g., usa, uk, or netherlands",
-    )
+        sites = postings.add_subparsers(dest="site", required=True)
+        for site, module in fetchers.items():
+            fetch = _add_parser(sites.add_parser, site, module.postings)
+            _add_positional(fetch, module.postings)
+            _add_options(fetch, module.postings)
+            _add_output_args(fetch)
+    for kind, help_text in _LOOKUPS.items():
+        lookups = {
+            site: getattr(module, kind) for site, module in SITES.items() if hasattr(module, kind)
+        }
+        if not lookups:
+            continue
+        command = commands.add_parser(
+            kind,
+            allow_abbrev=False,
+            help=help_text,
+            description=help_text[:1].upper() + help_text[1:],
+        )
+        sites = command.add_subparsers(dest="site", required=True)
+        for site, lookup in lookups.items():
+            sub = _add_parser(sites.add_parser, site, lookup)
+            _add_positional(sub, lookup)
+            _add_options(sub, lookup)
     return parser
 
 
@@ -377,38 +225,53 @@ def _write_stdout(text: str) -> int | None:
     return None
 
 
-async def _lookup_candidates(args: argparse.Namespace) -> list[dict[str, str]]:
-    """Look up places, companies, or attributes with a fetcher of its own."""
+async def _with_own_fetcher[T](
+    function: Callable[..., Awaitable[T]], *args: object, **options: object
+) -> T:
+    """Call a site function with an ``HttpxFetcher`` that it closes afterward."""
     fetcher = HttpxFetcher()
     try:
-        match args.site:
-            case "linkedin":
-                if args.provider == "companies":
-                    return await linkedin.companies(fetcher, args.name)
-                return await linkedin.places(fetcher, args.name)
-            case "indeed":
-                if args.provider == "attributes":
-                    return await indeed.attributes(fetcher, args.name, country=args.country)
-                if args.provider == "companies":
-                    return await indeed.companies(fetcher, args.name, country=args.country)
-                return await indeed.places(fetcher, args.name, country=args.country)
-            case _:
-                raise ValueError(f"unknown provider {args.site}")
+        return await function(fetcher, *args, **options)
     finally:
         await fetcher.close()
 
 
-async def _fetch_postings(args: argparse.Namespace) -> list[JobDict]:
+def _call_args(
+    args: argparse.Namespace, function: Callable[..., object]
+) -> tuple[Any, dict[str, Any]]:
+    """Return the positional argument and the options the command line gave a site function."""
+    positional = list(inspect.signature(function).parameters)[1]
+    options = site_options(function)
+    return vars(args)[positional], {k: v for k, v in vars(args).items() if k in options}
+
+
+def _lookup(parser: _ArgumentParser, args: argparse.Namespace) -> int | None:
+    """Print a lookup's candidates as JSON, or return 1 after a failed request."""
+    lookup = getattr(SITES[args.site], args.command)
+    text, options = _call_args(args, lookup)
+    try:
+        hits = asyncio.run(_with_own_fetcher(lookup, text, **options))
+    except ValueError as e:
+        parser.error(str(e))
+    except Stopped as stop:
+        logger.error("%s", stop)  # noqa: TRY400  the message says what failed; a traceback adds nothing
+        return 1
+    if not hits:
+        logger.warning(
+            "no %s found for %r. Check the spelling or try another query", args.command, text
+        )
+    return _write_stdout(json.dumps(hits, indent=2, ensure_ascii=False) + "\n")
+
+
+def _fetch_postings(args: argparse.Namespace) -> list[JobDict]:
     """
-    Fetch the named postings with a fetcher of its own, one record per posting in reference order.
+    Fetch the named postings, one record per posting in reference order.
 
     A reference to a posting the site reports gone logs a warning.
     """
-    fetcher = HttpxFetcher()
-    try:
-        found = await linkedin.postings(fetcher, args.references, refresh=args.refresh)
-    finally:
-        await fetcher.close()
+    fetch = SITES[args.site].postings
+    references, options = _call_args(args, fetch)
+    found = asyncio.run(_with_own_fetcher(fetch, references, **options))
     for reference, job in found.items():
         if job is None:
             logger.warning("%s is no longer on %s", reference, args.site)
@@ -479,38 +342,23 @@ def main() -> int | None:
     handler = _StatusHandler()
     logging.basicConfig(level=logging.WARNING, handlers=[handler])
     logging.getLogger("jobrake").setLevel(logging.INFO)
-    if args.provider in ("places", "companies", "attributes"):
+    if args.command in _LOOKUPS:
+        return _lookup(parser, args)
+    # Settle the output before the fetch spends any requests.
+    fmt = _settle_output(parser, args)
+    if args.command == "postings":
         try:
-            hits = asyncio.run(_lookup_candidates(args))
-        except ValueError as e:
-            parser.error(str(e))
-        except Stopped as stop:
-            logger.error("%s", stop)  # noqa: TRY400  the message says what failed; a traceback adds nothing
-            return 1
-        if not hits:
-            logger.warning(
-                "no %s found for %r. Check the spelling or try another query",
-                args.provider,
-                args.name,
-            )
-        return _write_stdout(json.dumps(hits, indent=2, ensure_ascii=False) + "\n")
-    if args.provider == "postings":
-        fmt = _settle_output(parser, args)
-        try:
-            jobs = asyncio.run(_fetch_postings(args))
+            jobs = _fetch_postings(args)
         except ValueError as e:
             parser.error(str(e))
         finally:
             handler.clear()
         # An empty result means every named posting failed, each already reported.
         return _write_jobs(args, jobs, fmt) if jobs else 1
-    # Settle the output before the scrape spends any requests.
-    fmt = _settle_output(parser, args)
-    accepted = site_options(SITES[args.provider].search)
-    options = {name: value for name, value in vars(args).items() if name in accepted}
+    options = {k: v for k, v in vars(args).items() if k in site_options(SITES[args.command].search)}
     status = None
     try:
-        jobs = asyncio.run(scrape(args.provider, **options))
+        jobs = asyncio.run(scrape(args.command, **options))
     except ValueError as e:
         parser.error(str(e))
     except Stopped as stop:

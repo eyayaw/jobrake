@@ -1,4 +1,4 @@
-"""CLI output tests for stdout and files, with explicit and inferred formats."""
+"""CLI commands built from the sites, their exit codes, and output to stdout and files."""
 
 import csv
 import io
@@ -53,21 +53,31 @@ def run_cli(monkeypatch):
     return run
 
 
-@pytest.mark.parametrize(
-    ("argv", "lookup", "expected"),
-    [
-        (["places", "linkedin", "amsterdam"], "linkedin.places", {}),
-        (["places", "indeed", "boston", "-c", "usa"], "indeed.places", {"country": "usa"}),
-        (["companies", "linkedin", "boston"], "linkedin.companies", {}),
-        (["companies", "indeed", "boston", "-c", "uk"], "indeed.companies", {"country": "uk"}),
-        (["attributes", "indeed", "boston", "-c", "usa"], "indeed.attributes", {"country": "usa"}),
-    ],
-)
-def test_lookup_commands_print_candidates_and_report_failure(
-    monkeypatch, capsys, argv, lookup, expected
+def test_a_registered_site_gets_every_command_without_a_cli_change(
+    fake_site, fetchers, monkeypatch, capsys
 ):
-    hits = [{"id": "1", "name": "Boston, MA"}]
-    answers = [hits, [], None]
+    # The site's signatures alone give its search, lookup, and posting commands.
+    search = ["fakesite", "-q", "x", "--board", "acme", "--tags", "a", "b", "--remote", "-n", "2"]
+    monkeypatch.setattr(sys, "argv", ["jobrake", *search])
+    assert cli.main() is None
+    assert [job["id"] for job in json.loads(capsys.readouterr().out)] == ["0", "1"]
+    monkeypatch.setattr(sys, "argv", ["jobrake", "places", "fakesite", "Utrecht", "--region", "NL"])
+    assert cli.main() is None
+    assert json.loads(capsys.readouterr().out) == [{"id": "1", "name": "Utrecht"}]
+    monkeypatch.setattr(sys, "argv", ["jobrake", "postings", "fakesite", "7", "--refresh"])
+    assert cli.main() is None
+    assert [job["id"] for job in json.loads(capsys.readouterr().out)] == ["7"]
+    assert fake_site.calls == [
+        {"query": "x", "board": "acme", "results": 2, "remote": True, "tags": ["a", "b"]},
+        {"name": "Utrecht", "region": "NL"},
+        {"references": ["7"], "refresh": True},
+    ]
+
+
+@pytest.fixture
+def fetchers(monkeypatch):
+    """Replace the CLI's own HttpxFetcher with a stub that records each one it creates."""
+    created = []
 
     class StubHttpx:
         def __init__(self):
@@ -77,58 +87,48 @@ def test_lookup_commands_print_candidates_and_report_failure(
         async def close(self):
             self.closed = True
 
-    created: list[StubHttpx] = []
-
-    async def fake_lookup(fetcher, text, **options):
-        assert (text, options) == (argv[2], expected)
-        if (answer := answers.pop(0)) is None:
-            raise Stopped("lookup failed", partial=[])
-        return answer
-
-    site, name = lookup.split(".")
     monkeypatch.setattr(cli, "HttpxFetcher", StubHttpx)
-    monkeypatch.setattr(getattr(cli, site), name, fake_lookup)
-    monkeypatch.setattr(sys, "argv", ["jobrake", *argv])
+    return created
+
+
+@pytest.mark.parametrize(
+    ("name", "status", "out", "err"),
+    [
+        ("Utrecht", None, [{"id": "1", "name": "Utrecht"}], ""),
+        ("nowhere", None, [], "no places found for 'nowhere'"),
+        ("offline", 1, None, "place lookup failed: connection reset"),
+    ],
+)
+def test_a_lookup_prints_its_candidates_or_fails(
+    fake_site, fetchers, monkeypatch, capsys, caplog, name, status, out, err
+):
+    monkeypatch.setattr(sys, "argv", ["jobrake", "places", "fakesite", name])
+    assert cli.main() == status
+    printed = capsys.readouterr().out
+    assert (json.loads(printed) if printed else None) == out  # a failure prints nothing
+    assert err in caplog.text
+    assert [fetcher.closed for fetcher in fetchers] == [True]
+    monkeypatch.setattr(sys, "argv", ["jobrake", "places", "fakesite", " "])
+    with pytest.raises(SystemExit) as error:
+        cli.main()
+    assert error.value.code == 2
+
+
+def test_postings_command_renders_what_it_fetched(fake_site, fetchers, monkeypatch, capsys, caplog):
+    # two references to one posting, one gone, one failed and so absent
+    references = ["1", "https://fake.test/1", "gone", "failed"]
+    monkeypatch.setattr(sys, "argv", ["jobrake", "postings", "fakesite", *references])
     assert cli.main() is None
-    assert json.loads(capsys.readouterr().out) == hits
-    assert cli.main() is None
-    assert json.loads(capsys.readouterr().out) == []
-    # A failed lookup exits nonzero with nothing on stdout.
-    assert cli.main() == 1
-    assert capsys.readouterr().out == ""
-    assert len(created) == 3
-    assert all(f.closed for f in created)
-
-
-def test_postings_command_renders_what_it_fetched(monkeypatch, capsys, caplog):
-    calls = []
-
-    class StubHttpx:
-        async def close(self):
-            pass
-
-    async def fake_postings(fetcher, references, *, refresh):
-        calls.append((list(references), refresh))
-        if refresh:
-            return {"111": None}
-        # two references to one posting, one gone, one failed and so absent
-        return {"111": JOBS[0], "https://nl.linkedin.com/jobs/view/x-1": JOBS[0], "222": None}
-
-    monkeypatch.setattr(cli, "HttpxFetcher", StubHttpx)
-    monkeypatch.setattr(cli.linkedin, "postings", fake_postings)
-    references = ["111", "https://nl.linkedin.com/jobs/view/x-1", "222", "333"]
-    monkeypatch.setattr(sys, "argv", ["jobrake", "postings", "linkedin", *references])
-    assert cli.main() is None
-    assert json.loads(capsys.readouterr().out) == JOBS[:1]  # one record per posting
-    assert "222 is no longer on linkedin" in caplog.text
+    assert json.loads(capsys.readouterr().out) == [fake_site.job("1")]  # one record per posting
+    assert "gone is no longer on fakesite" in caplog.text
     # nothing fetched: the failures were already reported, so stdout stays empty
-    monkeypatch.setattr(sys, "argv", ["jobrake", "postings", "linkedin", "111", "--refresh"])
+    monkeypatch.setattr(sys, "argv", ["jobrake", "postings", "fakesite", "failed"])
     assert cli.main() == 1
     assert capsys.readouterr().out == ""
-    assert calls == [(references, False), (["111"], True)]
+    assert all(fetcher.closed for fetcher in fetchers)
 
 
-def test_provider_commands_dispatch_expected_options(monkeypatch):
+def test_site_commands_dispatch_their_options(monkeypatch):
     calls = []
 
     async def record(site, **kwargs):
@@ -137,54 +137,13 @@ def test_provider_commands_dispatch_expected_options(monkeypatch):
 
     monkeypatch.setattr(cli, "scrape", record)
     for argv in (
-        [
-            "indeed",
-            "--query",
-            "x",
-            "--country",
-            "usa",
-            "--location",
-            "Seattle",
-            "--radius",
-            "0",
-            "--results",
-            "3",
-            "--max-age",
-            "48",
-            "--company",
-            "fe219df7f711aa73",
-            "--remote",
-            "--language",
-            "EN",
-            "--attribute",
-            "3CQB7",
-            "--attribute",
-            "6QC5F",
-        ],
-        [
-            "linkedin",
-            "-q",
-            "x",
-            "-l",
-            "Seattle",
-            "--details",
-            "--refresh",
-            "--easy-apply",
-        ],
-        [
-            "linkedin",
-            "-q",
-            "",
-            "--geoid",
-            "12345",
-            "--radius",
-            "40",
-            "--company",
-            "1173",
-            "--company",
-            "2220078",
-            "--early-applicant",
-        ],
+        ["indeed", "--query", "x", "--country", "usa", "--location", "Seattle", "--radius", "0"],
+        ["indeed", "-q", "x", "-c", "usa", "-l", "Seattle", "-r", "0", "-n", "3", "-a", "48"],
+        ["indeed", "-q", "x", "-c", "usa", "--company-ids", "fe21", "--remote"],
+        ["indeed", "-q", "x", "-c", "usa", "--language", "EN", "--attributes", "3CQB7", "6QC5F"],
+        ["linkedin", "-q", "x", "-l", "Seattle", "-d", "--refresh", "--easy-apply"],
+        ["linkedin", "-q", "", "-g", "12345", "--company-ids", "1173", "--company-ids", "2220078"],
+        ["linkedin", "-q", "x", "-l", "Seattle", "--early-applicant", "--max-age-hours", "24"],
     ):
         monkeypatch.setattr(sys, "argv", ["jobrake", *argv])
         cli.main()
@@ -192,6 +151,7 @@ def test_provider_commands_dispatch_expected_options(monkeypatch):
     # Each site receives the options given on its command line, and its search
     # supplies the rest.
     assert calls == [
+        ("indeed", {"query": "x", "country": "usa", "location": "Seattle", "radius": 0}),
         (
             "indeed",
             {
@@ -201,11 +161,12 @@ def test_provider_commands_dispatch_expected_options(monkeypatch):
                 "radius": 0,
                 "results": 3,
                 "max_age_hours": 48,
-                "company_ids": ["fe219df7f711aa73"],
-                "remote": True,
-                "language": "EN",
-                "attributes": ["3CQB7", "6QC5F"],
             },
+        ),
+        ("indeed", {"query": "x", "country": "usa", "company_ids": ["fe21"], "remote": True}),
+        (
+            "indeed",
+            {"query": "x", "country": "usa", "language": "EN", "attributes": ["3CQB7", "6QC5F"]},
         ),
         (
             "linkedin",
@@ -217,20 +178,15 @@ def test_provider_commands_dispatch_expected_options(monkeypatch):
                 "easy_apply": True,
             },
         ),
+        ("linkedin", {"query": "", "geoid": "12345", "company_ids": ["1173", "2220078"]}),
         (
             "linkedin",
-            {
-                "query": "",
-                "geoid": "12345",
-                "radius": 40,
-                "company_ids": ["1173", "2220078"],
-                "early_applicant": True,
-            },
+            {"query": "x", "location": "Seattle", "early_applicant": True, "max_age_hours": 24},
         ),
     ]
 
 
-def test_invalid_provider_arguments_fail_before_scraping(monkeypatch):
+def test_invalid_site_arguments_fail_before_scraping(monkeypatch):
     async def must_not_run(*args, **kwargs):
         raise AssertionError("scrape ran with invalid CLI arguments")
 
@@ -238,14 +194,11 @@ def test_invalid_provider_arguments_fail_before_scraping(monkeypatch):
     for argv in (
         ["indeed", "-q", "x"],
         ["indeed", "-q", "x", "-c", "usa", "--easy-apply"],
-        ["indeed", "-q", "x", "-c", "usa", "--early-applicant"],
         ["companies", "indeed", "ABN AMRO"],
-        ["attributes", "indeed", "data scientist"],
         ["attributes", "linkedin", "data scientist"],
-        ["linkedin", "-q", "x", "-l", "Seattle", "--attribute", "3CQB7"],
+        ["linkedin", "-q", "x", "-l", "Seattle", "--attributes", "3CQB7"],
         ["linkedin", "-q", "x", "-l", "Seattle", "--detail"],
-        ["linkedin", "-q", "x", "-l", "Seattle", "--remote"],
-        ["linkedin", "-q", "x", "-l", "Seattle", "--language", "en"],
+        ["linkedin", "-q", "x", "-l", "Seattle", "--country", "usa"],
     ):
         monkeypatch.setattr(sys, "argv", ["jobrake", *argv])
         with pytest.raises(SystemExit):
@@ -334,18 +287,14 @@ def test_no_jobs_does_not_create_output(run_cli, monkeypatch, tmp_path):
     assert not out.exists()
 
 
-def test_closed_pipe_ends_quietly(run_cli, monkeypatch):
+def test_closed_pipe_ends_quietly(run_cli, fake_site, monkeypatch):
     read_end, write_end = os.pipe()
     os.close(read_end)
     with os.fdopen(write_end, "w") as stdout:
         monkeypatch.setattr(sys, "stdout", stdout)
         assert run_cli() == 1
 
-    async def fake_places(fetcher, name):
-        return [{"id": "1", "name": "A"}]
-
-    monkeypatch.setattr(cli.linkedin, "places", fake_places)
-    monkeypatch.setattr(sys, "argv", ["jobrake", "places", "linkedin", "a"])
+    monkeypatch.setattr(sys, "argv", ["jobrake", "places", "fakesite", "a"])
     read_end, write_end = os.pipe()
     os.close(read_end)
     with os.fdopen(write_end, "w") as stdout:
