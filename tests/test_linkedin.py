@@ -12,7 +12,7 @@ from urllib.parse import parse_qs, urlsplit
 import pytest
 from fakes import PagedFetcher, StubFetcher, network_down, not_found, ok, rate_limited
 
-from jobrake.cache import GEOIDS, POSTINGS, Cache
+from jobrake.cache import POSTINGS, Cache
 from jobrake.fetchkit import FetchResult, TokenBucket
 from jobrake.models import IDENTITY_FIELDS, JOB_FIELDS, SUMMARY_FIELDS
 from jobrake.sites import linkedin
@@ -549,7 +549,7 @@ def test_company_lookup_distinguishes_no_matches_from_failure(
     assert bool(caplog.records) is (expected is None)
 
 
-def test_places_lists_candidates_and_normalizes_cache_keys(unlimited, isolated_cache):
+def test_places_lists_usable_candidates_in_order(unlimited):
     hits = [
         {"id": "1", "displayName": "Amsterdam, North Holland, Netherlands", "type": "GEO"},
         {"id": "   ", "displayName": "Amsterdam Area"},
@@ -563,60 +563,10 @@ def test_places_lists_candidates_and_normalizes_cache_keys(unlimited, isolated_c
         {"geoId": "2", "displayName": "Amsterdam, New York, United States"},
         {"geoId": "4", "displayName": "Amsterdam North Holland Netherlands"},
     ]
-    cached = isolated_cache.get(
-        GEOIDS,
-        "linkedin",
-        [
-            "amsterdam",
-            "amsterdam,",
-            "amsterdam, north holland, netherlands",
-            "amsterdam north holland netherlands",
-            "amsterdam-netherlands",
-        ],
-    )
-    assert cached == {
-        "amsterdam": {
-            "geoId": "1",
-            "displayName": "Amsterdam, North Holland, Netherlands",
-        },
-        "amsterdam north holland netherlands": {
-            "geoId": "1",
-            "displayName": "Amsterdam, North Holland, Netherlands",
-        },
-    }
-    offline = StubFetcher({})
-    assert (
-        asyncio.run(linkedin.resolve_geoid(offline, "Amsterdam   New York United States!!!")) == "2"
-    )
-    assert offline.requests == []
+    assert "query=amsterdam%2C&" in fetcher.requests[0]
     with pytest.raises(ValueError, match="blank"):
         asyncio.run(linkedin.places(fetcher, "   "))
     assert len(fetcher.requests) == 1
-
-
-def test_resolve_geoid_takes_the_exact_name_then_the_top_hit(unlimited, caplog):
-    hits = json.dumps([{"id": "90009553", "displayName": "Groningen Metropolitan Area"}])
-    fetcher = StubFetcher({"typeaheadHits": ok(hits)})
-    assert asyncio.run(linkedin.resolve_geoid(fetcher, "groningen area")) == "90009553"
-    assert "query=groningen+area" in fetcher.requests[0]
-    # LinkedIn lists the province ahead of the city that shares its name.
-    ranked = json.dumps(
-        [
-            {"id": "100163908", "displayName": "Utrecht, Netherlands"},
-            {"id": "106623457", "displayName": "Utrecht, Utrecht, Netherlands"},
-        ]
-    )
-    city = "utrecht utrecht, netherlands"
-    online = StubFetcher({"typeaheadHits": ok(ranked)})
-    assert asyncio.run(linkedin.resolve_geoid(online, city)) == "106623457"
-    assert asyncio.run(linkedin.resolve_geoid(StubFetcher({}), city)) == "106623457"  # cached
-    with caplog.at_level(logging.WARNING, logger="jobrake.sites.linkedin"):
-        no_hits = StubFetcher({"typeaheadHits": ok("[]")})
-        assert asyncio.run(linkedin.resolve_geoid(no_hits, "atlantis")) is None
-        assert asyncio.run(linkedin.resolve_geoid(StubFetcher({}), "atlantis")) is None
-    with pytest.raises(ValueError, match="blank"):
-        asyncio.run(linkedin.resolve_geoid(StubFetcher({}), " ,,, "))
-    assert sum(record.levelno == logging.WARNING for record in caplog.records) == 2
 
 
 @pytest.mark.parametrize(
@@ -675,43 +625,20 @@ def test_paginated_search_preserves_filters(
         ("1173", TypeError),
     ],
 )
-def test_company_ids_are_validated_before_geoid_lookup(company_ids: Any, error):
+def test_company_ids_are_validated_before_any_request(company_ids: Any, error):
     fetcher = StubFetcher({})
     with pytest.raises(error, match="compan"):
         asyncio.run(
-            linkedin.search(
-                fetcher, query="", location="Netherlands", geoid=True, company_ids=company_ids
-            )
+            linkedin.search(fetcher, query="", location="Netherlands", company_ids=company_ids)
         )
     assert fetcher.requests == []
 
 
-def test_search_by_geoid_pins_the_request(unlimited):
-    place = json.dumps(
-        [{"id": "102011674", "displayName": "Amsterdam, North Holland, Netherlands"}]
-    )
-    fetcher = StubFetcher(
-        {"typeaheadHits": ok(place), "seeMoreJobPostings": ok(linkedin_card("111"))}
-    )
-    location = "Amsterdam, North Holland, Netherlands"
-    asyncio.run(linkedin.search(fetcher, query="x", location=location, results=1, geoid=True))
-    assert "geoId=102011674" in fetcher.requests[1]
+def test_search_by_geoid_needs_no_location(unlimited):
+    fetcher = StubFetcher({"seeMoreJobPostings": ok(linkedin_card("111"))})
     asyncio.run(linkedin.search(fetcher, query="x", results=1, geoid="12345"))
-    assert "geoId=12345" in fetcher.requests[2]
-    assert "location=" not in fetcher.requests[2]
-
-
-def test_search_with_geoid_returns_no_jobs_when_unresolved(unlimited, caplog):
-    fetcher = StubFetcher(
-        {"typeaheadHits": ok("[]"), "seeMoreJobPostings": ok(linkedin_card("111"))}
-    )
-    with caplog.at_level(logging.INFO, logger="jobrake.sites.linkedin"):
-        jobs = asyncio.run(linkedin.search(fetcher, query="x", location="Atlantis", geoid=True))
-    assert jobs == []
-    assert len(fetcher.requests) == 1  # the lookup request only
-    assert any("no jobs" in record.message for record in caplog.records)
-    assert any("searching linkedin" in record.message for record in caplog.records)
-    assert any("finished with 0 jobs" in record.message for record in caplog.records)
+    assert "geoId=12345" in fetcher.requests[0]
+    assert "location=" not in fetcher.requests[0]
 
 
 @pytest.mark.parametrize(
@@ -722,6 +649,7 @@ def test_search_with_geoid_returns_no_jobs_when_unresolved(unlimited, caplog):
         ({"location": "Seattle", "radius": -1}, "radius"),
         ({"location": "   "}, "location"),
         ({"geoid": ""}, "geoid"),
+        ({"geoid": "Amsterdam"}, "geoid"),
     ],
 )
 def test_linkedin_rejects_bad_arguments_before_any_request(kwargs, match):

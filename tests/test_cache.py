@@ -14,7 +14,7 @@ import pytest
 from hypothesis import example, given
 from hypothesis import strategies as st
 
-from jobrake.cache import _VERSIONS, GEOIDS, POSTINGS, RETENTION, TTL, Cache
+from jobrake.cache import _VERSIONS, ADDRESSES, POSTINGS, RETENTION, TTL, Cache
 
 POSTING = {"description": "Role", "applicants": 25}
 NOT_FINITE = st.sampled_from([math.nan, math.inf])
@@ -59,15 +59,15 @@ def test_sites_do_not_collide(make_cache):
     assert cache.get(POSTINGS, "indeed", ["111"]) == {}
 
 
-def test_tombstones_and_geoids_outlive_the_freshness_period(make_cache):
+def test_tombstones_and_addresses_outlive_the_freshness_period(make_cache):
     cache = make_cache()
     cache.put(POSTINGS, "linkedin", {"111": POSTING, "222": None})
-    place = {"geoId": "7", "displayName": "Enschede, Overijssel, Netherlands"}
-    cache.put(GEOIDS, "linkedin", {"enschede": place})
+    address = {"url": "https://nl.linkedin.com/jobs/view/economist-at-acme-111"}
+    cache.put(ADDRESSES, "linkedin", {"111": address})
     age_rows(cache, TTL + 1)
-    run_sql(cache, "UPDATE geoids SET stored_at = stored_at - ?", (TTL + 1,))
+    run_sql(cache, "UPDATE addresses SET stored_at = stored_at - ?", (TTL + 1,))
     assert cache.get(POSTINGS, "linkedin", ["111", "222"]) == {"222": None}
-    assert cache.get(GEOIDS, "linkedin", ["enschede"]) == {"enschede": place}
+    assert cache.get(ADDRESSES, "linkedin", ["111"]) == {"111": address}
 
 
 def test_retention_ends_tombstones_and_purges_posting_rows(make_cache):
@@ -202,17 +202,16 @@ def test_rows_of_another_format_are_invisible(make_cache):
 
 
 def test_table_versions_are_independent(make_cache, monkeypatch):
-    # Place resolutions cost paced requests, so a reworked posting parser leaves
-    # them in place.
-    place = {"geoId": "102011674"}
+    # Addresses cost paced requests, so a reworked posting parser leaves them in place.
+    address = {"url": "https://nl.linkedin.com/jobs/view/economist-at-acme-111"}
     cache = make_cache()
     cache.put(POSTINGS, "linkedin", {"111": POSTING})
-    cache.put(GEOIDS, "linkedin", {"enschede": place})
+    cache.put(ADDRESSES, "linkedin", {"111": address})
 
     monkeypatch.setitem(_VERSIONS, POSTINGS, _VERSIONS[POSTINGS] + 1)
     moved_on = make_cache()
     assert moved_on.get(POSTINGS, "linkedin", ["111"]) == {}
-    assert moved_on.get(GEOIDS, "linkedin", ["enschede"]) == {"enschede": place}
+    assert moved_on.get(ADDRESSES, "linkedin", ["111"]) == {"111": address}
 
 
 def test_a_table_from_an_older_jobrake_is_rebuilt(make_cache):

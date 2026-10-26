@@ -290,7 +290,7 @@ async def search(
     max_age_hours: int | None = defaults.MAX_AGE_HOURS,
     details: bool = defaults.DETAILS,  # noqa: ARG001  shared signature; Indeed results carry their details
     cache: bool = defaults.CACHE,  # noqa: ARG001  shared signature; Indeed is not cached
-    geoid: str | bool = defaults.GEOID,
+    geoid: str | None = None,
     company_ids: list[str] | None = None,
     employer_key: str | None = None,
     remote: bool = False,

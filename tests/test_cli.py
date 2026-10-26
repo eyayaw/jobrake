@@ -187,7 +187,6 @@ def test_provider_commands_dispatch_expected_options(monkeypatch):
             "Seattle",
             "--details",
             "--no-cache",
-            "--geoid",
             "--easy-apply",
         ],
         [
@@ -236,7 +235,7 @@ def test_provider_commands_dispatch_expected_options(monkeypatch):
                 "max_age_hours": defaults.MAX_AGE_HOURS,
                 "details": True,
                 "cache": False,
-                "geoid": True,
+                "geoid": None,
                 "company_ids": None,
                 "easy_apply": True,
                 "early_applicant": False,
@@ -286,7 +285,7 @@ def test_invalid_provider_arguments_fail_before_scraping(monkeypatch):
 @pytest.mark.parametrize(
     ("argv", "message"),
     [
-        (["linkedin", "--geoid"], "location is required unless geoid is an ID"),
+        (["linkedin"], "location is required without a geoid"),
         (["indeed", "-c", "atlantis"], "unknown Indeed country 'atlantis'"),
     ],
 )

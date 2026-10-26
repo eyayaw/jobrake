@@ -1,4 +1,4 @@
-"""SQLite cache for posting fields, posting addresses, and LinkedIn place resolutions."""
+"""SQLite cache for posting fields and posting addresses."""
 
 import contextlib
 import json
@@ -17,19 +17,17 @@ logger = logging.getLogger(__name__)
 POSTINGS = "postings"
 # A posting's canonical URL, kept after its fields expire.
 ADDRESSES = "addresses"
-GEOIDS = "geoids"
 TTL = 7 * 24 * 3600  # seconds
 # Startup deletes posting rows past retention, tombstones included.
 RETENTION = 30 * 24 * 3600
 
 # Each table version identifies the field set and parsing of its rows.
 # Bump the affected version when either changes. Reads select only that version,
-# so a posting version change leaves the cached addresses and geoids intact.
+# so a posting version change leaves the cached addresses intact.
 # Fetching those again costs paced requests.
 _VERSIONS = {
     POSTINGS: 0,
     ADDRESSES: 0,
-    GEOIDS: 1,
 }
 _TABLES = tuple(_VERSIONS)
 
@@ -37,7 +35,7 @@ _SCHEMA = """
 CREATE TABLE IF NOT EXISTS {table} (
     version INTEGER NOT NULL,
     site TEXT NOT NULL,
-    -- A posting ID, or a normalized place name in geoids.
+    -- A posting ID.
     key TEXT NOT NULL,
     -- The stored JSON object. NULL marks a posting confirmed gone.
     fields TEXT,
@@ -98,12 +96,12 @@ def _table_name(table: str) -> str:
 
 class Cache:
     """
-    Store postings, their addresses, and LinkedIn place resolutions in SQLite tables.
+    Store postings and their addresses in SQLite tables.
 
     Posting values expire after ``ttl`` seconds and are deleted after
     ``retention`` seconds. A posting tombstone lasts ``retention`` seconds, so
-    a posting once reported gone is requested again after that. Addresses and
-    geoId resolutions do not expire. A storage or decoding failure logs once and
+    a posting once reported gone is requested again after that. Addresses do
+    not expire. A storage or decoding failure logs once and
     disables this instance. Callers receive misses and continue scraping. A
     site keeps its own keys separate within each table, and each table's
     stored format version keeps values apart from those an earlier field set
@@ -200,7 +198,7 @@ class Cache:
         """
         Read values for the requested keys in one table and site.
 
-        Posting values honor ``ttl``. Address and geoId values do not expire.
+        Posting values honor ``ttl``. Address values do not expire.
         A ``None`` posting value is a tombstone marking the posting as gone,
         returned until it is ``retention`` seconds old.
         Missing keys are stale, absent, or malformed rows.

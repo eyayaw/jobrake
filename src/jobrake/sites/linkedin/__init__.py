@@ -11,7 +11,7 @@ from .client import (
     job_id,
 )
 from .companies import companies
-from .geo import places, resolve_geoid
+from .geo import places
 from .postings import FRAGMENT_URL, fetch_details, fetch_postings, parse_posting
 from .search import MAX_START, parse_cards, search
 
@@ -39,6 +39,5 @@ __all__ = [
     "parse_cards",
     "parse_posting",
     "places",
-    "resolve_geoid",
     "search",
 ]

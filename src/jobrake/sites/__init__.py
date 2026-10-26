@@ -25,7 +25,7 @@ async def scrape(
     max_age_hours: int | None = defaults.MAX_AGE_HOURS,
     details: bool = defaults.DETAILS,
     cache: bool = defaults.CACHE,
-    geoid: str | bool = defaults.GEOID,
+    geoid: str | None = None,
     company_ids: list[str] | None = None,
     employer_key: str | None = None,
     remote: bool = False,
@@ -41,7 +41,7 @@ async def scrape(
     Both providers take ``query``, ``location``, ``radius`` in kilometers, ``results``, and ``max_age_hours``.
     Searches cover the past seven days by default, and ``max_age_hours=None`` lifts the age limit.
     Indeed requires ``country`` and applies ``employer_key``, ``remote``, ``language``, and ``attributes``.
-    LinkedIn requires a ``location`` or a geoId string and applies ``geoid``, ``company_ids``, ``easy_apply``, ``early_applicant``, ``details``, and ``cache``.
+    LinkedIn requires a ``location`` or a ``geoid`` and applies ``geoid``, ``company_ids``, ``easy_apply``, ``early_applicant``, ``details``, and ``cache``.
     Each provider's ``search`` documents the values its options accept.
 
     One signature covers both providers, so a caller can send the same options

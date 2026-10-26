@@ -94,11 +94,8 @@ def _add_linkedin_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--geoid",
         "-g",
-        nargs="?",
-        const=True,
-        default=defaults.GEOID,
         metavar="ID",
-        help="search by geoId: resolve --location through LinkedIn's place lookup, or send ID as given",
+        help="LinkedIn place ID from 'jobrake places linkedin', in place of --location",
     )
     parser.add_argument(
         "--radius",

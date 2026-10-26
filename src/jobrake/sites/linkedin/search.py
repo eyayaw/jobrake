@@ -12,7 +12,6 @@ from jobrake.models import JobDict, make_job
 from jobrake.utils import check_bounds, check_filters, check_text
 
 from .client import SEARCH_URL, job_id, paced_fetch
-from .geo import resolve_geoid
 from .postings import fetch_postings
 
 logger = logging.getLogger(__name__)
@@ -118,7 +117,7 @@ async def search(
     max_age_hours: int | None = defaults.MAX_AGE_HOURS,
     details: bool = defaults.DETAILS,
     cache: bool = defaults.CACHE,
-    geoid: str | bool = defaults.GEOID,
+    geoid: str | None = None,
     company_ids: list[str] | None = None,
     employer_key: str | None = None,
     remote: bool = False,
@@ -130,9 +129,8 @@ async def search(
     """
     Search LinkedIn's login-free guest endpoint.
 
-    A geoId string names the search area and makes ``location`` optional.
+    ``geoid``, a place ID from :func:`places`, names the search area and makes ``location`` optional.
     Otherwise ``location`` is required and works best with a region and country.
-    ``geoid=True`` resolves ``location`` through :func:`resolve_geoid`, and a failed resolution returns no jobs with a warning.
     ``radius`` is in kilometers and reaches LinkedIn's undocumented ``distance`` parameter as whole miles.
     A search by geoId ignores the radius for some places.
     ``company_ids`` lists numeric employer IDs. ``easy_apply`` keeps jobs with the Easy Apply form,
@@ -152,15 +150,13 @@ async def search(
 
     Raises:
         TypeError: An argument LinkedIn applies has the wrong type.
-        ValueError: The location is missing or blank, the geoId is blank, a numeric option
-            is out of range, or a company ID uses characters other than digits 0-9.
+        ValueError: The location is missing or blank, a numeric option is out of range,
+            or the geoid or a company ID uses characters other than digits 0-9.
     """
     check_text(query=query, location=location)
-    # A Boolean geoid searches by the location text or resolves it to a geoId.
-    if isinstance(geoid, bool) and (location is None or not location.strip()):
+    if geoid is None and (location is None or not location.strip()):
         raise ValueError(
-            "location is required unless geoid is an ID. "
-            "Try 'Amsterdam, North Holland, Netherlands'"
+            "location is required without a geoid. Try 'Amsterdam, North Holland, Netherlands'"
         )
     check_bounds(results=results, radius=radius, max_age_hours=max_age_hours)
     check_filters(
@@ -174,30 +170,15 @@ async def search(
         easy_apply=easy_apply,
         early_applicant=early_applicant,
     )
-    if isinstance(geoid, str):
-        geoid = geoid.strip()
     if location:
         logger.info("searching linkedin for %r in %r", query, location)
     else:
         logger.info("searching linkedin for %r with geoId %s", query, geoid)
-    if geoid is True:
-        assert location is not None
-        resolved = await resolve_geoid(fetcher, location)
-        if resolved is None:
-            # A requested geoId must resolve before the search begins.
-            logger.warning(
-                "returning no jobs: %r did not resolve to a geoId. "
-                "Search without geoid to use the location text",
-                location,
-            )
-            logger.info("linkedin search finished with 0 jobs")
-            return []
-        geoid = resolved
     params: dict[str, object] = {
         "keywords": query,
         "location": location or None,
         # A geoId outranks LinkedIn's own geocoding of the location text.
-        "geoId": geoid or None,
+        "geoId": geoid,
         # LinkedIn names its radius parameter ``distance`` and reads it in miles.
         "distance": None if radius is None else round(radius / KM_PER_MILE),
         "f_TPR": f"r{max_age_hours * 3600}" if max_age_hours else None,

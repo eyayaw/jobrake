@@ -133,13 +133,16 @@ def check_employer_key(name: str, value: object) -> None:
 
 
 def check_geoid(name: str, value: object) -> None:
-    """Require a nonblank geoId string or a Boolean."""
-    if isinstance(value, bool):
+    """Require a LinkedIn geoId of digits 0-9 when supplied."""
+    if value is None:
         return
     if not isinstance(value, str):
-        raise TypeError(f"{name} must be an ID string or a boolean, got {value!r}")
-    if not value.strip():
-        raise ValueError(f"{name} is blank")
+        raise TypeError(f"{name} must be a string, got {value!r}")
+    if not (value.isascii() and value.isdigit()):
+        raise ValueError(
+            f"{name} {value!r} must use digits 0-9, such as '102011674'. "
+            "Find IDs with 'jobrake places linkedin NAME'"
+        )
 
 
 # Each filter names the providers that apply it and the check each one runs.
