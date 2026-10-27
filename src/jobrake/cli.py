@@ -282,7 +282,7 @@ def _settle_output(parser: _ArgumentParser, args: argparse.Namespace) -> str:
     if args.format:
         fmt = args.format
     elif args.output:
-        fmt = args.output.suffix.removeprefix(".")
+        fmt = args.output.suffix.removeprefix(".").lower()
     else:
         fmt = "json"
     if fmt not in RENDERERS:

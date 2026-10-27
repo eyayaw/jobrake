@@ -358,7 +358,7 @@ def test_output_csv_roundtrips_hostile_fields(run_cli, tmp_path, capsys):
 
 
 def test_output_jsonl_one_object_per_line(run_cli, tmp_path):
-    out = tmp_path / "jobs.jsonl"
+    out = tmp_path / "jobs.JSONL"  # the extension picks the format whatever its case
     run_cli("-o", str(out))
     lines = out.read_text(encoding="utf-8").splitlines()
     # A leaked raw newline in a description would break the per-line parse.
