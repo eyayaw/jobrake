@@ -182,10 +182,8 @@ def _finite_value(value: object) -> float | None:
 
 def _parse_job(job: dict[str, Any], base_url: str) -> JobDict:
     """Normalize one Indeed result into the shared job model."""
-    key = job["key"].strip() if isinstance(job["key"], str) else ""
     # Indeed's job key becomes both the job ID and the URL's ``jk`` parameter.
-    if not key:
-        raise TypeError(f"job key {job['key']!r} is blank or not a string")
+    key = (_string_value(job["key"]) or "").strip()
     loc = _dict_value(job.get("location"))
     city = _string_value(loc.get("city"))
     region = _string_value(loc.get("admin1Code"))

@@ -63,13 +63,17 @@ def make_job(**fields: Any) -> JobDict:
     the calendar date of the given ``date``, falling back to ``posted_at``.
 
     Raises:
-        TypeError: An identity field is missing, or a field is not a ``JobDict`` key.
+        TypeError: An identity field is missing, blank, or not a string, or a
+            field is not a ``JobDict`` key.
     """
     if unknown := fields.keys() - set(JOB_FIELDS):
         raise TypeError(f"not a job field: {', '.join(sorted(unknown))}")
-    if missing := [name for name in IDENTITY_FIELDS if name not in fields]:
-        raise TypeError(f"missing job field: {', '.join(missing)}")
-    job: dict[str, Any] = {name: (fields[name] or "").strip() for name in IDENTITY_FIELDS}
+    job: dict[str, Any] = {}
+    for name in IDENTITY_FIELDS:
+        value = fields.get(name)
+        if not isinstance(value, str) or not value.strip():
+            raise TypeError(f"job field {name} must be a nonblank string, got {value!r}")
+        job[name] = value.strip()
     for name in SUMMARY_FIELDS:
         value = fields.get(name)
         job[name] = (value.strip() or None) if isinstance(value, str) else None

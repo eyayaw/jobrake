@@ -49,5 +49,6 @@ def test_make_job_rejects_a_record_outside_job_dict():
     # A cached row from an older field set must fail here rather than reach callers.
     with pytest.raises(TypeError, match="headcount"):
         make_job(site="linkedin", id="1", url="u", headcount=4)
-    with pytest.raises(TypeError, match="url"):
-        make_job(site="linkedin", id="1")
+    for identity in ({"id": "1"}, {"id": 1, "url": "u"}, {"id": " ", "url": "u"}):
+        with pytest.raises(TypeError, match="must be a nonblank string"):
+            make_job(site="linkedin", **identity)
