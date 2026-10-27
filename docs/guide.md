@@ -582,7 +582,7 @@ jobrake spreads its requests over the three data centers that answered in our te
 If LinkedIn stops routing requests to a data center that jobrake names, jobrake looks for another with requests 2.5 seconds apart.
 Within one process, jobrake keeps each data center under the limit we measured, unless LinkedIn moves a request to another data center, which can cost one retry.
 Each process has its own limiter, so concurrent runs on the same IP can reach the limit sooner.
-LinkedIn requests carry only the data-center cookie, so cookies seeded on the fetcher reach LinkedIn only when it redirects a request.
+LinkedIn requests carry only the data-center cookie, so a custom fetcher's own cookies reach LinkedIn only when it redirects a request.
 
 LinkedIn refuses some requests whatever the pace, up to a quarter of them in our tests.
 jobrake retries a 429 up to three times, first on the other data centers and then after a 12-second wait.
@@ -599,6 +599,7 @@ Indeed is not cached.
 A cached posting stays fresh for seven days and is fetched again after that. A posting that LinkedIn reports gone is not cached.
 Pass `--refresh` or `refresh=True` to refetch every posting and refresh its cached copy.
 An upgrade keeps the cache, and a posting whose cached copy no longer fits the job fields is fetched again.
+A release that reads posting pages better reaches a cached posting when it expires. Pass `--refresh` to apply it at once.
 
 Two environment variables configure the cache:
 

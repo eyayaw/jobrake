@@ -73,7 +73,9 @@ the CLI, and the contract test in `tests/test_scrape.py` need no edit.
   three times.
 - The cache is transparent. It stores the whole `JobDict` of each fetched
   LinkedIn posting, rows carry no version, and each row read passes through
-  `make_job`, so a row that no longer fits is a miss. `refresh` skips reads.
+  `make_job`, so a row whose keys no longer fit `JobDict` is a miss. Values
+  go unchecked, so a parser fix reaches a cached posting when its row
+  expires, or at once with `refresh`, which skips reads.
   `JOBRAKE_CACHE_PATH` and `JOBRAKE_CACHE_TTL` configure it. Indeed is
   neither paced nor cached.
 - Library code logs under the `jobrake` logger and prints nothing. The CLI
