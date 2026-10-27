@@ -600,7 +600,7 @@ A cached posting stays fresh for seven days and is fetched again after that. A p
 An upgrade keeps the cache, and a posting whose cached copy no longer fits the job fields is fetched again.
 A release that reads posting pages better reaches a cached posting when it expires.
 
-To refetch every posting at once, delete `jobrake.sqlite3` from the cache directory.
+To refetch every posting at once, move `jobrake.sqlite3` out of the cache directory, or delete it.
 To bypass the cache for one run, point `JOBRAKE_CACHE_PATH` at a new file:
 
 ```sh
