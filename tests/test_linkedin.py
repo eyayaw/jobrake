@@ -1175,6 +1175,7 @@ def test_postings_resolve_an_id_before_fetching_the_page(unlimited):
         "https://example.test/private-123",  # another site's page ending in digits
         "https://nl.linkedin.com/company/acme-111",  # linkedin, but not a posting
         "ftp://nl.linkedin.com/jobs/view/economist-at-acme-111",  # not a web address
+        "https://nl.linkedin.com/jobs/view/economist-at-acme-\uff11\uff11\uff11",  # fullwidth digits
         "   ",  # a blank argument, which names nothing at all
     ],
 )

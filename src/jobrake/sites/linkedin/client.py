@@ -207,8 +207,13 @@ async def _fetch_on_turn(fetcher: Fetcher, url: str, tried: set[str]) -> FetchRe
     return result
 
 
+def numeric(text: str) -> bool:
+    """Tell whether text is all digits 0-9, as a LinkedIn ID is. ``isdigit`` alone accepts any script's."""
+    return text.isascii() and text.isdigit()
+
+
 def job_id(url: str) -> str:
     """Extract a numeric posting ID, using ``""`` when the URL has none."""
     slug = urlsplit(url).path.rstrip("/").rsplit("/", 1)[-1]
     tail = slug.rsplit("-", 1)[-1]
-    return tail if tail.isdigit() else ""
+    return tail if numeric(tail) else ""

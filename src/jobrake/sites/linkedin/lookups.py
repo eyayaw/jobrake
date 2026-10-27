@@ -19,7 +19,7 @@ def _candidate(hit: object) -> dict[str, str] | None:
     if not (isinstance(hit_id, str) and isinstance(display, str)):
         return None
     hit_id, display = hit_id.strip(), display.strip()
-    if not (hit_id.isascii() and hit_id.isdigit() and display):
+    if not (client.numeric(hit_id) and display):
         return None
     return {"id": hit_id, "name": display}
 

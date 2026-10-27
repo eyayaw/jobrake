@@ -16,7 +16,7 @@ from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, employment_type, make_job
 from jobrake.utils import checked, html_text
 
-from .client import job_id, paced_fetch
+from .client import job_id, numeric, paced_fetch
 
 logger = logging.getLogger(__name__)
 
@@ -389,7 +389,7 @@ def _reference(reference: str) -> tuple[str, str | None]:
             LinkedIn posting URL.
     """
     ref = reference.strip()
-    if ref.isascii() and ref.isdigit():
+    if numeric(ref):
         return ref, None
     posting_id = job_id(ref)
     if not (posting_id and _posting_url(ref, posting_id, _REFERENCE_PATHS)):

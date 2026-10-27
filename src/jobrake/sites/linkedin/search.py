@@ -11,7 +11,7 @@ from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, Stopped, make_job
 from jobrake.utils import checked
 
-from .client import SEARCH_URL, job_id, paced_fetch
+from .client import SEARCH_URL, job_id, numeric, paced_fetch
 from .pages import fetch_pages
 
 logger = logging.getLogger(__name__)
@@ -145,13 +145,13 @@ async def search(
         raise ValueError(
             "location is required without a geoid. Try 'Amsterdam, North Holland, Netherlands'"
         )
-    if geoid is not None and not (geoid.isascii() and geoid.isdigit()):
+    if geoid is not None and not numeric(geoid):
         raise ValueError(
             f"geoid {geoid!r} must use digits 0-9, such as '102011674'. "
             "Find IDs with 'jobrake linkedin places NAME'"
         )
     for company in company_ids or []:
-        if not (company.isascii() and company.isdigit()):
+        if not numeric(company):
             raise ValueError(
                 f"company ID {company!r} must use digits 0-9, such as '1173'. "
                 "Find IDs with 'jobrake linkedin companies NAME'"
