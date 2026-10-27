@@ -306,7 +306,7 @@ def _check_filters(
 async def search(
     fetcher: Fetcher,
     *,
-    query: Annotated[str, "job title or keywords"],
+    query: Annotated[str, "job title or keywords"] = "",
     country: Country,
     location: Annotated[str | None, "city or area within the country"] = None,
     radius: Annotated[int, "search radius in kilometers"] = 40,

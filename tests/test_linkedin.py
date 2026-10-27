@@ -616,15 +616,13 @@ def test_paginated_search_preserves_filters(
 def test_company_ids_are_validated_before_any_request(company_ids):
     fetcher = StubFetcher({})
     with pytest.raises(ValueError, match="company ID"):
-        asyncio.run(
-            linkedin.search(fetcher, query="", location="Netherlands", company_ids=company_ids)
-        )
+        asyncio.run(linkedin.search(fetcher, location="Netherlands", company_ids=company_ids))
     assert fetcher.requests == []
 
 
-def test_search_by_geoid_needs_no_location(unlimited):
+def test_search_by_geoid_needs_no_location_or_query(unlimited):
     fetcher = StubFetcher({"seeMoreJobPostings": ok(linkedin_card("111"))})
-    asyncio.run(linkedin.search(fetcher, query="x", results=1, geoid="12345"))
+    asyncio.run(linkedin.search(fetcher, results=1, geoid="12345"))
     assert "geoId=12345" in fetcher.requests[0]
     assert "location=" not in fetcher.requests[0]
 

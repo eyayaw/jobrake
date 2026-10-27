@@ -105,7 +105,7 @@ async def _collect_pages(
 async def search(
     fetcher: Fetcher,
     *,
-    query: Annotated[str, "job title or keywords"],
+    query: Annotated[str, "job title or keywords"] = "",
     location: Annotated[str | None, "place, preferably with region and country"] = None,
     geoid: Annotated[str | None, "LinkedIn place ID, in place of a location"] = None,
     radius: Annotated[int | None, "search radius in kilometers"] = None,

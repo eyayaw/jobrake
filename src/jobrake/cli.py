@@ -131,7 +131,7 @@ def _add_options(parser: argparse.ArgumentParser, function: Callable[..., object
             flags.append(_SHORT_FLAGS[name])
         required = option.default is inspect.Parameter.empty
         help_text = option.help
-        if option.default not in (None, False, inspect.Parameter.empty):
+        if option.default not in (None, False, "", inspect.Parameter.empty):
             help_text += f" (default: {option.default})"
         # An omitted flag leaves the option to the site function's own default.
         settings: dict[str, Any] = {"default": argparse.SUPPRESS, "help": help_text}

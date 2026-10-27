@@ -198,14 +198,14 @@ Use the selected key to restrict job results to that employer:
 
 ```sh
 jobrake indeed -c Netherlands -q "data scientist" --company-ids 8e8f030e53ea29e4
-jobrake indeed -c Netherlands -q "" --company-ids 8e8f030e53ea29e4
+jobrake indeed -c Netherlands --company-ids 8e8f030e53ea29e4
 ```
 
-This key selects _Booking.com_. An empty query searches its postings without keywords.
+This key selects _Booking.com_. Without `-q`, the search covers its postings without keywords.
 For a library search, pass `company_ids=["8e8f030e53ea29e4"]` to `scrape()`.
 
 > [!TIP]
-> Use `-q ""` to search without keywords, works for both Indeed and LinkedIn.
+> Leave out `-q` to search without keywords, works for both Indeed and LinkedIn.
 > One good use case is searching for openings from a certain company.
 
 Indeed intersects the keys it receives, so a search takes one employer key and rejects more.
@@ -273,7 +273,7 @@ job postings at that company. Unlike with Indeed, here we can provide several em
 
 ```sh
 jobrake linkedin -l "Netherlands" -q "data scientist" --company-ids 11348
-jobrake linkedin -l "Netherlands" -q "" --company-ids 11348 215713
+jobrake linkedin -l "Netherlands" --company-ids 11348 215713
 ```
 
 These IDs select _Booking.com_ and _ING Nederland_. For a library search, pass
