@@ -129,10 +129,10 @@ async def search(
     ``details`` hydrates posting pages, reusing cached copies unless ``refresh`` is set.
     The caller owns ``fetcher``.
 
-    Search requests share the process-wide limiter. The guest endpoint serves about
-    ten cards per page and stops at offset ``MAX_START``, limiting one search
-    to roughly 1,000 cards. Results retain guest-search order and stop at
-    ``results``.
+    Search requests share the process-wide fabric pacing. The guest endpoint
+    serves about ten cards per page and stops at offset ``MAX_START``,
+    limiting one search to roughly 1,000 cards. Results retain guest-search
+    order and stop at ``results``.
 
     Raises:
         Stopped: A request failed after its retries, or a posting's details

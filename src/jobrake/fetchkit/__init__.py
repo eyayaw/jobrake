@@ -1,7 +1,6 @@
-"""Async HTTP transport, result type, and request pacing."""
+"""Async HTTP transport and result type."""
 
 from .httpx import HttpxFetcher
-from .limiter import TokenBucket
 from .types import Fetcher, FetchResult
 
-__all__ = ["FetchResult", "Fetcher", "HttpxFetcher", "TokenBucket"]
+__all__ = ["FetchResult", "Fetcher", "HttpxFetcher"]

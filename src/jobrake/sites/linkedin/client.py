@@ -7,7 +7,7 @@ from math import inf
 from time import monotonic
 from urllib.parse import urlsplit
 
-from jobrake.fetchkit import Fetcher, FetchResult, TokenBucket
+from jobrake.fetchkit import Fetcher, FetchResult
 
 logger = logging.getLogger(__name__)
 
@@ -46,19 +46,18 @@ HEADERS = {
 # the least recently used fabric. When a pin drops, it sends requests without
 # the cookie to learn a replacement. If LinkedIn starts ignoring these
 # cookies, their pins drop the same way.
-# One pacer at PACE / number of fabrics spaces the requests, which gives each
-# fabric PACE between its requests while the fabrics take turns. A retry
+# pick opens a turn every PACE / number of fabrics, which gives each fabric
+# PACE between its requests while the fabrics take turns. A retry
 # skips the fabrics it tried, so it can reach a fabric before that fabric's
 # turn. pick therefore keeps each fabric's latest send time, and a request
 # that reaches a fabric early waits for the rest of PACE.
 # A request that LinkedIn reroutes to another fabric lands there out of turn
-# and can put one request too many in that fabric's window. The pacer
+# and can put one request too many in that fabric's window. The pool
 # coordinates this process only; LinkedIn counts every process on the IP.
 FABRICS = {"prod-lor1": '"b=OGST02"', "prod-ltx1": '"b=TGST02"', "prod-lva1": '"b=VGST02"'}
 PACE = 2.5  # seconds between requests to one fabric: five per window, 1 s to spare
 FABRICS_WANTED = len(FABRICS)  # distinct fabrics to look for before every request is pinned
 DISCOVERY = 12  # unpinned requests to spend looking for them
-LIMITER = TokenBucket(capacity=1, refill_interval=PACE)
 # In our runs, LinkedIn refused up to a quarter of requests however slow the
 # pace, and every such refusal passed on a retry. A request is therefore
 # retried this many times before its 429 counts as persistent.
@@ -82,6 +81,9 @@ class Fabrics:
         self.known: dict[str, str] = dict(FABRICS)
         self.unpinned = 0
         self.sent: dict[str, float] = {}  # monotonic time of each fabric's latest send
+        # A pinned send opens the next turn PACE / len(known) later. An unpinned
+        # one may land on any fabric, so the next turn waits a full PACE.
+        self.next_turn = -inf
 
     def discovering(self) -> bool:
         """Whether this pool still looks for fabrics with unpinned requests."""
@@ -97,21 +99,24 @@ class Fabrics:
         PACE old. Otherwise pick chooses the least recently used known fabric
         outside ``tried``, or of all known fabrics once the request has tried
         each one, and waits until that fabric's latest request is PACE old.
-        With no wait, pick records the send and adds the fabric to ``tried``.
+        Either way it also waits for the next turn. With no wait, pick records
+        the send, opens the next turn, and adds the fabric to ``tried``.
         """
         now = monotonic()
         fresh = [name for name in self.known if name not in tried]
         if self.discovering() and not (tried and fresh):
-            wait = max(self.sent.values(), default=-inf) + PACE - now
+            wait = max(self.next_turn, max(self.sent.values(), default=-inf) + PACE) - now
             if wait > 0:
                 return None, wait
             self.unpinned += 1
+            self.next_turn = now + PACE
             return None, 0.0
         name = min(fresh or list(self.known), key=lambda name: self.sent.get(name, -inf))
-        wait = self.sent.get(name, -inf) + PACE - now
+        wait = max(self.next_turn, self.sent.get(name, -inf) + PACE) - now
         if wait > 0:
             return name, wait
         self.sent[name] = now
+        self.next_turn = now + PACE / len(self.known)
         tried.add(name)
         return name, 0.0
 
@@ -179,19 +184,16 @@ async def paced_fetch(fetcher: Fetcher, url: str) -> FetchResult:
 
 async def _fetch_on_turn(fetcher: Fetcher, url: str, tried: set[str]) -> FetchResult:
     """Send one paced request on the fabric ``POOL.pick`` chooses for ``tried``."""
-    # The fabric is chosen after the pacer admits the request, so concurrent
-    # callers take turns in the order they send. The interval set here
-    # paces the next request.
+    # pick records a send before any await, so concurrent callers never
+    # share a turn.
     while True:
-        await LIMITER.acquire()
         fabric, wait = POOL.pick(tried)
         if not wait:
             break
-        # A request that must wait gives up its turn and takes a new one
-        # afterward. Waiters that wake together, after an event loop stall or
-        # when a dropped pin starts discovery, then leave one turn at a time.
+        # A request that must wait asks again afterward. Waiters that wake
+        # together, after an event loop stall or when a dropped pin starts
+        # discovery, then leave one turn at a time: the first to ask takes it.
         await asyncio.sleep(wait)
-    LIMITER.refill_interval = PACE / len(POOL.known) if fabric else PACE
     # An explicit Cookie header replaces the jar's cookies for this request.
     # httpx sends the jar's cookies on a redirect hop instead.
     headers = HEADERS | {"cookie": f"lidc={POOL.known[fabric]}" if fabric else "lidc="}

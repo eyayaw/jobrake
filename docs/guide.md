@@ -581,7 +581,7 @@ LinkedIn limits guest traffic per IP and per data center, and pins a client to o
 jobrake spreads its requests over the three data centers that answered in our tests and sends about one request per second.
 If LinkedIn stops routing requests to a data center that jobrake names, jobrake looks for another with requests 2.5 seconds apart.
 Within one process, jobrake keeps each data center under the limit we measured, unless LinkedIn moves a request to another data center, which can cost one retry.
-Each process has its own limiter, so concurrent runs on the same IP can reach the limit sooner.
+Each process paces only its own requests, so concurrent runs on the same IP can reach the limit sooner.
 LinkedIn requests carry only the data-center cookie, so a custom fetcher's own cookies reach LinkedIn only when it redirects a request.
 
 LinkedIn refuses some requests whatever the pace, up to a quarter of them in our tests.

@@ -22,8 +22,7 @@ API, and it depends on `httpx` and `bs4`.
   site function, `checked`, which checks every call against them, and the
   text and date helpers.
 - `models.py`: `JobDict`, `make_job`, and `Stopped`.
-- `fetchkit/`: the `Fetcher` protocol, `FetchResult`, `HttpxFetcher`, and
-  `TokenBucket`.
+- `fetchkit/`: the `Fetcher` protocol, `FetchResult`, and `HttpxFetcher`.
 - `cache.py`: one SQLite table of `JobDict` records keyed by site and ID, and
   the shared `CACHE`.
 - `cli.py` builds every subcommand from `SITES`, and `io.py` renders JSON,
@@ -69,8 +68,7 @@ the CLI, and the contract test in `tests/test_scrape.py` need no edit.
 - The transport is the caller's. Code takes a `Fetcher` and leaves it open,
   and the caller that created it closes it. LinkedIn requests go through
   `paced_fetch`, which pins requests to LinkedIn's data centers in turn,
-  paces them with one token bucket per process, and retries a 429 up to
-  three times.
+  paces them once per process, and retries a 429 up to three times.
 - The cache is transparent. It stores the whole `JobDict` of each fetched
   LinkedIn posting, rows carry no version, and each row read passes through
   `make_job`, so a row whose keys no longer fit `JobDict` is a miss. Values

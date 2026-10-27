@@ -8,9 +8,7 @@ import pytest
 from fakes import StubFetcher, ok
 
 from jobrake import scrape, sites
-from jobrake.fetchkit import TokenBucket
 from jobrake.sites import SITES
-from jobrake.sites.linkedin import client
 from jobrake.utils import checked, site_options
 
 EXPORTS = {"search", "places", "companies", "attributes", "postings"}
@@ -101,8 +99,7 @@ def test_scrape_rejects_bad_options_before_any_request(site, kwargs, error, matc
     assert fetcher.requests == []
 
 
-def test_scrape_accepts_an_explicit_zero_radius(monkeypatch):
-    monkeypatch.setattr(client, "LIMITER", TokenBucket(capacity=10**9, refill_interval=1.0))
+def test_scrape_accepts_an_explicit_zero_radius():
     fetcher = StubFetcher({"seeMoreJobPostings": ok("")})
     asyncio.run(scrape("linkedin", query="x", location="Seattle", radius=0, fetcher=fetcher))
     assert len(fetcher.requests) == 1
