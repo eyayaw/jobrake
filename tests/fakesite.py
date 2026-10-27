@@ -1,10 +1,10 @@
 """Search a fake job board."""
 
-from collections.abc import Iterable
 from typing import Annotated
 
 from jobrake import Stopped
 from jobrake.models import JobDict, make_job
+from jobrake.utils import checked
 
 calls: list[dict[str, object]] = []  # the arguments of each call; the fake_site fixture resets it
 
@@ -13,6 +13,7 @@ def job(posting_id: str) -> JobDict:
     return make_job(site="fakesite", id=posting_id, url=f"https://fake.test/{posting_id}")
 
 
+@checked
 async def search(
     fetcher,
     *,
@@ -28,6 +29,7 @@ async def search(
     return [job(str(n)) for n in range(results)]
 
 
+@checked
 async def places(
     fetcher,
     name: Annotated[str, "place name"],
@@ -43,9 +45,10 @@ async def places(
     return [] if name == "nowhere" else [{"id": "1", "name": name}]
 
 
+@checked
 async def postings(
     fetcher,
-    references: Annotated[Iterable[str], "posting IDs or URLs"],
+    references: Annotated[list[str], "posting IDs or URLs"],
     *,
     refresh: Annotated[bool, "refetch postings"] = False,
 ) -> dict[str, JobDict | None]:

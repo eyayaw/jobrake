@@ -9,6 +9,7 @@ from bs4 import BeautifulSoup
 
 from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, Stopped, make_job
+from jobrake.utils import checked
 
 from .client import SEARCH_URL, job_id, paced_fetch
 from .pages import fetch_pages
@@ -100,6 +101,7 @@ async def _collect_pages(
     return jobs, start
 
 
+@checked
 async def search(
     fetcher: Fetcher,
     *,

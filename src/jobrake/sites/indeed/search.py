@@ -9,7 +9,7 @@ from typing import Annotated, Any
 
 from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, Stopped, employment_type, make_job
-from jobrake.utils import epoch_ms_to_iso, html_text
+from jobrake.utils import checked, epoch_ms_to_iso, html_text
 
 from .client import API_HEADERS, API_URL
 from .countries import Country, indeed_domain
@@ -302,6 +302,7 @@ def _check_filters(
         )
 
 
+@checked
 async def search(
     fetcher: Fetcher,
     *,

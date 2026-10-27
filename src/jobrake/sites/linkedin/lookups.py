@@ -6,6 +6,7 @@ from urllib.parse import urlencode
 
 from jobrake.fetchkit import Fetcher
 from jobrake.models import Stopped
+from jobrake.utils import checked
 
 from . import client
 
@@ -58,6 +59,7 @@ async def _typeahead(fetcher: Fetcher, kind: str, name: str) -> list[dict[str, s
     return candidates
 
 
+@checked
 async def places(
     fetcher: Fetcher, name: Annotated[str, "place name, e.g., 'amsterdam'"]
 ) -> list[dict[str, str]]:
@@ -75,6 +77,7 @@ async def places(
     return await _typeahead(fetcher, "GEO", name)
 
 
+@checked
 async def companies(
     fetcher: Fetcher, name: Annotated[str, "company name, e.g., 'ABN AMRO'"]
 ) -> list[dict[str, str]]:

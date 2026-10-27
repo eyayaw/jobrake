@@ -1,10 +1,7 @@
 """The site contract, and how ``scrape`` routes to a site and checks its options."""
 
 import asyncio
-import inspect
-from collections.abc import Iterable
-from types import NoneType
-from typing import Annotated, get_args, get_origin
+from typing import Annotated
 
 import pytest
 from fakes import StubFetcher, ok
@@ -13,67 +10,55 @@ from jobrake import scrape, sites
 from jobrake.fetchkit import TokenBucket
 from jobrake.sites import SITES
 from jobrake.sites.linkedin import client
+from jobrake.utils import checked, site_options
 
-OPTION_TYPES = [str, int, bool, list[str], str | None, int | None, bool | None, list[str] | None]
-
-
-def options_of(function, *positional):
-    """
-    Map each keyword option of a site function to the type inside its Annotated.
-
-    The function takes the fetcher, then one annotated argument of each type
-    in ``positional``, then only keyword options.
-    """
-    fetcher, *parameters = inspect.signature(function).parameters.values()
-    assert fetcher.kind is inspect.Parameter.POSITIONAL_OR_KEYWORD
-    options = {}
-    for index, parameter in enumerate(parameters):
-        assert get_origin(parameter.annotation) is Annotated, parameter.name
-        kind, help_text = get_args(parameter.annotation)
-        assert help_text.strip(), parameter.name
-        if index < len(positional):
-            assert parameter.kind is inspect.Parameter.POSITIONAL_OR_KEYWORD, parameter.name
-            assert kind == positional[index], parameter.name
-            continue
-        assert parameter.kind is inspect.Parameter.KEYWORD_ONLY, parameter.name
-        assert kind in OPTION_TYPES, parameter.name
-        # The CLI turns a boolean option into a flag that sets it.
-        assert kind is not bool or parameter.default is False, parameter.name
-        options[parameter.name] = kind
-    return options
-
-
-def search_options(module):
-    return options_of(module.search)
-
-
-def without_none(kind):
-    members = get_args(kind)
-    return (
-        next(member for member in members if member is not NoneType)
-        if NoneType in members
-        else kind
-    )
+EXPORTS = {"search", "places", "companies", "attributes", "postings"}
 
 
 @pytest.mark.parametrize("site", SITES)
 def test_a_site_meets_the_site_contract(site):
     module = SITES[site]
     assert (module.__doc__ or "").splitlines()[0]  # the CLI help
-    # search, and only the optional functions the CLI knows how to run
     assert "search" in module.__all__
-    assert set(module.__all__) <= {"search", "places", "companies", "attributes", "postings"}
-    for lookup in ("places", "companies", "attributes"):
-        if hasattr(module, lookup):
-            options_of(getattr(module, lookup), str)
-    if hasattr(module, "postings"):
-        options_of(module.postings, Iterable[str])
-    options = search_options(module)
+    assert set(module.__all__) <= EXPORTS  # the functions the CLI knows how to run
+    for name in module.__all__:
+        function = getattr(module, name)
+        options = site_options(function)
+        positional = [option for option in options.values() if option.positional]
+        assert len(positional) == (name != "search"), name
+        # Every exported function checks its arguments before any request.
+        fetcher = StubFetcher({})
+        text = [] if name == "search" else [["x"] if name == "postings" else "x"]
+        with pytest.raises(TypeError, match=f"{site} has no option bogus"):
+            asyncio.run(function(fetcher, *text, bogus=1))
+        assert fetcher.requests == []
     # A name two sites share keeps one type, apart from accepting None.
+    kinds = {name: option.kind for name, option in site_options(module.search).items()}
     for other in SITES.values():
-        for name, kind in search_options(other).items():
-            if name in options:
-                assert without_none(kind) == without_none(options[name]), name
+        for name, option in site_options(other.search).items():
+            assert kinds.get(name, option.kind) == option.kind, name
+
+
+async def unannotated(fetcher, *, query: str): ...
+
+
+async def floating(fetcher, *, ratio: Annotated[float, "a ratio"]): ...
+
+
+async def flag_on(fetcher, *, strict: Annotated[bool, "strict parsing"] = True): ...
+
+
+@pytest.mark.parametrize(
+    ("function", "match"),
+    [
+        (unannotated, "annotate query as Annotated"),
+        (floating, "ratio is <class 'float'>. Use str, int, bool, or list"),
+        (flag_on, "the boolean option strict must default to False"),
+    ],
+)
+def test_a_site_function_the_cli_cannot_build_fails_when_decorated(function, match):
+    with pytest.raises(TypeError, match=f"test_scrape.{function.__name__}: {match}"):
+        checked(function)
 
 
 @pytest.mark.parametrize(

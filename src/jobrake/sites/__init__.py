@@ -4,7 +4,6 @@ from types import ModuleType
 
 from jobrake.fetchkit import Fetcher, HttpxFetcher
 from jobrake.models import JobDict
-from jobrake.utils import check_options
 
 from . import indeed, linkedin
 
@@ -17,7 +16,7 @@ async def scrape(site: str, *, fetcher: Fetcher | None = None, **options: object
     Search one site and return its postings as ``JobDict`` records.
 
     ``options`` are the keyword options of ``jobrake.sites.<site>.search``,
-    checked against its signature before any request. Without ``fetcher``,
+    which checks them against its signature before any request. Without ``fetcher``,
     ``scrape`` creates and closes an ``HttpxFetcher``. A given fetcher stays
     open and belongs to the caller.
 
@@ -30,7 +29,6 @@ async def scrape(site: str, *, fetcher: Fetcher | None = None, **options: object
     if site not in SITES:
         raise ValueError(f"unknown site {site!r}. Expected one of {', '.join(SITES)}")
     search = SITES[site].search
-    check_options(site, search, options)
     if fetcher is not None:
         return await search(fetcher, **options)
     fetcher = HttpxFetcher()

@@ -6,6 +6,7 @@ from urllib.parse import urlencode
 
 from jobrake.fetchkit import Fetcher
 from jobrake.models import Stopped
+from jobrake.utils import checked
 
 from .client import API_HEADERS, API_URL, AUTOCOMPLETE_HEADERS
 from .countries import Country, indeed_domain
@@ -79,6 +80,7 @@ async def _suggestions(
     return candidates
 
 
+@checked
 async def places(
     fetcher: Fetcher, name: Annotated[str, "place name, e.g., 'boston'"], *, country: Country
 ) -> list[dict[str, str]]:
@@ -96,6 +98,7 @@ async def places(
     return await _suggestions(fetcher, "location", name, country)
 
 
+@checked
 async def companies(
     fetcher: Fetcher, name: Annotated[str, "company name, e.g., 'ABN AMRO'"], *, country: Country
 ) -> list[dict[str, str]]:
@@ -113,6 +116,7 @@ async def companies(
     return await _suggestions(fetcher, "company", name, country)
 
 
+@checked
 async def attributes(
     fetcher: Fetcher, query: Annotated[str, "job title or keywords"], *, country: Country
 ) -> list[dict[str, str]]:

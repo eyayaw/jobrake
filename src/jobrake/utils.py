@@ -1,11 +1,12 @@
 """Shared parsing and search-argument helpers."""
 
+import functools
 import inspect
 import logging
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from types import NoneType
-from typing import NamedTuple, Union, get_args, get_origin
+from typing import Annotated, NamedTuple, Union, get_args, get_origin
 
 from bs4 import BeautifulSoup
 
@@ -36,30 +37,16 @@ def html_text(html: str) -> str:
 
 
 class Option(NamedTuple):
-    """One keyword option a site function declares as ``Annotated[kind, help]``."""
+    """One argument a site function declares after the fetcher, as ``Annotated[kind, help]``."""
 
     kind: object  # str, int, bool, or list[str]
     optional: bool  # whether the annotation adds ``| None``
     help: str
-    default: object  # inspect.Parameter.empty for a required option
+    default: object  # inspect.Parameter.empty for a required argument
+    positional: bool  # whether it is the text a lookup or postings() takes before its options
 
 
-def site_options(function: Callable[..., object]) -> dict[str, Option]:
-    """Read the keyword-only options of a site function from its annotations, in order."""
-    options = {}
-    for param in inspect.signature(function).parameters.values():
-        if param.kind is not param.KEYWORD_ONLY:
-            continue
-        kind, help_text = get_args(param.annotation)
-        members = get_args(kind) if get_origin(kind) is Union else ()
-        optional = NoneType in members
-        if optional:
-            (kind,) = (member for member in members if member is not NoneType)
-        options[param.name] = Option(kind, optional, help_text, param.default)
-    return options
-
-
-# Each option type a site may declare, with its description and its check.
+# Each type a site function may declare, with its description and its check.
 # bool is a subclass of int, so an int option rejects it.
 _TYPES: dict[object, tuple[str, Callable[[object], bool]]] = {
     str: ("a string", lambda value: isinstance(value, str)),
@@ -75,16 +62,44 @@ _TYPES: dict[object, tuple[str, Callable[[object], bool]]] = {
 _MINIMUMS = {"results": 1, "radius": 0, "max_age_hours": 1}
 
 
-def check_options(site: str, function: Callable[..., object], given: dict[str, object]) -> None:
+def site_options(function: Callable[..., object]) -> dict[str, Option]:
     """
-    Reject options a site function does not declare, or whose values do not fit its annotations.
+    Map each argument after the fetcher to its ``Annotated`` kind, help, and default, keeping signature order.
 
     Raises:
-        TypeError: An option is unknown, a required option is missing, or a
-            value does not match its annotation.
-        ValueError: ``results``, ``radius``, or ``max_age_hours`` is below its minimum.
+        TypeError: An argument is not ``Annotated[kind, help]`` with a
+            supported kind and nonblank help, or a boolean option does not
+            default to ``False``.
     """
-    options = site_options(function)
+    where = f"{function.__module__}.{getattr(function, '__qualname__', function)}"
+    _, *params = inspect.signature(function).parameters.values()
+    options = {}
+    for param in params:
+        if param.kind not in (param.POSITIONAL_OR_KEYWORD, param.KEYWORD_ONLY):
+            raise TypeError(f"{where}: declare {param.name} as a named argument")
+        if get_origin(param.annotation) is not Annotated:
+            raise TypeError(f"{where}: annotate {param.name} as Annotated[kind, help]")
+        kind, help_text, *_ = get_args(param.annotation)
+        if not isinstance(help_text, str) or not help_text.strip():
+            raise TypeError(f"{where}: give {param.name} a help string in its Annotated")
+        members = get_args(kind) if get_origin(kind) is Union else ()
+        optional = NoneType in members
+        if optional:
+            (kind,) = (member for member in members if member is not NoneType)
+        if kind not in _TYPES:
+            raise TypeError(
+                f"{where}: {param.name} is {kind!r}. Use str, int, bool, or list[str], "
+                "each optionally | None"
+            )
+        positional = param.kind is param.POSITIONAL_OR_KEYWORD
+        # The CLI turns a boolean option into a flag that sets it.
+        if kind is bool and not positional and param.default is not False:
+            raise TypeError(f"{where}: the boolean option {param.name} must default to False")
+        options[param.name] = Option(kind, optional, help_text, param.default, positional)
+    return options
+
+
+def _check(site: str, options: dict[str, Option], given: dict[str, object]) -> None:
     listing = ", ".join(options)
     if unknown := [name for name in given if name not in options]:
         raise TypeError(f"{site} has no option {', '.join(unknown)}. Its options are {listing}")
@@ -104,6 +119,34 @@ def check_options(site: str, function: Callable[..., object], given: dict[str, o
         minimum = _MINIMUMS.get(name)
         if minimum is not None and isinstance(value, int) and value < minimum:
             raise ValueError(f"{name} ({value}) must be at least {minimum}")
+
+
+def checked[**P, R](function: Callable[P, Awaitable[R]]) -> Callable[P, Awaitable[R]]:
+    """
+    Check every call of a site function against its annotations before the function runs.
+
+    The signature is read once, here, so a site function that breaks the
+    rules of ``site_options`` fails when its module is imported. Error
+    messages name the site after the package below ``jobrake.sites``.
+
+    Raises:
+        TypeError: At decoration, the signature breaks a rule of
+            ``site_options``. At a call, an argument is unknown, missing, or of
+            the wrong type.
+        ValueError: At a call, ``results``, ``radius``, or ``max_age_hours``
+            is below its minimum.
+    """
+    options = site_options(function)
+    positional = [name for name, option in options.items() if option.positional]
+    site = function.__module__.removeprefix("jobrake.sites.").partition(".")[0]
+
+    @functools.wraps(function)
+    async def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
+        # args[0] is the fetcher. Surplus positional arguments fail in the call itself.
+        _check(site, options, dict(zip(positional, args[1:], strict=False)) | kwargs)
+        return await function(*args, **kwargs)
+
+    return wrapper
 
 
 def iso_date(value: str | None) -> str | None:

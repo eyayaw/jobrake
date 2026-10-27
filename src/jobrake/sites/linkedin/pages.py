@@ -15,7 +15,7 @@ from bs4 import BeautifulSoup
 from jobrake import cache
 from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, employment_type, make_job
-from jobrake.utils import html_text
+from jobrake.utils import checked, html_text
 
 from .client import job_id, paced_fetch
 
@@ -499,9 +499,10 @@ async def fetch_pages(
     return found
 
 
+@checked
 async def postings(
     fetcher: Fetcher,
-    references: Annotated[Iterable[str], "LinkedIn posting IDs or URLs"],
+    references: Annotated[list[str], "LinkedIn posting IDs or URLs"],
     *,
     refresh: Annotated[bool, "refetch postings and refresh their cached copies"] = False,
 ) -> dict[str, JobDict | None]:

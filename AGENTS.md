@@ -10,8 +10,7 @@ API, and it depends on `httpx` and `bs4`.
 ## Map
 
 - `sites/__init__.py`: `SITES`, the registry with one entry per site, and
-  `scrape`, which checks a search's options against the site's signature and
-  routes it.
+  `scrape`, which routes a search to its site.
 - `sites/<site>/`: one package per site. `__init__` exports `search` and any
   of `places`, `companies`, `attributes`, and `postings`, and the first line
   of its docstring is the site's CLI help. `search.py` builds requests and
@@ -19,8 +18,9 @@ API, and it depends on `httpx` and `bs4`.
   `lookups.py` holds the lookups. LinkedIn's `pages.py` fetches posting pages
   for `postings` and `details=True`, and Indeed's `countries.py` maps country
   names to editions.
-- `utils.py`: `site_options` and `check_options`, which read and check the
-  `Annotated` options of a site function, and the text and date helpers.
+- `utils.py`: `site_options`, which reads the `Annotated` arguments of a
+  site function, `checked`, which checks every call against them, and the
+  text and date helpers.
 - `models.py`: `JobDict`, `make_job`, and `Stopped`.
 - `fetchkit/`: the `Fetcher` protocol, `FetchResult`, `HttpxFetcher`, and
   `TokenBucket`.
@@ -57,9 +57,11 @@ the CLI, and the contract test in `tests/test_scrape.py` need no edit.
   applies, keyword-only, as `Annotated[T, "help"]` with `T` one of `str`,
   `int`, `bool`, `list[str]`, or `T | None`, and with defaults in the
   signature. A boolean option defaults to `False`. A name two sites share
-  keeps one meaning and unit. `scrape` raises `TypeError` for an unknown,
-  missing, or wrongly typed option and `ValueError` for a value out of range,
-  all before the first request.
+  keeps one meaning and unit. Every function a site exports carries
+  `@checked`, which raises `TypeError` for an unknown, missing, or wrongly
+  typed argument and `ValueError` for a value out of range, all before the
+  first request. `site_options` rejects a signature that breaks these rules
+  when the module is imported.
 - A caller can tell a cut-short result from a complete one. A failed
   request raises `Stopped`, whose `partial` holds what was collected. A
   site's own result cap warns and returns. `postings` never raises `Stopped`

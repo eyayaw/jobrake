@@ -12,7 +12,7 @@ from collections.abc import Awaitable, Callable
 from contextlib import suppress
 from pathlib import Path
 from types import ModuleType
-from typing import Any, Never, TextIO, get_args
+from typing import Any, Never, TextIO
 
 from jobrake import __version__, scrape
 
@@ -116,15 +116,16 @@ def _add_parser(
 
 def _add_positional(parser: argparse.ArgumentParser, function: Callable[..., object]) -> None:
     """Add the argument a lookup or posting fetch takes after the fetcher: one text, or several."""
-    parameter = list(inspect.signature(function).parameters.values())[1]
-    kind, help_text = get_args(parameter.annotation)
-    many: dict[str, Any] = {"nargs": "+"} if kind is not str else {}
-    parser.add_argument(parameter.name, metavar=parameter.name.upper(), help=help_text, **many)
+    (name, option), *_ = site_options(function).items()
+    many: dict[str, Any] = {"nargs": "+"} if option.kind is not str else {}
+    parser.add_argument(name, metavar=name.upper(), help=option.help, **many)
 
 
 def _add_options(parser: argparse.ArgumentParser, function: Callable[..., object]) -> None:
     """Add one flag per keyword option of a site function, named after the option."""
     for name, option in site_options(function).items():
+        if option.positional:
+            continue
         flags = [f"--{name.replace('_', '-')}"]
         if name in _SHORT_FLAGS:
             flags.append(_SHORT_FLAGS[name])
@@ -240,9 +241,9 @@ def _call_args(
     args: argparse.Namespace, function: Callable[..., object]
 ) -> tuple[Any, dict[str, Any]]:
     """Return the positional argument and the options the command line gave a site function."""
-    positional = list(inspect.signature(function).parameters)[1]
-    options = site_options(function)
-    return vars(args)[positional], {k: v for k, v in vars(args).items() if k in options}
+    (positional, _), *options = site_options(function).items()
+    names = {name for name, _ in options}
+    return vars(args)[positional], {k: v for k, v in vars(args).items() if k in names}
 
 
 def _lookup(parser: _ArgumentParser, args: argparse.Namespace) -> int | None:
