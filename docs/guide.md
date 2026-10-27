@@ -1,7 +1,7 @@
 # jobrake guide
 
 jobrake provides one interface for Indeed and LinkedIn, but they differ in how they interpret geography, apply search filters, and fetch posting details.
-Run `jobrake -h`, and `jobrake <command> -h` for commands and options.
+Run `jobrake -h` for the sites, `jobrake <site> -h` for a site's commands, and `jobrake <site> <command> -h` for their options.
 
 - [Search for jobs](#search-for-jobs)
 - [Narrow the results](#narrow-the-results)
@@ -17,8 +17,8 @@ Run `jobrake -h`, and `jobrake <command> -h` for commands and options.
 Choose a site and supply a job title or keywords:
 
 ```sh
-jobrake indeed -q "data scientist" -c Netherlands -l Amsterdam -n 2
-jobrake linkedin -q "data scientist" -l "Amsterdam, North Holland, Netherlands" -n 2
+jobrake indeed search -q "data scientist" -c Netherlands -l Amsterdam -n 2
+jobrake linkedin search -q "data scientist" -l "Amsterdam, North Holland, Netherlands" -n 2
 ```
 
 Both commands ask for two recent postings near Amsterdam, Netherlands, but each names that place its own way.
@@ -83,7 +83,7 @@ Set `country` to a name such as `Germany` or `Netherlands`. Accepted shortcuts
 are `USA`, `US`, and `UK`. `location` may contain a city or another place within
 that country.
 
-`jobrake places indeed <name> --country <edition>` prints the edition's location
+`jobrake indeed places <name> --country <edition>` prints the edition's location
 suggestions as JSON, best match first. Each `id` can be passed directly
 to `--location`. For library calls use `jobrake.sites.indeed.places`.
 
@@ -103,11 +103,11 @@ This sends that ID straight to LinkedIn and `location` becomes optional.
 The library call equivalent is `geoid="102011674"`.
 Note that leaving the geoid option out is fine, jobrake just searches by location text.
 
-If you want to know the geoid of a place name, you can use `jobrake places linkedin <name>`,
+If you want to know the geoid of a place name, you can use `jobrake linkedin places <name>`,
 which prints LinkedIn's candidates as JSON, best match first.
 
 ```sh
-jobrake places linkedin Birmingham
+jobrake linkedin places Birmingham
 
 [
   {
@@ -125,8 +125,8 @@ jobrake places linkedin Birmingham
 Choose the candidate you want, then search with its display name or geoid:
 
 ```sh
-jobrake linkedin -q "data scientist" -l "Birmingham, England, United Kingdom"
-jobrake linkedin -q "data scientist" -g 100356971
+jobrake linkedin search -q "data scientist" -l "Birmingham, England, United Kingdom"
+jobrake linkedin search -q "data scientist" -g 100356971
 ```
 
 Library callers use `jobrake.sites.linkedin.places`.
@@ -158,7 +158,7 @@ A list option takes several values after one flag, `--attributes CF3CP 6QC5F`, o
 > [!NOTE]
 > Each site takes only the filters it applies.
 > `scrape("linkedin", remote=True)` raises `TypeError` before any request and lists LinkedIn's options,
-> and `jobrake linkedin --remote` fails as an unrecognized argument.
+> and `jobrake linkedin search --remote` fails as an unrecognized argument.
 
 ### Companies
 
@@ -170,7 +170,7 @@ The identifiers differ in form, and so does the number of companies a single sea
 Find an Indeed employer key by looking up the company name in a country edition:
 
 ```sh
-jobrake companies indeed "Booking" -c Netherlands
+jobrake indeed companies "Booking" -c Netherlands
 ```
 ```json
 [
@@ -197,8 +197,8 @@ Library callers use `jobrake.sites.indeed.companies(fetcher, name, country=...)`
 Use the selected key to restrict job results to that employer:
 
 ```sh
-jobrake indeed -c Netherlands -q "data scientist" --company-ids 8e8f030e53ea29e4
-jobrake indeed -c Netherlands --company-ids 8e8f030e53ea29e4
+jobrake indeed search -c Netherlands -q "data scientist" --company-ids 8e8f030e53ea29e4
+jobrake indeed search -c Netherlands --company-ids 8e8f030e53ea29e4
 ```
 
 This key selects _Booking.com_. Without `-q`, the search covers its postings without keywords.
@@ -216,7 +216,7 @@ Search one employer at a time and combine the results.
 Look up an employer's name to find its LinkedIn company ID:
 
 ```sh
-jobrake companies linkedin "Booking"
+jobrake linkedin companies "Booking"
 ```
 ```json
 [
@@ -272,8 +272,8 @@ Pass an employer's numeric (a string of digits `0-9`) ID to `--company-ids` to f
 job postings at that company. Unlike with Indeed, here we can provide several employers.
 
 ```sh
-jobrake linkedin -l "Netherlands" -q "data scientist" --company-ids 11348
-jobrake linkedin -l "Netherlands" --company-ids 11348 215713
+jobrake linkedin search -l "Netherlands" -q "data scientist" --company-ids 11348
+jobrake linkedin search -l "Netherlands" --company-ids 11348 215713
 ```
 
 These IDs select _Booking.com_ and _ING Nederland_. For a library search, pass
@@ -284,7 +284,7 @@ These IDs select _Booking.com_ and _ING Nederland_. For a library search, pass
 Use `--language CODE` to select Indeed postings in one language:
 
 ```sh
-jobrake indeed -q econometrics -c Netherlands --language en
+jobrake indeed search -q econometrics -c Netherlands --language en
 ```
 
 Indeed decides each posting's language. The option accepts two-letter language codes
@@ -299,7 +299,7 @@ LinkedIn does not have language support.
 The `attributes` command helps you find codes on postings matching a job title or keywords.
 
 ```sh
-jobrake attributes indeed -c usa "data scientist"
+jobrake indeed attributes -c usa "data scientist"
 ```
 
 The command reads the first 100 matching postings and prints a JSON list of code and label pairs, as `id` and `name`.
@@ -307,7 +307,7 @@ It applies no posting-age restriction. Those postings carry several (hundred) at
 Search the list by label:
 
 ```sh
-jobrake attributes indeed -c usa "data scientist" \
+jobrake indeed attributes -c usa "data scientist" \
   | jq -r '.[] | select(.name | test("python"; "i")) | [.id, .name] | @tsv'
 # X62BT	Python
 ```
@@ -320,8 +320,8 @@ jobrake reads the codes live from Indeed. Library callers use `jobrake.sites.ind
 Once you find the codes you want, then use those codes to filter jobs:
 
 ```sh
-jobrake indeed -q "data scientist" -c usa --attributes X62BT
-jobrake indeed -q economist -c usa --attributes CF3CP 6QC5F
+jobrake indeed search -q "data scientist" -c usa --attributes X62BT
+jobrake indeed search -q economist -c usa --attributes CF3CP 6QC5F
 ```
 
 `X62BT` selects Python. The second search requires both Full-time (`CF3CP`) and Doctoral degree (`6QC5F`),
@@ -337,7 +337,7 @@ For a library search, pass the codes as a list of strings, such as `attributes=[
 Pass `--remote` to search postings that Indeed tags Remote:
 
 ```sh
-jobrake indeed -q "econometrics" -c usa --remote
+jobrake indeed search -q "econometrics" -c usa --remote
 ```
 
 `--remote` is shorthand for `--attributes DSQF7`, so a posting must carry the Remote tag and every other code you pass.
@@ -348,7 +348,7 @@ The tag reflects Indeed's classification. Check the posting for residency and wo
 Use `--easy-apply` to find jobs with LinkedIn's Easy Apply form. `--early-applicant` requests LinkedIn's "under 10 applicants" filter.
 
 ```sh
-jobrake linkedin -q "data scientist" -l Netherlands --easy-apply --early-applicant
+jobrake linkedin search -q "data scientist" -l Netherlands --easy-apply --early-applicant
 ```
 
 With both set, a job must match both. Neither needs `--details`.
@@ -372,8 +372,8 @@ See [request limits](#request-limits-and-partial-results) for pacing and retries
 Fetch a LinkedIn posting by ID or URL without repeating a search:
 
 ```sh
-jobrake postings linkedin 4449382178
-jobrake postings linkedin https://nl.linkedin.com/jobs/view/data-scientist-at-acme-4449382178
+jobrake linkedin postings 4449382178
+jobrake linkedin postings https://nl.linkedin.com/jobs/view/data-scientist-at-acme-4449382178
 ```
 
 LinkedIn takes postings down over time, so the examples above may be gone. Use IDs and URLs from a recent search.
@@ -473,7 +473,7 @@ The formats represent unavailable fields differently.
 Pipe stdout into another program to reshape the jobs. [`jq`](https://github.com/jqlang/jq) picks out fields:
 
 ```sh
-jobrake indeed -q "data scientist" -c usa -n 2 \
+jobrake indeed search -q "data scientist" -c usa -n 2 \
   | jq -r '.[] | [.date, .title, .company, .url] | @tsv'
 ```
 

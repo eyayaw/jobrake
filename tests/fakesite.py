@@ -1,4 +1,4 @@
-"""Search a fake job board."""
+"""Read a fake job board."""
 
 from typing import Annotated
 
@@ -23,6 +23,7 @@ async def search(
     remote: Annotated[bool, "only remote postings"] = False,
     tags: Annotated[list[str] | None, "tags a posting must carry"] = None,
 ) -> list[JobDict]:
+    """Search the fake board."""
     calls.append(
         {"query": query, "board": board, "results": results, "remote": remote, "tags": tags}
     )

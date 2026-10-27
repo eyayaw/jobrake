@@ -148,13 +148,13 @@ async def search(
     if geoid is not None and not (geoid.isascii() and geoid.isdigit()):
         raise ValueError(
             f"geoid {geoid!r} must use digits 0-9, such as '102011674'. "
-            "Find IDs with 'jobrake places linkedin NAME'"
+            "Find IDs with 'jobrake linkedin places NAME'"
         )
     for company in company_ids or []:
         if not (company.isascii() and company.isdigit()):
             raise ValueError(
                 f"company ID {company!r} must use digits 0-9, such as '1173'. "
-                "Find IDs with 'jobrake companies linkedin NAME'"
+                "Find IDs with 'jobrake linkedin companies NAME'"
             )
     if location:
         logger.info("searching linkedin for %r in %r", query, location)

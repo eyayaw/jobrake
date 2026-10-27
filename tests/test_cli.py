@@ -48,7 +48,9 @@ def run_cli(monkeypatch):
     monkeypatch.setattr(cli, "scrape", fake_scrape)
 
     def run(*argv):
-        monkeypatch.setattr("sys.argv", ["jobrake", "indeed", "-q", "x", "-c", "usa", *argv])
+        monkeypatch.setattr(
+            "sys.argv", ["jobrake", "indeed", "search", "-q", "x", "-c", "usa", *argv]
+        )
         return cli.main()
 
     return run
@@ -60,14 +62,27 @@ def test_a_registered_site_gets_every_command_without_a_cli_change(
     # The site's signatures alone give its search, lookup, and posting commands.
     # A submodule the site does not export, such as companies.py, adds none.
     monkeypatch.setattr(fake_site, "companies", types.ModuleType("companies"), raising=False)
-    search = ["fakesite", "-q", "x", "--board", "acme", "--tags", "a", "b", "--remote", "-n", "2"]
+    search = [
+        "fakesite",
+        "search",
+        "-q",
+        "x",
+        "--board",
+        "acme",
+        "--tags",
+        "a",
+        "b",
+        "--remote",
+        "-n",
+        "2",
+    ]
     monkeypatch.setattr(sys, "argv", ["jobrake", *search])
     assert cli.main() is None
     assert [job["id"] for job in json.loads(capsys.readouterr().out)] == ["0", "1"]
-    monkeypatch.setattr(sys, "argv", ["jobrake", "places", "fakesite", "Utrecht", "--region", "NL"])
+    monkeypatch.setattr(sys, "argv", ["jobrake", "fakesite", "places", "Utrecht", "--region", "NL"])
     assert cli.main() is None
     assert json.loads(capsys.readouterr().out) == [{"id": "1", "name": "Utrecht"}]
-    monkeypatch.setattr(sys, "argv", ["jobrake", "postings", "fakesite", "7", "--refresh"])
+    monkeypatch.setattr(sys, "argv", ["jobrake", "fakesite", "postings", "7", "--refresh"])
     assert cli.main() is None
     assert [job["id"] for job in json.loads(capsys.readouterr().out)] == ["7"]
     assert fake_site.calls == [
@@ -105,13 +120,13 @@ def fetchers(monkeypatch):
 def test_a_lookup_prints_its_candidates_or_fails(
     fake_site, fetchers, monkeypatch, capsys, caplog, name, status, out, err
 ):
-    monkeypatch.setattr(sys, "argv", ["jobrake", "places", "fakesite", name])
+    monkeypatch.setattr(sys, "argv", ["jobrake", "fakesite", "places", name])
     assert cli.main() == status
     printed = capsys.readouterr().out
     assert (json.loads(printed) if printed else None) == out  # a failure prints nothing
     assert err in caplog.text
     assert [fetcher.closed for fetcher in fetchers] == [True]
-    monkeypatch.setattr(sys, "argv", ["jobrake", "places", "fakesite", " "])
+    monkeypatch.setattr(sys, "argv", ["jobrake", "fakesite", "places", " "])
     with pytest.raises(SystemExit) as error:
         cli.main()
     assert error.value.code == 2
@@ -129,7 +144,7 @@ def test_a_lookup_prints_its_candidates_or_fails(
 def test_postings_command_writes_what_it_fetched_and_fails_on_a_failed_reference(
     fake_site, fetchers, monkeypatch, capsys, caplog, references, written, status
 ):
-    monkeypatch.setattr(sys, "argv", ["jobrake", "postings", "fakesite", *references])
+    monkeypatch.setattr(sys, "argv", ["jobrake", "fakesite", "postings", *references])
     assert cli.main() == status
     assert json.loads(capsys.readouterr().out) == [fake_site.job(n) for n in written]
     assert ("gone is no longer on fakesite" in caplog.text) == ("gone" in references)
@@ -145,13 +160,72 @@ def test_site_commands_dispatch_their_options(monkeypatch):
 
     monkeypatch.setattr(cli, "scrape", record)
     for argv in (
-        ["indeed", "--query", "x", "--country", "usa", "--location", "Seattle", "--radius", "0"],
-        ["indeed", "-q", "x", "-c", "usa", "-l", "Seattle", "-r", "0", "-n", "3", "-a", "48"],
-        ["indeed", "-q", "x", "-c", "usa", "--company-ids", "fe21", "--remote"],
-        ["indeed", "-q", "x", "-c", "usa", "--language", "EN", "--attributes", "3CQB7", "6QC5F"],
-        ["linkedin", "-q", "x", "-l", "Seattle", "-d", "--refresh", "--easy-apply"],
-        ["linkedin", "-q", "", "-g", "12345", "--company-ids", "1173", "--company-ids", "2220078"],
-        ["linkedin", "-q", "x", "-l", "Seattle", "--early-applicant", "--max-age-hours", "24"],
+        [
+            "indeed",
+            "search",
+            "--query",
+            "x",
+            "--country",
+            "usa",
+            "--location",
+            "Seattle",
+            "--radius",
+            "0",
+        ],
+        [
+            "indeed",
+            "search",
+            "-q",
+            "x",
+            "-c",
+            "usa",
+            "-l",
+            "Seattle",
+            "-r",
+            "0",
+            "-n",
+            "3",
+            "-a",
+            "48",
+        ],
+        ["indeed", "search", "-q", "x", "-c", "usa", "--company-ids", "fe21", "--remote"],
+        [
+            "indeed",
+            "search",
+            "-q",
+            "x",
+            "-c",
+            "usa",
+            "--language",
+            "EN",
+            "--attributes",
+            "3CQB7",
+            "6QC5F",
+        ],
+        ["linkedin", "search", "-q", "x", "-l", "Seattle", "-d", "--refresh", "--easy-apply"],
+        [
+            "linkedin",
+            "search",
+            "-q",
+            "",
+            "-g",
+            "12345",
+            "--company-ids",
+            "1173",
+            "--company-ids",
+            "2220078",
+        ],
+        [
+            "linkedin",
+            "search",
+            "-q",
+            "x",
+            "-l",
+            "Seattle",
+            "--early-applicant",
+            "--max-age-hours",
+            "24",
+        ],
     ):
         monkeypatch.setattr(sys, "argv", ["jobrake", *argv])
         cli.main()
@@ -200,13 +274,13 @@ def test_invalid_site_arguments_fail_before_scraping(monkeypatch):
 
     monkeypatch.setattr(cli, "scrape", must_not_run)
     for argv in (
-        ["indeed", "-q", "x"],
-        ["indeed", "-q", "x", "-c", "usa", "--easy-apply"],
-        ["companies", "indeed", "ABN AMRO"],
-        ["attributes", "linkedin", "data scientist"],
-        ["linkedin", "-q", "x", "-l", "Seattle", "--attributes", "3CQB7"],
-        ["linkedin", "-q", "x", "-l", "Seattle", "--detail"],
-        ["linkedin", "-q", "x", "-l", "Seattle", "--country", "usa"],
+        ["indeed", "search", "-q", "x"],
+        ["indeed", "search", "-q", "x", "-c", "usa", "--easy-apply"],
+        ["indeed", "companies", "ABN AMRO"],
+        ["linkedin", "attributes", "data scientist"],
+        ["linkedin", "search", "-q", "x", "-l", "Seattle", "--attributes", "3CQB7"],
+        ["linkedin", "search", "-q", "x", "-l", "Seattle", "--detail"],
+        ["linkedin", "search", "-q", "x", "-l", "Seattle", "--country", "usa"],
     ):
         monkeypatch.setattr(sys, "argv", ["jobrake", *argv])
         with pytest.raises(SystemExit):
@@ -216,8 +290,8 @@ def test_invalid_site_arguments_fail_before_scraping(monkeypatch):
 @pytest.mark.parametrize(
     ("argv", "message"),
     [
-        (["linkedin"], "location is required without a geoid"),
-        (["indeed", "-c", "atlantis"], "unknown Indeed country 'atlantis'"),
+        (["linkedin", "search"], "location is required without a geoid"),
+        (["indeed", "search", "-c", "atlantis"], "unknown Indeed country 'atlantis'"),
     ],
 )
 def test_a_search_the_library_rejects_is_a_cli_error_before_any_request(
@@ -225,7 +299,7 @@ def test_a_search_the_library_rejects_is_a_cli_error_before_any_request(
 ):
     fetcher = StubFetcher({})
     monkeypatch.setattr(sites, "HttpxFetcher", lambda: fetcher)
-    monkeypatch.setattr(sys, "argv", ["jobrake", *argv, "-q", ""])
+    monkeypatch.setattr(sys, "argv", ["jobrake", *argv])
     with pytest.raises(SystemExit) as error:
         cli.main()
     assert error.value.code == 2
@@ -302,7 +376,7 @@ def test_closed_pipe_ends_quietly(run_cli, fake_site, monkeypatch):
         monkeypatch.setattr(sys, "stdout", stdout)
         assert run_cli() == 1
 
-    monkeypatch.setattr(sys, "argv", ["jobrake", "places", "fakesite", "a"])
+    monkeypatch.setattr(sys, "argv", ["jobrake", "fakesite", "places", "a"])
     read_end, write_end = os.pipe()
     os.close(read_end)
     with os.fdopen(write_end, "w") as stdout:

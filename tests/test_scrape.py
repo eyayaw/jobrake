@@ -7,11 +7,9 @@ from typing import Annotated
 import pytest
 from fakes import StubFetcher, ok
 
-from jobrake import scrape, sites
+from jobrake import cli, scrape, sites
 from jobrake.sites import SITES
 from jobrake.utils import checked, site_options
-
-EXPORTS = {"search", "places", "companies", "attributes", "postings"}
 
 
 @pytest.mark.parametrize("site", SITES)
@@ -19,10 +17,10 @@ def test_a_site_meets_the_site_contract(site):
     module = SITES[site]
     assert (module.__doc__ or "").splitlines()[0]  # the CLI help
     assert "search" in module.__all__
-    assert set(module.__all__) <= EXPORTS  # the functions the CLI knows how to run
+    assert set(module.__all__) <= set(cli.COMMANDS)  # the functions the CLI knows how to run
     for name in module.__all__:
         function = getattr(module, name)
-        assert inspect.getdoc(function), name  # a lookup's or postings' CLI help
+        assert inspect.getdoc(function), name  # its command's CLI help
         options = site_options(function)
         positional = [option for option, spec in options.items() if spec.positional]
         assert len(positional) == (name != "search"), name

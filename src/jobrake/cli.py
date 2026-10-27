@@ -95,12 +95,11 @@ _SHORT_FLAGS = {
     "details": "-d",
 }
 
-# The lookups a site may define, with the help of the command that runs them.
-_LOOKUPS = {
-    "places": "find place IDs by name",
-    "companies": "find company IDs by name",
-    "attributes": "find attribute codes in matching postings",
-}
+# The functions a site may export, each a command of that site, in help order.
+COMMANDS = ("search", "postings", "places", "companies", "attributes")
+# The commands that write postings, and so take --output and --format. The
+# lookups print their candidates as JSON.
+_WRITES_POSTINGS = ("search", "postings")
 
 
 def _add_parser(
@@ -114,17 +113,17 @@ def _add_parser(
     return add_parser(name, allow_abbrev=False, help=help_text, description=line)
 
 
-def _add_positional(parser: argparse.ArgumentParser, function: Callable[..., object]) -> None:
-    """Add the argument a lookup or posting fetch takes after the fetcher: one text, or several."""
-    (name, option), *_ = site_options(function).items()
-    many: dict[str, Any] = {"nargs": "+"} if option.kind is not str else {}
-    parser.add_argument(name, metavar=name.upper(), help=option.help, **many)
+def _add_arguments(parser: argparse.ArgumentParser, function: Callable[..., object]) -> None:
+    """
+    Add one argument per argument of a site function after the fetcher.
 
-
-def _add_options(parser: argparse.ArgumentParser, function: Callable[..., object]) -> None:
-    """Add one flag per keyword option of a site function, named after the option."""
+    The text a lookup or ``postings`` takes first becomes a positional
+    argument, and each keyword option a flag named after it.
+    """
     for name, option in site_options(function).items():
         if option.positional:
+            many: dict[str, Any] = {"nargs": "+"} if option.kind is not str else {}
+            parser.add_argument(name, metavar=name.upper(), help=option.help, **many)
             continue
         flags = [f"--{name.replace('_', '-')}"]
         if name in _SHORT_FLAGS:
@@ -165,41 +164,17 @@ def _build_parser() -> _ArgumentParser:
     )
     # The version action exits before argparse checks the required subcommand.
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
-    commands = parser.add_subparsers(dest="command", required=True)
+    sites = parser.add_subparsers(dest="site", required=True)
     for site, module in SITES.items():
-        search = _add_parser(commands.add_parser, site, module)
-        _add_options(search, module.search)
-        _add_output_args(search)
-    if fetchers := {site: module for site, module in SITES.items() if "postings" in module.__all__}:
-        postings = commands.add_parser(
-            "postings",
-            allow_abbrev=False,
-            help="fetch known postings by ID or URL",
-            description="Fetch known postings by ID or URL",
+        commands = _add_parser(sites.add_parser, site, module).add_subparsers(
+            dest="command", required=True
         )
-        sites = postings.add_subparsers(dest="site", required=True)
-        for site, module in fetchers.items():
-            fetch = _add_parser(sites.add_parser, site, module.postings)
-            _add_positional(fetch, module.postings)
-            _add_options(fetch, module.postings)
-            _add_output_args(fetch)
-    for kind, help_text in _LOOKUPS.items():
-        lookups = {
-            site: getattr(module, kind) for site, module in SITES.items() if kind in module.__all__
-        }
-        if not lookups:
-            continue
-        command = commands.add_parser(
-            kind,
-            allow_abbrev=False,
-            help=help_text,
-            description=help_text[:1].upper() + help_text[1:],
-        )
-        sites = command.add_subparsers(dest="site", required=True)
-        for site, lookup in lookups.items():
-            sub = _add_parser(sites.add_parser, site, lookup)
-            _add_positional(sub, lookup)
-            _add_options(sub, lookup)
+        for name in (name for name in COMMANDS if name in module.__all__):
+            function = getattr(module, name)
+            command = _add_parser(commands.add_parser, name, function)
+            _add_arguments(command, function)
+            if name in _WRITES_POSTINGS:
+                _add_output_args(command)
     return parser
 
 
@@ -346,7 +321,7 @@ def main() -> int | None:
     handler = _StatusHandler()
     logging.basicConfig(level=logging.WARNING, handlers=[handler])
     logging.getLogger("jobrake").setLevel(logging.INFO)
-    if args.command in _LOOKUPS:
+    if args.command not in _WRITES_POSTINGS:
         return _lookup(parser, args)
     # Settle the output before the fetch spends any requests.
     fmt = _settle_output(parser, args)
@@ -359,10 +334,10 @@ def main() -> int | None:
             handler.clear()
         # Like a stopped search, a fetch with a failed reference writes what it got and exits 1.
         return _write_jobs(args, jobs, fmt) or (1 if failed else None)
-    options = {k: v for k, v in vars(args).items() if k in site_options(SITES[args.command].search)}
+    options = {k: v for k, v in vars(args).items() if k in site_options(SITES[args.site].search)}
     status = None
     try:
-        jobs = asyncio.run(scrape(args.command, **options))
+        jobs = asyncio.run(scrape(args.site, **options))
     except ValueError as e:
         parser.error(str(e))
     except Stopped as stop:

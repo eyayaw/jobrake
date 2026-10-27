@@ -25,8 +25,8 @@ API, and it depends on `httpx` and `bs4`.
 - `fetchkit/`: the `Fetcher` protocol, `FetchResult`, and `HttpxFetcher`.
 - `cache.py`: one SQLite table of `JobDict` records keyed by site and ID, and
   the shared `CACHE`.
-- `cli.py` builds every subcommand from `SITES`, and `io.py` renders JSON,
-  JSONL, and CSV.
+- `cli.py` builds `jobrake <site> <command>` from `SITES`, one command per
+  function a site exports, and `io.py` renders JSON, JSONL, and CSV.
 - `tests/`: offline, built on the stub fetcher in `tests/fakes.py`.
   `tests/fakesite.py` is a third site the tests register.
 

@@ -290,7 +290,7 @@ def _check_filters(
         )
     if any(not company.strip() for company in company_ids or []):
         raise ValueError(
-            "company ID is blank. Find IDs with 'jobrake companies indeed NAME --country EDITION'"
+            "company ID is blank. Find IDs with 'jobrake indeed companies NAME --country EDITION'"
         )
     if language is not None and re.fullmatch(r"[A-Za-z]{2}", language) is None:
         raise ValueError(
@@ -298,7 +298,7 @@ def _check_filters(
         )
     if any(not code.strip() for code in attributes or []):
         raise ValueError(
-            "attribute code is blank. Find codes with 'jobrake attributes indeed -c EDITION QUERY'"
+            "attribute code is blank. Find codes with 'jobrake indeed attributes -c EDITION QUERY'"
         )
 
 

@@ -1,4 +1,4 @@
-"""Search Indeed job postings through its mobile GraphQL API."""
+"""Read Indeed job postings through its mobile GraphQL API."""
 
 from .lookups import attributes, companies, places
 from .search import search
