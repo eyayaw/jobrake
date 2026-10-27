@@ -83,7 +83,12 @@ def test_a_site_function_the_cli_cannot_build_fails_when_decorated(function, mat
         ("indeed", {"country": "usa", "max_age_hours": 0}, ValueError, "max_age_hours"),
         # The checks each site makes of the values it accepts.
         ("indeed", {"country": "atlantis"}, ValueError, "unknown Indeed country"),
-        ("indeed", {"country": "usa", "company_ids": [" "]}, ValueError, "company ID is blank"),
+        (
+            "indeed",
+            {"country": "usa", "company_ids": [" "]},
+            ValueError,
+            "company_ids holds a blank entry",
+        ),
         ("indeed", {"country": "usa", "company_ids": ["a", "b"]}, ValueError, "one company ID"),
         ("linkedin", {}, ValueError, "location is required"),
         ("linkedin", {"location": "   "}, ValueError, "location is required"),

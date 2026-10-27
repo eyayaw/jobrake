@@ -114,6 +114,9 @@ def _check(options: dict[str, Option], given: dict[str, object]) -> None:
         # A lookup's text names what to look up, so a blank one asks for nothing.
         if option.positional and isinstance(value, str) and not value.strip():
             raise ValueError(f"{name} is blank. Pass the {option.help}")
+        # A blank list entry names nothing either.
+        if isinstance(value, list) and not all(item.strip() for item in value):
+            raise ValueError(f"{name} holds a blank entry. Pass the {option.help}")
 
 
 def checked[**P, R](function: Callable[P, Awaitable[R]]) -> Callable[P, Awaitable[R]]:
@@ -129,7 +132,7 @@ def checked[**P, R](function: Callable[P, Awaitable[R]]) -> Callable[P, Awaitabl
             ``site_options``. At a call, an argument is unknown, missing, or of
             the wrong type.
         ValueError: At a call, ``results``, ``radius``, or ``max_age_hours``
-            is below its minimum, or a lookup's text is blank.
+            is below its minimum, or a lookup's text or a list entry is blank.
     """
     signature = inspect.signature(function)
     options = site_options(function)

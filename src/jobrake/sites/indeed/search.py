@@ -279,26 +279,16 @@ def _parse_jobs(data: dict[str, Any], base_url: str) -> tuple[list[JobDict], str
     return jobs, cursor if isinstance(cursor, str) else None, len(results)
 
 
-def _check_filters(
-    company_ids: list[str] | None, language: str | None, attributes: list[str] | None
-) -> None:
+def _check_filters(company_ids: list[str] | None, language: str | None) -> None:
     # Indeed intersects the employer keys it receives, so a search takes one.
     if len(company_ids or []) > 1:
         raise ValueError(
             "indeed takes one company ID per search. "
             "Search each company on its own and combine the results"
         )
-    if any(not company.strip() for company in company_ids or []):
-        raise ValueError(
-            "company ID is blank. Find IDs with 'jobrake indeed companies NAME --country EDITION'"
-        )
     if language is not None and re.fullmatch(r"[A-Za-z]{2}", language) is None:
         raise ValueError(
             f"language {language!r} must contain exactly two ASCII letters, such as 'en'"
-        )
-    if any(not code.strip() for code in attributes or []):
-        raise ValueError(
-            "attribute code is blank. Find codes with 'jobrake indeed attributes -c EDITION QUERY'"
         )
 
 
@@ -338,12 +328,12 @@ async def search(
     Raises:
         Stopped: A request failed, or Indeed answered with an error or an
             unreadable response. ``partial`` holds the jobs collected before it.
-        ValueError: The country is unknown, ``company_ids`` holds more than one
-            ID or a blank one, an attribute code is blank, or ``language`` is
-            not two ASCII letters.
+        ValueError: The country is unknown, ``company_ids`` holds more than
+            one ID, a list holds a blank entry, or ``language`` is not two
+            ASCII letters.
     """
     subdomain, api_code = indeed_domain(country)
-    _check_filters(company_ids, language, attributes)
+    _check_filters(company_ids, language)
     base_url = f"https://{subdomain}.indeed.com"
     headers = {**API_HEADERS, "indeed-co": api_code}
     logger.info(

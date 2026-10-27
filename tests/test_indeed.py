@@ -274,19 +274,12 @@ def test_indeed_returns_the_requested_number_of_results():
 
 
 @pytest.mark.parametrize(
-    ("bad", "match"),
-    [
-        ({"attributes": [" "]}, "attribute code is blank"),
-        *[
-            ({"language": value}, "two ASCII letters")
-            for value in ("", " ", " en ", "e", "eng", "en-US", "en_US", "e1", "éñ", "en\n")
-        ],
-    ],
+    "language", ["", " ", " en ", "e", "eng", "en-US", "en_US", "e1", "éñ", "en\n"]
 )
-def test_indeed_rejects_bad_arguments_before_any_request(bad, match):
+def test_indeed_rejects_a_language_before_any_request(language):
     fetcher = StubFetcher({})
-    with pytest.raises(ValueError, match=match):
-        asyncio.run(indeed.search(fetcher, query="x", country="usa", **bad))
+    with pytest.raises(ValueError, match="two ASCII letters"):
+        asyncio.run(indeed.search(fetcher, query="x", country="usa", language=language))
     assert fetcher.requests == []
 
 
