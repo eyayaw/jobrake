@@ -4,7 +4,7 @@ import logging
 import math
 from typing import Any, Self
 
-import httpx
+lazy import httpx
 
 from .types import FetchResult
 

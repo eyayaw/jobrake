@@ -5,7 +5,7 @@ from gettext import ngettext
 from typing import Annotated
 from urllib.parse import urlencode
 
-from bs4 import BeautifulSoup
+lazy from bs4 import BeautifulSoup
 
 from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, Stopped, make_job

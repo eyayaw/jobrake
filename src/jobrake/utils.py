@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 from types import NoneType
 from typing import Annotated, NamedTuple, Union, get_args, get_origin
 
-from bs4 import BeautifulSoup
+lazy from bs4 import BeautifulSoup
 
 logger = logging.getLogger(__name__)
 

@@ -9,7 +9,7 @@ from html import unescape
 from typing import Annotated, Any
 from urllib.parse import urlsplit, urlunsplit
 
-from bs4 import BeautifulSoup
+lazy from bs4 import BeautifulSoup
 
 from jobrake import cache
 from jobrake.fetchkit import Fetcher
