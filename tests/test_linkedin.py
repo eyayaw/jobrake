@@ -1098,6 +1098,11 @@ def test_a_details_search_caches_the_page_without_its_card(unlimited):
     assert jobs[0]["date"] == "2026-08-01"  # the search keeps its card's date
     got = asyncio.run(linkedin.postings(StubFetcher({}), ["111"]))
     assert fetched(got, "111")["date"] == "2026-08-05"  # the page's, as a cold fetch reads it
+    cards = StubFetcher({"seeMoreJobPostings": ok(linkedin_card("111"))})
+    again = asyncio.run(
+        linkedin.search(cards, query="x", location="Seattle", results=1, details=True)
+    )
+    assert again[0]["date"] == "2026-08-01"  # a cached page keeps the card's date too
 
 
 def test_postings_attempt_each_posting_once(unlimited, caplog):

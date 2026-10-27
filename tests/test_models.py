@@ -19,7 +19,7 @@ def test_employment_type_is_unified_across_sites():
 def test_job_dict_keeps_summary_keys_and_omits_unavailable_detail():
     job = make_job(
         site="linkedin",
-        id="1",
+        id=" 1 ",
         url="u",
         title="t",
         company="c",
@@ -29,6 +29,7 @@ def test_job_dict_keeps_summary_keys_and_omits_unavailable_detail():
         salary_min=None,
     )
     assert set(job) == {*IDENTITY_FIELDS, *SUMMARY_FIELDS}
+    assert job["id"] == "1"
     assert job["location"] is None
     assert job["date"] is None
 
