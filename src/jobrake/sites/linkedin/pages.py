@@ -329,17 +329,17 @@ async def _with_fragment(fetcher: Fetcher, posting_id: str, posting: dict[str, A
     # A blockless page arrives localized, so its employment and salary labels
     # may not parse. Fetch the en-US fragment once for those fields.
     fragment = await paced_fetch(fetcher, f"{FRAGMENT_URL}/{posting_id}?_l=en_US")
+    # Without its fragment, the posting lacks fields a fetch would give, so it fails
+    # as a whole: nothing is cached, and a rerun fetches it again.
     if fragment.status == 429:
-        # resolved=True keeps the canonical fields, which fetch_pages caches before it stops.
-        return _Fetched(posting, resolved=True, stopped=True)
+        return _Fetched(None, resolved=False, stopped=True)
     if fragment.error:
         logger.warning(
-            "posting %s: its en-US fragment failed (%s). Keeping the fields parsed "
-            "from the posting page",
+            "skipping posting %s: its en-US fragment failed (%s). A rerun retries it",
             posting_id,
             fragment.error,
         )
-        return _Fetched(posting, resolved=True, stopped=False)
+        return _Fetched(None, resolved=False, stopped=False)
     fields, _ = _parse_posting(BeautifulSoup(fragment.text, "html.parser"))
     return _Fetched(fields | posting, resolved=True, stopped=False)
 

@@ -810,7 +810,8 @@ def fetched(found, reference) -> JobDict:
 
 def parse(page) -> JobDict | None:
     """Return the record postings() builds from ``page`` served as CANONICAL, or None for no fields."""
-    fetcher = StubFetcher({"economist-at-acme-111": ok(page)})
+    # An empty fragment answers a blockless page, so the record holds the page's fields alone.
+    fetcher = StubFetcher({"economist-at-acme-111": ok(page), "jobPosting/111": ok("")})
     return asyncio.run(linkedin.postings(fetcher, [CANONICAL], refresh=True)).get(CANONICAL)
 
 
@@ -978,31 +979,33 @@ def test_a_posting_page_reads_the_en_us_markup_labels(unlimited):
     assert job["company_logo"] == "https://media.licdn.com/acme-logo.png"
 
 
-def test_a_blockless_page_pulls_the_en_us_fragment(unlimited):
+@pytest.mark.parametrize("failure", [network_down(), rate_limited()])
+def test_a_blockless_page_pulls_the_en_us_fragment(unlimited, monkeypatch, failure):
+    monkeypatch.setattr(client, "RETRY_DELAY", 0)
     other = "https://nl.linkedin.com/jobs/view/other-at-acme-444"
     fetcher = StubFetcher(
         {
             "economist-at-acme-111": ok(blockless_page()),
             "jobPosting/111": ok(en_fragment()),
-            "other-at-acme-444": ok(blockless_page()),  # its fragment errors: no stub
+            "other-at-acme-444": ok(blockless_page()),
+            "jobPosting/444": failure,
         }
     )
     got = asyncio.run(linkedin.postings(fetcher, [CANONICAL, other]))
     assert fetched(got, CANONICAL)["employment_type"] == "full_time"  # the fragment's part
     assert fetched(got, CANONICAL)["applicants"] == 200  # the page wins where both speak
-    # page fields survive a failed fragment
-    assert fetched(got, other)["description"] == "Great & big role"
-    assert "employment_type" not in fetched(got, other)
-    assert fetcher.requests == [
+    assert fetcher.requests[:4] == [
         CANONICAL,
         f"{FRAGMENT}/111?_l=en_US",  # forced locale: the labels must parse
         other,
         f"{FRAGMENT}/444?_l=en_US",
     ]
-    # the rerun serves both from the cache, partial or not
+    # a posting whose fragment failed is left out and not cached, so a rerun fetches it again
+    assert other not in got
     fetcher.requests.clear()
     assert asyncio.run(linkedin.postings(fetcher, [CANONICAL, other])) == got
-    assert fetcher.requests == []
+    assert fetcher.requests[0] == other
+    assert CANONICAL not in fetcher.requests
 
 
 def test_postings_three_outcomes_and_what_each_costs_again(unlimited, monkeypatch):
@@ -1044,19 +1047,13 @@ def test_postings_stop_when_the_429_retries_also_fail(unlimited, caplog, monkeyp
     assert len(fetcher.requests) == 1 + client.RETRIES  # one posting's tries; the rest spared
     assert "rate limiting" in caplog.text
 
-    # a persistently limited fragment stops too, after the page's fields are kept
+    # a persistently limited fragment stops too, sparing the postings after it
     fetcher = StubFetcher(
         {"economist-at-acme-111": ok(blockless_page()), "jobPosting/111": rate_limited()}
     )
-    got = asyncio.run(linkedin.postings(fetcher, [CANONICAL, OTHER]))
-    assert fetched(got, CANONICAL)["description"] == "Great & big role"
-    assert OTHER not in got  # spared the futile page request
+    assert asyncio.run(linkedin.postings(fetcher, [CANONICAL, OTHER])) == {}
     fragment = f"{FRAGMENT}/111?_l=en_US"
     assert fetcher.requests == [CANONICAL] + [fragment] * (1 + client.RETRIES)
-    # the page's fields were cached before the stop: a rerun spends nothing on them
-    fetcher.requests.clear()
-    assert asyncio.run(linkedin.postings(fetcher, [CANONICAL])) == {CANONICAL: got[CANONICAL]}
-    assert fetcher.requests == []
 
     # a stop still serves the postings it never reached from the cache
     first = "https://nl.linkedin.com/jobs/view/first-at-acme-333"
