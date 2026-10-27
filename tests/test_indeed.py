@@ -323,8 +323,11 @@ def test_indeed_all_malformed_page_keeps_paginating():
     assert [job["id"] for job in jobs] == ["b"]  # the cursor survives the bad page
 
 
-def test_indeed_malformed_later_page_keeps_collected_jobs():
-    pages = [indeed_payload(["a"], cursor="next"), {"data": {"jobSearch": None}}]
+@pytest.mark.parametrize(
+    "job_search", [None, {"results": {}}, {"results": "x"}], ids=["null", "dict", "string"]
+)
+def test_indeed_malformed_later_page_keeps_collected_jobs(job_search):
+    pages = [indeed_payload(["a"], cursor="next"), {"data": {"jobSearch": job_search}}]
     fetcher = PagedFetcher([json.dumps(page) for page in pages])
     # The message names the caught error.
     with pytest.raises(Stopped, match="TypeError") as stop:

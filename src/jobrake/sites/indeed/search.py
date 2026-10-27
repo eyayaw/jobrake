@@ -265,6 +265,8 @@ def _parse_jobs(data: dict[str, Any], base_url: str) -> tuple[list[JobDict], str
     """
     search = data["data"]["jobSearch"]
     results = search["results"]
+    if not isinstance(results, list):
+        raise TypeError(f"results is a {type(results).__name__}, not a list")
     jobs = []
     for result in results:
         try:
