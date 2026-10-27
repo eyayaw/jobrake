@@ -24,8 +24,8 @@ def _candidate(hit: object) -> dict[str, str] | None:
     return {"id": hit_id, "name": display}
 
 
-# Each typeahead kind with the noun and an example name for messages.
-_KINDS = {"GEO": ("place", "amsterdam"), "COMPANY": ("company", "ABN AMRO")}
+# Each typeahead kind with its noun for messages.
+_KINDS = {"GEO": "place", "COMPANY": "company"}
 
 
 async def _typeahead(fetcher: Fetcher, kind: str, name: str) -> list[dict[str, str]]:
@@ -34,12 +34,9 @@ async def _typeahead(fetcher: Fetcher, kind: str, name: str) -> list[dict[str, s
 
     Raises:
         Stopped: The request failed, or the response held no readable hit.
-        ValueError: The name is blank.
     """
-    noun, example = _KINDS[kind]
+    noun = _KINDS[kind]
     name = name.strip()
-    if not name:
-        raise ValueError(f"{noun} name is blank. Try {example!r}")
     query = urlencode({"query": name, "typeaheadType": kind})
     result = await client.paced_fetch(fetcher, f"{client.TYPEAHEAD_URL}?{query}")
     if result.error:

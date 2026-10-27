@@ -517,7 +517,7 @@ def test_companies_lists_usable_candidates_in_linkedin_order(unlimited):
         "query": ["ABN & AMRO"],
         "typeaheadType": ["COMPANY"],
     }
-    with pytest.raises(ValueError, match="company name is blank"):
+    with pytest.raises(ValueError, match="Pass a company name"):
         asyncio.run(linkedin.companies(fetcher, "   "))
     assert len(fetcher.requests) == 1
 

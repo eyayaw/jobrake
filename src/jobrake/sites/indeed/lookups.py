@@ -34,11 +34,11 @@ def _candidate(hit: object, id_key: str, name_key: str) -> dict[str, str] | None
     return {"id": hit_id, "name": name} if hit_id and name else None
 
 
-# Each autocomplete kind: the noun and an example name for messages, the hit
-# field that holds the ID, and the parameters it adds.
-_KINDS: dict[str, tuple[str, str, str, dict[str, Any]]] = {
-    "location": ("place", "boston", "suggestion", {"formatted": 1}),
-    "company": ("company", "ABN AMRO", "employerKey", {}),
+# Each autocomplete kind: the noun for messages, the hit field that holds the
+# ID, and the parameters it adds.
+_KINDS: dict[str, tuple[str, str, dict[str, Any]]] = {
+    "location": ("place", "suggestion", {"formatted": 1}),
+    "company": ("company", "employerKey", {}),
 }
 
 
@@ -50,12 +50,10 @@ async def _suggestions(
 
     Raises:
         Stopped: The request failed, or the response held no readable suggestion.
-        ValueError: The name is blank, or the country edition is unknown.
+        ValueError: The country edition is unknown.
     """
-    noun, example, id_key, extra = _KINDS[kind]
+    noun, id_key, extra = _KINDS[kind]
     name = name.strip()
-    if not name:
-        raise ValueError(f"{noun} name is blank. Try {example!r}")
     _, code = indeed_domain(country)
     params = {"query": name, "country": code, "language": "en", "count": 10, "rich": "true"}
     url = f"{AUTOCOMPLETE_URL}/{kind}?{urlencode(params | extra)}"
@@ -134,8 +132,6 @@ async def attributes(
         ValueError: The query is blank, or the country edition is unknown.
     """
     query = query.strip()
-    if not query:
-        raise ValueError("attribute lookup query is blank. Try 'data scientist'")
     _, code = indeed_domain(country)
     result = await fetcher.fetch(
         API_URL,

@@ -38,8 +38,6 @@ async def places(
 ) -> list[dict[str, str]]:
     """List the fake board's places for a name."""
     calls.append({"name": name, "region": region})
-    if not name.strip():
-        raise ValueError("place name is blank")
     if name == "offline":
         raise Stopped("place lookup failed: connection reset", partial=[])
     return [] if name == "nowhere" else [{"id": "1", "name": name}]

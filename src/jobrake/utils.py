@@ -111,6 +111,9 @@ def _check(options: dict[str, Option], given: dict[str, object]) -> None:
         minimum = _MINIMUMS.get(name)
         if minimum is not None and isinstance(value, int) and value < minimum:
             raise ValueError(f"{name} ({value}) must be at least {minimum}")
+        # A lookup's text names what to look up, so a blank one asks for nothing.
+        if option.positional and isinstance(value, str) and not value.strip():
+            raise ValueError(f"{name} is blank. Pass a {option.help}")
 
 
 def checked[**P, R](function: Callable[P, Awaitable[R]]) -> Callable[P, Awaitable[R]]:
@@ -126,7 +129,7 @@ def checked[**P, R](function: Callable[P, Awaitable[R]]) -> Callable[P, Awaitabl
             ``site_options``. At a call, an argument is unknown, missing, or of
             the wrong type.
         ValueError: At a call, ``results``, ``radius``, or ``max_age_hours``
-            is below its minimum.
+            is below its minimum, or a lookup's text is blank.
     """
     signature = inspect.signature(function)
     options = site_options(function)
