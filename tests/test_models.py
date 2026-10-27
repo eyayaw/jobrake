@@ -1,8 +1,10 @@
 """Tests for the job data model."""
 
+import pickle
+
 import pytest
 
-from jobrake.models import IDENTITY_FIELDS, SUMMARY_FIELDS, employment_type, make_job
+from jobrake.models import IDENTITY_FIELDS, SUMMARY_FIELDS, Stopped, employment_type, make_job
 
 
 def test_employment_type_is_unified_across_sites():
@@ -52,3 +54,10 @@ def test_make_job_rejects_a_record_outside_job_dict():
     for identity in ({"id": "1"}, {"id": 1, "url": "u"}, {"id": " ", "url": "u"}):
         with pytest.raises(TypeError, match="must be a nonblank string"):
             make_job(site="linkedin", **identity)
+
+
+def test_stopped_keeps_its_partial_across_processes():
+    # A process pool pickles a worker's exception to hand it back.
+    job = make_job(site="linkedin", id="1", url="u")
+    stop = pickle.loads(pickle.dumps(Stopped("HTTP 429", partial=[job])))
+    assert (str(stop), stop.partial) == ("HTTP 429", [job])

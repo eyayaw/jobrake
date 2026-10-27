@@ -1,5 +1,6 @@
 """Normalized job fields shared by the site adapters, and ``Stopped``."""
 
+import functools
 import re
 from typing import Any, NotRequired, TypedDict, cast
 
@@ -98,6 +99,11 @@ class Stopped(Exception):
     def __init__(self, message: str, *, partial: list[JobDict]) -> None:
         super().__init__(message)
         self.partial = partial
+
+    def __reduce__(self) -> tuple[Any, ...]:
+        # Unpickling calls the class with args alone, which lack partial, so a
+        # Stopped raised in a process-pool worker would break the pool.
+        return functools.partial(type(self), partial=self.partial), self.args, self.__dict__
 
 
 # schema.org says CONTRACTOR and INTERN where the boards say Contract and Internship.
