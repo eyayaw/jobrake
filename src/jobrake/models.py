@@ -6,7 +6,7 @@ from typing import Any, NotRequired, TypedDict, cast
 from jobrake.utils import iso_date
 
 
-class JobDict(TypedDict):
+class JobDict(TypedDict, closed=True):
     """
     A posting from any site, under shared field names.
 
