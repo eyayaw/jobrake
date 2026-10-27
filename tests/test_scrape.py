@@ -24,13 +24,14 @@ def test_a_site_meets_the_site_contract(site):
     for name in module.__all__:
         function = getattr(module, name)
         options = site_options(function)
-        positional = [option for option in options.values() if option.positional]
+        positional = [option for option, spec in options.items() if spec.positional]
         assert len(positional) == (name != "search"), name
-        # Every exported function checks its arguments before any request.
+        # Every exported function checks its arguments before any request, and
+        # takes its fetcher by name as well as by position.
         fetcher = StubFetcher({})
-        text = [] if name == "search" else [["x"] if name == "postings" else "x"]
-        with pytest.raises(TypeError, match=f"{site} has no option bogus"):
-            asyncio.run(function(fetcher, *text, bogus=1))
+        text = {option: ["x"] if name == "postings" else "x" for option in positional}
+        with pytest.raises(TypeError, match=f"^{site}: "):
+            asyncio.run(function(fetcher=fetcher, **text, bogus=1))
         assert fetcher.requests == []
     # A name two sites share keeps one type, apart from accepting None.
     kinds = {name: option.kind for name, option in site_options(module.search).items()}
@@ -48,12 +49,16 @@ async def floating(fetcher, *, ratio: Annotated[float, "a ratio"]): ...
 async def flag_on(fetcher, *, strict: Annotated[bool, "strict parsing"] = True): ...
 
 
+async def either(fetcher, *, key: Annotated[str | int | None, "a key"] = None): ...
+
+
 @pytest.mark.parametrize(
     ("function", "match"),
     [
         (unannotated, "annotate query as Annotated"),
         (floating, "ratio is <class 'float'>. Use str, int, bool, or list"),
         (flag_on, "the boolean option strict must default to False"),
+        (either, r"key is str \| int \| None. Use str, int, bool, or list"),
     ],
 )
 def test_a_site_function_the_cli_cannot_build_fails_when_decorated(function, match):
@@ -65,9 +70,9 @@ def test_a_site_function_the_cli_cannot_build_fails_when_decorated(function, mat
     ("site", "kwargs", "error", "match"),
     [
         ("glassdoor", {}, ValueError, "glassdoor"),
-        ("indeed", {}, TypeError, "indeed requires country. Its options are query, country"),
-        ("indeed", {"country": "usa", "geoid": "1"}, TypeError, "indeed has no option geoid"),
-        ("linkedin", {"location": "Seattle", "country": "usa"}, TypeError, "no option country"),
+        ("indeed", {}, TypeError, r"indeed: missing .* 'country'. Its options are query, country"),
+        ("indeed", {"country": "usa", "geoid": "1"}, TypeError, r"indeed: .* argument 'geoid'"),
+        ("linkedin", {"location": "Seattle", "country": "usa"}, TypeError, "argument 'country'"),
         ("indeed", {"country": 5}, TypeError, "country must be a string, got 5"),
         ("indeed", {"country": "usa", "remote": "false"}, TypeError, "remote must be a boolean"),
         ("linkedin", {"location": 5}, TypeError, "location must be a string or None"),
@@ -111,7 +116,7 @@ def test_a_registered_site_needs_no_change_to_scrape(fake_site):
     assert fake_site.calls == [
         {"query": "x", "board": "acme", "results": 2, "remote": False, "tags": ["a"]}
     ]
-    with pytest.raises(TypeError, match="fakesite has no option location"):
+    with pytest.raises(TypeError, match=r"fakesite: .* argument 'location'"):
         asyncio.run(scrape("fakesite", query="x", location="Seattle"))
     with pytest.raises(TypeError, match="tags must be a list of strings or None"):
         asyncio.run(scrape("fakesite", query="x", tags="a"))

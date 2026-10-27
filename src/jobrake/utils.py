@@ -83,7 +83,7 @@ def site_options(function: Callable[..., object]) -> dict[str, Option]:
         if not isinstance(help_text, str) or not help_text.strip():
             raise TypeError(f"{where}: give {param.name} a help string in its Annotated")
         members = get_args(kind) if get_origin(kind) is Union else ()
-        optional = NoneType in members
+        optional = NoneType in members and len(members) == 2
         if optional:
             (kind,) = (member for member in members if member is not NoneType)
         if kind not in _TYPES:
@@ -99,15 +99,7 @@ def site_options(function: Callable[..., object]) -> dict[str, Option]:
     return options
 
 
-def _check(site: str, options: dict[str, Option], given: dict[str, object]) -> None:
-    listing = ", ".join(options)
-    if unknown := [name for name in given if name not in options]:
-        raise TypeError(f"{site} has no option {', '.join(unknown)}. Its options are {listing}")
-    required = [
-        name for name, option in options.items() if option.default is inspect.Parameter.empty
-    ]
-    if missing := [name for name in required if name not in given]:
-        raise TypeError(f"{site} requires {', '.join(missing)}. Its options are {listing}")
+def _check(options: dict[str, Option], given: dict[str, object]) -> None:
     for name, value in given.items():
         option = options[name]
         if value is None and option.optional:
@@ -136,14 +128,19 @@ def checked[**P, R](function: Callable[P, Awaitable[R]]) -> Callable[P, Awaitabl
         ValueError: At a call, ``results``, ``radius``, or ``max_age_hours``
             is below its minimum.
     """
+    signature = inspect.signature(function)
     options = site_options(function)
-    positional = [name for name, option in options.items() if option.positional]
     site = function.__module__.removeprefix("jobrake.sites.").partition(".")[0]
+    keywords = ", ".join(name for name, option in options.items() if not option.positional)
+    listing = f"Its options are {keywords}" if keywords else "It takes no options"
 
     @functools.wraps(function)
     async def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
-        # args[0] is the fetcher. Surplus positional arguments fail in the call itself.
-        _check(site, options, dict(zip(positional, args[1:], strict=False)) | kwargs)
+        try:
+            _, *given = signature.bind(*args, **kwargs).arguments.items()
+        except TypeError as error:
+            raise TypeError(f"{site}: {error}. {listing}") from None
+        _check(options, dict(given))
         return await function(*args, **kwargs)
 
     return wrapper
