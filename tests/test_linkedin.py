@@ -991,19 +991,19 @@ def test_a_blockless_page_pulls_the_en_us_fragment(unlimited, monkeypatch, failu
             "jobPosting/444": failure,
         }
     )
-    got = asyncio.run(linkedin.postings(fetcher, [CANONICAL, other]))
-    assert fetched(got, CANONICAL)["employment_type"] == "full_time"  # the fragment's part
-    assert fetched(got, CANONICAL)["applicants"] == 200  # the page wins where both speak
+    got = asyncio.run(linkedin.postings(fetcher, ["111", other]))
+    assert fetched(got, "111")["employment_type"] == "full_time"  # the fragment's part
+    assert fetched(got, "111")["applicants"] == 200  # the page wins where both speak
     assert fetcher.requests[:4] == [
+        f"{FRAGMENT}/111?_l=en_US",  # names the URL, and serves the labels too
         CANONICAL,
-        f"{FRAGMENT}/111?_l=en_US",  # forced locale: the labels must parse
         other,
-        f"{FRAGMENT}/444?_l=en_US",
+        f"{FRAGMENT}/444?_l=en_US",  # forced locale: the labels must parse
     ]
     # a posting whose fragment failed is left out and not cached, so a rerun fetches it again
     assert other not in got
     fetcher.requests.clear()
-    assert asyncio.run(linkedin.postings(fetcher, [CANONICAL, other])) == got
+    assert asyncio.run(linkedin.postings(fetcher, ["111", other])) == got
     assert fetcher.requests[0] == other
     assert CANONICAL not in fetcher.requests
 

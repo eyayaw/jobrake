@@ -7,7 +7,7 @@ import re
 from collections.abc import Iterable
 from gettext import ngettext
 from html import unescape
-from typing import Annotated, Any, NamedTuple
+from typing import Annotated, Any
 from urllib.parse import urlsplit
 
 from bs4 import BeautifulSoup
@@ -319,53 +319,81 @@ def _fragment_url(html: str, posting_id: str) -> str | None:
     return url
 
 
-class _Fetched(NamedTuple):
-    fields: dict[str, Any] | None  # None with resolved=True records a posting that is gone
-    resolved: bool  # False after a 429, another failed request, or a page without fields, so a rerun retries the URL
-    stopped: bool  # True once paced_fetch has spent its retries on a 429
+class _Skip(Exception):
+    """
+    A posting failed, so it gets no result and a rerun retries it.
+
+    ``stop`` marks a persistent 429, which ends the fetch.
+    """
+
+    def __init__(self, *, stop: bool = False) -> None:
+        super().__init__()
+        self.stop = stop
 
 
-async def _with_fragment(fetcher: Fetcher, posting_id: str, posting: dict[str, Any]) -> _Fetched:
-    # A blockless page arrives localized, so its employment and salary labels
-    # may not parse. Fetch the en-US fragment once for those fields.
-    fragment = await paced_fetch(fetcher, f"{FRAGMENT_URL}/{posting_id}?_l=en_US")
-    # Without its fragment, the posting lacks fields a fetch would give, so it fails
-    # as a whole: nothing is cached, and a rerun fetches it again.
-    if fragment.status == 429:
-        return _Fetched(None, resolved=False, stopped=True)
-    if fragment.error:
-        logger.warning(
-            "skipping posting %s: its en-US fragment failed (%s). A rerun retries it",
-            posting_id,
-            fragment.error,
-        )
-        return _Fetched(None, resolved=False, stopped=False)
-    fields, _ = _parse_posting(BeautifulSoup(fragment.text, "html.parser"))
-    return _Fetched(fields | posting, resolved=True, stopped=False)
+async def _text(fetcher: Fetcher, url: str, posting: str) -> str | None:
+    """
+    Return the body of ``url``, or None when LinkedIn reports the posting gone.
 
-
-async def _fetch_fields(fetcher: Fetcher, url: str, posting_id: str) -> _Fetched:
-    result = await paced_fetch(fetcher, _canonical(url))
+    Raises:
+        _Skip: The request failed, which it logs, or paced_fetch spent its
+            retries on a 429.
+    """
+    result = await paced_fetch(fetcher, url)
     if result.status == 429:
         # paced_fetch has spent its retries, so the next posting would likely be
         # refused too. Stop instead of repeating them for every remaining posting.
-        return _Fetched(None, resolved=False, stopped=True)
+        raise _Skip(stop=True)
     if result.status in (404, 410):
-        return _Fetched(None, resolved=True, stopped=False)
+        return None
     if result.error:
-        logger.warning("skipping posting %s: %s. A rerun retries it", url, result.error)
-        return _Fetched(None, resolved=False, stopped=False)
-    posting, structured = _parse_posting(BeautifulSoup(result.text, "html.parser"))
-    if not posting:
+        logger.warning("skipping posting %s: %s. A rerun retries it", posting, result.error)
+        raise _Skip
+    return result.text
+
+
+async def _fetch_posting(
+    fetcher: Fetcher, posting_id: str, url: str | None
+) -> dict[str, Any] | None:
+    """
+    Fetch one posting's fields, with its ``url``, or None when LinkedIn reports it gone.
+
+    Without a known URL, the guest fragment names it.
+
+    Raises:
+        _Skip: A request failed, or the page yielded no fields.
+    """
+    fragment_url = f"{FRAGMENT_URL}/{posting_id}?_l=en_US"
+    fragment = None
+    if url is None:
+        if (fragment := await _text(fetcher, fragment_url, posting_id)) is None:
+            return None
+        if (url := _fragment_url(fragment, posting_id)) is None:
+            raise _Skip
+    if (page := await _text(fetcher, _canonical(url), url)) is None:
+        return None
+    fields, structured = _parse_posting(BeautifulSoup(page, "html.parser"))
+    if not fields:
         logger.warning(
             "skipping posting %s. Its page yielded no fields, so it may be a signup "
             "wall or changed markup. A rerun retries it",
             url,
         )
-        return _Fetched(None, resolved=False, stopped=False)
-    if structured:
-        return _Fetched(posting, resolved=True, stopped=False)
-    return await _with_fragment(fetcher, posting_id, posting)
+        raise _Skip
+    if not structured:
+        # A blockless page arrives localized, so its employment and salary labels
+        # may not parse. The en-US fragment fills those fields, and without it
+        # the posting fails as a whole. When the URL came from it, that body serves.
+        if fragment is None:
+            fragment = await _text(fetcher, fragment_url, posting_id)
+        if fragment is None:
+            logger.warning(
+                "skipping posting %s: its en-US fragment is gone. A rerun retries it",
+                posting_id,
+            )
+            raise _Skip
+        fields = _parse_posting(BeautifulSoup(fragment, "html.parser"))[0] | fields
+    return fields | {"url": url}
 
 
 def _is_posting_id(reference: str) -> bool:
@@ -390,41 +418,6 @@ def _reference_ids(references: Iterable[str]) -> dict[str, str]:
     return ids
 
 
-async def _lookup_address(fetcher: Fetcher, posting_id: str) -> _Fetched:
-    """Learn a posting's canonical URL, as ``{"url"}``, from its guest fragment."""
-    result = await paced_fetch(fetcher, f"{FRAGMENT_URL}/{posting_id}?_l=en_US")
-    if result.status == 429:
-        # paced_fetch has spent its retries, so later postings would likely be
-        # refused too. Stop rather than retry each of them.
-        return _Fetched(None, resolved=False, stopped=True)
-    if result.status in (404, 410):
-        return _Fetched(None, resolved=True, stopped=False)
-    if result.error:
-        logger.warning(
-            "skipping posting %s: %s. Pass its URL to fetch the posting without this lookup",
-            posting_id,
-            result.error,
-        )
-        return _Fetched(None, resolved=False, stopped=False)
-    url = _fragment_url(result.text, posting_id)
-    if url is None:
-        return _Fetched(None, resolved=False, stopped=False)
-    return _Fetched({"url": url}, resolved=True, stopped=False)
-
-
-async def _fetch_posting(fetcher: Fetcher, posting_id: str, url: str | None) -> _Fetched:
-    """Fetch one posting's fields, with its ``url``, looking the URL up when none is known."""
-    if url is None:
-        looked = await _lookup_address(fetcher, posting_id)
-        if looked.fields is None:
-            return looked
-        url = looked.fields["url"]
-    fetched = await _fetch_fields(fetcher, url, posting_id)
-    if fetched.fields is None:
-        return fetched
-    return fetched._replace(fields=fetched.fields | {"url": url})
-
-
 def _job(posting_id: str, known: dict[str, Any], fields: dict[str, Any]) -> JobDict:
     """
     Build a posting's record from the fields known for it, overridden by its page's fields.
@@ -446,11 +439,12 @@ async def fetch_pages(
     ``wanted`` maps each posting ID to the fields known so far, such as a
     search card. A cached record costs no request. A posting whose fields
     hold no ``url`` costs a guest-fragment request to learn its canonical
-    URL. A page without the schema.org block costs one en-US fragment request
-    for the remaining fields. ``refresh`` skips cache reads but still stores
-    what it fetched. A persistent 429 stops further requests and keeps what
-    the cache and the completed requests hold. INFO records report the
-    start, progress, and resolved count.
+    URL. A page without the schema.org block needs that fragment for the
+    remaining fields, one more request unless the lookup fetched it.
+    ``refresh`` skips cache reads but still stores what it fetched. A
+    persistent 429 stops further requests and keeps what the cache and the
+    completed requests hold. INFO records report the start, progress, and
+    resolved count.
 
     Returns:
         A ``JobDict`` per fetched posting and ``None`` per posting LinkedIn
@@ -476,17 +470,18 @@ async def fetch_pages(
         )
         if posting_id in found:
             continue
-        fetched = await _fetch_posting(fetcher, posting_id, known.get("url"))
-        if fetched.resolved:
-            fields = fetched.fields
-            found[posting_id] = None if fields is None else _job(posting_id, known, fields)
-            if fields is not None:
-                # The cache keeps the page's record without the card, so a later
-                # fetch reads the same posting whichever search found it first.
-                cache.CACHE.put([_job(posting_id, {}, fields)])
-        if fetched.stopped:
-            stopped = True
-            break
+        try:
+            fields = await _fetch_posting(fetcher, posting_id, known.get("url"))
+        except _Skip as skip:
+            if skip.stop:
+                stopped = True
+                break
+            continue
+        found[posting_id] = None if fields is None else _job(posting_id, known, fields)
+        if fields is not None:
+            # The cache keeps the page's record without the card, so a later
+            # fetch reads the same posting whichever search found it first.
+            cache.CACHE.put([_job(posting_id, {}, fields)])
     if stopped:
         logger.warning(
             "linkedin is rate limiting this IP, so detail fetching stopped with %d of "
