@@ -8,7 +8,7 @@ from collections.abc import Iterable
 from gettext import ngettext
 from html import unescape
 from typing import Annotated, Any
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, urlunsplit
 
 from bs4 import BeautifulSoup
 
@@ -247,10 +247,10 @@ def _parse_posting(soup: BeautifulSoup) -> tuple[dict[str, Any], bool]:
 
 
 def _canonical(url: str) -> str:
-    """Remove the trailing slash that suppresses LinkedIn's structured block."""
+    """Reduce a posting URL to its page address, without a query, a fragment, or a trailing slash."""
     # A trailing slash returns the same full page without its schema.org script.
-    path, sep, query = url.partition("?")
-    return path.rstrip("/") + sep + query
+    parts = urlsplit(url)
+    return urlunsplit(parts._replace(path=parts.path.rstrip("/"), query="", fragment=""))
 
 
 _PAGE_PATH = "/jobs/view/"
@@ -527,6 +527,6 @@ async def postings(
     for ref, posting_id in ids.items():
         known = wanted.setdefault(posting_id, {})
         if "url" not in known and _country_canonical(ref.strip()):
-            known["url"] = ref.strip()
+            known["url"] = _canonical(ref.strip())
     found = await fetch_pages(fetcher, wanted, refresh=refresh)
     return {ref: found[posting_id] for ref, posting_id in ids.items() if posting_id in found}

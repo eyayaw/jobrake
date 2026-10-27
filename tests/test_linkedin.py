@@ -1083,11 +1083,13 @@ def test_postings_contain_a_malformed_block_per_posting(unlimited):
     assert fetched(got, OTHER)["description"] == "Great & big role"  # fetching went on
 
 
-def test_postings_drop_a_trailing_slash(unlimited):
+@pytest.mark.parametrize("suffix", ["/", "?trk=public_jobs", "/?trk=public_jobs", "#apply"])
+def test_postings_reduce_a_url_to_its_page(unlimited, suffix):
     fetcher = StubFetcher({"economist-at-acme-111": ok(job_page())})
-    got = asyncio.run(linkedin.postings(fetcher, [CANONICAL + "/"]))
-    assert fetched(got, CANONICAL + "/")["employment_type"] == "full_time"  # keyed as passed
-    assert fetcher.requests == [CANONICAL]  # fetched without it, or the page omits the block
+    got = asyncio.run(linkedin.postings(fetcher, [CANONICAL + suffix]))
+    assert fetched(got, CANONICAL + suffix)["url"] == CANONICAL  # keyed as passed
+    # fetched without a trailing slash, or the page omits the block
+    assert fetcher.requests == [CANONICAL]
 
 
 def test_postings_without_the_cache_refetch_and_refresh(unlimited):

@@ -5,6 +5,7 @@ import logging
 import re
 from math import inf
 from time import monotonic
+from urllib.parse import urlsplit
 
 from jobrake.fetchkit import Fetcher, FetchResult, TokenBucket
 
@@ -206,6 +207,6 @@ async def _fetch_on_turn(fetcher: Fetcher, url: str, tried: set[str]) -> FetchRe
 
 def job_id(url: str) -> str:
     """Extract a numeric posting ID, using ``""`` when the URL has none."""
-    slug = url.split("?", maxsplit=1)[0].rstrip("/").rsplit("/", 1)[-1]
+    slug = urlsplit(url).path.rstrip("/").rsplit("/", 1)[-1]
     tail = slug.rsplit("-", 1)[-1]
     return tail if tail.isdigit() else ""
