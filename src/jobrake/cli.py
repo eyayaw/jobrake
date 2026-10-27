@@ -264,11 +264,13 @@ def _lookup(parser: _ArgumentParser, args: argparse.Namespace) -> int | None:
     return _write_stdout(json.dumps(hits, indent=2, ensure_ascii=False) + "\n")
 
 
-def _fetch_postings(args: argparse.Namespace) -> list[JobDict]:
+def _fetch_postings(args: argparse.Namespace) -> tuple[list[JobDict], bool]:
     """
-    Fetch the named postings, one record per posting in reference order.
+    Fetch the named postings, one record per posting in reference order, and whether a reference failed.
 
-    A reference to a posting the site reports gone logs a warning.
+    A reference to a posting the site reports gone logs a warning. A failed
+    reference has no key in the result of ``postings``, and the site has
+    reported why.
     """
     fetch = SITES[args.site].postings
     references, options = _call_args(args, fetch)
@@ -277,7 +279,8 @@ def _fetch_postings(args: argparse.Namespace) -> list[JobDict]:
         if job is None:
             logger.warning("%s is no longer on %s", reference, args.site)
     jobs = (job for job in found.values() if job is not None)
-    return list({(job["site"], job["id"]): job for job in jobs}.values())
+    failed = any(reference not in found for reference in references)
+    return list({(job["site"], job["id"]): job for job in jobs}.values()), failed
 
 
 def _settle_output(parser: _ArgumentParser, args: argparse.Namespace) -> str:
@@ -333,7 +336,7 @@ def main() -> int | None:
     Run a search, posting fetch, or lookup.
 
     Returns:
-        ``1`` when a search or lookup stops on a failed request, no named posting could be fetched, stdout closes early, or the output file cannot be written. Normal completion returns ``None``.
+        ``1`` when a search or lookup stops on a failed request, a named posting could not be fetched, stdout closes early, or the output file cannot be written. Normal completion returns ``None``.
     """
     parser = _build_parser()
     args = parser.parse_args()
@@ -349,13 +352,13 @@ def main() -> int | None:
     fmt = _settle_output(parser, args)
     if args.command == "postings":
         try:
-            jobs = _fetch_postings(args)
+            jobs, failed = _fetch_postings(args)
         except ValueError as e:
             parser.error(str(e))
         finally:
             handler.clear()
-        # An empty result means every named posting failed, each already reported.
-        return _write_jobs(args, jobs, fmt) if jobs else 1
+        # Like a stopped search, a fetch with a failed reference writes what it got and exits 1.
+        return _write_jobs(args, jobs, fmt) or (1 if failed else None)
     options = {k: v for k, v in vars(args).items() if k in site_options(SITES[args.command].search)}
     status = None
     try:

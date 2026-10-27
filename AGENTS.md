@@ -78,9 +78,9 @@ the CLI, and the contract test in `tests/test_scrape.py` need no edit.
   neither paced nor cached.
 - Library code logs under the `jobrake` logger and prints nothing. The CLI
   sends logs to stderr and data to stdout. It exits 2 for a bad argument, and
-  1 when a search or lookup raises `Stopped`, no named posting could be
-  fetched, or the output cannot be written. A stopped search still writes its
-  partial result.
+  1 when a search or lookup raises `Stopped`, a named posting could not be
+  fetched, or the output cannot be written. A stopped search and a postings
+  fetch with a failed reference still write what they got.
 
 ## Style
 

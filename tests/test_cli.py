@@ -114,17 +114,22 @@ def test_a_lookup_prints_its_candidates_or_fails(
     assert error.value.code == 2
 
 
-def test_postings_command_renders_what_it_fetched(fake_site, fetchers, monkeypatch, capsys, caplog):
-    # two references to one posting, one gone, one failed and so absent
-    references = ["1", "https://fake.test/1", "gone", "failed"]
+@pytest.mark.parametrize(
+    ("references", "written", "status"),
+    [
+        # two references to one posting, one gone, and one whose request failed
+        (["1", "https://fake.test/1", "gone", "failed"], ["1"], 1),
+        (["gone"], [], None),  # a gone posting is no failure
+        (["1"], ["1"], None),
+    ],
+)
+def test_postings_command_writes_what_it_fetched_and_fails_on_a_failed_reference(
+    fake_site, fetchers, monkeypatch, capsys, caplog, references, written, status
+):
     monkeypatch.setattr(sys, "argv", ["jobrake", "postings", "fakesite", *references])
-    assert cli.main() is None
-    assert json.loads(capsys.readouterr().out) == [fake_site.job("1")]  # one record per posting
-    assert "gone is no longer on fakesite" in caplog.text
-    # nothing fetched: the failures were already reported, so stdout stays empty
-    monkeypatch.setattr(sys, "argv", ["jobrake", "postings", "fakesite", "failed"])
-    assert cli.main() == 1
-    assert capsys.readouterr().out == ""
+    assert cli.main() == status
+    assert json.loads(capsys.readouterr().out) == [fake_site.job(n) for n in written]
+    assert ("gone is no longer on fakesite" in caplog.text) == ("gone" in references)
     assert all(fetcher.closed for fetcher in fetchers)
 
 
