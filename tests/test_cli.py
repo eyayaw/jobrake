@@ -5,6 +5,7 @@ import io
 import json
 import logging
 import os
+import subprocess
 import sys
 import types
 from pathlib import Path
@@ -466,3 +467,18 @@ def test_output_write_error_reports_and_fails(run_cli, monkeypatch, tmp_path, ca
     out = tmp_path / "jobs.json"
     assert run_cli("-o", str(out)) == 1
     assert f"could not write {out}: permission denied" in caplog.text
+
+
+def test_output_is_utf8_whatever_the_stdout_encoding():
+    code = f"""
+import sys
+sys.path.insert(0, {str(Path(__file__).parent)!r})
+import fakesite
+from jobrake import cli, sites
+sites.SITES["fakesite"] = fakesite
+sys.argv = ["jobrake", "fakesite", "places", "Zürich"]
+raise SystemExit(cli.main())
+"""
+    env = os.environ | {"PYTHONIOENCODING": "ascii"}
+    result = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, check=True)
+    assert json.loads(result.stdout.decode()) == [{"id": "1", "name": "Zürich"}]

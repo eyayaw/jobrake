@@ -3,6 +3,7 @@
 import argparse
 import asyncio
 import inspect
+import io
 import json
 import logging
 import os
@@ -313,6 +314,10 @@ def main() -> int | None:
     Returns:
         ``1`` when a search or lookup stops on a failed request, a named posting could not be fetched, stdout closes early, or the output file cannot be written. Normal completion returns ``None``.
     """
+    # The output is JSON or CSV data, so it is UTF-8 like a file -o writes, whatever
+    # the console's code page.
+    if isinstance(sys.stdout, io.TextIOWrapper):
+        sys.stdout.reconfigure(encoding="utf-8")
     parser = _build_parser()
     args = parser.parse_args()
     # Progress and warnings go to stderr, stdout stays pure data for piping.
