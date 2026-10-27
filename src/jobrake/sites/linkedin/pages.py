@@ -429,11 +429,11 @@ def _job(posting_id: str, known: dict[str, Any], fields: dict[str, Any]) -> JobD
     """
     Build a posting's record from the fields known for it, overridden by its page's fields.
 
-    A known ``url`` and ``date``, such as a search card's, stay, and a ``None``
-    page value leaves the known one in place.
+    A known ``url`` and ``date``, such as a search card's, stay when set, and a
+    ``None`` page value leaves the known one in place.
     """
     page = {name: value for name, value in fields.items() if value is not None}
-    kept = {name: known[name] for name in ("url", "date") if name in known}
+    kept = {name: known[name] for name in ("url", "date") if known.get(name)}
     return make_job(**(known | page | kept | {"site": "linkedin", "id": posting_id}))
 
 
@@ -478,10 +478,12 @@ async def fetch_pages(
             continue
         fetched = await _fetch_posting(fetcher, posting_id, known.get("url"))
         if fetched.resolved:
-            job = None if fetched.fields is None else _job(posting_id, known, fetched.fields)
-            found[posting_id] = job
-            if job is not None:
-                cache.CACHE.put([job])
+            fields = fetched.fields
+            found[posting_id] = None if fields is None else _job(posting_id, known, fields)
+            if fields is not None:
+                # The cache keeps the page's record without the card, so a later
+                # fetch reads the same posting whichever search found it first.
+                cache.CACHE.put([_job(posting_id, {}, fields)])
         if fetched.stopped:
             stopped = True
             break

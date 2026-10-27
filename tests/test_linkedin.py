@@ -1121,6 +1121,18 @@ def test_postings_are_cached_by_id_not_url(unlimited):
     assert fetched(got, moved)["employment_type"] == "full_time"
 
 
+def test_a_details_search_caches_the_page_without_its_card(unlimited):
+    responses = {"seeMoreJobPostings": ok(linkedin_card("111")), "jobs/view/111": ok(job_page())}
+    jobs = asyncio.run(
+        linkedin.search(
+            StubFetcher(responses), query="x", location="Seattle", results=1, details=True
+        )
+    )
+    assert jobs[0]["date"] == "2026-08-01"  # the search keeps its card's date
+    got = asyncio.run(linkedin.postings(StubFetcher({}), ["111"]))
+    assert fetched(got, "111")["date"] == "2026-08-05"  # the page's, as a cold fetch reads it
+
+
 def test_postings_attempt_each_posting_once(unlimited, caplog):
     moved = "https://uk.linkedin.com/jobs/view/senior-economist-at-acme-111"
     fetcher = StubFetcher({"-111": ok("<html><body>signup wall</body></html>")})
