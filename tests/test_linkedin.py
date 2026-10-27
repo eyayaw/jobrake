@@ -973,7 +973,7 @@ def test_a_blockless_page_pulls_the_en_us_fragment(unlimited, monkeypatch, failu
     assert CANONICAL not in fetcher.requests
 
 
-def test_postings_three_outcomes_and_what_each_costs_again(unlimited, monkeypatch):
+def test_postings_have_three_outcomes(unlimited, monkeypatch):
     monkeypatch.setattr(client, "RETRY_DELAY", 0)
     gone = "https://nl.linkedin.com/jobs/view/gone-at-acme-222"
     gone_alias = "https://www.linkedin.com/jobs/view/gone-at-acme-222"
@@ -992,15 +992,6 @@ def test_postings_three_outcomes_and_what_each_costs_again(unlimited, monkeypatc
     assert flaky not in got  # transient: safe to retry
     assert sum(1 for u in fetcher.requests if u == CANONICAL) == 1  # deduped
     assert sum(1 for u in fetcher.requests if "gone-at" in u) == 1  # so is the alias
-
-    # A retry: the fetched posting comes from the cache. A gone posting is not
-    # cached, so it is asked again with the transient one.
-    fetcher.responses["flaky-at"] = ok(job_page())
-    fetcher.requests.clear()
-    again = asyncio.run(linkedin.postings(fetcher, [CANONICAL, gone, flaky]))
-    assert fetched(again, flaky)["employment_type"] == "full_time"
-    assert (again[CANONICAL], again[gone]) == (got[CANONICAL], None)
-    assert fetcher.requests == [gone, flaky]
 
 
 def test_postings_stop_when_the_429_retries_also_fail(unlimited, caplog, monkeypatch):

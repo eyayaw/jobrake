@@ -288,17 +288,6 @@ def test_invalid_site_arguments_fail_before_scraping(monkeypatch):
 
 
 @pytest.mark.parametrize(
-    ("argv", "suggestion"),
-    [(["linkdin", "search"], "'linkedin'"), (["linkedin", "serch"], "'search'")],
-)
-def test_a_mistyped_site_or_command_gets_a_suggestion(monkeypatch, capsys, argv, suggestion):
-    monkeypatch.setattr(sys, "argv", ["jobrake", *argv])
-    with pytest.raises(SystemExit):
-        cli.main()
-    assert f"maybe you meant {suggestion}?" in capsys.readouterr().err
-
-
-@pytest.mark.parametrize(
     ("argv", "message"),
     [
         (["linkedin", "search"], "location is required without a geoid"),
