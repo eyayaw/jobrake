@@ -764,7 +764,7 @@ def job_page(apply="offsite", applicants="Over 200 applicants", **overrides):
 
 
 def blockless_page():
-    # A country-level posting: a real job page, localized, no schema.org block.
+    # A country-level posting: a real posting page, localized, no schema.org block.
     return """
     <html><script type="application/ld+json">{"@type": "Organization"}</script>
     <div class="show-more-less-html__markup">Great &amp; big role</div>

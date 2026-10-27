@@ -21,7 +21,7 @@ from .client import job_id, paced_fetch
 
 logger = logging.getLogger(__name__)
 
-# The guest fragment has the same topcard and criteria markup as the job page
+# The guest fragment has the same topcard and criteria markup as the posting page
 # at about a tenth of the size. The canonical page sets a locale cookie from
 # the posting country's subdomain. Request ``_l=en_US`` so the fragment uses
 # the labels and number format understood by the markup parsers.
@@ -178,7 +178,7 @@ def _parse_posting(soup: BeautifulSoup) -> tuple[dict[str, Any], bool]:
     Extract model fields from a posting page, and report whether its schema.org block was present.
 
     A posting page carries the summary fields alongside the details, so one
-    page is enough to build a job without a search card. Page markup fills
+    page is enough to build a record without a search card. Page markup fills
     fields absent from the schema.org block, which LinkedIn omits for
     country-level postings on every subdomain. Structured values win when both
     sources provide a field. Unsupported or malformed values are omitted.

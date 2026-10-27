@@ -79,13 +79,13 @@ async def _collect_pages(
         cards, raw = _parse_page(result.text)
         if not raw:
             if start == 0 and params["geoId"]:
-                logger.warning("linkedin returned no jobs for geoId=%s", params["geoId"])
+                logger.warning("linkedin returned no postings for geoId=%s", params["geoId"])
             elif start == 0:
                 # An unresolvable location and a genuine no-results page both return an
                 # empty 200. The guest geocoder often needs a region and country. "Berlin"
                 # works, while bare "Amsterdam" does not.
                 logger.warning(
-                    "linkedin returned no jobs for location=%r. "
+                    "linkedin returned no postings for location=%r. "
                     "A location without its region and country may not resolve; try "
                     "'Amsterdam, North Holland, Netherlands'",
                     location,
@@ -179,7 +179,7 @@ async def search(
     if len(jobs) < results and start >= MAX_START:
         logger.warning(
             "linkedin's guest search serves nothing past offset %d; returning "
-            "%d of the %d jobs requested. Narrow the search to reach more of "
+            "%d of the %d postings requested. Narrow the search to reach more of "
             "its inventory",
             MAX_START,
             len(jobs),
@@ -187,7 +187,8 @@ async def search(
         )
     jobs = jobs[:results]
     logger.info(
-        "linkedin search finished with %s", ngettext("%d job", "%d jobs", len(jobs)) % len(jobs)
+        "linkedin search finished with %s",
+        ngettext("%d posting", "%d postings", len(jobs)) % len(jobs),
     )
     if details:
         found = await fetch_pages(fetcher, {job["id"]: dict(job) for job in jobs}, refresh=refresh)
