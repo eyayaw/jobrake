@@ -58,3 +58,6 @@ async def postings(
     ids = {ref: ref.removeprefix("https://fake.test/") for ref in references}
     # "gone" is a posting the board reports gone, and "failed" one whose request failed.
     return {ref: None if pid == "gone" else job(pid) for ref, pid in ids.items() if pid != "failed"}
+
+
+__all__ = ["places", "postings", "search"]

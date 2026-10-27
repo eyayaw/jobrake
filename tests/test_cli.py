@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import sys
+import types
 from pathlib import Path
 
 import pytest
@@ -57,6 +58,8 @@ def test_a_registered_site_gets_every_command_without_a_cli_change(
     fake_site, fetchers, monkeypatch, capsys
 ):
     # The site's signatures alone give its search, lookup, and posting commands.
+    # A submodule the site does not export, such as companies.py, adds none.
+    monkeypatch.setattr(fake_site, "companies", types.ModuleType("companies"), raising=False)
     search = ["fakesite", "-q", "x", "--board", "acme", "--tags", "a", "b", "--remote", "-n", "2"]
     monkeypatch.setattr(sys, "argv", ["jobrake", *search])
     assert cli.main() is None

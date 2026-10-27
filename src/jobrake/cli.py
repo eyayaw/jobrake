@@ -170,7 +170,7 @@ def _build_parser() -> _ArgumentParser:
         search = _add_parser(commands.add_parser, site, module)
         _add_options(search, module.search)
         _add_output_args(search)
-    if fetchers := {site: module for site, module in SITES.items() if hasattr(module, "postings")}:
+    if fetchers := {site: module for site, module in SITES.items() if "postings" in module.__all__}:
         postings = commands.add_parser(
             "postings",
             allow_abbrev=False,
@@ -185,7 +185,7 @@ def _build_parser() -> _ArgumentParser:
             _add_output_args(fetch)
     for kind, help_text in _LOOKUPS.items():
         lookups = {
-            site: getattr(module, kind) for site, module in SITES.items() if hasattr(module, kind)
+            site: getattr(module, kind) for site, module in SITES.items() if kind in module.__all__
         }
         if not lookups:
             continue

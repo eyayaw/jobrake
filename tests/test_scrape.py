@@ -1,6 +1,7 @@
 """The site contract, and how ``scrape`` routes to a site and checks its options."""
 
 import asyncio
+import inspect
 from typing import Annotated
 
 import pytest
@@ -23,6 +24,7 @@ def test_a_site_meets_the_site_contract(site):
     assert set(module.__all__) <= EXPORTS  # the functions the CLI knows how to run
     for name in module.__all__:
         function = getattr(module, name)
+        assert inspect.getdoc(function), name  # a lookup's or postings' CLI help
         options = site_options(function)
         positional = [option for option, spec in options.items() if spec.positional]
         assert len(positional) == (name != "search"), name
