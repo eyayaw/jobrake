@@ -13,7 +13,7 @@ from collections.abc import Awaitable, Callable
 from contextlib import suppress
 from pathlib import Path
 from types import ModuleType
-from typing import Any, Never, TextIO
+from typing import Any, Never, TextIO, override
 
 from jobrake import __version__, scrape
 
@@ -31,6 +31,7 @@ _CLEAR_LINE = "\r\x1b[2K"
 class _ArgumentParser(argparse.ArgumentParser):
     """Report parse errors without repeating the full usage line."""
 
+    @override
     def error(self, message: str) -> Never:
         self.exit(2, f"{self.prog}: error: {message}\nRun '{self.prog} -h' for help.\n")
 
@@ -47,6 +48,7 @@ class _StatusHandler(logging.StreamHandler[TextIO]):
 
     _showing_progress = False
 
+    @override
     def format(self, record: logging.LogRecord) -> str:
         head = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(record.created))
         if record.levelno > logging.INFO:
@@ -58,6 +60,7 @@ class _StatusHandler(logging.StreamHandler[TextIO]):
             line += "\n" + logging.Formatter().formatException(record.exc_info)
         return line
 
+    @override
     def emit(self, record: logging.LogRecord) -> None:
         progress = getattr(record, "progress", None)
         try:
@@ -330,19 +333,16 @@ def main() -> int | None:
         return _lookup(parser, args)
     # Settle the output before the fetch spends any requests.
     fmt = _settle_output(parser, args)
-    if args.command == "postings":
-        try:
-            jobs, failed = _fetch_postings(args)
-        except ValueError as e:
-            parser.error(str(e))
-        finally:
-            handler.clear()
-        # Like a stopped search, a fetch with a failed reference writes what it got and exits 1.
-        return _write_jobs(args, jobs, fmt) or (1 if failed else None)
-    options = {k: v for k, v in vars(args).items() if k in site_options(SITES[args.site].search)}
     status = None
     try:
-        jobs = asyncio.run(scrape(args.site, **options))
+        if args.command == "postings":
+            jobs, failed = _fetch_postings(args)
+            # Like a stopped search, a fetch with a failed reference writes what it got and exits 1.
+            status = 1 if failed else None
+        else:
+            search = site_options(SITES[args.site].search)
+            options = {k: v for k, v in vars(args).items() if k in search}
+            jobs = asyncio.run(scrape(args.site, **options))
     except ValueError as e:
         parser.error(str(e))
     except Stopped as stop:
