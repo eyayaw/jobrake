@@ -3,7 +3,6 @@
 import contextlib
 import json
 import logging
-import math
 import os
 import sqlite3
 import subprocess
@@ -20,7 +19,6 @@ from jobrake.models import make_job
 JOB = make_job(
     site="linkedin", id="111", url="https://nl.linkedin.com/jobs/view/111", applicants=25
 )
-NOT_FINITE = st.sampled_from([math.nan, math.inf])
 
 
 @pytest.fixture
@@ -74,13 +72,10 @@ def test_a_row_that_no_longer_fits_job_dict_is_a_miss(make_cache, caplog):
     assert cache.get("linkedin", ["111"]) == {"111": JOB}
 
 
-@pytest.mark.parametrize(
-    ("column", "value"), [("job", "not json"), ("stored_at", "bad")], ids=["json", "stored_at"]
-)
-def test_corrupt_data_disables_the_cache_with_one_warning(make_cache, caplog, column, value):
+def test_corrupt_data_disables_the_cache_with_one_warning(make_cache, caplog):
     cache = make_cache()
     cache.put([JOB])
-    run_sql(cache, f"UPDATE jobs SET {column} = ?", (value,))
+    run_sql(cache, "UPDATE jobs SET job = ?", ("not json",))
     assert cache.get("linkedin", ["111"]) == {}
     assert cache.get("linkedin", ["111"]) == {}  # later lookups miss quietly
     (warning,) = caplog.records
@@ -96,12 +91,6 @@ def test_an_unserializable_record_disables_the_cache(make_cache, caplog):
     assert "disabled" in caplog.text
 
 
-@given(ttl=st.floats(max_value=0) | NOT_FINITE)
-def test_a_ttl_that_is_not_finite_and_positive_is_rejected(ttl):
-    with pytest.raises(ValueError, match=r"^ttl "):
-        Cache("unused.sqlite3", ttl=ttl)
-
-
 def test_environment_supplies_path_and_ttl(tmp_path, monkeypatch):
     path = tmp_path / "elsewhere" / "jobrake.sqlite3"
     monkeypatch.setenv("JOBRAKE_CACHE_PATH", str(path))
@@ -111,7 +100,7 @@ def test_environment_supplies_path_and_ttl(tmp_path, monkeypatch):
 
     assert (cache.path, cache.ttl) == (path, 5400)
     # An argument beats the variable.
-    assert Cache(tmp_path / "given.sqlite3", ttl=60).ttl == 60
+    assert Cache(tmp_path / "given.sqlite3").path == tmp_path / "given.sqlite3"
 
 
 @given(seconds=st.floats(max_value=0).map(str) | st.sampled_from(["", "weekly", "inf", "nan"]))

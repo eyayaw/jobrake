@@ -79,20 +79,14 @@ class Cache:
         ttl: Seconds a row remains fresh.
     """
 
-    def __init__(self, path: str | Path | None = None, *, ttl: float | None = None) -> None:
+    def __init__(self, path: str | Path | None = None) -> None:
         """
-        Configure lazy storage and the row lifetime.
+        Configure lazy storage, with the row lifetime from ``JOBRAKE_CACHE_TTL`` or ``TTL``.
 
         An omitted ``path`` selects ``JOBRAKE_CACHE_PATH`` or the platform
-        user-cache directory. An omitted ``ttl`` uses ``JOBRAKE_CACHE_TTL``,
-        with ``TTL`` as the fallback.
-
-        Raises:
-            ValueError: ``ttl`` is not finite and positive.
+        user-cache directory.
         """
-        self.ttl = float(ttl) if ttl is not None else _env_seconds("JOBRAKE_CACHE_TTL", TTL)
-        if not math.isfinite(self.ttl) or self.ttl <= 0:
-            raise ValueError(f"ttl ({self.ttl:.10g}) must be finite and positive")
+        self.ttl = _env_seconds("JOBRAKE_CACHE_TTL", TTL)
         self.path = Path(path) if path else _default_path()
         self._conn: sqlite3.Connection | None = None
         self._broken = False
@@ -141,23 +135,18 @@ class Cache:
         try:
             placeholders = ", ".join("?" for _ in ids)
             rows = conn.execute(
-                f"SELECT id, job, stored_at FROM jobs WHERE site = ? AND id IN ({placeholders})",
-                [site, *ids],
+                "SELECT id, job FROM jobs"
+                f" WHERE site = ? AND id IN ({placeholders}) AND stored_at >= ?",
+                [site, *ids, time.time() - self.ttl],
             ).fetchall()
-            fresh_after = time.time() - self.ttl
             found: dict[str, JobDict] = {}
             rejected = 0
-            for posting_id, stored, stored_at in rows:
-                # SQLite may return a nonnumeric value despite the REAL declaration.
-                if not isinstance(stored_at, int | float) or not math.isfinite(stored_at):
-                    raise ValueError(f"cache stored_at is not a finite number: {stored_at!r}")
-                if stored_at < fresh_after:
-                    continue
+            for posting_id, stored in rows:
                 try:
                     found[posting_id] = make_job(**json.loads(stored))
                 except TypeError:
                     rejected += 1
-        except (json.JSONDecodeError, OSError, sqlite3.Error, ValueError) as error:
+        except (json.JSONDecodeError, OSError, sqlite3.Error) as error:
             self._give_up(error)
             return {}
         if rejected:
