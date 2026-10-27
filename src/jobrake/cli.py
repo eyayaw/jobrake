@@ -3,7 +3,6 @@
 import argparse
 import asyncio
 import inspect
-import io
 import json
 import logging
 import os
@@ -114,9 +113,7 @@ def _add_parser(
     """Add a subcommand described by the first line of ``target``'s docstring."""
     line = (inspect.getdoc(target) or "").splitlines()[0]
     help_text = line[:1].lower() + line[1:].removesuffix(".")
-    return add_parser(
-        name, allow_abbrev=False, suggest_on_error=True, help=help_text, description=line
-    )
+    return add_parser(name, allow_abbrev=False, help=help_text, description=line)
 
 
 def _add_arguments(parser: argparse.ArgumentParser, function: Callable[..., object]) -> None:
@@ -166,10 +163,7 @@ def _add_output_args(parser: argparse.ArgumentParser) -> None:
 
 def _build_parser() -> _ArgumentParser:
     parser = _ArgumentParser(
-        prog="jobrake",
-        description="Find and fetch job postings",
-        allow_abbrev=False,
-        suggest_on_error=True,
+        prog="jobrake", description="Find and fetch job postings", allow_abbrev=False
     )
     # The version action exits before argparse checks the required subcommand.
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
@@ -322,10 +316,6 @@ def main() -> int | None:
     Returns:
         ``1`` when a search or lookup stops on a failed request, a named posting could not be fetched, stdout closes early, or the output file cannot be written. Normal completion returns ``None``.
     """
-    # The output is JSON or CSV data, so it is UTF-8 like a file -o writes, whatever
-    # the console's code page.
-    if isinstance(sys.stdout, io.TextIOWrapper):
-        sys.stdout.reconfigure(encoding="utf-8")
     parser = _build_parser()
     args = parser.parse_args()
     # Progress and warnings go to stderr, stdout stays pure data for piping.
