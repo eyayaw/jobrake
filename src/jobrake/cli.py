@@ -114,7 +114,9 @@ def _add_parser(
     """Add a subcommand described by the first line of ``target``'s docstring."""
     line = (inspect.getdoc(target) or "").splitlines()[0]
     help_text = line[:1].lower() + line[1:].removesuffix(".")
-    return add_parser(name, allow_abbrev=False, help=help_text, description=line)
+    return add_parser(
+        name, allow_abbrev=False, suggest_on_error=True, help=help_text, description=line
+    )
 
 
 def _add_arguments(parser: argparse.ArgumentParser, function: Callable[..., object]) -> None:
@@ -164,7 +166,10 @@ def _add_output_args(parser: argparse.ArgumentParser) -> None:
 
 def _build_parser() -> _ArgumentParser:
     parser = _ArgumentParser(
-        prog="jobrake", description="Find and fetch job postings", allow_abbrev=False
+        prog="jobrake",
+        description="Find and fetch job postings",
+        allow_abbrev=False,
+        suggest_on_error=True,
     )
     # The version action exits before argparse checks the required subcommand.
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
