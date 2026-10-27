@@ -15,6 +15,11 @@ logger = logging.getLogger(__name__)
 BASE_URL = "https://www.linkedin.com"
 SEARCH_URL = f"{BASE_URL}/jobs-guest/jobs/api/seeMoreJobPostings/search"
 TYPEAHEAD_URL = f"{BASE_URL}/jobs-guest/api/typeaheadHits"
+# The guest fragment has the same topcard and criteria markup as the posting page
+# at about a tenth of the size. The canonical page sets a locale cookie from
+# the posting country's subdomain. Request ``_l=en_US`` so the fragment uses
+# the labels and number format understood by the markup parsers.
+FRAGMENT_URL = f"{BASE_URL}/jobs-guest/jobs/api/jobPosting"
 
 HEADERS = {
     "accept": (

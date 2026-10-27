@@ -16,15 +16,9 @@ from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, employment_type, make_job
 from jobrake.utils import checked, html_text
 
-from .client import job_id, numeric, paced_fetch
+from .client import FRAGMENT_URL, job_id, numeric, paced_fetch
 
 logger = logging.getLogger(__name__)
-
-# The guest fragment has the same topcard and criteria markup as the posting page
-# at about a tenth of the size. The canonical page sets a locale cookie from
-# the posting country's subdomain. Request ``_l=en_US`` so the fragment uses
-# the labels and number format understood by the markup parsers.
-FRAGMENT_URL = "https://www.linkedin.com/jobs-guest/jobs/api/jobPosting"
 
 
 # schema.org fields may be a scalar, a list, or a value in the wrong shape.
