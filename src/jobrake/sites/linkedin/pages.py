@@ -4,7 +4,6 @@ import json
 import logging
 import math
 import re
-from collections.abc import Iterable
 from gettext import ngettext
 from html import unescape
 from typing import Annotated, Any
@@ -270,27 +269,6 @@ def _posting_url(url: str, posting_id: str, paths: tuple[str, ...]) -> bool:
     )
 
 
-def _country_canonical(url: str) -> bool:
-    """
-    Check for a canonical posting URL on a country subdomain.
-
-    LinkedIn serves the schema.org block only from a posting's canonical URL,
-    the title slug on the host of the posting's country. That host is ``www``
-    for a US posting and a country subdomain elsewhere. A ``www`` URL looks
-    the same for a posting from any country, so only a country subdomain
-    passes.
-    """
-    parts = urlsplit(url)
-    host = parts.netloc.lower()
-    if host.startswith("www.") or not host.endswith(".linkedin.com"):
-        return False
-    if not parts.path.startswith(_PAGE_PATH):
-        return False
-    slug = parts.path.rstrip("/").rsplit("/", 1)[-1]
-    # The canonical address carries a title slug ahead of the ID.
-    return slug != job_id(url)
-
-
 def _fragment_url(html: str, posting_id: str) -> str | None:
     """
     Read the posting URL a guest fragment names.
@@ -396,26 +374,34 @@ async def _fetch_posting(
     return fields | {"url": url}
 
 
-def _is_posting_id(reference: str) -> bool:
-    """Check for a bare numeric posting ID."""
-    return reference.isascii() and reference.isdigit()
+def _reference(reference: str) -> tuple[str, str | None]:
+    """
+    Read a reference as its posting ID, and the address to fetch it from when it names one.
 
+    LinkedIn serves the schema.org block only from a posting's canonical URL,
+    the title slug on the host of the posting's country. That host is ``www``
+    for a US posting and a country subdomain elsewhere. A ``www`` URL looks
+    the same for a posting from any country, so only a country subdomain
+    names the address.
 
-def _reference_ids(references: Iterable[str]) -> dict[str, str]:
-    """Map each reference to its posting ID, raising ValueError for one that names no posting."""
-    ids: dict[str, str] = {}
-    for reference in references:
-        ref = reference.strip()
-        posting_id = ref if _is_posting_id(ref) else job_id(ref)
-        if not posting_id or not (
-            _is_posting_id(ref) or _posting_url(ref, posting_id, _REFERENCE_PATHS)
-        ):
-            raise ValueError(
-                f"{reference!r} is neither a numeric posting ID nor a LinkedIn posting URL. "
-                "Try 4449382178 or the posting's linkedin.com/jobs/view/... address"
-            )
-        ids[reference] = posting_id
-    return ids
+    Raises:
+        ValueError: The reference is neither a numeric posting ID nor a
+            LinkedIn posting URL.
+    """
+    ref = reference.strip()
+    if ref.isascii() and ref.isdigit():
+        return ref, None
+    posting_id = job_id(ref)
+    if not (posting_id and _posting_url(ref, posting_id, _REFERENCE_PATHS)):
+        raise ValueError(
+            f"{reference!r} is neither a numeric posting ID nor a LinkedIn posting URL. "
+            "Try 4449382178 or the posting's linkedin.com/jobs/view/... address"
+        )
+    parts = urlsplit(ref)
+    # The canonical address carries a title slug ahead of the ID.
+    slug = parts.path.rstrip("/").rsplit("/", 1)[-1]
+    country = not parts.netloc.lower().startswith("www.") and parts.path.startswith(_PAGE_PATH)
+    return posting_id, _canonical(ref) if country and slug != posting_id else None
 
 
 def _job(posting_id: str, known: dict[str, Any], fields: dict[str, Any]) -> JobDict:
@@ -520,13 +506,14 @@ async def postings(
         ValueError: A reference is neither a numeric posting ID nor a LinkedIn
             posting URL. Nothing is fetched in that case.
     """
-    ids = _reference_ids(references)
+    ids: dict[str, str] = {}
     # A canonical reference is the posting's own address, so every posting
     # named by one is fetched from it.
     wanted: dict[str, dict[str, Any]] = {}
-    for ref, posting_id in ids.items():
-        known = wanted.setdefault(posting_id, {})
-        if "url" not in known and _country_canonical(ref.strip()):
-            known["url"] = _canonical(ref.strip())
+    for ref in references:
+        ids[ref], url = _reference(ref)
+        known = wanted.setdefault(ids[ref], {})
+        if url and "url" not in known:
+            known["url"] = url
     found = await fetch_pages(fetcher, wanted, refresh=refresh)
     return {ref: found[posting_id] for ref, posting_id in ids.items() if posting_id in found}
