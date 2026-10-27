@@ -414,7 +414,7 @@ def _job(posting_id: str, known: dict[str, Any], fields: dict[str, Any]) -> JobD
 
 
 async def fetch_pages(
-    fetcher: Fetcher, wanted: dict[str, dict[str, Any]], *, refresh: bool
+    fetcher: Fetcher, wanted: dict[str, dict[str, Any]]
 ) -> dict[str, JobDict | None]:
     """
     Build a ``JobDict`` per wanted posting ID from its page, over the fields known for it.
@@ -424,10 +424,9 @@ async def fetch_pages(
     hold no ``url`` costs a guest-fragment request to learn its canonical
     URL. A page without the schema.org block needs that fragment for the
     remaining fields, one more request unless the lookup fetched it.
-    ``refresh`` skips cache reads but still stores what it fetched. A
-    persistent 429 stops further requests and keeps what the cache and the
-    completed requests hold. INFO records report the start, progress, and
-    resolved count.
+    A persistent 429 stops further requests and keeps what the cache and
+    the completed requests hold. INFO records report the start, progress,
+    and resolved count.
 
     Returns:
         A ``JobDict`` per fetched posting and ``None`` per posting LinkedIn
@@ -439,7 +438,7 @@ async def fetch_pages(
     wanted_count = ngettext("%d posting", "%d postings", total) % total
     logger.info("fetching linkedin details for %s", wanted_count)
     # Cached postings come back even when a 429 stops the requests below.
-    cached = {} if refresh else cache.CACHE.get("linkedin", wanted)
+    cached = cache.CACHE.get("linkedin", wanted)
     found: dict[str, JobDict | None] = {
         posting_id: _job(posting_id, wanted[posting_id], dict(job))
         for posting_id, job in cached.items()
@@ -483,8 +482,6 @@ async def fetch_pages(
 async def postings(
     fetcher: Fetcher,
     references: Annotated[list[str], "LinkedIn posting IDs or URLs"],
-    *,
-    refresh: Annotated[bool, "refetch postings and refresh their cached copies"] = False,
 ) -> dict[str, JobDict | None]:
     """
     Fetch known LinkedIn postings by ID or URL.
@@ -512,5 +509,5 @@ async def postings(
         known = wanted.setdefault(ids[ref], {})
         if url and "url" not in known:
             known["url"] = url
-    found = await fetch_pages(fetcher, wanted, refresh=refresh)
+    found = await fetch_pages(fetcher, wanted)
     return {ref: found[posting_id] for ref, posting_id in ids.items() if posting_id in found}

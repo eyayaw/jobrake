@@ -74,9 +74,8 @@ the CLI, and the contract test in `tests/test_scrape.py` need no edit.
   LinkedIn posting, rows carry no version, and each row read passes through
   `make_job`, so a row whose keys no longer fit `JobDict` is a miss. Values
   go unchecked, so a parser fix reaches a cached posting when its row
-  expires, or at once with `refresh`, which skips reads.
-  `JOBRAKE_CACHE_PATH` and `JOBRAKE_CACHE_TTL` configure it. Indeed is
-  neither paced nor cached.
+  expires. `JOBRAKE_CACHE_PATH` and `JOBRAKE_CACHE_TTL` configure it, and
+  no site function takes a cache option. Indeed is neither paced nor cached.
 - Library code logs under the `jobrake` logger and prints nothing. The CLI
   sends logs to stderr and data to stdout. It exits 2 for a bad argument, and
   1 when a search or lookup raises `Stopped`, a named posting could not be

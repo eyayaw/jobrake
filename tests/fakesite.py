@@ -48,12 +48,10 @@ async def places(
 async def postings(
     fetcher,
     references: Annotated[list[str], "posting IDs or URLs"],
-    *,
-    refresh: Annotated[bool, "refetch postings"] = False,
 ) -> dict[str, JobDict | None]:
     """Fetch known fake postings by ID or URL."""
     references = list(references)
-    calls.append({"references": references, "refresh": refresh})
+    calls.append({"references": references})
     ids = {ref: ref.removeprefix("https://fake.test/") for ref in references}
     # "gone" is a posting the board reports gone, and "failed" one whose request failed.
     return {ref: None if pid == "gone" else job(pid) for ref, pid in ids.items() if pid != "failed"}

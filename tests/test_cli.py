@@ -82,13 +82,13 @@ def test_a_registered_site_gets_every_command_without_a_cli_change(
     monkeypatch.setattr(sys, "argv", ["jobrake", "fakesite", "places", "Utrecht", "--region", "NL"])
     assert cli.main() is None
     assert json.loads(capsys.readouterr().out) == [{"id": "1", "name": "Utrecht"}]
-    monkeypatch.setattr(sys, "argv", ["jobrake", "fakesite", "postings", "7", "--refresh"])
+    monkeypatch.setattr(sys, "argv", ["jobrake", "fakesite", "postings", "7"])
     assert cli.main() is None
     assert [job["id"] for job in json.loads(capsys.readouterr().out)] == ["7"]
     assert fake_site.calls == [
         {"query": "x", "board": "acme", "results": 2, "remote": True, "tags": ["a", "b"]},
         {"name": "Utrecht", "region": "NL"},
-        {"references": ["7"], "refresh": True},
+        {"references": ["7"]},
     ]
 
 
@@ -202,7 +202,7 @@ def test_site_commands_dispatch_their_options(monkeypatch):
             "3CQB7",
             "6QC5F",
         ],
-        ["linkedin", "search", "-q", "x", "-l", "Seattle", "-d", "--refresh", "--easy-apply"],
+        ["linkedin", "search", "-q", "x", "-l", "Seattle", "-d", "--easy-apply"],
         [
             "linkedin",
             "search",
@@ -256,7 +256,6 @@ def test_site_commands_dispatch_their_options(monkeypatch):
                 "query": "x",
                 "location": "Seattle",
                 "details": True,
-                "refresh": True,
                 "easy_apply": True,
             },
         ),

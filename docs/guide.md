@@ -378,7 +378,7 @@ jobrake linkedin postings https://nl.linkedin.com/jobs/view/data-scientist-at-ac
 
 LinkedIn takes postings down over time, so the examples above may be gone. Use IDs and URLs from a recent search.
 Name as many postings as you like. Results follow the order given and have the same fields as a search with `--details`. Several references to one posting return one job.
-The command accepts the same `--output | -o`, `--format | -f`, and `--refresh` options as a LinkedIn search.
+The command accepts the same `--output | -o` and `--format | -f` options as a LinkedIn search.
 A posting that is gone or unreachable is reported on stderr and left out. When one was unreachable, the command writes the others and exits nonzero.
 A reference that is neither a numeric ID nor a LinkedIn posting URL is an error, and nothing is fetched.
 
@@ -597,9 +597,15 @@ jobrake keeps the LinkedIn postings it fetched in one SQLite file under your use
 Indeed is not cached.
 
 A cached posting stays fresh for seven days and is fetched again after that. A posting that LinkedIn reports gone is not cached.
-Pass `--refresh` or `refresh=True` to refetch every posting and refresh its cached copy.
 An upgrade keeps the cache, and a posting whose cached copy no longer fits the job fields is fetched again.
-A release that reads posting pages better reaches a cached posting when it expires. Pass `--refresh` to apply it at once.
+A release that reads posting pages better reaches a cached posting when it expires.
+
+To refetch every posting at once, delete `jobrake.sqlite3` from the cache directory.
+To bypass the cache for one run, point `JOBRAKE_CACHE_PATH` at a new file:
+
+```sh
+JOBRAKE_CACHE_PATH="$(mktemp -d)/jobrake.sqlite3" jobrake linkedin postings 4449382178
+```
 
 Two environment variables configure the cache:
 

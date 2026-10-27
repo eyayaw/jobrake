@@ -687,19 +687,6 @@ def test_search_reruns_only_fetch_unseen_postings(unlimited):
     )
     assert jobs[0]["description"] == rerun[0]["description"] == "Great & big role"
     assert [url for url in rerun_fetcher.requests if "seeMoreJobPostings" not in url] == []
-    # refresh reaches the detail fetch, so the same search refetches the posting.
-    refetch_fetcher = StubFetcher(responses)
-    asyncio.run(
-        linkedin.search(
-            refetch_fetcher,
-            query="x",
-            location="Seattle",
-            results=1,
-            details=True,
-            refresh=True,
-        )
-    )
-    assert len([url for url in refetch_fetcher.requests if "jobs/view/111" in url]) == 1
 
 
 CANONICAL = "https://nl.linkedin.com/jobs/view/economist-at-acme-111"
@@ -775,7 +762,10 @@ def parse(page) -> JobDict | None:
     """Return the record postings() builds from ``page`` served as CANONICAL, or None for no fields."""
     # An empty fragment answers a blockless page, so the record holds the page's fields alone.
     fetcher = StubFetcher({"economist-at-acme-111": ok(page), "jobPosting/111": ok("")})
-    return asyncio.run(linkedin.postings(fetcher, [CANONICAL], refresh=True)).get(CANONICAL)
+    # An earlier parse in the same test must not answer from the cache.
+    cache.CACHE.close()
+    cache.CACHE.path.unlink(missing_ok=True)
+    return asyncio.run(linkedin.postings(fetcher, [CANONICAL])).get(CANONICAL)
 
 
 def parsed(page) -> JobDict:
@@ -1048,28 +1038,6 @@ def test_postings_reduce_a_url_to_its_page(unlimited, suffix):
     assert fetcher.requests == [CANONICAL]
 
 
-def test_postings_without_the_cache_refetch_and_refresh(unlimited):
-    fetcher = StubFetcher({"economist-at-acme-111": ok(job_page())})
-    asyncio.run(linkedin.postings(fetcher, [CANONICAL], refresh=True))
-    asyncio.run(linkedin.postings(fetcher, [CANONICAL], refresh=True))
-    assert len(fetcher.requests) == 2
-    # the refetches stored what they found, so a cached call needs no request
-    asyncio.run(linkedin.postings(fetcher, [CANONICAL]))
-    assert len(fetcher.requests) == 2
-
-
-def test_a_refreshed_posting_replaces_its_cached_copy(unlimited):
-    complete = StubFetcher({"economist-at-acme-111": ok(job_page(description="Old role"))})
-    asyncio.run(linkedin.postings(complete, [CANONICAL]))
-    blockless = StubFetcher(
-        {"economist-at-acme-111": ok(blockless_page()), "jobPosting/111": ok(en_fragment())}
-    )
-    got = asyncio.run(linkedin.postings(blockless, [CANONICAL], refresh=True))
-    cached = asyncio.run(linkedin.postings(StubFetcher({}), [CANONICAL]))
-    assert cached == got  # the cache returns what the last fetch returned
-    assert "posted_at" not in fetched(cached, CANONICAL)
-
-
 def test_postings_are_cached_by_id_not_url(unlimited):
     # One posting may change subdomain or slug while keeping its ID.
     fetcher = StubFetcher({"economist-at-acme-111": ok(job_page())})
@@ -1160,7 +1128,9 @@ def test_postings_resolve_an_id_before_fetching_the_page(unlimited):
     # of them can leave a record holding a page without the block
     for address in others:
         fetcher.requests.clear()
-        assert asyncio.run(linkedin.postings(fetcher, [address], refresh=True)) == {address: job}
+        cache.CACHE.close()
+        cache.CACHE.path.unlink(missing_ok=True)
+        assert asyncio.run(linkedin.postings(fetcher, [address])) == {address: job}
         assert fetcher.requests == [f"{FRAGMENT}/111?_l=en_US", CANONICAL]
 
 
@@ -1196,7 +1166,7 @@ def test_postings_distrust_a_lookup_that_names_another_page(unlimited):
 def test_postings_collapse_the_addresses_of_one_posting(unlimited):
     fetcher = StubFetcher({"economist-at-acme-111": ok(job_page(title="Economist"))})
     references = [CANONICAL, "https://uk.linkedin.com/jobs/view/economist-at-acme-111", "111"]
-    got = asyncio.run(linkedin.postings(fetcher, references, refresh=True))
+    got = asyncio.run(linkedin.postings(fetcher, references))
     # one posting, fetched once from the first canonical address
     assert fetcher.requests == [CANONICAL]
     assert list(got) == references
