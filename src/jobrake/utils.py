@@ -113,7 +113,7 @@ def _check(options: dict[str, Option], given: dict[str, object]) -> None:
             raise ValueError(f"{name} ({value}) must be at least {minimum}")
         # A lookup's text names what to look up, so a blank one asks for nothing.
         if option.positional and isinstance(value, str) and not value.strip():
-            raise ValueError(f"{name} is blank. Pass a {option.help}")
+            raise ValueError(f"{name} is blank. Pass the {option.help}")
 
 
 def checked[**P, R](function: Callable[P, Awaitable[R]]) -> Callable[P, Awaitable[R]]:
