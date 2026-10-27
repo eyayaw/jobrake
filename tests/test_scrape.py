@@ -86,8 +86,12 @@ def test_a_site_function_the_cli_cannot_build_fails_when_decorated(function, mat
         ("indeed", {"country": "usa", "company_ids": [" "]}, ValueError, "company ID is blank"),
         ("indeed", {"country": "usa", "company_ids": ["a", "b"]}, ValueError, "one company ID"),
         ("linkedin", {}, ValueError, "location is required"),
+        ("linkedin", {"location": "   "}, ValueError, "location is required"),
+        ("linkedin", {"geoid": ""}, ValueError, "must use digits"),
         ("linkedin", {"geoid": "Amsterdam"}, ValueError, "must use digits"),
         ("linkedin", {"location": "Seattle", "company_ids": ["Acme"]}, ValueError, "company ID"),
+        ("linkedin", {"location": "Seattle", "company_ids": [""]}, ValueError, "company ID"),
+        ("linkedin", {"location": "Seattle", "company_ids": ["１２３"]}, ValueError, "company ID"),  # noqa: RUF001  fullwidth digits are the input under test
     ],
 )
 def test_scrape_rejects_bad_options_before_any_request(site, kwargs, error, match):

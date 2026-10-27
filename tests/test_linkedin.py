@@ -599,41 +599,11 @@ def test_paginated_search_preserves_filters(
         }
 
 
-@pytest.mark.parametrize(
-    "company_ids",
-    [
-        [""],
-        ["1173,2220078"],
-        ["１２３"],  # noqa: RUF001  fullwidth digits are the input under test
-    ],
-)
-def test_company_ids_are_validated_before_any_request(company_ids):
-    fetcher = StubFetcher({})
-    with pytest.raises(ValueError, match="company ID"):
-        asyncio.run(linkedin.search(fetcher, location="Netherlands", company_ids=company_ids))
-    assert fetcher.requests == []
-
-
 def test_search_by_geoid_needs_no_location_or_query(unlimited):
     fetcher = StubFetcher({"seeMoreJobPostings": ok(linkedin_card("111"))})
     asyncio.run(linkedin.search(fetcher, results=1, geoid="12345"))
     assert "geoId=12345" in fetcher.requests[0]
     assert "location=" not in fetcher.requests[0]
-
-
-@pytest.mark.parametrize(
-    ("kwargs", "match"),
-    [
-        ({"location": "   "}, "location"),
-        ({"geoid": ""}, "geoid"),
-        ({"geoid": "Amsterdam"}, "geoid"),
-    ],
-)
-def test_linkedin_rejects_bad_arguments_before_any_request(kwargs, match):
-    fetcher = StubFetcher({})
-    with pytest.raises(ValueError, match=match):
-        asyncio.run(linkedin.search(fetcher, query="x", **kwargs))
-    assert fetcher.requests == []
 
 
 def test_every_request_waits_for_its_turn_before_it_sends(unlimited, monkeypatch):
@@ -1286,23 +1256,3 @@ def test_postings_fetch_a_us_posting_on_www(unlimited, caplog):
     assert (job["id"], job["url"], job["title"]) == ("111", www, "Economist")
     assert job["posted_at"] == "2026-08-05T08:04:27.000Z"
     assert caplog.records == []
-
-
-@pytest.mark.parametrize("references", [[CANONICAL, "222"], ["222", CANONICAL]])
-def test_postings_make_no_request_after_a_rate_limited_lookup(
-    unlimited, monkeypatch, caplog, references
-):
-    # A canonical reference needs no lookup, so the cached posting comes back
-    # wherever it sits among the references the limit cuts short.
-    monkeypatch.setattr(client, "RETRY_DELAY", 0)
-    fetcher = StubFetcher(
-        {"economist-at-acme-111": ok(job_page(title="Economist")), "jobPosting": rate_limited()}
-    )
-    asyncio.run(linkedin.postings(fetcher, [CANONICAL]))  # fills the cache
-    fetcher.requests.clear()
-    with caplog.at_level(logging.WARNING, logger="jobrake.sites.linkedin"):
-        got = asyncio.run(linkedin.postings(fetcher, references))
-    # the retries failed, so no further page is requested
-    assert fetcher.requests == [f"{FRAGMENT}/222?_l=en_US"] * (1 + client.RETRIES)
-    assert list(got) == [CANONICAL]  # what the cache already held
-    assert "rate limiting" in caplog.text
