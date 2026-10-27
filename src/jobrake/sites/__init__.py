@@ -25,6 +25,7 @@ async def scrape(site: str, *, fetcher: Fetcher | None = None, **options: object
             missing, or a value has the wrong type.
         ValueError: The site is unknown, or an option value is out of range
             or unusable on the site.
+        Stopped: A request failed. ``partial`` holds the postings collected before it.
     """
     if site not in SITES:
         raise ValueError(f"unknown site {site!r}. Expected one of {', '.join(SITES)}")

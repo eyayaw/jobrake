@@ -86,7 +86,7 @@ class _StatusHandler(logging.StreamHandler[TextIO]):
                 self.flush()
 
 
-# Short flags for the option names that sites share.
+# Short flags for common option names, whichever site declares them.
 _SHORT_FLAGS = {
     "query": "-q",
     "location": "-l",

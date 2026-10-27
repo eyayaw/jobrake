@@ -111,7 +111,7 @@ _EMPLOYMENT_ALIASES = {"contractor": "contract", "intern": "internship"}
 
 
 def employment_type(label: str | None) -> str | None:
-    """Normalize a site's employment label for the shared model."""
+    """Return a site's employment label as a snake_case slug such as ``full_time``, or None."""
     if not label:
         return None
     slug = re.sub(r"[^a-z0-9]+", "_", label.lower()).strip("_")

@@ -59,8 +59,9 @@ the CLI, and the contract test in `tests/test_scrape.py` need no edit.
   keeps one meaning and unit. Every function a site exports carries
   `@checked`, which raises `TypeError` for an unknown, missing, or wrongly
   typed argument and `ValueError` for a value out of range or a blank lookup
-  text, all before the first request. `site_options` rejects a signature that breaks these rules
-  when the module is imported.
+  text, all before the first request. `site_options` rejects an annotation
+  or a boolean default that breaks these rules when the module is imported,
+  and `test_a_site_meets_the_site_contract` checks the rest.
 - A caller can tell a cut-short result from a complete one. A failed
   request raises `Stopped`, whose `partial` holds what was collected. A
   site's own result cap warns and returns. `postings` never raises `Stopped`
