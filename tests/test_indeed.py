@@ -36,6 +36,7 @@ def test_query_escapes_graphql_strings_as_json():
     assert 'field: "indeedEmployerKey", keys: ["key\\\\\\"quoted"]' in query
     assert 'field: "attributes", keys: ["key\\\\\\"quoted"]' in query
     assert 'cursor: "next\\\\\\""' in next_query
+    assert "dateOnIndeed" not in query  # no age limit by default
 
 
 def indeed_payload(keys, cursor=None):

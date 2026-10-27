@@ -311,7 +311,7 @@ async def search(
     location: Annotated[str | None, "city or area within the country"] = None,
     radius: Annotated[int, "search radius in kilometers"] = 40,
     results: Annotated[int, "maximum number of postings"] = 10,
-    max_age_hours: Annotated[int | None, "maximum posting age in hours"] = 168,
+    max_age_hours: Annotated[int | None, "maximum posting age in hours"] = None,
     company_ids: Annotated[list[str] | None, "Indeed company ID, one per search"] = None,
     remote: Annotated[bool, "only postings Indeed tags Remote"] = False,
     language: Annotated[str | None, "two-letter posting language code, e.g., en"] = None,

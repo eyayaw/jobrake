@@ -25,12 +25,12 @@ Both commands ask for two recent postings near Amsterdam, Netherlands, but each 
 Indeed searches one country edition at a time, so `--country` is required, and `--location` narrows that edition to a city or area within it.
 LinkedIn has no editions: pass the place as text to `--location`, or its ID to `--geoid`, and leave `--country` out.
 
-Three more options shape the result set rather than its content. By default, they return **10 jobs** from the **past seven days**.
+Three more options shape the result set rather than its content. By default, they return **10 jobs** with **no age limit**.
 
 | Option               | CLI                     | Library         | Accepted values                                  |
 | -------------------- | ----------------------- | --------------- | ------------------------------------------------ |
 | Result limit         | `--results`, `-n`       | `results`       | a positive integer                               |
-| Posting age in hours | `--max-age-hours`, `-a` | `max_age_hours` | a positive integer, or `None` for no age limit   |
+| Posting age in hours | `--max-age-hours`, `-a` | `max_age_hours` | a positive integer, or unset for no age limit    |
 | Search radius in km  | `--radius`, `-r`        | `radius`        | $\ge 0$, or `None` on LinkedIn to send no radius |
 
 > [!NOTE]

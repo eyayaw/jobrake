@@ -110,7 +110,7 @@ async def search(
     geoid: Annotated[str | None, "LinkedIn place ID, in place of a location"] = None,
     radius: Annotated[int | None, "search radius in kilometers"] = None,
     results: Annotated[int, "maximum number of postings"] = 10,
-    max_age_hours: Annotated[int | None, "maximum posting age in hours"] = 168,
+    max_age_hours: Annotated[int | None, "maximum posting age in hours"] = None,
     company_ids: Annotated[list[str] | None, "LinkedIn company IDs"] = None,
     easy_apply: Annotated[bool, "only postings with LinkedIn's Easy Apply form"] = False,
     early_applicant: Annotated[bool, "only postings with fewer than 10 applicants"] = False,

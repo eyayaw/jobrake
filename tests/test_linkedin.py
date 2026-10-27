@@ -604,6 +604,7 @@ def test_search_by_geoid_needs_no_location_or_query(unlimited):
     asyncio.run(linkedin.search(fetcher, results=1, geoid="12345"))
     assert "geoId=12345" in fetcher.requests[0]
     assert "location=" not in fetcher.requests[0]
+    assert "f_TPR" not in fetcher.requests[0]  # no age limit by default
 
 
 def test_every_request_waits_for_its_turn_before_it_sends(unlimited, monkeypatch):
