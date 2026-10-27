@@ -8,10 +8,8 @@ from jobrake.fetchkit import Fetcher
 from jobrake.models import Stopped
 from jobrake.utils import checked
 
-from .client import API_HEADERS, API_URL, AUTOCOMPLETE_HEADERS
+from .client import API_HEADERS, API_URL, AUTOCOMPLETE_HEADERS, AUTOCOMPLETE_URL
 from .countries import Country, indeed_domain
-
-AUTOCOMPLETE_URL = "https://autocomplete.indeed.com/api/v0/suggestions"
 
 ATTRIBUTES_QUERY = """
 query {{

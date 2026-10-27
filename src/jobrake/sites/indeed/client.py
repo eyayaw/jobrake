@@ -20,6 +20,7 @@ API_HEADERS = {
 }
 
 # Autocomplete backs indeed.com's search box and expects browser headers.
+AUTOCOMPLETE_URL = "https://autocomplete.indeed.com/api/v0/suggestions"
 AUTOCOMPLETE_HEADERS = {
     "accept": "*/*",
     "accept-language": "en-US,en;q=0.9",
@@ -32,4 +33,4 @@ AUTOCOMPLETE_HEADERS = {
 }
 
 
-__all__ = ["API_HEADERS", "API_URL", "AUTOCOMPLETE_HEADERS", "INDEED_APP_KEY"]
+__all__ = ["API_HEADERS", "API_URL", "AUTOCOMPLETE_HEADERS", "AUTOCOMPLETE_URL", "INDEED_APP_KEY"]
