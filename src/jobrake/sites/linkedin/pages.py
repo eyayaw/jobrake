@@ -263,7 +263,7 @@ def _posting_url(url: str, posting_id: str, paths: tuple[str, ...]) -> bool:
     parts = urlsplit(url)
     return (
         parts.scheme in ("http", "https")
-        and parts.netloc.lower().endswith(".linkedin.com")
+        and f".{parts.hostname}".endswith(".linkedin.com")
         and parts.path.startswith(paths)
         and job_id(url) == posting_id
     )
@@ -380,9 +380,9 @@ def _reference(reference: str) -> tuple[str, str | None]:
 
     LinkedIn serves the schema.org block only from a posting's canonical URL,
     the title slug on the host of the posting's country. That host is ``www``
-    for a US posting and a country subdomain elsewhere. A ``www`` URL looks
-    the same for a posting from any country, so only a country subdomain
-    names the address.
+    for a US posting and a country subdomain elsewhere. A ``www`` or bare
+    ``linkedin.com`` URL looks the same for a posting from any country, so
+    only a country subdomain names the address.
 
     Raises:
         ValueError: The reference is neither a numeric posting ID nor a
@@ -395,12 +395,15 @@ def _reference(reference: str) -> tuple[str, str | None]:
     if not (posting_id and _posting_url(ref, posting_id, _REFERENCE_PATHS)):
         raise ValueError(
             f"{reference!r} is neither a numeric posting ID nor a LinkedIn posting URL. "
-            "Try 4449382178 or the posting's linkedin.com/jobs/view/... address"
+            "Try 4449382178 or the posting's https://www.linkedin.com/jobs/view/... address"
         )
     parts = urlsplit(ref)
     # The canonical address carries a title slug ahead of the ID.
     slug = parts.path.rstrip("/").rsplit("/", 1)[-1]
-    country = not parts.netloc.lower().startswith("www.") and parts.path.startswith(_PAGE_PATH)
+    country = parts.path.startswith(_PAGE_PATH) and parts.hostname not in (
+        "linkedin.com",
+        "www.linkedin.com",
+    )
     return posting_id, _canonical(ref) if country and slug != posting_id else None
 
 

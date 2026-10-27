@@ -1181,6 +1181,8 @@ def test_postings_resolve_an_id_before_fetching_the_page(unlimited):
         f"{FRAGMENT}/111",
         "https://www.linkedin.com/jobs/view/economist-at-acme-111",
         "https://nl.linkedin.com/jobs/view/111",
+        "https://linkedin.com/jobs/view/economist-at-acme-111",
+        "https://www.linkedin.com:443/jobs/view/111",
     )
     # the cache holds the address and the posting, so no reference costs a request
     for address in ("111", CANONICAL, *others):
