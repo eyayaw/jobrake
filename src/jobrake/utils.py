@@ -68,8 +68,8 @@ def site_options(function: Callable[..., object]) -> dict[str, Option]:
 
     Raises:
         TypeError: An argument is not ``Annotated[kind, help]`` with a
-            supported kind and nonblank help, or a boolean option does not
-            default to ``False``.
+            supported kind and nonblank help, or a boolean option has a
+            default other than ``False``.
     """
     where = f"{function.__module__}.{getattr(function, '__qualname__', function)}"
     _, *params = inspect.signature(function).parameters.values()
