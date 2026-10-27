@@ -851,6 +851,8 @@ def test_a_posting_page_maps_schema_org_onto_the_record(unlimited):
     assert (job["salary_currency"], job["salary_period"]) == ("USD", "YEAR")
     assert (job["city"], job["region"], job["country_code"]) == ("Delft", "ZH", "NL")
     assert job["experience_months"] == 36
+    fractional = job_page(experienceRequirements={"monthsOfExperience": 24.5})
+    assert "experience_months" not in parsed(fractional)  # JobDict holds whole months
 
 
 def test_a_posting_page_drops_nonfinite_numbers(unlimited):

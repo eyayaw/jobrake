@@ -191,6 +191,8 @@ def _parse_posting(soup: BeautifulSoup) -> tuple[dict[str, Any], bool]:
     amount = _obj(pay.get("value"))
     # addressCountry is Text or a Country object carrying its name.
     country = address.get("addressCountry")
+    # JobDict counts whole months.
+    months = _number_value(_obj(posting.get("experienceRequirements")).get("monthsOfExperience"))
     # Normalize each schema.org union before adding it to the result. Omit
     # structured values in an unsupported shape.
     from_block = {
@@ -211,9 +213,7 @@ def _parse_posting(soup: BeautifulSoup) -> tuple[dict[str, Any], bool]:
         "salary_max": _number_value(amount.get("maxValue")),
         "salary_currency": _text_value(pay.get("currency")),
         "salary_period": _text_value(amount.get("unitText")),
-        "experience_months": _number_value(
-            _obj(posting.get("experienceRequirements")).get("monthsOfExperience")
-        ),
+        "experience_months": months if isinstance(months, int) else None,
         "education": _text_value(
             _obj(posting.get("educationRequirements")).get("credentialCategory")
         ),
