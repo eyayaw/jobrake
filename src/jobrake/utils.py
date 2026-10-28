@@ -6,7 +6,7 @@ import logging
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from types import NoneType
-from typing import Annotated, NamedTuple, Union, get_args, get_origin
+from typing import Annotated, Any, NamedTuple, Union, get_args, get_origin
 
 lazy from bs4 import BeautifulSoup
 
@@ -152,6 +152,16 @@ def checked[**P, R](function: Callable[P, Awaitable[R]]) -> Callable[P, Awaitabl
         return await function(*args, **kwargs)
 
     return wrapper
+
+
+def as_str(value: object) -> str | None:
+    """Return a JSON value when it is a string, or None for anything else."""
+    return value if isinstance(value, str) else None
+
+
+def as_dict(value: object) -> dict[str, Any]:
+    """Return a JSON value unchanged when it is an object, or ``{}`` for anything else, so a ``.get`` can follow."""
+    return value if isinstance(value, dict) else {}
 
 
 def iso_date(value: str | None) -> str | None:

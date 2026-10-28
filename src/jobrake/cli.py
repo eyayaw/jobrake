@@ -96,6 +96,7 @@ _SHORT_FLAGS = {
     "max_age_hours": "-a",
     "geoid": "-g",
     "details": "-d",
+    "board": "-b",
 }
 
 # The functions a site may export, each a command of that site, in help order.

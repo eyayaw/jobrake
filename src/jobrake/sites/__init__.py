@@ -5,10 +5,14 @@ from types import ModuleType
 from jobrake.fetchkit import Fetcher, HttpxFetcher
 from jobrake.models import JobDict
 
-from . import indeed, linkedin
+from . import greenhouse, indeed, linkedin
 
 # One entry per site. A site package exports search() and any of the lookups and postings().
-SITES: dict[str, ModuleType] = {"indeed": indeed, "linkedin": linkedin}
+SITES: dict[str, ModuleType] = {
+    "greenhouse": greenhouse,
+    "indeed": indeed,
+    "linkedin": linkedin,
+}
 
 
 async def scrape(site: str, *, fetcher: Fetcher | None = None, **options: object) -> list[JobDict]:

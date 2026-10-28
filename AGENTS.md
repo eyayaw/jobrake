@@ -4,8 +4,8 @@
 
 jobrake reads the postings a job board publishes and returns each one as a
 flat record with the same fields, whichever board it came from. It is an async
-Python package and CLI that reads LinkedIn's guest API and Indeed's GraphQL
-API, and it depends on `httpx` and `bs4`.
+Python package and CLI that reads LinkedIn's guest API, Indeed's GraphQL API,
+and Greenhouse's Job Board API, and it depends on `httpx` and `bs4`.
 
 ## Map
 
@@ -14,13 +14,19 @@ API, and it depends on `httpx` and `bs4`.
 - `sites/<site>/`: one package per site. `__init__` exports `search` and any
   of `places`, `companies`, `attributes`, and `postings`, and the first line
   of its docstring is the site's CLI help. `search.py` builds requests and
-  parses results, `client.py` holds URLs, headers, and pacing, and
-  `lookups.py` holds the lookups. LinkedIn's `pages.py` fetches posting pages
-  for `postings` and `details=True`, and Indeed's `countries.py` maps country
-  names to editions.
+  parses results. LinkedIn's and Indeed's `client.py` hold their URLs,
+  headers, and pacing, and their `lookups.py` hold the lookups. Greenhouse
+  has one URL and no headers, so its `search.py` holds the URL. LinkedIn's
+  `pages.py` fetches posting pages for `postings` and `details=True`, and
+  Indeed's `countries.py` maps country names to editions.
+- `sites/responses.py`: the response reading the JSON sites share, for one
+  request or each page. `read_json` raises `Stopped` for an unknown board, a
+  failed request, or an unreadable response, `json_list` checks the posting
+  list, and `parse_postings` skips a malformed posting with a warning. A new
+  site of this kind writes no error handling of its own.
 - `utils.py`: `site_options`, which reads the `Annotated` arguments of a
   site function, `checked`, which checks every call against them, and the
-  text and date helpers.
+  JSON value, text, and date helpers.
 - `models.py`: `JobDict`, `make_job`, and `Stopped`.
 - `fetchkit/`: the `Fetcher` protocol, `FetchResult`, and `HttpxFetcher`.
 - `cache.py`: one SQLite table of `JobDict` records keyed by site and ID, and
@@ -28,7 +34,7 @@ API, and it depends on `httpx` and `bs4`.
 - `cli.py` builds `jobrake <site> <command>` from `SITES`, one command per
   function a site exports, and `io.py` renders JSON, JSONL, and CSV.
 - `tests/`: offline, built on the stub fetcher in `tests/fakes.py`.
-  `tests/fakesite.py` is a third site the tests register.
+  `tests/fakesite.py` is a fake site the tests register.
 
 A new site is a package under `sites/` and one entry in `SITES`. `scrape`,
 the CLI, and the contract test in `tests/test_scrape.py` need no edit.
@@ -46,8 +52,10 @@ the CLI, and the contract test in `tests/test_scrape.py` need no edit.
 
 - The design follows from the purpose. No caller's needs shape it.
 - `site`: the unit jobrake reads, such as `linkedin` or `indeed`. It replaces
-  "provider". "board" stays free for an employer's board on sites such as
-  Greenhouse.
+  "provider".
+- `board`: an employer's board token on an ATS site, such as `airbnb` on
+  Greenhouse. Every ATS site declares it as a required `str` named `board`,
+  with the short flag `-b`.
 - One record. Every site returns `JobDict` records with the same keys, types,
   and units. The identity keys `site`, `id`, and `url` and the summary keys
   `title`, `company`, `location`, and `date` are always present. A detail
@@ -76,7 +84,7 @@ the CLI, and the contract test in `tests/test_scrape.py` need no edit.
   `make_job`, so a row whose keys no longer fit `JobDict` is a miss. Values
   go unchecked, so a parser fix reaches a cached posting when its row
   expires. `JOBRAKE_CACHE_PATH` and `JOBRAKE_CACHE_TTL` configure it, and
-  no site function takes a cache option. Indeed is neither paced nor cached.
+  no site function takes a cache option. Only LinkedIn is paced and cached.
 - Library code logs under the `jobrake` logger and prints nothing. The CLI
   sends logs to stderr and data to stdout. It exits 2 for a bad argument, and
   1 when a search or lookup raises `Stopped`, a named posting could not be
