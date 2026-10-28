@@ -1,6 +1,6 @@
 # jobrake guide
 
-jobrake provides one interface for Indeed, LinkedIn, and employers' boards on four applicant tracking systems, but the sites differ in how they interpret geography, apply search filters, and fetch posting details.
+jobrake provides one interface for Indeed, LinkedIn, and employers' boards on five applicant tracking systems, but the sites differ in how they interpret geography, apply search filters, and fetch posting details.
 Run `jobrake -h` for the sites, `jobrake <site> -h` for a site's commands, and `jobrake <site> <command> -h` for their options.
 
 - [Search for jobs](#search-for-jobs)
@@ -144,14 +144,14 @@ Search filters apply on every page, alongside keywords and geography, **before t
 Each one has a CLI option and a library argument of the same name.
 Pass the library argument to `scrape()` or the site's `search()` function.
 
-| Filter           | CLI                 | Library                | Site               | Unset   |
-| ---------------- | ------------------- | ---------------------- | ------------------ | ------- |
-| Employers        | `--company-ids`     | `company_ids=[...]`    | LinkedIn, Indeed   | `None`  |
-| Posting language | `--language`        | `language="en"`        | Indeed             | `None`  |
-| Job attributes   | `--attributes`      | `attributes=[...]`     | Indeed             | `None`  |
-| Remote           | `--remote`          | `remote=True`          | Indeed             | `False` |
-| Easy Apply       | `--easy-apply`      | `easy_apply=True`      | LinkedIn           | `False` |
-| Early applicant  | `--early-applicant` | `early_applicant=True` | LinkedIn           | `False` |
+| Filter           | CLI                 | Library                | Site                    | Unset   |
+| ---------------- | ------------------- | ---------------------- | ----------------------- | ------- |
+| Employers        | `--company-ids`     | `company_ids=[...]`    | LinkedIn, Indeed        | `None`  |
+| Posting language | `--language`        | `language="en"`        | Indeed                  | `None`  |
+| Job attributes   | `--attributes`      | `attributes=[...]`     | Indeed                  | `None`  |
+| Remote           | `--remote`          | `remote=True`          | Indeed, SmartRecruiters | `False` |
+| Easy Apply       | `--easy-apply`      | `easy_apply=True`      | LinkedIn                | `False` |
+| Early applicant  | `--early-applicant` | `early_applicant=True` | LinkedIn                | `False` |
 
 An option left at its **unset** value (or an empty list) stays out of the search.
 A list option takes several values after one flag, `--attributes CF3CP 6QC5F`, or across repeats.
@@ -425,7 +425,8 @@ A reference whose request failed is absent from the result, and calling the func
 ## Employer boards
 
 Many employers publish their openings on a board that their applicant tracking system (ATS) hosts.
-jobrake reads Ashby, Greenhouse, Lever, and Workable boards. A search names one employer's board with `--board | -b` and returns every posting on it:
+jobrake reads Ashby, Greenhouse, Lever, SmartRecruiters, and Workable boards. A search names one employer's board with `--board | -b`.
+An Ashby, Greenhouse, Lever, or Workable search returns every posting on the board:
 
 ```sh
 jobrake greenhouse search -b airbnb
@@ -443,9 +444,10 @@ from jobrake import scrape
 jobs = asyncio.run(scrape("greenhouse", board="airbnb"))
 ```
 
-A board search takes no query, result limit, or filters. Ashby, Greenhouse, and Workable apply none.
+These searches take no query, result limit, or filters. Ashby, Greenhouse, and Workable apply none.
 Lever filters only on the employer's own labels for location, team, department, and commitment, which must match exactly, so jobrake offers none of them.
 To narrow the postings, [pipe the results](#pipe-results) through `jq` or load them into another tool.
+SmartRecruiters applies a query and filters itself, as [Search a board](#search-a-board) describes.
 
 ### Find a board token
 
@@ -455,8 +457,31 @@ The board token is the last part of the board's address:
 - Ashby: `ramp` in `jobs.ashbyhq.com/ramp`.
 - Lever: `palantir` in `jobs.lever.co/palantir`. A board on Lever's EU host, `jobs.eu.lever.co/<token>`, works the same way.
 - Workable: `huggingface` in `apply.workable.com/huggingface`.
+- SmartRecruiters: `BoschGroup` in `jobs.smartrecruiters.com/BoschGroup`. In our tests, capitals did not matter.
 
-A token the site does not know stops the search with an error that says so.
+A token the site does not know stops the search with an error that says so, except on SmartRecruiters.
+SmartRecruiters answers a token it does not know as it answers a board with no postings, so jobrake cannot tell the two apart.
+Either way the search returns no postings and logs that the token may be misspelled. Check the token against the board's address before you conclude that the employer has no openings.
+
+### Search a board
+
+A SmartRecruiters search applies a query and filters on the server:
+
+```sh
+jobrake smartrecruiters search -b BoschGroup -q engineer
+jobrake smartrecruiters search -b BoschGroup --remote --max-age-hours 72 -n 500 -o bosch.csv
+```
+
+```python
+import asyncio
+
+from jobrake import scrape
+
+jobs = asyncio.run(scrape("smartrecruiters", board="BoschGroup", query="engineer"))
+```
+
+`--query | -q` searches posting titles and locations. `--max-age-hours | -a` keeps postings released within that many hours, and `--remote` keeps postings the employer marks remote.
+`--results | -n` defaults to 100 here, not 10, because an employer board is usually read whole. Raise it to read a large board: Bosch Group's board held more than 5,000 postings in our tests.
 
 ### Greenhouse fields
 
@@ -503,6 +528,14 @@ A Workable record carries `title`, `company`, `location`, `date`, and `descripti
 `url` is the posting on `apply.workable.com`, and `apply_url` is its application form.
 In our test on one board of six postings, every posting carried a country and an employment type, and three named no city.
 A Workable record has no salary or language, because the board does not publish them.
+
+### SmartRecruiters fields
+
+A SmartRecruiters record carries `title`, `company`, `location`, and `date`, and the details `posted_at`, `employment_type`, `language`, `city`, `country_code`, and, when present, `region`, `latitude`, `longitude`, and `is_remote`.
+`posted_at` is the time the posting was released, and `date` is its calendar date. `language` is a code such as `en` or `zh-CN`.
+`url` opens the posting on `jobs.smartrecruiters.com`.
+`is_remote` is `True` only for a posting the employer marks remote. A hybrid posting carries no `is_remote`.
+A record has no description or apply link, which SmartRecruiters serves only one posting at a time, and no salary, which it does not publish.
 
 ## Read and save results
 
@@ -691,6 +724,13 @@ If the 429 remains, the search raises `Stopped` with what it has collected so fa
 A `--details` search that could not fetch every posting's details raises `Stopped` too, holding every posting it found.
 
 On a data center IP, such as a VPS, LinkedIn refuses posting pages with [HTTP 999](https://http.dev/999). Searches and lookups keep working, but every detail fetch fails.
+
+### SmartRecruiters requests
+
+A search reads the board in pages of up to 100 postings, which follow one another without pacing, and each request gets a single attempt.
+It stops at `--results`, at the board's last matching posting, or at an empty page.
+A failed request raises `Stopped` with the postings of the pages before it, and the CLI exits 1.
+jobrake skips a posting it cannot read and leaves out a field it cannot read.
 
 ### Workable requests
 

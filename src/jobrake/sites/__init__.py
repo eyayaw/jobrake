@@ -5,7 +5,7 @@ from types import ModuleType
 from jobrake.fetchkit import Fetcher, HttpxFetcher
 from jobrake.models import JobDict
 
-from . import ashby, greenhouse, indeed, lever, linkedin, workable
+from . import ashby, greenhouse, indeed, lever, linkedin, smartrecruiters, workable
 
 # One entry per site. A site package exports search() and any of the lookups and postings().
 SITES: dict[str, ModuleType] = {
@@ -14,6 +14,7 @@ SITES: dict[str, ModuleType] = {
     "indeed": indeed,
     "lever": lever,
     "linkedin": linkedin,
+    "smartrecruiters": smartrecruiters,
     "workable": workable,
 }
 
