@@ -127,7 +127,7 @@ def cards(count, start=0):
     return [{**CARDS[0], "id": str(n)} for n in range(start, start + count)]
 
 
-def test_paging_stops_at_results_and_at_the_last_page():
+def test_paging_stops_at_results_at_the_last_page_and_at_an_empty_page(caplog):
     # A posting released between two requests repeats a card on the next page.
     fetcher = StubFetcher(
         {
@@ -147,6 +147,8 @@ def test_paging_stops_at_results_and_at_the_last_page():
         fetcher = StubFetcher({"offset=0": page(cards(100), 250), "offset=100": last})
         asyncio.run(smartrecruiters.search(fetcher, board="BoschGroup", results=1000))
         assert len(fetcher.requests) == 2
+    # Only the empty page left postings of the reported total unsent.
+    assert caplog.text.count("reported 250 postings but sent an empty page after 100") == 1
 
 
 def test_an_empty_board_returns_nothing_and_names_a_misspelling(caplog):

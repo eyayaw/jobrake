@@ -348,7 +348,7 @@ async def search(
         try:
             payload = json.loads(result.text)
             page, cursor, raw = _parse_jobs(payload, base_url)
-        except (json.JSONDecodeError, KeyError, TypeError) as error:
+        except (ValueError, KeyError, TypeError) as error:
             # A GraphQL error arrives as HTTP 200 with null data. Usable data
             # alongside errors parses above and is kept.
             message = _graphql_error_message(payload)
