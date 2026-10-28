@@ -94,7 +94,7 @@ def test_the_feed_parses_into_records():
             "url": "https://econjobmarket.org/positions/12622",
             "title": "Senior Associate (North America)",
             "company": "Charles River Associates",
-            "location": "Boston, Massachusetts, US",
+            "location": "Boston, Massachusetts, US; Chicago, Illinois, US",
             "date": "2026-09-03",
             "description": "About Charles River Associates\n"
             "Charles River Associates is a leading global consulting firm.",
@@ -113,7 +113,7 @@ def test_the_feed_parses_into_records():
             "url": "https://econjobmarket.org/positions/12723",
             "title": "Senior Associate/Antitrust & Competition Economics (Europe)",
             "company": "Charles River Associates",
-            "location": "London, GB",
+            "location": "London, GB; Brussels, BE",
             "date": "2026-09-30",
             "description": "Charles River Associates is a leading global consulting firm.",
             "company_logo": "https://backend.econjobmarket.org/data/zz_public/json/Logo/470",

@@ -578,8 +578,8 @@ An EconJobMarket record carries `title`, `company`, `location`, `date`, and `des
 `company` is the hiring institution, such as `University of Zurich`. `company_logo` links to its logo on EJM.
 `posted_at` is the ad's start date on EJM, and `date` is the same day. Both are calendar dates without a time.
 `expires_at` is the application deadline. In our read of the feed, 7 ads in 319 were still open after their deadline.
-`location` joins the city, the region, and the country code, such as `Boston, Massachusetts, US` or `London, GB`.
-An ad can list several locations. The record carries the first, so a consultancy ad for nine offices names only one of them.
+`location` joins the city, the region, and the country code of each location the ad lists, such as `Boston, Massachusetts, US` or `London, GB; Brussels, BE`.
+The place details come from the ad's first location.
 Two ads in 319 listed no location, and their records have no place fields.
 `url` is the ad on `econjobmarket.org`, and candidates apply there, so a record has no separate `apply_url`.
 jobrake leaves out the ad's department, its position types (ranks such as `Assistant Professor`), and its fields of economics, which have no record fields.
