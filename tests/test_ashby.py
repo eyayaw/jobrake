@@ -138,3 +138,8 @@ def test_a_board_parses_into_records():
     assert fetcher.requests == [
         "https://api.ashbyhq.com/posting-api/job-board/ramp?includeCompensation=true"
     ]
+    # A malformed jobUrl stays as given and costs neither its posting nor the next.
+    odd = {**POSTINGS[0], "jobUrl": "https://[invalid"}
+    fetcher = StubFetcher({"job-board/ramp": board([odd, POSTINGS[1]])})
+    jobs = asyncio.run(ashby.search(fetcher, board="ramp"))
+    assert [job["url"] for job in jobs] == ["https://[invalid", POSTINGS[1]["jobUrl"]]
