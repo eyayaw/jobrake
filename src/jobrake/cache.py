@@ -146,7 +146,7 @@ class Cache:
                     found[posting_id] = make_job(**json.loads(stored))
                 except TypeError:
                     rejected += 1
-        except (json.JSONDecodeError, OSError, sqlite3.Error) as error:
+        except (ValueError, OSError, sqlite3.Error) as error:
             self._give_up(error)
             return {}
         if rejected:

@@ -56,7 +56,7 @@ def _job_posting(soup: BeautifulSoup) -> dict[str, Any]:
     for block in soup.find_all("script", type="application/ld+json"):
         try:
             data = json.loads(block.string or "")
-        except json.JSONDecodeError:
+        except ValueError:
             continue
         queue = data if isinstance(data, list) else [data]
         for item in queue:
