@@ -5,7 +5,8 @@
 jobrake reads the postings a job board publishes and returns each one as a
 flat record with the same fields, whichever board it came from. It is an async
 Python package and CLI that reads LinkedIn's guest API, Indeed's GraphQL API,
-and Greenhouse's Job Board API, and it depends on `httpx` and `bs4`.
+Ashby's Job Posting API, and Greenhouse's Job Board API, and it depends on
+`httpx` and `bs4`.
 
 ## Map
 
@@ -15,8 +16,8 @@ and Greenhouse's Job Board API, and it depends on `httpx` and `bs4`.
   of `places`, `companies`, `attributes`, and `postings`, and the first line
   of its docstring is the site's CLI help. `search.py` builds requests and
   parses results. LinkedIn's and Indeed's `client.py` hold their URLs,
-  headers, and pacing, and their `lookups.py` hold the lookups. Greenhouse
-  has one URL and no headers, so its `search.py` holds the URL. LinkedIn's
+  headers, and pacing, and their `lookups.py` hold the lookups. The other
+  sites need no headers or pacing and have no `client.py`. LinkedIn's
   `pages.py` fetches posting pages for `postings` and `details=True`, and
   Indeed's `countries.py` maps country names to editions.
 - `sites/responses.py`: the response reading the JSON sites share, for one

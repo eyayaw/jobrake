@@ -50,7 +50,7 @@ def test_a_malformed_posting_costs_only_itself(caplog):
     assert skipped == ["jobrake.sites.acme"] * 2
 
 
-@pytest.mark.parametrize("site", ["greenhouse"])
+@pytest.mark.parametrize("site", ["ashby", "greenhouse"])
 def test_a_board_site_names_an_unknown_board(site):
     fetcher = StubFetcher({"": not_found()})
     with pytest.raises(Stopped, match=rf"^{site} has no board 'acme/x'.*\. Pass the token") as stop:

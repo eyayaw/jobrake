@@ -1,0 +1,138 @@
+"""Ashby Job Posting API parsing tests."""
+
+import asyncio
+import json
+
+from fakes import StubFetcher, ok
+
+from jobrake.sites import ashby
+
+# Two postings from api.ashbyhq.com/posting-api/job-board/ramp?includeCompensation=true,
+# fetched 2026-10-28, trimmed to the fields jobrake reads plus isListed and isRemote,
+# with each description cut to its role heading and a sentence or two, and with
+# compensation cut to its summaryComponents.
+POSTINGS = [
+    {
+        "id": "c63ba7d7-5290-4d9b-b002-40b2873b66f6",
+        "title": "Partner Consultant, Accounting",
+        "employmentType": "FullTime",
+        "location": "Remote (US)",
+        "publishedAt": "2026-09-02T17:17:20.841+00:00",
+        "isListed": True,
+        "isRemote": True,
+        "workplaceType": "Remote",
+        "address": {"postalAddress": {"addressCountry": "United States"}},
+        "jobUrl": "https://jobs.ashbyhq.com/ramp/c63ba7d7-5290-4d9b-b002-40b2873b66f6",
+        "applyUrl": "https://jobs.ashbyhq.com/ramp/c63ba7d7-5290-4d9b-b002-40b2873b66f6/application",
+        "descriptionHtml": '<h1><strong>About the Role</strong></h1><p style="min-height:1.5em">'
+        "The Solutions Team are technical experts that work directly with customers and "
+        "partners to provide world-class product, sales, industry, and domain expertise.</p>",
+        "compensation": {
+            "summaryComponents": [
+                {
+                    "minValue": 151000,
+                    "maxValue": 231000,
+                    "currencyCode": "USD",
+                    "interval": "1 YEAR",
+                    "compensationType": "Salary",
+                },
+                {
+                    "compensationType": "EquityCashValue",
+                    "minValue": None,
+                    "maxValue": None,
+                    "interval": "1 YEAR",
+                },
+            ]
+        },
+    },
+    {
+        "id": "b39ceb08-a0a7-4f8b-a760-2fb88e209956",
+        "title": "Applied Scientist Intern",
+        "employmentType": "Intern",
+        "location": "New York, NY (HQ)",
+        "publishedAt": "2026-09-15T01:44:04.643+00:00",
+        "isListed": True,
+        "isRemote": True,
+        "workplaceType": "Hybrid",
+        "address": {
+            "postalAddress": {
+                "addressRegion": "NY",
+                "addressCountry": "USA",
+                "addressLocality": "New York City",
+            }
+        },
+        "jobUrl": "https://jobs.ashbyhq.com/ramp/b39ceb08-a0a7-4f8b-a760-2fb88e209956",
+        "applyUrl": "https://jobs.ashbyhq.com/ramp/b39ceb08-a0a7-4f8b-a760-2fb88e209956/application",
+        "descriptionHtml": '<h1><strong>About the Role</strong></h1><p style="min-height:1.5em">'
+        "The Applied Science team builds models and tools that solve Ramp’s most critical "  # noqa: RUF001  the posting's own apostrophe
+        "problems: from underwriting businesses to combatting fraud to making spend "
+        "management smarter.</p>",
+        "compensation": {
+            "summaryComponents": [
+                {
+                    "compensationType": "Salary",
+                    "interval": "1 MONTH",
+                    "currencyCode": "USD",
+                    "minValue": 12500,
+                    "maxValue": 12500,
+                }
+            ]
+        },
+    },
+]
+
+
+def board(postings):
+    return ok(json.dumps({"jobs": postings, "apiVersion": "1"}))
+
+
+def test_a_board_parses_into_records():
+    # Ashby serves an unlisted posting for direct links, and jobrake returns it too.
+    unlisted = {**POSTINGS[1], "isListed": False}
+    fetcher = StubFetcher({"job-board/ramp": board([POSTINGS[0], unlisted])})
+    assert asyncio.run(ashby.search(fetcher, board="ramp")) == [
+        {
+            "site": "ashby",
+            "id": "c63ba7d7-5290-4d9b-b002-40b2873b66f6",
+            "url": "https://jobs.ashbyhq.com/ramp/c63ba7d7-5290-4d9b-b002-40b2873b66f6",
+            "title": "Partner Consultant, Accounting",
+            "company": None,
+            "location": "Remote (US)",
+            "date": "2026-09-02",
+            "description": "About the Role\nThe Solutions Team are technical experts that work "
+            "directly with customers and partners to provide world-class product, sales, "
+            "industry, and domain expertise.",
+            "employment_type": "full_time",
+            "is_remote": True,
+            "salary_min": 151000,
+            "salary_max": 231000,
+            "salary_currency": "USD",
+            "salary_period": "YEAR",
+            "posted_at": "2026-09-02T17:17:20.841+00:00",
+            "apply_url": "https://jobs.ashbyhq.com/ramp/c63ba7d7-5290-4d9b-b002-40b2873b66f6/application",
+        },
+        {
+            "site": "ashby",
+            "id": "b39ceb08-a0a7-4f8b-a760-2fb88e209956",
+            "url": "https://jobs.ashbyhq.com/ramp/b39ceb08-a0a7-4f8b-a760-2fb88e209956",
+            "title": "Applied Scientist Intern",
+            "company": None,
+            "location": "New York, NY (HQ)",
+            "date": "2026-09-15",
+            "description": "About the Role\nThe Applied Science team builds models and tools that "
+            "solve Ramp’s most critical problems: from underwriting businesses to combatting "  # noqa: RUF001  the posting's own apostrophe
+            "fraud to making spend management smarter.",
+            "employment_type": "internship",
+            "salary_min": 12500,
+            "salary_max": 12500,
+            "salary_currency": "USD",
+            "salary_period": "MONTH",
+            "city": "New York City",
+            "region": "NY",
+            "posted_at": "2026-09-15T01:44:04.643+00:00",
+            "apply_url": "https://jobs.ashbyhq.com/ramp/b39ceb08-a0a7-4f8b-a760-2fb88e209956/application",
+        },
+    ]
+    assert fetcher.requests == [
+        "https://api.ashbyhq.com/posting-api/job-board/ramp?includeCompensation=true"
+    ]
