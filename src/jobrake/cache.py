@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS jobs (
     -- Unix time in seconds when the row was written.
     stored_at REAL NOT NULL,
     PRIMARY KEY (site, id)
-)"""
+) STRICT"""
 
 
 def _env_seconds(name: str, default: float) -> float:

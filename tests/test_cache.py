@@ -47,6 +47,19 @@ def test_a_record_comes_back_under_its_own_site(make_cache):
     assert cache.get("indeed", ["111"]) == {}
 
 
+def test_the_table_refuses_a_value_of_the_wrong_type(make_cache):
+    # A text stored_at would sort after every cutoff and stay fresh forever,
+    # and a BLOB job would fail to decode outside the cache's error handling.
+    cache = make_cache()
+    cache.put([JOB])
+    for sql, params in (
+        ("UPDATE jobs SET stored_at = 'bad'", ()),
+        ("UPDATE jobs SET job = ?", (b'{"id": "\xff"}',)),
+    ):
+        with pytest.raises(sqlite3.IntegrityError, match="cannot store"):
+            run_sql(cache, sql, params)
+
+
 def test_expired_rows_miss_and_are_deleted_when_the_cache_opens(make_cache):
     cache = make_cache()
     cache.put([JOB])
