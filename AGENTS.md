@@ -5,8 +5,8 @@
 jobrake reads the postings a job board publishes and returns each one as a
 flat record with the same fields, whichever board it came from. It is an async
 Python package and CLI that reads LinkedIn's guest API, Indeed's GraphQL API,
-and the public board APIs of Ashby, Greenhouse, Lever, and Workable, and it
-depends on `httpx` and `bs4`.
+and the public board APIs of five applicant tracking systems, and it depends
+on `httpx` and `bs4`.
 
 ## Map
 
@@ -23,8 +23,9 @@ depends on `httpx` and `bs4`.
 - `sites/responses.py`: the response reading the JSON sites share, for one
   request or each page. `read_json` raises `Stopped` for an unknown board, a
   failed request, or an unreadable response, `json_list` checks the posting
-  list, and `parse_postings` skips a malformed posting with a warning. A new
-  site of this kind writes no error handling of its own.
+  list, `json_page` checks a page's list and its total, and `parse_postings`
+  skips a malformed posting with a warning. A new site of this kind writes
+  no error handling of its own.
 - `utils.py`: `site_options`, which reads the `Annotated` arguments of a
   site function, `checked`, which checks every call against them, and the
   JSON value, text, number, and date helpers.
@@ -73,8 +74,9 @@ the CLI, and the contract test in `tests/test_scrape.py` need no edit.
   module is imported, and `test_a_site_meets_the_site_contract` checks that
   `search` takes no positional option and that a shared name keeps its type.
 - A caller can tell a cut-short result from a complete one. A failed
-  request raises `Stopped`, whose `partial` holds what was collected. A
-  site's own result cap warns and returns. `postings` never raises `Stopped`
+  request, or a page that ends a search short of the total the site
+  reported, raises `Stopped`, whose `partial` holds what was collected. A
+  site's own result cap warns and returns, because a rerun meets it again. `postings` never raises `Stopped`
   and leaves a failed reference out of its result.
 - The transport is the caller's. Code takes a `Fetcher` and leaves it open,
   and the caller that created it closes it. LinkedIn requests go through

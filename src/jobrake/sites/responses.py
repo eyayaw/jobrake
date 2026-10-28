@@ -8,6 +8,7 @@ from typing import Any
 
 from jobrake.fetchkit import FetchResult
 from jobrake.models import JobDict, Stopped
+from jobrake.utils import finite
 
 
 def read_json[T](
@@ -63,6 +64,21 @@ def json_list(payload: Any, key: str | None = None) -> list[Any]:  # noqa: ANN40
     if not isinstance(value, list):
         raise TypeError(f"{key or 'the response'} is a {type(value).__name__}, not a list")
     return value
+
+
+def json_page(payload: Any, key: str, total: str) -> tuple[list[Any], int]:  # noqa: ANN401  any decoded JSON, which json_page checks
+    """
+    Return a page's ``payload[key]`` list and the count of all matches that ``payload[total]`` reports.
+
+    Raises:
+        KeyError: ``payload`` lacks ``key`` or ``total``.
+        TypeError: The list is not a list, the count is not a number, or
+            ``payload`` is not an object.
+    """
+    count = finite(payload[total])
+    if count is None:
+        raise TypeError(f"{total} {payload[total]!r} is not a number")
+    return json_list(payload, key), int(count)
 
 
 def parse_postings(
