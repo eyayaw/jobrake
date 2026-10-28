@@ -44,12 +44,13 @@ def rate_limited() -> FetchResult:
 
 
 class PagedFetcher(StubFetcher):
-    """Answer each request with the next of ``pages`` and fail on an extra request."""
+    """Answer each request with the next of ``pages``, text or a whole result, and fail on an extra request."""
 
-    def __init__(self, pages: list[str]):
+    def __init__(self, pages: list[str | FetchResult]):
         super().__init__({})
         self.pages = pages
 
     async def fetch(self, url, *, headers=None, json=None):
         await super().fetch(url, headers=headers, json=json)
-        return ok(self.pages[len(self.requests) - 1])
+        page = self.pages[len(self.requests) - 1]
+        return page if isinstance(page, FetchResult) else ok(page)
