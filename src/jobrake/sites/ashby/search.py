@@ -8,7 +8,7 @@ from urllib.parse import quote
 from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, employment_type, make_job
 from jobrake.sites.responses import json_list, parse_postings, read_json
-from jobrake.utils import as_dict, as_str, checked, finite, html_text
+from jobrake.utils import as_dict, as_str, checked, finite, html_text, join_places
 
 logger = logging.getLogger(__name__)
 
@@ -56,13 +56,21 @@ def _parse_posting(posting: dict[str, Any]) -> JobDict:
     posting_id = as_str(posting.get("id"))
     if not posting_id and url:
         posting_id = url.split("?", 1)[0].split("#", 1)[0].rstrip("/").rsplit("/", 1)[-1]
+    # Ashby's documentation lists no secondaryLocations either. On 2026-10-28,
+    # 103 of the 172 postings on ramp listed more places there.
+    secondary = posting.get("secondaryLocations")
+    places = (
+        [as_dict(entry).get("location") for entry in secondary]
+        if isinstance(secondary, list)
+        else []
+    )
     return make_job(
         site="ashby",
         id=posting_id,
         url=url,
         title=posting.get("title"),
         company=None,  # the response never names the employer
-        location=posting.get("location"),
+        location=join_places([posting.get("location"), *places]),
         description=html_text(as_str(posting.get("descriptionHtml")) or ""),
         employment_type=employment_type(as_str(posting.get("employmentType"))),
         # isRemote is also true for a hybrid posting, so only the workplace type confirms remote.

@@ -467,7 +467,7 @@ Employers can add facts such as a workplace type as custom fields, which differ 
 An Ashby record carries `title`, `location`, `date`, and `description`, and the details `posted_at`, `employment_type`, `apply_url`, and, when present, `is_remote`, `salary_min`, `salary_max`, `salary_currency`, `salary_period`, `city`, and `region`.
 `company` is always `None`, because Ashby's response never names the employer. The board token tells you whose board it is.
 `posted_at` is the time the posting was published, and `date` is its calendar date.
-`location` is the text the employer entered, such as `New York, NY (HQ)`. `city` and `region` come from the posting's address, and `region` can be a code or a name, such as `NY` or `Ontario`.
+`location` names the posting's primary location and then its other places, such as `Remote (US); Remote (Canada)`. `city` and `region` come from the address of the primary location, and `region` can be a code or a name, such as `NY` or `Ontario`.
 Ashby gives the country as a name, such as `USA` or `United Kingdom`, so an Ashby record has no `country_code`.
 `is_remote` is `True` for a posting the employer marked remote, and absent for a hybrid or on-site one.
 The salary fields come from the posting's salary range. jobrake leaves out equity, commission, and bonus, which have no record fields.
@@ -486,6 +486,7 @@ Every job is a flat dictionary, with three groups of keys.
 - **Detail keys:** included when a value is available.
 
 Identity and summary keys are always present, with `None` for an unavailable summary value.
+When a site lists a posting's places one by one, `location` names each, separated by `; `, and place details such as `city` describe the first.
 A detail key is absent when the site omits or does not publish the value, or when jobrake did not fetch the posting page.
 
 The sites use the same names for the details they share. A few come from some sites only:
