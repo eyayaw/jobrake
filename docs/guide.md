@@ -511,7 +511,8 @@ Workday publishes no documentation for this API. The behavior described here was
 
 ### Greenhouse fields
 
-A Greenhouse record carries `title`, `company`, `location`, `date`, and `description`, and the details `posted_at`, `language`, and `expires_at`.
+A Greenhouse record carries `title`, `location`, and `description`.
+It also carries `company`, `date`, and the details `posted_at`, `language`, and `expires_at` when Greenhouse supplies them, which its documented list response does not promise.
 `posted_at` is the time the posting was first published, and `date` is its calendar date. `expires_at` is the application deadline.
 `location` is the text the employer entered, such as `Remote, Canada; Remote, United States`.
 `url` is the posting on the employer's own careers site when the board lives there, as Airbnb's does, and on `job-boards.greenhouse.io` otherwise.
@@ -821,7 +822,7 @@ On a data center IP, such as a VPS, LinkedIn refuses posting pages with [HTTP 99
 ### SmartRecruiters requests
 
 A search reads the board in pages of up to 100 postings, which follow one another without pacing, and each request gets a single attempt.
-It stops at `--results`, at the board's last matching posting, or at an empty page.
+It stops at `--results`, at the board's last matching posting, or at an empty page. An empty page that comes before the number of matches SmartRecruiters reported logs a warning, because postings may have closed during the search.
 A failed request raises `Stopped` with the postings of the pages before it, and the CLI exits 1.
 jobrake skips a posting it cannot read and leaves out a field it cannot read.
 
