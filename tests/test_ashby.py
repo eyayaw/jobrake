@@ -9,14 +9,19 @@ from jobrake.sites import ashby
 
 # Two postings from api.ashbyhq.com/posting-api/job-board/ramp?includeCompensation=true,
 # fetched 2026-10-28, trimmed to the fields jobrake reads plus isListed and isRemote,
-# with each description cut to its role heading and a sentence or two, and with
-# compensation cut to its summaryComponents.
+# with each description cut to its role heading and a sentence or two, with
+# compensation cut to its summaryComponents, and with each secondary location cut to its name.
 POSTINGS = [
     {
         "id": "c63ba7d7-5290-4d9b-b002-40b2873b66f6",
         "title": "Partner Consultant, Accounting",
         "employmentType": "FullTime",
         "location": "Remote (US)",
+        "secondaryLocations": [
+            {"location": "Remote (Canada)"},
+            {"location": "San Francisco, CA"},
+            {"location": "New York, NY (HQ)"},
+        ],
         "publishedAt": "2026-09-02T17:17:20.841+00:00",
         "isListed": True,
         "isRemote": True,
@@ -88,7 +93,9 @@ def board(postings):
 
 def test_a_board_parses_into_records():
     # Ashby serves an unlisted posting for direct links, and jobrake returns it too.
+    # It also lacks id, which Ashby does not document, so its ID comes from jobUrl.
     unlisted = {**POSTINGS[1], "isListed": False}
+    del unlisted["id"]
     fetcher = StubFetcher({"job-board/ramp": board([POSTINGS[0], unlisted])})
     assert asyncio.run(ashby.search(fetcher, board="ramp")) == [
         {
@@ -97,7 +104,7 @@ def test_a_board_parses_into_records():
             "url": "https://jobs.ashbyhq.com/ramp/c63ba7d7-5290-4d9b-b002-40b2873b66f6",
             "title": "Partner Consultant, Accounting",
             "company": None,
-            "location": "Remote (US)",
+            "location": "Remote (US); Remote (Canada); San Francisco, CA; New York, NY (HQ)",
             "date": "2026-09-02",
             "description": "About the Role\nThe Solutions Team are technical experts that work "
             "directly with customers and partners to provide world-class product, sales, "
@@ -136,3 +143,8 @@ def test_a_board_parses_into_records():
     assert fetcher.requests == [
         "https://api.ashbyhq.com/posting-api/job-board/ramp?includeCompensation=true"
     ]
+    # A malformed jobUrl stays as given and costs neither its posting nor the next.
+    odd = {**POSTINGS[0], "jobUrl": "https://[invalid"}
+    fetcher = StubFetcher({"job-board/ramp": board([odd, POSTINGS[1]])})
+    jobs = asyncio.run(ashby.search(fetcher, board="ramp"))
+    assert [job["url"] for job in jobs] == ["https://[invalid", POSTINGS[1]["jobUrl"]]
