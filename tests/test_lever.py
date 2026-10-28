@@ -15,7 +15,8 @@ EU = "https://api.eu.lever.co/v0/postings"
 # Two postings from api.lever.co/v0/postings/palantir?mode=json, fetched
 # 2026-10-28, trimmed to the fields jobrake reads plus categories.team and
 # opening, with each HTML field and list cut to a block or two. The second
-# posting's workplaceType is changed from hybrid to remote to cover the flag.
+# posting's workplaceType is changed from hybrid to remote to cover the flag,
+# and New York is added to its allLocations to cover a second place.
 POSTINGS = [
     {
         "id": "6ed76ce8-4156-4b60-b120-403538bd66cd",
@@ -29,6 +30,7 @@ POSTINGS = [
             "commitment": "Full-time",
             "location": "Singapore, Singapore",
             "team": "Administrative",
+            "allLocations": ["Singapore, Singapore"],
         },
         "opening": '<div><strong><span style="font-size: 18px;">A World-Changing Company'
         "</span></strong></div>",
@@ -61,6 +63,7 @@ POSTINGS = [
             "commitment": "Full-time",
             "location": "Washington, D.C.",
             "team": "Administrative",
+            "allLocations": ["Washington, D.C.", "New York, NY"],
         },
         "opening": '<div><strong><span style="font-size: 18px;">A World-Changing Company'
         "</span></strong></div>",
@@ -109,7 +112,7 @@ def test_a_board_parses_into_records():
             "url": "https://jobs.lever.co/palantir/a237973c-cb29-41fe-9c80-416e6f42e087",
             "title": "Administrative Business Partner - ShipOS",
             "company": None,
-            "location": "Washington, D.C.",
+            "location": "Washington, D.C.; New York, NY",
             "date": "2026-06-18",
             "description": "A World-Changing Company\nWhat We Value\nYou move fast and close "
             "loops — you don't let things fall through the cracks.\nSalary\nThe estimated "
@@ -131,6 +134,25 @@ def test_a_creation_time_in_seconds_costs_only_its_field(caplog):
     assert job["date"] is None
     assert "posted_at" not in job
     assert "looks like epoch seconds" in caplog.text
+
+
+def test_the_description_keeps_every_section_on_its_own_line():
+    posting = {
+        **POSTINGS[0],
+        "description": "Build software",
+        "lists": [{"text": "Requirements", "content": "<li>Python</li>"}],
+        "salaryDescription": "Plus commission",
+        "additional": "Benefits included",
+    }
+    fetcher = StubFetcher({"api.lever.co": ok(json.dumps([posting]))})
+    (job,) = asyncio.run(lever.search(fetcher, board="palantir"))
+    assert job["description"] == (
+        "Build software\nRequirements\nPython\nPlus commission\nBenefits included"
+    )
+    # An unreadable lists field costs only its own sections.
+    fetcher = StubFetcher({"api.lever.co": ok(json.dumps([{**posting, "lists": 1}]))})
+    (job,) = asyncio.run(lever.search(fetcher, board="palantir"))
+    assert job["description"] == "Build software\nPlus commission\nBenefits included"
 
 
 def test_only_a_404_from_the_global_host_sends_the_board_to_the_eu_host():

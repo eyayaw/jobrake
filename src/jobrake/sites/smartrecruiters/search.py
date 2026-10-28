@@ -39,6 +39,16 @@ def _parse_card(card: dict[str, Any]) -> JobDict:
     """
     company = as_dict(card.get("company"))
     location = as_dict(card.get("location"))
+    # SmartRecruiters' own example card has the place fields without fullLocation.
+    country = as_str(location.get("country"))
+    parts = (
+        as_str(location.get("city")),
+        as_str(location.get("region")),
+        country and country.upper(),
+    )
+    place = as_str(location.get("fullLocation")) or ", ".join(
+        part.strip() for part in parts if part and part.strip()
+    )
     identifier, posting_id = company.get("identifier"), card.get("id")
     url = (
         POSTING_URL.format(company=identifier, id=posting_id)
@@ -51,7 +61,7 @@ def _parse_card(card: dict[str, Any]) -> JobDict:
         url=url,
         title=card.get("name"),
         company=company.get("name"),
-        location=location.get("fullLocation"),
+        location=place,
         employment_type=employment_type(as_str(as_dict(card.get("typeOfEmployment")).get("label"))),
         is_remote=True if location.get("remote") is True else None,
         city=as_str(location.get("city")),

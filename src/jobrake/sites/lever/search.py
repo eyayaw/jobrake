@@ -9,7 +9,7 @@ from urllib.parse import quote
 from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, employment_type, make_job
 from jobrake.sites.responses import json_list, parse_postings, read_json
-from jobrake.utils import as_dict, as_str, checked, epoch_ms_to_iso, finite, html_text
+from jobrake.utils import as_dict, as_str, checked, epoch_ms_to_iso, finite, html_text, join_places
 
 logger = logging.getLogger(__name__)
 
@@ -20,13 +20,15 @@ API_URLS = ("https://api.lever.co/v0/postings", "https://api.eu.lever.co/v0/post
 def _description(posting: dict[str, Any]) -> str:
     # description already holds the opening, so the opening fields stay out.
     parts = [as_str(posting.get("description")) or ""]
-    for entry in posting.get("lists") or []:
+    lists = posting.get("lists")
+    for entry in lists if isinstance(lists, list) else []:
         if isinstance(entry, dict):
             # The list name is plain text, and its content is bare <li> elements.
             heading = escape(as_str(entry.get("text")) or "")
             parts.append(f"<h3>{heading}</h3><ul>{as_str(entry.get('content')) or ''}</ul>")
-    parts.append(as_str(posting.get("additional")) or "")
-    return html_text("".join(parts))
+    parts += [as_str(posting.get(name)) or "" for name in ("salaryDescription", "additional")]
+    # A section may be plain text, so a block of its own keeps it off its neighbor's line.
+    return html_text("".join(f"<div>{part}</div>" for part in parts if part))
 
 
 def _posted_at(posting: dict[str, Any]) -> str | None:
@@ -49,12 +51,16 @@ def _parse_posting(posting: dict[str, Any]) -> JobDict:
         AttributeError: The posting is not an object.
     """
     categories = as_dict(posting.get("categories"))
+    # allLocations repeats the primary location, which join_places() names once.
+    places = categories.get("allLocations")
     return make_job(
         site="lever",
         id=posting.get("id"),
         url=posting.get("hostedUrl"),
         title=posting.get("text"),
-        location=as_str(categories.get("location")),
+        location=join_places(
+            [categories.get("location"), *(places if isinstance(places, list) else [])]
+        ),
         description=_description(posting),
         employment_type=employment_type(as_str(categories.get("commitment"))),
         is_remote=True if posting.get("workplaceType") == "remote" else None,

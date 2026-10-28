@@ -523,7 +523,7 @@ Employers can add facts such as a workplace type as custom fields, which differ 
 An Ashby record carries `title`, `location`, `date`, and `description`, and the details `posted_at`, `employment_type`, `apply_url`, and, when present, `is_remote`, `salary_min`, `salary_max`, `salary_currency`, `salary_period`, `city`, and `region`.
 `company` is always `None`, because Ashby's response never names the employer. The board token tells you whose board it is.
 `posted_at` is the time the posting was published, and `date` is its calendar date.
-`location` is the text the employer entered, such as `New York, NY (HQ)`. `city` and `region` come from the posting's address, and `region` can be a code or a name, such as `NY` or `Ontario`.
+`location` names the posting's primary location and then its other places, such as `Remote (US); Remote (Canada)`. `city` and `region` come from the address of the primary location, and `region` can be a code or a name, such as `NY` or `Ontario`.
 Ashby gives the country as a name, such as `USA` or `United Kingdom`, so an Ashby record has no `country_code`.
 `is_remote` is `True` for a posting the employer marked remote, and absent for a hybrid or on-site one.
 The salary fields come from the posting's salary range. jobrake leaves out equity, commission, and bonus, which have no record fields.
@@ -537,7 +537,7 @@ A Lever record carries `title`, `location`, `date`, and `description`, and the d
 `company` is always `None`, because Lever's response never names the employer.
 `posted_at` is the time the posting was created, and `date` is its calendar date.
 `description` joins the posting's description, its lists such as requirements and benefits, each under its own heading, and its closing text.
-`location` is the posting's primary location as the employer entered it, such as `London, United Kingdom`. `country_code` is that location's country.
+`location` names the posting's primary location and then its other places, as the employer entered them, such as `London, United Kingdom`. `country_code` is the primary location's country.
 `employment_type` is the employer's commitment label as a slug, such as `full_time` for `Full-time`.
 `is_remote` is `True` when the employer marked the workplace remote, and absent for on-site, hybrid, and unspecified postings.
 `url` is the posting on `jobs.lever.co` or `jobs.eu.lever.co`, and `apply_url` is its application form.
@@ -549,6 +549,7 @@ In our tests on one board, every one of five postings carried a location, a coun
 A Workable record carries `title`, `company`, `location`, `date`, and `description`, and the details `posted_at`, `employment_type`, `country_code`, `apply_url`, and, when present, `is_remote`, `city`, `region`, and `education`.
 `posted_at` is the date the posting was published, with no time of day, so it equals `date`.
 `location` joins the city, state, and country the employer entered, such as `Paris, Île-de-France, France`, and `city`, `region`, and `country_code` come from the posting's first listed place.
+Workable lists a posting open in several places once per place. jobrake returns it once, and its `location` names each place, separated by `; `.
 `is_remote` is `True` when the employer marked the posting as remote, and is absent otherwise. `employment_type` is a slug such as `full_time`.
 `education` is the degree the employer chose, such as `Master's Degree`, and is absent when the employer chose none.
 `url` is the posting on `apply.workable.com`, and `apply_url` is its application form.
@@ -615,8 +616,8 @@ An EconJobMarket record carries `title`, `company`, `location`, `date`, and `des
 `company` is the hiring institution, such as `University of Zurich`. `company_logo` links to its logo on EJM.
 `posted_at` is the ad's start date on EJM, and `date` is the same day. Both are calendar dates without a time.
 `expires_at` is the application deadline. In our read of the feed, 7 ads in 319 were still open after their deadline.
-`location` joins the city, the region, and the country code, such as `Boston, Massachusetts, US` or `London, GB`.
-An ad can list several locations. The record carries the first, so a consultancy ad for nine offices names only one of them.
+`location` joins the city, the region, and the country code of each location the ad lists, such as `Boston, Massachusetts, US` or `London, GB; Brussels, BE`.
+The place details come from the ad's first location.
 Two ads in 319 listed no location, and their records have no place fields.
 `url` is the ad on `econjobmarket.org`, and candidates apply there, so a record has no separate `apply_url`.
 jobrake leaves out the ad's department, its position types (ranks such as `Assistant Professor`), and its fields of economics, which have no record fields.
@@ -633,6 +634,7 @@ Every job is a flat dictionary, with three groups of keys.
 - **Detail keys:** included when a value is available.
 
 Identity and summary keys are always present, with `None` for an unavailable summary value.
+When a site lists a posting's places one by one, `location` names each, separated by `; `, and place details such as `city` describe the first.
 A detail key is absent when the site omits or does not publish the value, or when jobrake did not fetch the posting page.
 
 The sites use the same names for the details they share. A fields subsection under [Employer boards](#employer-boards) or [EconJobMarket](#econjobmarket) lists the details its site carries.
