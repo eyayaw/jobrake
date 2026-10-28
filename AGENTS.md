@@ -74,8 +74,9 @@ the CLI, and the contract test in `tests/test_scrape.py` need no edit.
   module is imported, and `test_a_site_meets_the_site_contract` checks that
   `search` takes no positional option and that a shared name keeps its type.
 - A caller can tell a cut-short result from a complete one. A failed
-  request raises `Stopped`, whose `partial` holds what was collected. A
-  site's own result cap warns and returns. `postings` never raises `Stopped`
+  request, or a page that ends a search short of the total the site
+  reported, raises `Stopped`, whose `partial` holds what was collected. A
+  site's own result cap warns and returns, because a rerun meets it again. `postings` never raises `Stopped`
   and leaves a failed reference out of its result.
 - The transport is the caller's. Code takes a `Fetcher` and leaves it open,
   and the caller that created it closes it. LinkedIn requests go through

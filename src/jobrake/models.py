@@ -93,7 +93,7 @@ def make_job(**fields: Any) -> JobDict:
 
 class Stopped(Exception):
     """
-    A failed request ended a search or lookup early.
+    A failed request, or a page that ended a search short of the total the site reported, cut it short.
 
     ``partial`` holds the records collected before the failure, ``[]`` for a lookup.
     """

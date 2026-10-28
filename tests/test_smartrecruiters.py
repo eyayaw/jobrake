@@ -127,7 +127,7 @@ def cards(count, start=0):
     return [{**CARDS[0], "id": str(n)} for n in range(start, start + count)]
 
 
-def test_paging_stops_at_results_at_the_last_page_and_at_an_empty_page(caplog):
+def test_paging_stops_at_results_and_at_the_last_page():
     # A posting released between two requests repeats a card on the next page.
     fetcher = StubFetcher(
         {
@@ -143,12 +143,11 @@ def test_paging_stops_at_results_at_the_last_page_and_at_an_empty_page(caplog):
         f"{URL}?limit=50&offset=100",
         f"{URL}?limit=1&offset=150",
     ]
-    for last in (page(cards(50, 100), 150), page([], 250)):
-        fetcher = StubFetcher({"offset=0": page(cards(100), 250), "offset=100": last})
-        asyncio.run(smartrecruiters.search(fetcher, board="BoschGroup", results=1000))
-        assert len(fetcher.requests) == 2
-    # Only the empty page left postings of the reported total unsent.
-    assert caplog.text.count("reported 250 postings but sent an empty page after 100") == 1
+    fetcher = StubFetcher(
+        {"offset=0": page(cards(100), 150), "offset=100": page(cards(50, 100), 150)}
+    )
+    asyncio.run(smartrecruiters.search(fetcher, board="BoschGroup", results=1000))
+    assert len(fetcher.requests) == 2
 
 
 def test_an_empty_board_returns_nothing_and_names_a_misspelling(caplog):
@@ -159,11 +158,16 @@ def test_an_empty_board_returns_nothing_and_names_a_misspelling(caplog):
     assert "check the identifier" in caplog.text
 
 
-def test_a_failed_page_stops_with_the_pages_before_it():
-    fetcher = StubFetcher({"offset=0": page(cards(100), 250), "offset=100": network_down()})
-    with pytest.raises(Stopped, match="smartrecruiters") as stop:
-        asyncio.run(smartrecruiters.search(fetcher, board="BoschGroup", results=200))
-    assert len(stop.value.partial) == 100
+def test_a_failed_or_early_empty_page_stops_with_the_pages_before_it():
+    # An empty page before the reported total may have skipped postings.
+    for last, message in (
+        (network_down(), "smartrecruiters"),
+        (page([], 250), "may be incomplete"),
+    ):
+        fetcher = StubFetcher({"offset=0": page(cards(100), 250), "offset=100": last})
+        with pytest.raises(Stopped, match=message) as stop:
+            asyncio.run(smartrecruiters.search(fetcher, board="BoschGroup", results=200))
+        assert len(stop.value.partial) == 100
 
 
 def test_a_malformed_card_costs_only_itself(caplog):
