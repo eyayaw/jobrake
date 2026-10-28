@@ -58,8 +58,8 @@ the CLI, and the contract test in `tests/test_scrape.py` need no edit.
   signature. A boolean option defaults to `False`. A name two sites share
   keeps one meaning and unit. Every function a site exports carries
   `@checked`, which raises `TypeError` for an unknown, missing, or wrongly
-  typed argument and `ValueError` for a value out of range, a blank lookup
-  text, or a blank list entry, all before the first request. `site_options`
+  typed argument and `ValueError` for a value out of range, a blank required
+  string, or a blank list entry, all before the first request. `site_options`
   rejects an annotation or a boolean default that breaks these rules when the
   module is imported, and `test_a_site_meets_the_site_contract` checks that
   `search` takes no positional option and that a shared name keeps its type.

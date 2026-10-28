@@ -81,6 +81,7 @@ def test_a_site_function_the_cli_cannot_build_fails_when_decorated(function, mat
         ("linkedin", {"location": "Seattle", "results": 0}, ValueError, r"results \(0\) must be"),
         ("indeed", {"country": "usa", "radius": -1}, ValueError, "radius"),
         ("indeed", {"country": "usa", "max_age_hours": 0}, ValueError, "max_age_hours"),
+        ("indeed", {"country": " "}, ValueError, "country is blank. Pass the Indeed country"),
         # The checks each site makes of the values it accepts.
         ("indeed", {"country": "atlantis"}, ValueError, "unknown Indeed country"),
         (
