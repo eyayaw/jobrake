@@ -570,7 +570,7 @@ A Workday search result carries `title`, `location`, and `date`, but no descript
 `--details | -d` fetches each posting and adds `description`, `posted_at`, `employment_type`, and `country_code`.
 
 - `company` is always `None`. Workday names only the employer's legal entity, such as `2100 NVIDIA USA`.
-- `location` is `None` for a posting with several locations, because Workday shows only their count, such as `2 Locations`.
+- `location` is `None` for a posting with several locations, because a search result shows only their count, such as `2 Locations`. With `--details`, it names each of them.
 - Without `--details`, `date` comes from Workday's label: "Posted Today", "Posted Yesterday", or "Posted 3 Days Ago", counted back from today in UTC. Workday counts from its own day, so this `date` can be a day late. On one posting we fetched at 02:22 UTC, Workday said "Posted Today" and the posting's start date was the previous day. Workday stops counting at "Posted 30+ Days Ago", so an older posting has no `date`.
 - `posted_at` is a calendar date, Workday's start date for the posting. With `--details`, `date` is `posted_at`.
 - `id` joins the employer's Workday name and the requisition ID, as in `nvidia:JR1996377`.

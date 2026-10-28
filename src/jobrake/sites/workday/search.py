@@ -12,7 +12,7 @@ from urllib.parse import urlsplit
 from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, Stopped, employment_type, make_job
 from jobrake.sites.responses import json_page, parse_postings, read_json
-from jobrake.utils import as_dict, as_str, checked, html_text
+from jobrake.utils import as_dict, as_str, checked, html_text, join_places
 
 logger = logging.getLogger(__name__)
 
@@ -167,11 +167,15 @@ async def _detail_fields(fetcher: Fetcher, url: str, posting: str) -> dict[str, 
     try:
         info = json.loads(result.text)["jobPostingInfo"]
         country = as_dict(as_dict(info.get("jobRequisitionLocation")).get("country"))
+        others = info.get("additionalLocations")
+        places = join_places([info.get("location"), *(others if isinstance(others, list) else [])])
         return {
             "description": html_text(as_str(info.get("jobDescription")) or ""),
             "posted_at": as_str(info.get("startDate")),
             "employment_type": employment_type(as_str(info.get("timeType"))),
             "country_code": as_str(country.get("alpha2Code")),
+            # A detail without a location keeps the card's.
+            **({"location": places} if places else {}),
         }
     except (ValueError, KeyError, TypeError, AttributeError) as error:
         logger.warning(
@@ -207,7 +211,7 @@ async def _fill_details(
         missing += fields is None
         # Without a card date, make_job falls back to posted_at.
         card = {**job, "date": None} if fields and fields["posted_at"] else job
-        filled.append(make_job(**card, **(fields or {})))
+        filled.append(make_job(**{**card, **(fields or {})}))
     if missing:
         raise Stopped(
             f"workday could not fetch the details of {missing} of {len(jobs)} postings. "

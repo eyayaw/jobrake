@@ -130,15 +130,35 @@ DETAIL = {
     "hiringOrganization": {"name": "2100 NVIDIA USA", "url": ""},
 }
 
+# GET {API}/job/US-CA-Santa-Clara/Principal-Architect--System-Software---Orbital-Data-Center_JR2019010
+# on 2026-10-28, a card that says "2 Locations", trimmed to the fields jobrake
+# reads, with the description cut to its first sentence.
+TWO_PLACES = {
+    "jobPostingInfo": {
+        "title": "Principal Architect, System Software - Orbital Data Center",
+        "jobDescription": "<p><span>Space-1 is NVIDIA&#39;s first Orbital Data Center (ODC) "
+        "module.</span></p>",
+        "location": "US, CA, Santa Clara",
+        "additionalLocations": ["US, Remote"],
+        "startDate": "2026-10-27",
+        "timeType": "Full time",
+        "jobRequisitionLocation": {
+            "descriptor": "US, CA, Santa Clara",
+            "country": {"descriptor": "United States of America", "alpha2Code": "US"},
+        },
+    }
+}
+
 
 def test_details_fill_each_card_and_stop_when_one_fails(today, caplog):
     fetcher = StubFetcher(
         {
-            "/jobs": ok(page([*CARDS, *numbered(1)])),
+            "/jobs": ok(page([*CARDS, *numbered(2)])),
             "Networking-Architect_JR1996377": ok(json.dumps(DETAIL)),
-            "Orbital-Data-Center_JR2019010": not_found(),  # removed since the search
-            "AI-Research-Scientist_JR2018673": network_down(),
+            "Orbital-Data-Center_JR2019010": ok(json.dumps(TWO_PLACES)),
+            "AI-Research-Scientist_JR2018673": not_found(),  # removed since the search
             "Engineer_JR0": ok("[" + "9" * 5000 + "]"),  # an integer longer than Python reads
+            "Engineer_JR1": network_down(),
         }
     )
     filled = {
@@ -155,17 +175,35 @@ def test_details_fill_each_card_and_stop_when_one_fails(today, caplog):
         "country_code": "US",
         "posted_at": "2026-10-27",
     }
-    assert asyncio.run(workday.search(fetcher, board=BOARD, results=1, details=True)) == [filled]
+    two_places = {
+        "site": "workday",
+        "id": "nvidia:JR2019010",
+        "url": f"{BOARD}/job/US-CA-Santa-Clara/"
+        "Principal-Architect--System-Software---Orbital-Data-Center_JR2019010",
+        "title": "Principal Architect, System Software - Orbital Data Center",
+        "company": None,
+        "location": "US, CA, Santa Clara; US, Remote",
+        "date": "2026-10-27",
+        "description": "Space-1 is NVIDIA's first Orbital Data Center (ODC) module.",
+        "employment_type": "full_time",
+        "country_code": "US",
+        "posted_at": "2026-10-27",
+    }
+    assert asyncio.run(workday.search(fetcher, board=BOARD, results=2, details=True)) == [
+        filled,
+        two_places,
+    ]
     assert fetcher.requests[1] == f"{API}/job/US-CA-Santa-Clara/Networking-Architect_JR1996377"
-    with pytest.raises(Stopped, match="details of 2 of 4 postings") as stop:
+    with pytest.raises(Stopped, match="details of 2 of 5 postings") as stop:
         asyncio.run(workday.search(fetcher, board=BOARD, details=True))
     assert [job["id"] for job in stop.value.partial] == [
         "nvidia:JR1996377",
         "nvidia:JR2019010",
         "nvidia:JR2018673",
         "nvidia:JR0",
+        "nvidia:JR1",
     ]
-    assert stop.value.partial[0] == filled
+    assert stop.value.partial[:2] == [filled, two_places]
     assert caplog.text.count("skipping the details of") == 2
 
 
