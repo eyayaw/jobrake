@@ -1,6 +1,6 @@
 # jobrake guide
 
-jobrake provides one interface for Indeed, LinkedIn, and employers' Ashby, Greenhouse, and Lever boards, but the sites differ in how they interpret geography, apply search filters, and fetch posting details.
+jobrake provides one interface for Indeed, LinkedIn, and employers' boards on four applicant tracking systems, but the sites differ in how they interpret geography, apply search filters, and fetch posting details.
 Run `jobrake -h` for the sites, `jobrake <site> -h` for a site's commands, and `jobrake <site> <command> -h` for their options.
 
 - [Search for jobs](#search-for-jobs)
@@ -425,13 +425,14 @@ A reference whose request failed is absent from the result, and calling the func
 ## Employer boards
 
 Many employers publish their openings on a board that their applicant tracking system (ATS) hosts.
-jobrake reads Ashby, Greenhouse, and Lever boards. A search names one employer's board with `--board | -b` and returns every posting on it:
+jobrake reads Ashby, Greenhouse, Lever, and Workable boards. A search names one employer's board with `--board | -b` and returns every posting on it:
 
 ```sh
 jobrake greenhouse search -b airbnb
 jobrake greenhouse search -b gitlab -o gitlab.jsonl
 jobrake ashby search -b ramp -o ramp.csv
 jobrake lever search -b palantir
+jobrake workable search -b huggingface
 ```
 
 ```python
@@ -442,7 +443,7 @@ from jobrake import scrape
 jobs = asyncio.run(scrape("greenhouse", board="airbnb"))
 ```
 
-A board search takes no query, result limit, or filters. Ashby and Greenhouse apply none.
+A board search takes no query, result limit, or filters. Ashby, Greenhouse, and Workable apply none.
 Lever filters only on the employer's own labels for location, team, department, and commitment, which must match exactly, so jobrake offers none of them.
 To narrow the postings, [pipe the results](#pipe-results) through `jq` or load them into another tool.
 
@@ -453,6 +454,7 @@ The board token is the last part of the board's address:
 - Greenhouse: `airbnb` in `boards.greenhouse.io/airbnb`, or `gitlab` in `job-boards.greenhouse.io/gitlab`.
 - Ashby: `ramp` in `jobs.ashbyhq.com/ramp`.
 - Lever: `palantir` in `jobs.lever.co/palantir`. A board on Lever's EU host, `jobs.eu.lever.co/<token>`, works the same way.
+- Workable: `huggingface` in `apply.workable.com/huggingface`.
 
 A token the site does not know stops the search with an error that says so.
 
@@ -492,6 +494,18 @@ A Lever record carries `title`, `location`, `date`, and `description`, and the d
 Lever can send a salary range, but its documentation does not list the pay intervals it uses, so jobrake leaves salary out. Salary text in the description stays in `description`.
 In our tests on one board, every one of five postings carried a location, a country, a commitment, and a workplace type, and none had a salary range.
 
+### Workable fields
+
+A Workable record carries `title`, `company`, `location`, `date`, and `description`, and the details `posted_at`, `employment_type`, `country_code`, `apply_url`, and, when present, `is_remote`, `city`, `region`, and `education`.
+`posted_at` is the date the posting was published, with no time of day, so it equals `date`.
+`location` joins the city, state, and country the employer entered, such as `Paris, Île-de-France, France`, and `city`, `region`, and `country_code` come from the posting's first listed place.
+Workable lists a posting open in several places once per place. jobrake returns it once, and its `location` names each place, separated by `; `.
+`is_remote` is `True` when the employer marked the posting as remote, and is absent otherwise. `employment_type` is a slug such as `full_time`.
+`education` is the degree the employer chose, such as `Master's Degree`, and is absent when the employer chose none.
+`url` is the posting on `apply.workable.com`, and `apply_url` is its application form.
+In our test on one board of six postings, every posting carried a country and an employment type, and three named no city.
+A Workable record has no salary or language, because the board does not publish them.
+
 ## Read and save results
 
 ### Returned fields
@@ -506,10 +520,10 @@ Identity and summary keys are always present, with `None` for an unavailable sum
 When a site lists a posting's places one by one, `location` names each, separated by `; `, and place details such as `city` describe the first.
 A detail key is absent when the site omits or does not publish the value, or when jobrake did not fetch the posting page.
 
-The sites use the same names for the details they share. A few come from some sites only:
-`apply_type`, `applicants`, `experience_months`, and `education` from LinkedIn, `is_remote` and `apply_url` from Ashby, Indeed, and Lever, and `language` from Greenhouse and Indeed.
+The sites use the same names for the details they share, and the fields subsection of each [employer board](#employer-boards) lists the details that board carries.
+`apply_type`, `applicants`, and `experience_months` come from LinkedIn only, and LinkedIn carries no `is_remote`, `apply_url`, or `language`.
 
-A posting can carry two dates. `date` holds the calendar date, such as `2026-09-19`, and `posted_at` holds the full timestamp, such as `2026-09-19T05:00:00+00:00`.
+A posting can carry two dates. `date` holds the calendar date, such as `2026-09-19`, and `posted_at` holds the full timestamp when the site gives one, such as `2026-09-19T05:00:00+00:00`, and the calendar date otherwise.
 jobrake prefers the date a search result states and falls back to the calendar portion of `posted_at`. Compare on `date`, and read `posted_at` for a time of day.
 
 ### Output formats
@@ -680,6 +694,12 @@ If the 429 remains, the search raises `Stopped` with what it has collected so fa
 A `--details` search that could not fetch every posting's details raises `Stopped` too, holding every posting it found.
 
 On a data center IP, such as a VPS, LinkedIn refuses posting pages with [HTTP 999](https://http.dev/999). Searches and lookups keep working, but every detail fetch fails.
+
+### Workable requests
+
+A board search is one request, which returns the whole board. It gets a single attempt and no pacing.
+A failed request raises `Stopped` with an empty `partial`, and the CLI exits 1.
+jobrake skips a posting it cannot read and leaves out a field it cannot read.
 
 ## Cache location and lifetimes
 
