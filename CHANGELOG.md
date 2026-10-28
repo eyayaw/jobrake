@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+## [0.21.0](https://github.com/eyayaw/jobrake/releases/tag/v0.21.0) - 2026-10-28
+
+This release adds seven sites: employers' boards on six applicant tracking systems, and EconJobMarket's ad feed. When a site lists a posting's places one by one, its record names each of them in `location`.
+
+### Added
+
+- `greenhouse`, `ashby`, `lever`, and `workable` sites: `jobrake <site> search -b <token>` and `scrape(site, board=...)` return every posting on one employer's board.
+- `smartrecruiters` site: `jobrake smartrecruiters search -b <token>` pages through one employer's board, with `query`, `results`, `max_age_hours`, and `remote` applied by SmartRecruiters.
+- `workday` site: `jobrake workday search -b <career site URL>` searches one employer's Workday career site, with `query`, `results`, and `details`.
+- `econjobmarket` site: `jobrake econjobmarket search` and `scrape("econjobmarket")` return every open ad from EconJobMarket's public feed.
+
+### Changed
+
+- A blank Indeed `country` raises `ValueError` saying the option is blank, instead of calling it an unknown country.
+- `Stopped` also ends a SmartRecruiters or Workday search whose page comes back empty before the total the site reported.
+- `employment_type()` slugs camelCase labels, so `FullTime` becomes `full_time`.
+- `make_job` uppercases `country_code`.
+
+### Fixed
+
+- An Indeed response holding an integer longer than Python reads raises `Stopped` instead of `ValueError`. A LinkedIn posting page holding one in a JSON-LD block skips that block instead of raising.
+
 ## [0.20.0](https://github.com/eyayaw/jobrake/releases/tag/v0.20.0) - 2026-10-28
 
 This release rebuilds jobrake around one contract. Every site returns the same `JobDict` record, and each site declares only the options its server applies. A failed request raises `Stopped`, so a caller can tell a cut-short result from a complete one.
