@@ -133,6 +133,21 @@ def test_a_creation_time_in_seconds_costs_only_its_field(caplog):
     assert "looks like epoch seconds" in caplog.text
 
 
+def test_the_description_keeps_every_section_on_its_own_line():
+    posting = {
+        **POSTINGS[0],
+        "description": "Build software",
+        "lists": [{"text": "Requirements", "content": "<li>Python</li>"}],
+        "salaryDescription": "Plus commission",
+        "additional": "Benefits included",
+    }
+    fetcher = StubFetcher({"api.lever.co": ok(json.dumps([posting]))})
+    (job,) = asyncio.run(lever.search(fetcher, board="palantir"))
+    assert job["description"] == (
+        "Build software\nRequirements\nPython\nPlus commission\nBenefits included"
+    )
+
+
 def test_only_a_404_from_the_global_host_sends_the_board_to_the_eu_host():
     fetcher = StubFetcher(
         {"api.lever.co": not_found(), "api.eu.lever.co": ok(json.dumps(POSTINGS[1:]))}

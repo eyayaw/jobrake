@@ -25,8 +25,9 @@ def _description(posting: dict[str, Any]) -> str:
             # The list name is plain text, and its content is bare <li> elements.
             heading = escape(as_str(entry.get("text")) or "")
             parts.append(f"<h3>{heading}</h3><ul>{as_str(entry.get('content')) or ''}</ul>")
-    parts.append(as_str(posting.get("additional")) or "")
-    return html_text("".join(parts))
+    parts += [as_str(posting.get(name)) or "" for name in ("salaryDescription", "additional")]
+    # A section may be plain text, so a block of its own keeps it off its neighbor's line.
+    return html_text("".join(f"<div>{part}</div>" for part in parts if part))
 
 
 def _posted_at(posting: dict[str, Any]) -> str | None:
