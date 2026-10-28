@@ -498,6 +498,7 @@ In our tests on one board, every one of five postings carried a location, a coun
 A Workable record carries `title`, `company`, `location`, `date`, and `description`, and the details `posted_at`, `employment_type`, `country_code`, `apply_url`, and, when present, `is_remote`, `city`, `region`, and `education`.
 `posted_at` is the date the posting was published, with no time of day, so it equals `date`.
 `location` joins the city, state, and country the employer entered, such as `Paris, Île-de-France, France`, and `city`, `region`, and `country_code` come from the posting's first listed place.
+Workable lists a posting open in several places once per place. jobrake returns it once, and its `location` names each place, separated by `; `.
 `is_remote` is `True` when the employer marked the posting as remote, and is absent otherwise. `employment_type` is a slug such as `full_time`.
 `education` is the degree the employer chose, such as `Master's Degree`, and is absent when the employer chose none.
 `url` is the posting on `apply.workable.com`, and `apply_url` is its application form.
