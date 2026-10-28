@@ -1,12 +1,13 @@
 # jobrake guide
 
-jobrake provides one interface for Indeed, LinkedIn, and employers' boards on five applicant tracking systems, but the sites differ in how they interpret geography, apply search filters, and fetch posting details.
+jobrake provides one interface for Indeed, LinkedIn, EconJobMarket, and employers' boards on five applicant tracking systems, but the sites differ in how they interpret geography, apply search filters, and fetch posting details.
 Run `jobrake -h` for the sites, `jobrake <site> -h` for a site's commands, and `jobrake <site> <command> -h` for their options.
 
 - [Search for jobs](#search-for-jobs)
 - [Narrow the results](#narrow-the-results)
 - [Fetch posting details](#fetch-posting-details)
 - [Employer boards](#employer-boards)
+- [EconJobMarket](#econjobmarket)
 - [Read and save results](#read-and-save-results)
 - [Use the Python API](#use-the-python-api)
 - [Request limits and partial results](#request-limits-and-partial-results)
@@ -537,6 +538,52 @@ A SmartRecruiters record carries `title`, `company`, `location`, and `date`, and
 `is_remote` is `True` only for a posting the employer marks remote. A hybrid posting carries no `is_remote`.
 A record has no description or apply link, which SmartRecruiters serves only one posting at a time, and no salary, which it does not publish.
 
+## EconJobMarket
+
+[EconJobMarket](https://econjobmarket.org) (EJM) is the job market site for economists: academic positions, postdocs, pre-docs, and research jobs at central banks and consultancies.
+jobrake reads EJM's public ad feed. A search returns every open ad:
+
+```sh
+jobrake econjobmarket search
+jobrake econjobmarket search -o ejm.jsonl
+```
+
+```python
+import asyncio
+
+from jobrake import scrape
+
+jobs = asyncio.run(scrape("econjobmarket"))
+```
+
+A search takes no query, result limit, or filters, because EJM applies none.
+To narrow the ads, [pipe the results](#pipe-results) through `jq` or load them into another tool:
+
+```sh
+jobrake econjobmarket search \
+  | jq -r '.[] | select(.country_code == "DE") | [.expires_at, .company, .title] | @tsv'
+```
+
+### EconJobMarket terms
+
+EJM offers the feed "for personal use and for academic research projects".
+To redisplay EJM ads on your own website, you must notify EJM and get EJM's approval first.
+Any use of the feed must follow EJM's Terms of Use, Privacy Policy, and Research Data Usage Policy.
+See [Accessing the EJM Ad Feed](https://backend.econjobmarket.org/docs/ad-redisplay/Ad-Redisplay.0.md).
+
+### EconJobMarket fields
+
+An EconJobMarket record carries `title`, `company`, `location`, `date`, and `description`, and the details `posted_at`, `expires_at`, `company_logo`, and, when present, `city`, `region`, `country_code`, `latitude`, and `longitude`.
+`company` is the hiring institution, such as `University of Zurich`. `company_logo` links to its logo on EJM.
+`posted_at` is the ad's start date on EJM, and `date` is the same day. Both are calendar dates without a time.
+`expires_at` is the application deadline. In our read of the feed, 7 ads in 319 were still open after their deadline.
+`location` joins the city, the region, and the country code, such as `Boston, Massachusetts, US` or `London, GB`.
+An ad can list several locations. The record carries the first, so a consultancy ad for nine offices names only one of them.
+Two ads in 319 listed no location, and their records have no place fields.
+`url` is the ad on `econjobmarket.org`, and candidates apply there, so a record has no separate `apply_url`.
+jobrake leaves out the ad's department, its position types (ranks such as `Assistant Professor`), and its fields of economics, which have no record fields.
+The feed carries no salary, employment type, or remote flag.
+
 ## Read and save results
 
 ### Returned fields
@@ -550,7 +597,7 @@ Every job is a flat dictionary, with three groups of keys.
 Identity and summary keys are always present, with `None` for an unavailable summary value.
 A detail key is absent when the site omits or does not publish the value, or when jobrake did not fetch the posting page.
 
-The sites use the same names for the details they share, and the fields subsection of each [employer board](#employer-boards) lists the details that board carries.
+The sites use the same names for the details they share. A fields subsection under [Employer boards](#employer-boards) or [EconJobMarket](#econjobmarket) lists the details its site carries.
 `apply_type`, `applicants`, and `experience_months` come from LinkedIn only, and LinkedIn carries no `is_remote`, `apply_url`, or `language`.
 
 A posting can carry two dates. `date` holds the calendar date, such as `2026-09-19`, and `posted_at` holds the full timestamp when the site gives one, such as `2026-09-19T05:00:00+00:00`, and the calendar date otherwise.
@@ -678,6 +725,12 @@ The CLI writes those jobs and exits 1. Reaching a site's own result cap is not a
 A board search is one request, which returns the whole board, descriptions and salaries included. It gets a single attempt and no pacing.
 A failed request raises `Stopped` with an empty `partial`, and the CLI exits 1.
 jobrake skips a posting it cannot read and leaves out a field it cannot read.
+
+### EconJobMarket requests
+
+A search is one request, which returns every open ad. It gets a single attempt and no pacing.
+A failed request raises `Stopped` with an empty `partial`, and the CLI exits 1.
+jobrake skips an ad it cannot read and leaves out a field it cannot read.
 
 ### Greenhouse requests
 
