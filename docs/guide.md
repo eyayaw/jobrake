@@ -1,6 +1,6 @@
 # jobrake guide
 
-jobrake provides one interface for Indeed, LinkedIn, and employers' Ashby and Greenhouse boards, but the sites differ in how they interpret geography, apply search filters, and fetch posting details.
+jobrake provides one interface for Indeed, LinkedIn, and employers' Ashby, Greenhouse, and Lever boards, but the sites differ in how they interpret geography, apply search filters, and fetch posting details.
 Run `jobrake -h` for the sites, `jobrake <site> -h` for a site's commands, and `jobrake <site> <command> -h` for their options.
 
 - [Search for jobs](#search-for-jobs)
@@ -425,12 +425,13 @@ A reference whose request failed is absent from the result, and calling the func
 ## Employer boards
 
 Many employers publish their openings on a board that their applicant tracking system (ATS) hosts.
-jobrake reads Ashby and Greenhouse boards. A search names one employer's board with `--board | -b` and returns every posting on it:
+jobrake reads Ashby, Greenhouse, and Lever boards. A search names one employer's board with `--board | -b` and returns every posting on it:
 
 ```sh
 jobrake greenhouse search -b airbnb
 jobrake greenhouse search -b gitlab -o gitlab.jsonl
 jobrake ashby search -b ramp -o ramp.csv
+jobrake lever search -b palantir
 ```
 
 ```python
@@ -441,7 +442,8 @@ from jobrake import scrape
 jobs = asyncio.run(scrape("greenhouse", board="airbnb"))
 ```
 
-A board search takes no query, result limit, or filters, because neither Ashby nor Greenhouse applies any.
+A board search takes no query, result limit, or filters. Ashby and Greenhouse apply none.
+Lever filters only on the employer's own labels for location, team, department, and commitment, which must match exactly, so jobrake offers none of them.
 To narrow the postings, [pipe the results](#pipe-results) through `jq` or load them into another tool.
 
 ### Find a board token
@@ -450,6 +452,7 @@ The board token is the last part of the board's address:
 
 - Greenhouse: `airbnb` in `boards.greenhouse.io/airbnb`, or `gitlab` in `job-boards.greenhouse.io/gitlab`.
 - Ashby: `ramp` in `jobs.ashbyhq.com/ramp`.
+- Lever: `palantir` in `jobs.lever.co/palantir`. A board on Lever's EU host, `jobs.eu.lever.co/<token>`, works the same way.
 
 A token the site does not know stops the search with an error that says so.
 
@@ -476,6 +479,19 @@ The salary fields come from the posting's salary range. jobrake leaves out equit
 A search also returns postings the employer marked unlisted, which Ashby intends for direct links only.
 In our test on one board of 172 postings, every posting carried a location, a publish time, and an employment type, 165 carried a salary range, 162 a city, and 16 were remote.
 
+### Lever fields
+
+A Lever record carries `title`, `location`, `date`, and `description`, and the details `posted_at`, `employment_type`, `country_code`, `is_remote`, and `apply_url`.
+`company` is always `None`, because Lever's response never names the employer.
+`posted_at` is the time the posting was created, and `date` is its calendar date.
+`description` joins the posting's description, its lists such as requirements and benefits, each under its own heading, and its closing text.
+`location` names the posting's primary location and then its other places, as the employer entered them, such as `London, United Kingdom`. `country_code` is the primary location's country.
+`employment_type` is the employer's commitment label as a slug, such as `full_time` for `Full-time`.
+`is_remote` is `True` when the employer marked the workplace remote, and absent for on-site, hybrid, and unspecified postings.
+`url` is the posting on `jobs.lever.co` or `jobs.eu.lever.co`, and `apply_url` is its application form.
+Lever can send a salary range, but its documentation does not list the pay intervals it uses, so jobrake leaves salary out. Salary text in the description stays in `description`.
+In our tests on one board, every one of five postings carried a location, a country, a commitment, and a workplace type, and none had a salary range.
+
 ## Read and save results
 
 ### Returned fields
@@ -491,7 +507,7 @@ When a site lists a posting's places one by one, `location` names each, separate
 A detail key is absent when the site omits or does not publish the value, or when jobrake did not fetch the posting page.
 
 The sites use the same names for the details they share. A few come from some sites only:
-`apply_type`, `applicants`, `experience_months`, and `education` from LinkedIn, `is_remote` and `apply_url` from Ashby and Indeed, and `language` from Greenhouse and Indeed.
+`apply_type`, `applicants`, `experience_months`, and `education` from LinkedIn, `is_remote` and `apply_url` from Ashby, Indeed, and Lever, and `language` from Greenhouse and Indeed.
 
 A posting can carry two dates. `date` holds the calendar date, such as `2026-09-19`, and `posted_at` holds the full timestamp, such as `2026-09-19T05:00:00+00:00`.
 jobrake prefers the date a search result states and falls back to the calendar portion of `posted_at`. Compare on `date`, and read `posted_at` for a time of day.
@@ -634,6 +650,12 @@ A reposted job counts as new, so a 24-hour window can include postings published
 Repeating a search returns the same jobs in the same order.
 
 Pages follow one another without delay, and each request gets a single attempt.
+jobrake skips a posting it cannot read and leaves out a field it cannot read.
+
+### Lever requests
+
+A board search is one request, which returns the whole board, or two when the board lives on Lever's EU host. Each gets a single attempt and no pacing.
+A failed request raises `Stopped` with an empty `partial`, and the CLI exits 1. A failure on the global host other than "not found" stops the search without asking the EU host.
 jobrake skips a posting it cannot read and leaves out a field it cannot read.
 
 ### LinkedIn requests
