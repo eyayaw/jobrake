@@ -8,7 +8,7 @@ from urllib.parse import quote
 from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, employment_type, make_job
 from jobrake.sites.responses import json_list, parse_postings, read_json
-from jobrake.utils import as_dict, as_str, checked, html_text
+from jobrake.utils import as_dict, as_str, checked, html_text, join_places
 
 logger = logging.getLogger(__name__)
 
@@ -56,9 +56,8 @@ def _one_per_shortcode(jobs: list[JobDict]) -> list[JobDict]:
     first: dict[str, JobDict] = {}
     for job in jobs:
         kept = first.setdefault(job["id"], job)
-        places = kept["location"].split("; ") if kept["location"] else []
-        if job is not kept and job["location"] and job["location"] not in places:
-            kept["location"] = "; ".join([*places, job["location"]])
+        if job is not kept:
+            kept["location"] = join_places([*(kept["location"] or "").split("; "), job["location"]])
     return list(first.values())
 
 
