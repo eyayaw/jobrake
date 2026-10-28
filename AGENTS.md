@@ -5,7 +5,7 @@
 jobrake reads the postings a job board publishes and returns each one as a
 flat record with the same fields, whichever board it came from. It is an async
 Python package and CLI that reads LinkedIn's guest API, Indeed's GraphQL API,
-EconJobMarket's ad feed, and the public board APIs of five applicant tracking
+EconJobMarket's ad feed, and the board APIs of six applicant tracking
 systems, and it depends on `httpx` and `bs4`.
 
 ## Map
@@ -55,9 +55,10 @@ the CLI, and the contract test in `tests/test_scrape.py` need no edit.
 - The design follows from the purpose. No caller's needs shape it.
 - `site`: the unit jobrake reads, such as `linkedin` or `indeed`. It replaces
   "provider".
-- `board`: an employer's board token on an ATS site, such as `airbnb` on
-  Greenhouse. Every ATS site declares it as a required `str` named `board`,
-  with the short flag `-b`.
+- `board`: the token, or for Workday the career site URL, that names one
+  employer's board on an ATS site, such as `airbnb` on Greenhouse. Every ATS
+  site declares it as a required `str` named `board`, with the short flag
+  `-b`.
 - One record. Every site returns `JobDict` records with the same keys, types,
   and units. The identity keys `site`, `id`, and `url` and the summary keys
   `title`, `company`, `location`, and `date` are always present. A detail

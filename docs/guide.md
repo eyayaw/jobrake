@@ -1,6 +1,6 @@
 # jobrake guide
 
-jobrake provides one interface for Indeed, LinkedIn, EconJobMarket, and employers' boards on five applicant tracking systems, but the sites differ in how they interpret geography, apply search filters, and fetch posting details.
+jobrake provides one interface for Indeed, LinkedIn, EconJobMarket, and employers' boards on six applicant tracking systems, but the sites differ in how they interpret geography, apply search filters, and fetch posting details.
 Run `jobrake -h` for the sites, `jobrake <site> -h` for a site's commands, and `jobrake <site> <command> -h` for their options.
 
 - [Search for jobs](#search-for-jobs)
@@ -367,6 +367,7 @@ Employment type is still available as a posting detail with `--details`.
 Indeed returns the details it has with the search itself, so an Indeed search needs nothing further.
 LinkedIn's guest search returns summary cards only. Add `--details | -d` (`details=True`) to fetch each posting page and fill in the rest.
 That costs one paced request per uncached posting, and sometimes a second.
+A Workday search also returns cards without descriptions, and `--details` fetches each posting with one more request, as [Workday fields](#workday-fields) describes.
 See [request limits](#request-limits-and-partial-results) for pacing and retries, and [cache settings](#cache-location-and-lifetimes) for reuse.
 
 ### Fetch known postings
@@ -426,7 +427,7 @@ A reference whose request failed is absent from the result, and calling the func
 ## Employer boards
 
 Many employers publish their openings on a board that their applicant tracking system (ATS) hosts.
-jobrake reads Ashby, Greenhouse, Lever, SmartRecruiters, and Workable boards. A search names one employer's board with `--board | -b`.
+jobrake reads Ashby, Greenhouse, Lever, SmartRecruiters, Workable, and Workday boards. A search names one employer's board with `--board | -b`.
 An Ashby, Greenhouse, Lever, or Workable search returns every posting on the board:
 
 ```sh
@@ -448,9 +449,9 @@ jobs = asyncio.run(scrape("greenhouse", board="airbnb"))
 These searches take no query, result limit, or filters. Ashby, Greenhouse, and Workable apply none.
 Lever filters only on the employer's own labels for location, team, department, and commitment, which must match exactly, so jobrake offers none of them.
 To narrow the postings, [pipe the results](#pipe-results) through `jq` or load them into another tool.
-SmartRecruiters applies a query and filters itself, as [Search a board](#search-a-board) describes.
+SmartRecruiters and Workday search on the server, as [Search a board](#search-a-board) describes.
 
-### Find a board token
+### Find a board
 
 The board token is the last part of the board's address:
 
@@ -463,6 +464,10 @@ The board token is the last part of the board's address:
 A token the site does not know stops the search with an error that says so, except on SmartRecruiters.
 SmartRecruiters answers a token it does not know as it answers a board with no postings, so jobrake cannot tell the two apart.
 Either way the search returns no postings and logs that the token may be misspelled. Check the token against the board's address before you conclude that the employer has no openings.
+
+Workday has no board token. Pass the address of the employer's job search page instead, copied from the browser, such as `https://nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite`.
+The address has the form `https://<tenant>.wd<n>.myworkdayjobs.com/<site>`, with or without a language part such as `en-US` before the site name. A posting's address on the same site works too.
+Addresses on `myworkdaysite.com` are not supported. An address jobrake cannot read stops before any request with an error that shows the expected form, and a site name Workday does not know stops the search with an error that says so.
 
 ### Search a board
 
@@ -483,6 +488,26 @@ jobs = asyncio.run(scrape("smartrecruiters", board="BoschGroup", query="engineer
 
 `--query | -q` searches posting titles and locations. `--max-age-hours | -a` keeps postings released within that many hours, and `--remote` keeps postings the employer marks remote.
 `--results | -n` defaults to 100 here, not 10, because an employer board is usually read whole. Raise it to read a large board: Bosch Group's board held more than 5,000 postings in our tests.
+
+A Workday search applies a query on the server:
+
+```sh
+jobrake workday search -b https://nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite -q architect
+jobrake workday search -b https://nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite -n 100 -d -o nvidia.jsonl
+```
+
+```python
+import asyncio
+
+from jobrake import scrape
+
+board = "https://nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite"
+jobs = asyncio.run(scrape("workday", board=board, query="architect", details=True))
+```
+
+`--query | -q` is Workday's keyword search, and `--results | -n` caps the postings returned, 20 by default.
+Each employer defines its own Workday filters, such as job category or country, so jobrake offers no location, remote, or age filter for Workday.
+Workday publishes no documentation for this API. The behavior described here was measured on NVIDIA's career site in October 2026, and another employer's site may differ.
 
 ### Greenhouse fields
 
@@ -539,6 +564,19 @@ A SmartRecruiters record carries `title`, `company`, `location`, and `date`, and
 `url` opens the posting on `jobs.smartrecruiters.com`.
 `is_remote` is `True` only for a posting the employer marks remote. A hybrid posting carries no `is_remote`.
 A record has no description or apply link, which SmartRecruiters serves only one posting at a time, and no salary, which it does not publish.
+
+### Workday fields
+
+A Workday search result carries `title`, `location`, and `date`, but no description.
+`--details | -d` fetches each posting and adds `description`, `posted_at`, `employment_type`, and `country_code`.
+
+- `company` is always `None`. Workday names only the employer's legal entity, such as `2100 NVIDIA USA`.
+- `location` is `None` for a posting with several locations, because a search result shows only their count, such as `2 Locations`. With `--details`, it names each of them.
+- Without `--details`, `date` comes from Workday's label: "Posted Today", "Posted Yesterday", or "Posted 3 Days Ago", counted back from today in UTC. Workday counts from its own day, so this `date` can be a day late. On one posting we fetched at 02:22 UTC, Workday said "Posted Today" and the posting's start date was the previous day. Workday stops counting at "Posted 30+ Days Ago", so an older posting has no `date`.
+- `posted_at` is a calendar date, Workday's start date for the posting. With `--details`, `date` is `posted_at`.
+- `id` joins the employer's Workday name and the requisition ID, as in `nvidia:JR1996377`.
+
+A Workday record has no salary, remote flag, or application link.
 
 ## EconJobMarket
 
@@ -792,6 +830,15 @@ jobrake skips a posting it cannot read and leaves out a field it cannot read.
 
 A board search is one request, which returns the whole board. It gets a single attempt and no pacing.
 A failed request raises `Stopped` with an empty `partial`, and the CLI exits 1.
+jobrake skips a posting it cannot read and leaves out a field it cannot read.
+
+### Workday requests
+
+A search pages through the results one request after another, without pacing, and each request gets a single attempt.
+Workday reports at most 2,000 postings per search, and jobrake warns when that cap cuts a search short. Narrow the search with `--query` to reach the rest.
+A failed request raises `Stopped` with the postings collected before it, and the CLI exits 1. So does an empty page that comes before the number of postings Workday reported, because postings may have closed during the search and a rerun may find more.
+`--details` adds one request per posting, also one after another. A posting removed since the search keeps its search result.
+A posting whose details cannot be fetched also keeps its search result, and once the rest are fetched the search raises `Stopped` with every posting in `partial`. A rerun retries them.
 jobrake skips a posting it cannot read and leaves out a field it cannot read.
 
 ## Cache location and lifetimes
