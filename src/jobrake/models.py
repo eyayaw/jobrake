@@ -1,6 +1,7 @@
 """Normalized job fields shared by the site adapters, and ``Stopped``."""
 
 import functools
+import math
 import re
 from typing import Any, Literal, NotRequired, TypedDict, cast, get_args
 
@@ -40,6 +41,8 @@ class JobDict(TypedDict, closed=True):
     identifier, so ``(site, id)`` is unique. ``locations`` keeps the site's
     order. ``date`` is a calendar date. ``workplace_type`` appears only
     when the site states it, so its absence leaves the workplace unknown.
+    ``site_data`` holds fields only the site named in ``site`` carries, under
+    that site's own names, as JSON values.
     """
 
     site: str
@@ -68,6 +71,7 @@ class JobDict(TypedDict, closed=True):
     applicants: NotRequired[int]
     experience_months: NotRequired[int]
     education: NotRequired[str]
+    site_data: NotRequired[dict[str, Any]]
 
 
 # The CSV writer uses JOB_FIELDS for its columns, in this order.
@@ -132,6 +136,48 @@ def make_places(value: object) -> list[Place]:
     return places
 
 
+def _strict_json(value: object) -> object:
+    """Replace each NaN or infinity inside value with None, because strict JSON has neither."""
+    if isinstance(value, float) and not math.isfinite(value):
+        return None
+    if isinstance(value, dict):
+        return {key: _strict_json(entry) for key, entry in value.items()}
+    if isinstance(value, list):
+        return [_strict_json(entry) for entry in value]
+    return value
+
+
+def _site_data(value: object) -> dict[str, Any] | None:
+    """
+    Return the site's own fields that have a value, or None if no field has one.
+
+    A number that strict JSON cannot write becomes None and leaves the rest of
+    its field in place. One example is the infinity that ``json.loads`` makes
+    of ``1e400``.
+
+    Raises:
+        TypeError: ``value`` is not an object with text keys, so a cache row
+            of another shape is a miss.
+    """
+    if value is None:
+        return None
+    if not isinstance(value, dict) or not all(isinstance(key, str) for key in value):
+        raise TypeError(f"job field site_data must be an object with text keys, got {value!r}")
+    fields = {key: _strict_json(entry) for key, entry in value.items()}
+    return {key: entry for key, entry in fields.items() if entry not in (None, "", [])} or None
+
+
+def _detail(name: str, value: object) -> object:
+    """Normalize one detail value, or return None to leave its key out."""
+    if isinstance(value, str):
+        value = value.strip() or None
+    if name == "workplace_type":
+        return value if value in WORKPLACE_TYPES else None
+    if name == "site_data":
+        return _site_data(value)
+    return value
+
+
 def make_job(**fields: Any) -> JobDict:
     """
     Build a ``JobDict`` from a site's fields, normalizing their text.
@@ -143,7 +189,8 @@ def make_job(**fields: Any) -> JobDict:
 
     Raises:
         TypeError: An identity field is missing, blank, or not a string, a
-            field is not a ``JobDict`` key, or ``locations`` is malformed.
+            field is not a ``JobDict`` key, or ``locations`` or ``site_data``
+            is malformed.
     """
     if unknown := fields.keys() - set(JOB_FIELDS):
         raise TypeError(f"not a job field: {', '.join(sorted(unknown))}")
@@ -160,12 +207,7 @@ def make_job(**fields: Any) -> JobDict:
         else:
             job[name] = (value.strip() or None) if isinstance(value, str) else None
     for name in DETAIL_FIELDS:
-        value = fields.get(name)
-        if isinstance(value, str):
-            value = value.strip() or None
-        if name == "workplace_type" and value not in WORKPLACE_TYPES:
-            value = None
-        if value is not None:
+        if (value := _detail(name, fields.get(name))) is not None:
             job[name] = value
     # Prefer the search date. Fall back to the posting timestamp.
     job["date"] = iso_date(job["date"] or job.get("posted_at"))

@@ -142,7 +142,6 @@ def test_a_board_parses_into_records():
             "industry, and domain expertise.",
             "employment_type": "full_time",
             "department": "Sales",
-            "team": "Solutions Consulting",
             "workplace_type": "remote",
             "salary_min": 151000,
             "salary_max": 231000,
@@ -150,6 +149,24 @@ def test_a_board_parses_into_records():
             "salary_period": "YEAR",
             "posted_at": "2026-09-02T17:17:20.841+00:00",
             "apply_url": "https://jobs.ashbyhq.com/ramp/c63ba7d7-5290-4d9b-b002-40b2873b66f6/application",
+            "team": "Solutions Consulting",
+            "site_data": {
+                "summaryComponents": [
+                    {
+                        "minValue": 151000,
+                        "maxValue": 231000,
+                        "currencyCode": "USD",
+                        "interval": "1 YEAR",
+                        "compensationType": "Salary",
+                    },
+                    {
+                        "compensationType": "EquityCashValue",
+                        "minValue": None,
+                        "maxValue": None,
+                        "interval": "1 YEAR",
+                    },
+                ],
+            },
         },
         {
             "site": "ashby",
@@ -164,7 +181,6 @@ def test_a_board_parses_into_records():
             "fraud to making spend management smarter.",
             "employment_type": "internship",
             "department": "Data",
-            "team": "Emerging Talent - Data",
             "workplace_type": "hybrid",  # isRemote says true for it
             "salary_min": 12500,
             "salary_max": 12500,
@@ -172,6 +188,18 @@ def test_a_board_parses_into_records():
             "salary_period": "MONTH",
             "posted_at": "2026-09-15T01:44:04.643+00:00",
             "apply_url": "https://jobs.ashbyhq.com/ramp/b39ceb08-a0a7-4f8b-a760-2fb88e209956/application",
+            "team": "Emerging Talent - Data",
+            "site_data": {
+                "summaryComponents": [
+                    {
+                        "compensationType": "Salary",
+                        "interval": "1 MONTH",
+                        "currencyCode": "USD",
+                        "minValue": 12500,
+                        "maxValue": 12500,
+                    }
+                ],
+            },
         },
     ]
     assert fetcher.requests == [

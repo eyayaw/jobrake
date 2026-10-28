@@ -529,8 +529,8 @@ An Ashby record carries `title`, `locations`, `date`, and `description`, and the
 `locations` holds the posting's primary location first and then its other places, named as the employer entered them, such as `Remote (US)` and `Remote (Canada)`. Each place carries the `city` and `region` of its address as Ashby spells them, and `region` can be a code or a name, such as `NY` or `Ontario`.
 Ashby gives the country as a name, such as `USA` or `United Kingdom`, so an Ashby place has no `country_code`.
 `workplace_type` is `remote`, `hybrid`, or `on_site`, as the employer set it.
-`team` is the posting's team, such as `Solutions Consulting`.
-The salary fields come from the posting's salary range. jobrake leaves out equity, commission, and bonus, which have no record fields.
+The salary fields come from the posting's first salary range.
+`team` is the posting's team, such as `Solutions Consulting`. `site_data` holds its `summaryComponents` as Ashby sends them, so equity, commission, and bonus appear there beside the salary range. In our test on one board, 124 of 172 postings listed an equity value and 40 a commission.
 `url` and `apply_url` point to the posting on `jobs.ashbyhq.com`.
 A search also returns postings the employer marked unlisted, which Ashby intends for direct links only.
 In our test on one board of 172 postings, every posting carried a location, a publish time, and an employment type, 165 carried a salary range, 162 a city, and 16 were remote.
@@ -627,7 +627,7 @@ An EconJobMarket record carries `title`, `company`, `locations`, `date`, and `de
 Two ads in 319 listed no location, and their `locations` is empty.
 `url` is the ad on `econjobmarket.org`, and candidates apply there, so a record has no separate `apply_url`.
 `department` is the hiring unit, such as `Department of Economics`. An ad that says `All departments`, as 61 of 319 did, has no `department`.
-jobrake leaves out the ad's position types (ranks such as `Assistant Professor`) and its fields of economics, which have no record fields.
+`site_data` holds the ad's `position_types`, ranks such as `Assistant Professor`, and its `categories`, fields of economics such as `Econometrics`, each as a list of names. Every one of the 319 ads listed both.
 The feed carries no salary, employment type, or workplace type.
 
 ## Read and save results
@@ -649,6 +649,8 @@ A place the site lists twice with the same parts appears once. Places that share
 
 `workplace_type` is `remote`, `hybrid`, or `on_site`, and appears only when the site states it. An absent `workplace_type` leaves the workplace unknown and does not mean on-site.
 `department` is the hiring unit within the employer, as the site names it, such as `Engineering`, and `team` the posting's team within it, on Ashby and Lever.
+
+`site_data` holds fields that only one site carries, under that site's own names, such as EconJobMarket's `position_types`. Its keys depend on `site`, and each site's fields section lists them. A key that a second site comes to share with the same meaning moves into the record.
 A detail key is absent when the site omits or does not publish the value, or when jobrake did not fetch the posting page.
 
 The sites use the same names for the details they share. A fields subsection under [Employer boards](#employer-boards) or [EconJobMarket](#econjobmarket) lists the details its site carries.
@@ -672,7 +674,7 @@ The formats represent unavailable fields differently.
 
 - JSON writes one array, using `null` for unavailable summary values.
 - JSONL writes one job per line with the same keys as JSON.
-- CSV writes every field as a column and leaves unavailable cells empty. Its `locations` column holds the place names, separated by `; `, without their parts. A place name can itself contain `; `, such as Greenhouse's `Remote, Canada; Remote, United States`, so read JSON or JSONL to count places.
+- CSV writes every field as a column and leaves unavailable cells empty. Its `locations` column holds the place names, separated by `; `, without their parts, and its `site_data` column holds the site's fields as JSON. A place name can itself contain `; `, such as Greenhouse's `Remote, Canada; Remote, United States`, so read JSON or JSONL to count places.
 
 > [!TIP]
 > JSONL suits a run you repeat, a daily one for instance. Combine the files with `cat`, or read the whole directory into DuckDB.

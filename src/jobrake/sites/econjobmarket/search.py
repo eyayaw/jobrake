@@ -18,6 +18,15 @@ API_URL = "https://backend.econjobmarket.org/data/zz_public/json/Ads"
 _AD_ID = re.compile(r"/positions/(\d+)")
 
 
+def _names(entries: object) -> list[str]:
+    """Read the names of a list of ``{"name": ...}`` entries, as the feed sends position types and categories."""
+    return [
+        name
+        for entry in (entries if isinstance(entries, list) else [])
+        if (name := as_str(as_dict(entry).get("name")))
+    ]
+
+
 def _parse_ad(ad: dict[str, Any]) -> JobDict:
     """
     Build a record from one ad of the feed, with each of its locations.
@@ -57,6 +66,11 @@ def _parse_ad(ad: dict[str, Any]) -> JobDict:
         department=department if department != "All departments" else None,
         posted_at=as_str(ad.get("startdate")),
         expires_at=as_str(ad.get("deadline_date")),
+        # Ranks such as Assistant Professor, and fields of economics such as Econometrics.
+        site_data={
+            "position_types": _names(ad.get("position_types")),
+            "categories": _names(ad.get("categories")),
+        },
     )
 
 

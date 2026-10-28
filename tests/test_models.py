@@ -51,6 +51,28 @@ def test_workplace_type_reads_the_sites_labels_and_nothing_else():
     assert "workplace_type" not in make_job(site="x", id="1", url="u", workplace_type="anywhere")
 
 
+def test_site_data_keeps_the_fields_with_a_value_and_rejects_another_shape():
+    fields = {
+        "team": "Data",
+        "levels": [],
+        "note": "",
+        "rank": None,
+        "open": False,
+        # Strict JSON has no infinity, so that number alone becomes None.
+        "pay": [{"type": "Bonus", "min": 1000}, {"type": "Salary", "min": float("inf")}],
+    }
+    assert make_job(site="x", id="1", url="u", site_data=fields)["site_data"] == {
+        "team": "Data",
+        "open": False,
+        "pay": [{"type": "Bonus", "min": 1000}, {"type": "Salary", "min": None}],
+    }
+    assert "site_data" not in make_job(site="x", id="1", url="u", site_data={"team": None})
+    # A cache row of another shape must fail here, so the cache reads it as a miss.
+    for malformed in (["Data"], {1: "Data"}):
+        with pytest.raises(TypeError):
+            make_job(site="x", id="1", url="u", site_data=malformed)
+
+
 def test_job_dict_keeps_summary_keys_and_omits_unavailable_detail():
     job = make_job(
         site="linkedin",

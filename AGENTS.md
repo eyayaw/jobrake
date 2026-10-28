@@ -71,6 +71,10 @@ the CLI, and the contract test in `tests/test_scrape.py` need no edit.
   when they are equal once normalized. A site treats two of its entries as
   one place only when its response says so. Where one source's fields
   override another's, an empty `locations` overrides nothing.
+- `site_data` holds fields only one site carries, under that site's own
+  names, as JSON values. Each site's fields section in the guide lists its
+  keys, and a key moves into `JobDict` once a second site shares its
+  meaning.
 - A site owns its options. `search` declares only the options its server
   applies, keyword-only, as `Annotated[T, "help"]` with `T` one of `str`,
   `int`, `bool`, `list[str]`, or `T | None`, and with defaults in the

@@ -9,7 +9,8 @@ from jobrake.sites import econjobmarket
 
 # Three ads from backend.econjobmarket.org/data/zz_public/json/Ads, fetched
 # 2026-10-28, trimmed to the fields jobrake reads plus enddate, with each ad
-# text cut to a sentence or two and the first two of its locations kept.
+# text cut to a sentence or two, the first two of its locations kept, and its
+# categories cut to the first two.
 ADS = [
     {
         "adtitle": "Senior Associate (North America)",
@@ -20,6 +21,8 @@ ADS = [
         "deadline_date": "2026-11-06",
         "name": "Charles River Associates",
         "department": "All departments",
+        "position_types": [{"name": "Consultant"}],
+        "categories": [{"name": "Econometrics"}, {"name": "Finance"}],
         "latitude": 42.3493011,
         "longitude": -71.0752547,
         "locations": [
@@ -50,6 +53,8 @@ ADS = [
         "deadline_date": "2026-11-06",
         "name": "Charles River Associates",
         "department": "All departments",
+        "position_types": [{"name": "Consultant"}],
+        "categories": [{"name": "Econometrics"}, {"name": "Industrial Organization"}],
         "latitude": 42.3493011,
         "longitude": -71.0752547,
         "locations": [
@@ -79,6 +84,8 @@ ADS = [
         "deadline_date": "2027-02-03",
         "name": "Heidelberg University",
         "department": "Heidelberg Institute of Global Health",
+        "position_types": [{"name": "Postdoctoral Scholar"}],
+        "categories": [{"name": "Any field"}],
         "latitude": 49.41260787196709,
         "longitude": 8.67098002533317,
         "locations": [],
@@ -119,6 +126,10 @@ def test_the_feed_parses_into_records():
             "company_logo": "https://backend.econjobmarket.org/data/zz_public/json/Logo/470",
             "posted_at": "2026-09-03",
             "expires_at": "2026-11-06",
+            "site_data": {
+                "position_types": ["Consultant"],
+                "categories": ["Econometrics", "Finance"],
+            },
         },
         {
             "site": "econjobmarket",
@@ -141,6 +152,10 @@ def test_the_feed_parses_into_records():
             "company_logo": "https://backend.econjobmarket.org/data/zz_public/json/Logo/470",
             "posted_at": "2026-09-30",
             "expires_at": "2026-11-06",
+            "site_data": {
+                "position_types": ["Consultant"],
+                "categories": ["Econometrics", "Industrial Organization"],
+            },
         },
         {
             "site": "econjobmarket",
@@ -155,6 +170,7 @@ def test_the_feed_parses_into_records():
             "department": "Heidelberg Institute of Global Health",
             "posted_at": "2026-08-03",
             "expires_at": "2027-02-03",
+            "site_data": {"position_types": ["Postdoctoral Scholar"], "categories": ["Any field"]},
         },
     ]
     assert fetcher.requests == ["https://backend.econjobmarket.org/data/zz_public/json/Ads"]

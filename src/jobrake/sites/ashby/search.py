@@ -70,6 +70,7 @@ def _parse_posting(posting: dict[str, Any]) -> JobDict:
     if not posting_id and url:
         posting_id = url.split("?", 1)[0].split("#", 1)[0].rstrip("/").rsplit("/", 1)[-1]
     secondary = posting.get("secondaryLocations")
+    compensation = as_dict(posting.get("compensation"))
     others = map(as_dict, secondary) if isinstance(secondary, list) else []
     return make_job(
         site="ashby",
@@ -86,7 +87,9 @@ def _parse_posting(posting: dict[str, Any]) -> JobDict:
         workplace_type=workplace_type(as_str(posting.get("workplaceType"))),
         posted_at=as_str(posting.get("publishedAt")),
         apply_url=as_str(posting.get("applyUrl")),
-        **_salary(as_dict(posting.get("compensation"))),
+        **_salary(compensation),
+        # Equity, commission, and bonus have no record fields, and the salary fields hold one range.
+        site_data={"summaryComponents": compensation.get("summaryComponents")},
     )
 
 
