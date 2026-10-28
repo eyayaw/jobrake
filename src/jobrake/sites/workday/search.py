@@ -163,6 +163,7 @@ async def _detail_fields(fetcher: Fetcher, url: str, posting: str) -> dict[str, 
     if result.error:
         logger.warning("skipping the details of %s: %s. A rerun retries it", posting, result.error)
         return None
+    # ValueError covers JSONDecodeError and an integer longer than Python reads.
     try:
         info = json.loads(result.text)["jobPostingInfo"]
         country = as_dict(as_dict(info.get("jobRequisitionLocation")).get("country"))
@@ -172,7 +173,7 @@ async def _detail_fields(fetcher: Fetcher, url: str, posting: str) -> dict[str, 
             "employment_type": employment_type(as_str(info.get("timeType"))),
             "country_code": as_str(country.get("alpha2Code")),
         }
-    except (json.JSONDecodeError, KeyError, TypeError, AttributeError) as error:
+    except (ValueError, KeyError, TypeError, AttributeError) as error:
         logger.warning(
             "skipping the details of %s, which this version cannot read: %r", posting, error
         )

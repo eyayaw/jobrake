@@ -138,7 +138,7 @@ def test_details_fill_each_card_and_stop_when_one_fails(today, caplog):
             "Networking-Architect_JR1996377": ok(json.dumps(DETAIL)),
             "Orbital-Data-Center_JR2019010": not_found(),  # removed since the search
             "AI-Research-Scientist_JR2018673": network_down(),
-            "Engineer_JR0": ok("[]"),
+            "Engineer_JR0": ok("[" + "9" * 5000 + "]"),  # an integer longer than Python reads
         }
     )
     filled = {
