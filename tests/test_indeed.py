@@ -283,11 +283,13 @@ def test_indeed_rejects_a_language_before_any_request(language):
     assert fetcher.requests == []
 
 
-def test_indeed_failed_request_stops_the_search():
-    fetcher = StubFetcher({"apis.indeed.com": rate_limited()})
-    with pytest.raises(Stopped, match="HTTP 429") as stop:
-        asyncio.run(indeed.search(fetcher, query="x", country="usa"))
-    assert stop.value.partial == []
+def test_indeed_failed_or_unreadable_response_stops_the_search():
+    # An integer longer than Python reads raises ValueError, not JSONDecodeError.
+    for response, message in ((rate_limited(), "HTTP 429"), (ok("9" * 5000), "cannot read")):
+        fetcher = StubFetcher({"apis.indeed.com": response})
+        with pytest.raises(Stopped, match=message) as stop:
+            asyncio.run(indeed.search(fetcher, query="x", country="usa"))
+        assert stop.value.partial == []
 
 
 def test_indeed_skips_malformed_results_and_keeps_valid_siblings(caplog):
