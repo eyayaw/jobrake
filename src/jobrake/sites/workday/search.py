@@ -111,8 +111,8 @@ async def _collect_cards(
     """
     Return the unique cards, paging until ``results`` cards, the first page's total, or an empty page.
 
-    The flag tells whether the paging reached a total at ``MAX_TOTAL``, the
-    most Workday reports.
+    An empty page before that total warns. The flag tells whether the paging
+    reached a total at ``MAX_TOTAL``, the most Workday reports.
 
     Raises:
         Stopped: A page request failed, Workday has no such site, or it sent
@@ -140,6 +140,14 @@ async def _collect_cards(
             partial=jobs,
         )
         if not cards:
+            if total is not None and offset < total:
+                logger.warning(
+                    "workday site %s reported %d postings but sent an empty page after %d. "
+                    "Postings may have closed during the search, so rerun it for the current list",
+                    site_url,
+                    total,
+                    offset,
+                )
             break
         # Later pages are reported to say 0, so the first page's total stands.
         total = page_total if total is None else total

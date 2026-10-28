@@ -836,6 +836,7 @@ jobrake skips a posting it cannot read and leaves out a field it cannot read.
 
 A search pages through the results one request after another, without pacing, and each request gets a single attempt.
 Workday reports at most 2,000 postings per search, and jobrake warns when that cap cuts a search short. Narrow the search with `--query` to reach the rest.
+An empty page that comes before the number of postings Workday reported also logs a warning, because postings may have closed during the search.
 A failed request raises `Stopped` with the postings collected before it, and the CLI exits 1.
 `--details` adds one request per posting, also one after another. A posting removed since the search keeps its search result.
 A posting whose details cannot be fetched also keeps its search result, and once the rest are fetched the search raises `Stopped` with every posting in `partial`. A rerun retries them.
