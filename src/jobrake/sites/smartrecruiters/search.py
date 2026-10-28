@@ -63,7 +63,12 @@ def _parse_card(card: dict[str, Any]) -> JobDict:
         company=company.get("name"),
         locations=[place],
         employment_type=employment_type(as_str(as_dict(card.get("typeOfEmployment")).get("label"))),
-        is_remote=True if location.get("remote") is True else None,
+        # Both flags false does not state on-site, so such a card has no workplace type.
+        workplace_type="remote"
+        if location.get("remote") is True
+        else "hybrid"
+        if location.get("hybrid") is True
+        else None,
         language=as_str(as_dict(card.get("language")).get("code")),
         posted_at=as_str(card.get("releasedDate")),
     )

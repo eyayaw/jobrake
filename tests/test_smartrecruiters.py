@@ -104,11 +104,17 @@ def test_a_board_parses_into_records():
             "date": "2026-10-27",
             "language": "en",
             "employment_type": "full_time",
-            "is_remote": True,
+            "workplace_type": "remote",
             "posted_at": "2026-10-27T17:07:18.526Z",
         },
     ]
     assert fetcher.requests == [f"{URL}?limit=100&offset=0"]
+    hybrid = {**CARDS[0], "location": {"fullLocation": "Wuxi, Jiangsu, China", "hybrid": True}}
+    fetcher = StubFetcher({"BoschGroup/postings": page([hybrid], 1)})
+    assert (
+        asyncio.run(smartrecruiters.search(fetcher, board="BoschGroup"))[0]["workplace_type"]
+        == "hybrid"
+    )
     # A card without fullLocation names its place from the place fields.
     location = {"city": "San Francisco", "region": "CA", "country": "us"}
     fetcher = StubFetcher({"BoschGroup/postings": page([{**CARDS[0], "location": location}], 1)})

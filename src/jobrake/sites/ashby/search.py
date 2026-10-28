@@ -6,7 +6,7 @@ from typing import Annotated, Any
 from urllib.parse import quote
 
 from jobrake.fetchkit import Fetcher
-from jobrake.models import JobDict, employment_type, make_job
+from jobrake.models import JobDict, employment_type, make_job, workplace_type
 from jobrake.sites.responses import json_list, parse_postings, read_json
 from jobrake.utils import as_dict, as_str, checked, finite, html_text
 
@@ -80,8 +80,8 @@ def _parse_posting(posting: dict[str, Any]) -> JobDict:
         locations=[_place(posting), *map(_place, others)],
         description=html_text(as_str(posting.get("descriptionHtml")) or ""),
         employment_type=employment_type(as_str(posting.get("employmentType"))),
-        # isRemote is also true for a hybrid posting, so only the workplace type confirms remote.
-        is_remote=True if posting.get("workplaceType") == "Remote" else None,
+        # isRemote is also true for a hybrid posting, so the workplace type says which.
+        workplace_type=workplace_type(as_str(posting.get("workplaceType"))),
         posted_at=as_str(posting.get("publishedAt")),
         apply_url=as_str(posting.get("applyUrl")),
         **_salary(as_dict(posting.get("compensation"))),

@@ -137,7 +137,7 @@ def test_a_board_parses_into_records():
             "directly with customers and partners to provide world-class product, sales, "
             "industry, and domain expertise.",
             "employment_type": "full_time",
-            "is_remote": True,
+            "workplace_type": "remote",
             "salary_min": 151000,
             "salary_max": 231000,
             "salary_currency": "USD",
@@ -157,6 +157,7 @@ def test_a_board_parses_into_records():
             "solve Ramp’s most critical problems: from underwriting businesses to combatting "  # noqa: RUF001  the posting's own apostrophe
             "fraud to making spend management smarter.",
             "employment_type": "internship",
+            "workplace_type": "hybrid",  # isRemote says true for it
             "salary_min": 12500,
             "salary_max": 12500,
             "salary_currency": "USD",

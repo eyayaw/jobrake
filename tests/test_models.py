@@ -7,7 +7,14 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from jobrake.models import IDENTITY_FIELDS, SUMMARY_FIELDS, Stopped, employment_type, make_job
+from jobrake.models import (
+    IDENTITY_FIELDS,
+    SUMMARY_FIELDS,
+    Stopped,
+    employment_type,
+    make_job,
+    workplace_type,
+)
 
 _TEXT = st.one_of(
     st.none(), st.integers(), st.text(max_size=6), st.sampled_from(["de", " NL ", "USA"])
@@ -32,6 +39,16 @@ def test_employment_type_is_unified_across_sites():
     ]
     assert employment_type(None) is None
     assert employment_type("---") is None
+
+
+def test_workplace_type_reads_the_sites_labels_and_nothing_else():
+    labels = ("OnSite", "on-site", "Remote", "Hybrid")  # Ashby's and Lever's spellings
+    assert [workplace_type(label) for label in labels] == ["on_site", "on_site", "remote", "hybrid"]
+    # Lever's unspecified, and slugs of labels no site sends, are no workplace type.
+    assert [workplace_type(label) for label in ("unspecified", "onsite", "Hybrid work", None)] == [
+        None
+    ] * 4
+    assert "workplace_type" not in make_job(site="x", id="1", url="u", workplace_type="anywhere")
 
 
 def test_job_dict_keeps_summary_keys_and_omits_unavailable_detail():

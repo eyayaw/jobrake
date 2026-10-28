@@ -399,7 +399,7 @@ def test_indeed_maps_detail_onto_the_model(language):
     assert job["company_logo"] == "https://img/logo.png"
     assert job["apply_url"] == "https://acme.example/careers/1"
     assert job["employment_type"] == "full_time"  # the unified form
-    assert job["is_remote"] is True
+    assert job["workplace_type"] == "remote"
     assert (job["salary_min"], job["salary_max"]) == (38.2, 77.4)
     assert (job["salary_currency"], job["salary_period"]) == ("USD", "HOUR")
     assert job["locations"] == [
@@ -420,7 +420,9 @@ def test_indeed_omits_the_detail_a_posting_lacks(language):
         rich_job(compensation=None, recruit=None, attributes=[], employer=None, language=language)
     )
     # untagged is not evidence of on-site
-    assert {"salary_min", "apply_url", "employment_type", "is_remote", "language"}.isdisjoint(job)
+    assert {"salary_min", "apply_url", "employment_type", "workplace_type", "language"}.isdisjoint(
+        job
+    )
 
 
 def test_indeed_single_bound_salaries():
@@ -448,10 +450,15 @@ def test_description_scrubs_flattened_stylesheets():
     assert job["description"] == "Great role.\nSalary range: 40k."
 
 
-def test_indeed_remote_label_matches_exactly():
-    # "Remote sensing observations" is a skill, not a workplace
-    job = parse_one(rich_job(attributes=[{"label": "Remote sensing observations"}]))
-    assert "is_remote" not in job
+def test_indeed_reads_the_workplace_from_its_exact_tags():
+    def workplace(*labels):
+        job = parse_one(rich_job(attributes=[{"label": label} for label in labels]))
+        return job.get("workplace_type")
+
+    assert workplace("Remote sensing observations") is None  # a skill, not a workplace
+    # Tags from postings that Indeed's hybrid filter returned on 2026-10-28.
+    assert workplace("Hybrid work", "Office") == "hybrid"
+    assert workplace("Remote", "Hybrid work") is None  # tags that disagree state neither
 
 
 def test_indeed_omits_invalid_detail_values():
@@ -489,7 +496,7 @@ def test_indeed_strips_the_job_key():
 def test_indeed_ignores_malformed_attribute_entries():
     job = parse_one(rich_job(attributes=[{}, {"label": 3}, "Remote", {"label": "Full-time"}]))
     assert job["employment_type"] == "full_time"
-    assert "is_remote" not in job  # the bare string is not a Remote tag
+    assert "workplace_type" not in job  # the bare string is not a Remote tag
 
 
 def test_attribute_lookup_preserves_distinct_codes_and_skips_malformed_entries():

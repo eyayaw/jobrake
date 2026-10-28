@@ -2,9 +2,12 @@
 
 import functools
 import re
-from typing import Any, NotRequired, TypedDict, cast
+from typing import Any, Literal, NotRequired, TypedDict, cast, get_args
 
 from jobrake.utils import as_str, finite, iso_date
+
+WorkplaceType = Literal["remote", "hybrid", "on_site"]
+WORKPLACE_TYPES: tuple[WorkplaceType, ...] = get_args(WorkplaceType)
 
 
 class Place(TypedDict, closed=True):
@@ -35,8 +38,8 @@ class JobDict(TypedDict, closed=True):
     extracted, which says nothing about whether the posting has one. A
     detail key appears only when it has a value. ``id`` is the site's own
     identifier, so ``(site, id)`` is unique. ``locations`` keeps the site's
-    order. ``date`` is a calendar date, and ``is_remote`` is ``True`` only
-    when confirmed.
+    order. ``date`` is a calendar date. ``workplace_type`` appears only
+    when the site states it, so its absence leaves the workplace unknown.
     """
 
     site: str
@@ -51,7 +54,7 @@ class JobDict(TypedDict, closed=True):
     company_url: NotRequired[str]
     company_logo: NotRequired[str]
     employment_type: NotRequired[str]
-    is_remote: NotRequired[bool]
+    workplace_type: NotRequired[WorkplaceType]
     salary_min: NotRequired[float]
     salary_max: NotRequired[float]
     salary_currency: NotRequired[str]
@@ -158,6 +161,8 @@ def make_job(**fields: Any) -> JobDict:
         value = fields.get(name)
         if isinstance(value, str):
             value = value.strip() or None
+        if name == "workplace_type" and value not in WORKPLACE_TYPES:
+            value = None
         if value is not None:
             job[name] = value
     # Prefer the search date. Fall back to the posting timestamp.
@@ -187,11 +192,22 @@ class Stopped(Exception):
 _EMPLOYMENT_ALIASES = {"contractor": "contract", "intern": "internship"}
 
 
-def employment_type(label: str | None) -> str | None:
-    """Return a site's employment label as a snake_case slug such as ``full_time``, or None."""
+def _slug(label: str | None) -> str | None:
+    """Return a site's label as a snake_case slug such as ``full_time``, or None for no label."""
     if not label:
         return None
     # A camelCase label, such as Ashby's FullTime, splits before a capital that follows a lowercase letter or digit.
     words = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", "_", label)
-    slug = re.sub(r"[^a-z0-9]+", "_", words.lower()).strip("_")
-    return _EMPLOYMENT_ALIASES.get(slug, slug or None)
+    return re.sub(r"[^a-z0-9]+", "_", words.lower()).strip("_") or None
+
+
+def employment_type(label: str | None) -> str | None:
+    """Return a site's employment label as a snake_case slug such as ``full_time``, or None."""
+    slug = _slug(label)
+    return _EMPLOYMENT_ALIASES.get(slug, slug) if slug else None
+
+
+def workplace_type(label: str | None) -> WorkplaceType | None:
+    """Return a site's workplace label, such as Ashby's ``OnSite`` or Lever's ``on-site``, as ``remote``, ``hybrid``, or ``on_site``, or None for any other label."""
+    slug = _slug(label)
+    return next((kind for kind in WORKPLACE_TYPES if kind == slug), None)

@@ -7,7 +7,7 @@ from typing import Annotated, Any
 from urllib.parse import quote
 
 from jobrake.fetchkit import Fetcher
-from jobrake.models import JobDict, employment_type, make_job
+from jobrake.models import JobDict, employment_type, make_job, workplace_type
 from jobrake.sites.responses import json_list, parse_postings, read_json
 from jobrake.utils import as_dict, as_str, checked, epoch_ms_to_iso, finite, html_text
 
@@ -70,7 +70,8 @@ def _parse_posting(posting: dict[str, Any]) -> JobDict:
         ],
         description=_description(posting),
         employment_type=employment_type(as_str(categories.get("commitment"))),
-        is_remote=True if posting.get("workplaceType") == "remote" else None,
+        # Lever's unspecified is no workplace type.
+        workplace_type=workplace_type(as_str(posting.get("workplaceType"))),
         posted_at=_posted_at(posting),
         apply_url=as_str(posting.get("applyUrl")),
     )

@@ -7,7 +7,7 @@ from gettext import ngettext
 from typing import Annotated, Any
 
 from jobrake.fetchkit import Fetcher
-from jobrake.models import JobDict, Stopped, employment_type, make_job
+from jobrake.models import JobDict, Stopped, WorkplaceType, employment_type, make_job
 from jobrake.utils import as_dict, as_str, checked, epoch_ms_to_iso, finite, html_text
 
 from .client import API_HEADERS, API_URL
@@ -161,6 +161,20 @@ def _timestamp(job: dict[str, Any], field: str) -> str | None:
         return None
 
 
+def _workplace_type(labels: list[str]) -> WorkplaceType | None:
+    """
+    Read the workplace from Indeed's Remote and Hybrid work tags.
+
+    Return None when both tags are present or both are absent, because a
+    missing tag proves nothing. Indeed tagged 1 of 100 hybrid postings Remote
+    as well on 2026-10-28.
+    """
+    remote, hybrid = "Remote" in labels, "Hybrid work" in labels
+    if remote == hybrid:
+        return None
+    return "remote" if remote else "hybrid"
+
+
 def _parse_job(job: dict[str, Any], base_url: str) -> JobDict:
     """Normalize one Indeed result into the shared job model."""
     # Indeed's job key becomes both the job ID and the URL's ``jk`` parameter.
@@ -209,8 +223,7 @@ def _parse_job(job: dict[str, Any], base_url: str) -> JobDict:
             (employment_type(label) for label in labels if label in EMPLOYMENT_TYPES),
             None,
         ),
-        # A Remote tag proves remote; absence proves nothing, so the field stays None.
-        is_remote=True if "Remote" in labels else None,
+        workplace_type=_workplace_type(labels),
         salary_min=finite(amount.get("min", exactly)),
         salary_max=finite(amount.get("max", exactly)),
         salary_currency=as_str(compensation.get("currencyCode")),
