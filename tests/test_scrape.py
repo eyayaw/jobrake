@@ -1,178 +1,157 @@
-"""Site-routing and fetcher-lifecycle tests for ``scrape``."""
+"""The site contract, and how ``scrape`` routes to a site and checks its options."""
 
 import asyncio
 import inspect
-import logging
+from typing import Annotated
 
 import pytest
 from fakes import StubFetcher, ok
 
-from jobrake import scrape, sites, utils
-from jobrake.fetchkit import TokenBucket
-from jobrake.sites.linkedin import client
+from jobrake import cli, scrape, sites
+from jobrake.sites import SITES
+from jobrake.utils import checked, site_options
+
+
+@pytest.mark.parametrize("site", SITES)
+def test_a_site_meets_the_site_contract(site):
+    module = SITES[site]
+    assert (module.__doc__ or "").splitlines()[0]  # the CLI help
+    assert "search" in module.__all__
+    assert set(module.__all__) <= set(cli.COMMANDS)  # the functions the CLI knows how to run
+    for name in module.__all__:
+        function = getattr(module, name)
+        assert inspect.getdoc(function), name  # its command's CLI help
+        options = site_options(function)
+        positional = [option for option, spec in options.items() if spec.positional]
+        assert len(positional) == (name != "search"), name
+        # Every exported function checks its arguments before any request, and
+        # takes its fetcher by name as well as by position.
+        fetcher = StubFetcher({})
+        text = {option: ["x"] if name == "postings" else "x" for option in positional}
+        with pytest.raises(TypeError, match=f"^{site}: "):
+            asyncio.run(function(fetcher=fetcher, **text, bogus=1))
+        assert fetcher.requests == []
+    # A name two sites share keeps one type, apart from accepting None.
+    kinds = {name: option.kind for name, option in site_options(module.search).items()}
+    for other in SITES.values():
+        for name, option in site_options(other.search).items():
+            assert kinds.get(name, option.kind) == option.kind, name
+
+
+async def unannotated(fetcher, *, query: str): ...
+
+
+async def floating(fetcher, *, ratio: Annotated[float, "a ratio"]): ...
+
+
+async def flag_on(fetcher, *, strict: Annotated[bool, "strict parsing"] = True): ...
+
+
+async def either(fetcher, *, key: Annotated[str | int | None, "a key"] = None): ...
+
+
+@pytest.mark.parametrize(
+    ("function", "match"),
+    [
+        (unannotated, "annotate query as Annotated"),
+        (floating, "ratio is <class 'float'>. Use str, int, bool, or list"),
+        (flag_on, "the boolean option strict must default to False"),
+        (either, r"key is str \| int \| None. Use str, int, bool, or list"),
+    ],
+)
+def test_a_site_function_the_cli_cannot_build_fails_when_decorated(function, match):
+    with pytest.raises(TypeError, match=f"test_scrape.{function.__name__}: {match}"):
+        checked(function)
 
 
 @pytest.mark.parametrize(
     ("site", "kwargs", "error", "match"),
     [
         ("glassdoor", {}, ValueError, "glassdoor"),
-        # Each provider's search owns its own argument checks. These are the
-        # ones scrape's defaults reach, plus one applied filter per provider.
-        ("indeed", {}, ValueError, "country is required"),
-        ("indeed", {"country": 5}, TypeError, "country"),
-        ("indeed", {"country": "usa", "employer_key": " "}, ValueError, "employer key is blank"),
+        ("indeed", {}, TypeError, r"indeed: missing .* 'country'. Its options are query, country"),
+        ("indeed", {"country": "usa", "geoid": "1"}, TypeError, r"indeed: .* argument 'geoid'"),
+        ("linkedin", {"location": "Seattle", "country": "usa"}, TypeError, "argument 'country'"),
+        ("indeed", {"country": 5}, TypeError, "country must be a string, got 5"),
         ("indeed", {"country": "usa", "remote": "false"}, TypeError, "remote must be a boolean"),
+        ("linkedin", {"location": 5}, TypeError, "location must be a string or None"),
+        ("linkedin", {"location": "Seattle", "results": True}, TypeError, "results must be an"),
+        ("linkedin", {"location": "Seattle", "results": 2.5}, TypeError, "results must be an"),
+        ("linkedin", {"location": "Seattle", "company_ids": "1173"}, TypeError, "list of strings"),
+        ("linkedin", {"location": "Seattle", "company_ids": [1173]}, TypeError, "list of strings"),
+        ("linkedin", {"location": "Seattle", "results": 0}, ValueError, r"results \(0\) must be"),
+        ("indeed", {"country": "usa", "radius": -1}, ValueError, "radius"),
+        ("indeed", {"country": "usa", "max_age_hours": 0}, ValueError, "max_age_hours"),
+        # The checks each site makes of the values it accepts.
+        ("indeed", {"country": "atlantis"}, ValueError, "unknown Indeed country"),
+        (
+            "indeed",
+            {"country": "usa", "company_ids": [" "]},
+            ValueError,
+            "company_ids holds a blank entry",
+        ),
+        ("indeed", {"country": "usa", "company_ids": ["a", "b"]}, ValueError, "one company ID"),
         ("linkedin", {}, ValueError, "location is required"),
-        ("linkedin", {"geoid": True}, ValueError, "location is required"),
-        ("linkedin", {"location": 5}, TypeError, "location"),
-        ("linkedin", {"geoid": 102011674}, TypeError, "geoid"),
-        ("linkedin", {"geoid": " "}, ValueError, "geoid is blank"),
+        ("linkedin", {"location": "   "}, ValueError, "location is required"),
+        ("linkedin", {"geoid": ""}, ValueError, "must use digits"),
+        ("linkedin", {"geoid": "Amsterdam"}, ValueError, "must use digits"),
         ("linkedin", {"location": "Seattle", "company_ids": ["Acme"]}, ValueError, "company ID"),
-        ("linkedin", {"location": "Seattle", "easy_apply": "false"}, TypeError, "easy_apply must"),
-        ("linkedin", {"location": "Seattle", "early_applicant": 1}, TypeError, "early_applicant"),
+        ("linkedin", {"location": "Seattle", "company_ids": [""]}, ValueError, "company ID"),
+        ("linkedin", {"location": "Seattle", "company_ids": ["１２３"]}, ValueError, "company ID"),  # noqa: RUF001  fullwidth digits are the input under test
     ],
 )
-def test_scrape_rejects_bad_arguments_before_any_request(site, kwargs, error, match):
+def test_scrape_rejects_bad_options_before_any_request(site, kwargs, error, match):
     fetcher = StubFetcher({})
     with pytest.raises(error, match=match):
         asyncio.run(scrape(site, query="x", fetcher=fetcher, **kwargs))
     assert fetcher.requests == []
 
 
-@pytest.mark.parametrize(
-    ("site", "kwargs", "ignored", "applied_by"),
-    [
-        # One case per filter. The wrong-typed values show an ignored filter goes unchecked.
-        ("linkedin", {"location": "Seattle", "remote": "yes"}, "remote", "indeed"),
-        ("linkedin", {"location": "Seattle", "language": "not a code"}, "language", "indeed"),
-        ("linkedin", {"location": "Seattle", "attributes": ["3CQB7"]}, "attributes", "indeed"),
-        ("linkedin", {"location": "Seattle", "employer_key": "fe21"}, "employer_key", "indeed"),
-        ("indeed", {"country": "usa", "company_ids": ["1173"]}, "company_ids", "linkedin"),
-        ("indeed", {"country": "usa", "geoid": "102011674"}, "geoid", "linkedin"),
-        ("indeed", {"country": "usa", "easy_apply": True}, "easy_apply", "linkedin"),
-        ("indeed", {"country": "usa", "early_applicant": 1}, "early_applicant", "linkedin"),
-    ],
-)
-def test_a_filter_the_provider_cannot_apply_is_ignored_with_a_warning(
-    site, kwargs, ignored, applied_by, caplog
-):
-    fetcher = StubFetcher({})
-    with caplog.at_level(logging.WARNING, logger="jobrake.utils"):
-        jobs = asyncio.run(scrape(site, query="x", fetcher=fetcher, **kwargs))
-
-    assert jobs == []
-    assert fetcher.requests, "an unsupported filter stopped the search"
-    assert caplog.text.count(f"{site} ignores {ignored}") == 1
-    assert f"Run the search on {applied_by}" in caplog.text
-
-
-def test_the_filter_checks_reject_an_unknown_filter_or_site():
-    with pytest.raises(KeyError, match="salary"):
-        utils.check_filters("indeed", salary=True)
-    # An unknown site matches no row, which would pass every filter unchecked.
-    with pytest.raises(ValueError, match="glassdoor"):
-        utils.check_filters("glassdoor", remote="nonsense")
-
-
-@pytest.mark.parametrize(
-    ("name", "value"),
-    [
-        ("results", float("nan")),
-        ("results", 2.5),
-        ("results", True),
-        ("radius", float("inf")),
-        ("radius", False),
-        ("max_age_hours", 1.5),
-        ("max_age_hours", True),
-    ],
-)
-def test_numeric_options_reject_non_integers(name, value):
-    with pytest.raises(TypeError, match=name):
-        utils.check_bounds(**{name: value})
-
-
-def test_scrape_accepts_an_explicit_zero_radius(monkeypatch):
-    monkeypatch.setattr(client, "LIMITER", TokenBucket(capacity=10**9, refill_interval=1.0))
+def test_scrape_accepts_an_explicit_zero_radius():
     fetcher = StubFetcher({"seeMoreJobPostings": ok("")})
     asyncio.run(scrape("linkedin", query="x", location="Seattle", radius=0, fetcher=fetcher))
     assert len(fetcher.requests) == 1
     assert "distance=0" in fetcher.requests[0]
 
 
-def test_scrape_forwards_every_search_option(monkeypatch):
-    received = {}
-
-    async def capture(fetcher, **options):
-        received.update(options)
-        return []
-
-    monkeypatch.setattr(sites, "site_searchers", lambda: {"stub": capture})
-    given = {
-        "query": "x",
-        "location": "Seattle",
-        "country": "usa",
-        "radius": 5,
-        "results": 3,
-        "max_age_hours": 24,
-        "details": True,
-        "cache": False,
-        "geoid": "12345",
-        "company_ids": ["1173"],
-        "employer_key": "fe219df7f711aa73",
-        "remote": True,
-        "language": "en",
-        "attributes": ["3CQB7"],
-        "easy_apply": True,
-        "early_applicant": True,
-    }
-    # A new scrape parameter must join this dict, which then proves it is forwarded.
-    assert given.keys() == inspect.signature(scrape).parameters.keys() - {"site", "fetcher"}
-    asyncio.run(scrape("stub", fetcher=StubFetcher({}), **given))
-    assert received == given
+def test_a_registered_site_needs_no_change_to_scrape(fake_site):
+    jobs = asyncio.run(
+        scrape("fakesite", query="x", board="acme", tags=["a"], results=2, fetcher=StubFetcher({}))
+    )
+    assert [job["site"] for job in jobs] == ["fakesite", "fakesite"]
+    # Options the caller leaves out keep the site's own defaults.
+    assert fake_site.calls == [
+        {"query": "x", "board": "acme", "results": 2, "remote": False, "tags": ["a"]}
+    ]
+    with pytest.raises(TypeError, match=r"fakesite: .* argument 'location'"):
+        asyncio.run(scrape("fakesite", query="x", location="Seattle"))
+    with pytest.raises(TypeError, match="tags must be a list of strings or None"):
+        asyncio.run(scrape("fakesite", query="x", tags="a"))
+    assert len(fake_site.calls) == 1
 
 
-def test_scrape_does_not_close_injected_fetcher():
-    closed = []
+class Recording(StubFetcher):
+    closed = 0
 
-    class Recording(StubFetcher):
-        def __bool__(self):
-            return False
-
-        async def close(self):
-            closed.append(True)
-
-    fetcher = Recording({"seeMoreJobPostings": ok("")})
-    asyncio.run(scrape("linkedin", query="x", location="Seattle", fetcher=fetcher))
-    assert closed == []
+    async def close(self):
+        self.closed += 1
 
 
-def test_scrape_closes_its_default_fetcher(monkeypatch):
-    closed = []
-
-    class Recording(StubFetcher):
-        async def close(self):
-            closed.append(True)
-
-    fetcher = Recording({"seeMoreJobPostings": ok("")})
-    monkeypatch.setattr(sites, "HttpxFetcher", lambda: fetcher)
-
-    asyncio.run(scrape("linkedin", query="x", location="Seattle"))
-
-    assert closed == [True]
+def test_scrape_closes_only_the_fetcher_it_created(fake_site, monkeypatch):
+    given = Recording({})
+    asyncio.run(scrape("fakesite", query="x", fetcher=given))
+    created = Recording({})
+    monkeypatch.setattr(sites, "HttpxFetcher", lambda: created)
+    asyncio.run(scrape("fakesite", query="x"))
+    assert (given.closed, created.closed) == (0, 1)
 
 
-def test_scrape_closes_its_default_fetcher_after_a_search_failure(monkeypatch):
-    closed = []
+def test_scrape_closes_its_fetcher_after_a_search_failure(fake_site, monkeypatch):
+    async def failing(fetcher, *, query: Annotated[str, "job title or keywords"]):
+        raise RuntimeError("interrupted")
 
-    class Dying(StubFetcher):
-        async def fetch(self, url, headers=None):
-            raise RuntimeError("interrupted")
-
-        async def close(self):
-            closed.append(True)
-
-    monkeypatch.setattr(sites, "HttpxFetcher", lambda: Dying({}))
-    monkeypatch.setattr(client, "LIMITER", TokenBucket(capacity=10**9, refill_interval=1.0))
+    created = Recording({})
+    monkeypatch.setattr(sites, "HttpxFetcher", lambda: created)
+    monkeypatch.setattr(fake_site, "search", failing)
     with pytest.raises(RuntimeError):
-        asyncio.run(scrape("linkedin", query="x", location="Seattle"))
-    assert closed == [True]
+        asyncio.run(scrape("fakesite", query="x"))
+    assert created.closed == 1

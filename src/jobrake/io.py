@@ -3,34 +3,14 @@
 import csv
 import io
 import json
-from typing import Any
 
 from .models import JOB_FIELDS, JobDict
 
 
-def to_json(obj: list[JobDict], **kwargs: Any) -> str:
-    """
-    Serialize a list as JSON without escaping non-ASCII text.
-
-    Explicit ``json.dumps`` options take precedence over the Unicode default.
-    """
-    if "ensure_ascii" not in kwargs:
-        kwargs["ensure_ascii"] = False
-    return json.dumps(obj, **kwargs)
-
-
-def to_jsonl(jobs: list[JobDict]) -> str:
-    """Serialize one job per line, including a final newline."""
-    return "".join(json.dumps(job, ensure_ascii=False) + "\n" for job in jobs)
-
-
-def to_csv(jobs: list[JobDict]) -> str:
-    """
-    Serialize jobs with a header and one column for every model field.
-
-    Columns follow model order. Missing detail fields produce empty cells.
-    """
+def _csv(jobs: list[JobDict]) -> str:
+    """Serialize jobs with a header and one column per model field, in model order."""
     buf = io.StringIO()
+    # A missing detail field leaves its cell empty.
     writer = csv.DictWriter(buf, fieldnames=JOB_FIELDS, restval="", lineterminator="\n")
     writer.writeheader()
     writer.writerows(jobs)
@@ -38,7 +18,7 @@ def to_csv(jobs: list[JobDict]) -> str:
 
 
 RENDERERS = {
-    "json": lambda jobs: to_json(jobs) + "\n",
-    "jsonl": to_jsonl,
-    "csv": to_csv,
+    "json": lambda jobs: json.dumps(jobs, ensure_ascii=False) + "\n",
+    "jsonl": lambda jobs: "".join(json.dumps(job, ensure_ascii=False) + "\n" for job in jobs),
+    "csv": _csv,
 }

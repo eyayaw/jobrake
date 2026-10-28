@@ -3,6 +3,9 @@ Third-party notices
 This project includes code derived from JobSpy
 (https://github.com/speedyapply/JobSpy):
 
+  src/jobrake/sites/indeed/client.py
+      The Indeed API headers: the app key and the iOS app's identity.
+
   src/jobrake/sites/indeed/search.py
       The Indeed GraphQL query, trimmed to the fields jobrake keeps.
 

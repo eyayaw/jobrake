@@ -1,89 +1,42 @@
 """Supported sites and the public ``scrape`` entrypoint."""
 
-from collections.abc import Awaitable, Callable
+from types import ModuleType
 
-from jobrake import defaults
 from jobrake.fetchkit import Fetcher, HttpxFetcher
 from jobrake.models import JobDict
 
 from . import indeed, linkedin
 
-
-def site_searchers() -> dict[str, Callable[..., Awaitable[list[JobDict]]]]:
-    """Map supported site names to their search entrypoints."""
-    return {"indeed": indeed.search, "linkedin": linkedin.search}
+# One entry per site. A site package exports search() and any of the lookups and postings().
+SITES: dict[str, ModuleType] = {"indeed": indeed, "linkedin": linkedin}
 
 
-async def scrape(
-    site: str,
-    *,
-    query: str,
-    location: str | None = None,
-    country: str | None = None,
-    radius: int | None = None,
-    results: int = defaults.RESULTS,
-    max_age_hours: int | None = defaults.MAX_AGE_HOURS,
-    details: bool = defaults.DETAILS,
-    cache: bool = defaults.CACHE,
-    geoid: str | bool = defaults.GEOID,
-    company_ids: list[str] | None = None,
-    employer_key: str | None = None,
-    remote: bool = False,
-    language: str | None = None,
-    attributes: list[str] | None = None,
-    easy_apply: bool = False,
-    early_applicant: bool = False,
-    fetcher: Fetcher | None = None,
-) -> list[JobDict]:
+async def scrape(site: str, *, fetcher: Fetcher | None = None, **options: object) -> list[JobDict]:
     """
-    Route a search through one provider.
+    Search one site and return its postings as ``JobDict`` records.
 
-    Both providers take ``query``, ``location``, ``radius`` in kilometers, ``results``, and ``max_age_hours``.
-    Searches cover the past seven days by default, and ``max_age_hours=None`` lifts the age limit.
-    Indeed requires ``country`` and applies ``employer_key``, ``remote``, ``language``, and ``attributes``.
-    LinkedIn requires a ``location`` or a geoId string and applies ``geoid``, ``company_ids``, ``easy_apply``, ``early_applicant``, ``details``, and ``cache``.
-    Each provider's ``search`` documents the values its options accept.
-
-    One signature covers both providers, so a caller can send the same options
-    to each. A provider warns for a filter it cannot apply and leaves that
-    filter unchecked, so a wrong type there cannot stop the search.
-
-    Every returned dict has the shared identity and summary keys, with available detail fields added.
-    The provider validates its arguments before the first request.
-    An injected fetcher remains open and belongs to the caller. Indeed requires one with JSON POST support.
-    Without an injected fetcher, ``scrape`` creates and closes an ``HttpxFetcher``.
+    ``options`` are the keyword options of ``jobrake.sites.<site>.search``,
+    which checks them against its signature before any request. Without ``fetcher``,
+    ``scrape`` creates and closes an ``HttpxFetcher``. A given fetcher stays
+    open and belongs to the caller.
 
     Raises:
-        TypeError: An argument the provider applies has the wrong type.
-        ValueError: The site is unknown, required geography is missing, or an
-            argument the provider applies has an unusable value.
+        TypeError: An option is unknown to the site, a required option is
+            missing, or a value has the wrong type.
+        ValueError: The site is unknown, or an option value is out of range
+            or unusable on the site.
+        Stopped: A request failed. ``partial`` holds the postings collected before it.
     """
-    searchers = site_searchers()
-    if site not in searchers:
-        raise ValueError(f"unknown site {site!r}. Expected one of {sorted(searchers)}")
-    owns_fetcher = fetcher is None
-    if owns_fetcher:
-        fetcher = HttpxFetcher()
-    options = {
-        "query": query,
-        "location": location,
-        "country": country,
-        "radius": radius,
-        "results": results,
-        "max_age_hours": max_age_hours,
-        "details": details,
-        "cache": cache,
-        "geoid": geoid,
-        "company_ids": company_ids,
-        "employer_key": employer_key,
-        "remote": remote,
-        "language": language,
-        "attributes": attributes,
-        "easy_apply": easy_apply,
-        "early_applicant": early_applicant,
-    }
+    if site not in SITES:
+        raise ValueError(f"unknown site {site!r}. Expected one of {', '.join(SITES)}")
+    search = SITES[site].search
+    if fetcher is not None:
+        return await search(fetcher, **options)
+    fetcher = HttpxFetcher()
     try:
-        return await searchers[site](fetcher, **options)
+        return await search(fetcher, **options)
     finally:
-        if owns_fetcher:
-            await fetcher.close()
+        await fetcher.close()
+
+
+__all__ = ["SITES", "scrape"]

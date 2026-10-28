@@ -1,6 +1,8 @@
 """Shared network-free fakes that return canned FetchResults."""
 
-from jobrake.fetchkit import ErrorCategory, FetchError, FetchResult
+from typing import Any
+
+from jobrake.fetchkit import FetchResult
 
 
 class StubFetcher:
@@ -10,50 +12,44 @@ class StubFetcher:
         self.responses = responses
         self.requests: list[str] = []
         self.headers: list[dict[str, str]] = []
+        self.bodies: list[Any] = []  # the JSON each request posted, or None
 
-    def _lookup(self, url: str, headers: dict[str, str] | None = None) -> FetchResult:
+    async def fetch(self, url, *, headers=None, json=None):
         self.requests.append(url)
         self.headers.append(headers or {})
+        self.bodies.append(json)
         for fragment, result in self.responses.items():
             if fragment in url:
-                return FetchResult(
-                    url=url,
-                    status_code=result.status_code,
-                    text=result.text,
-                    headers=result.headers,
-                    error=result.error,
-                )
-        return FetchResult(url=url, error=FetchError(ErrorCategory.CLIENT, "no stub"))
-
-    async def fetch(self, url, headers=None):
-        return self._lookup(url, headers)
-
-    async def post(self, url, json_body, headers=None):
-        return self._lookup(url, headers)
+                return FetchResult(url, result.status, result.text, result.headers, result.error)
+        return FetchResult(url, error="no stub")
 
     async def close(self):
         pass
 
 
 def ok(text: str) -> FetchResult:
-    return FetchResult(url="stub", status_code=200, text=text)
+    return FetchResult(url="stub", status=200, text=text)
 
 
 def not_found() -> FetchResult:
-    return FetchResult(
-        url="stub",
-        status_code=404,
-        error=FetchError(ErrorCategory.CLIENT, "client error (HTTP 404)", http_status=404),
-    )
+    return FetchResult(url="stub", status=404)
 
 
 def network_down() -> FetchResult:
-    return FetchResult(url="stub", error=FetchError(ErrorCategory.NETWORK, "connection reset"))
+    return FetchResult(url="stub", error="connection reset")
 
 
 def rate_limited() -> FetchResult:
-    return FetchResult(
-        url="stub",
-        status_code=429,
-        error=FetchError(ErrorCategory.RATE_LIMITED, "rate limited (HTTP 429)", http_status=429),
-    )
+    return FetchResult(url="stub", status=429)
+
+
+class PagedFetcher(StubFetcher):
+    """Answer each request with the next of ``pages`` and fail on an extra request."""
+
+    def __init__(self, pages: list[str]):
+        super().__init__({})
+        self.pages = pages
+
+    async def fetch(self, url, *, headers=None, json=None):
+        await super().fetch(url, headers=headers, json=json)
+        return ok(self.pages[len(self.requests) - 1])

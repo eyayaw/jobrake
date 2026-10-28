@@ -1,12 +1,14 @@
 """Shared parsing and search-argument helpers."""
 
+import functools
+import inspect
 import logging
-import re
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
-from typing import NamedTuple
+from types import NoneType
+from typing import Annotated, NamedTuple, Union, get_args, get_origin
 
-from bs4 import BeautifulSoup
+lazy from bs4 import BeautifulSoup
 
 logger = logging.getLogger(__name__)
 
@@ -34,161 +36,120 @@ def html_text(html: str) -> str:
     return "\n".join(line for line in lines if line)
 
 
-class _Bound(NamedTuple):
-    """What one numeric search option accepts."""
+class Option(NamedTuple):
+    """One argument a site function declares after the fetcher, as ``Annotated[kind, help]``."""
 
-    minimum: int
-    requirement: str
-    optional: bool = False
+    kind: object  # str, int, bool, or list[str]
+    optional: bool  # whether the annotation adds ``| None``
+    help: str
+    default: object  # inspect.Parameter.empty for a required argument
+    positional: bool  # whether it is the text a lookup or postings() takes before its options
 
 
-_BOUNDS = {
-    "results": _Bound(1, "positive"),
-    "radius": _Bound(0, "zero or more", optional=True),
-    "max_age_hours": _Bound(1, "positive", optional=True),
+# Each type a site function may declare, with its description and its check.
+# bool is a subclass of int, so an int option rejects it.
+_TYPES: dict[object, tuple[str, Callable[[object], bool]]] = {
+    str: ("a string", lambda value: isinstance(value, str)),
+    int: ("an integer", lambda value: isinstance(value, int) and not isinstance(value, bool)),
+    bool: ("a boolean", lambda value: isinstance(value, bool)),
+    list[str]: (
+        "a list of strings",
+        lambda value: isinstance(value, list) and all(isinstance(item, str) for item in value),
+    ),
 }
 
-
-def check_bounds(**values: int | None) -> None:
-    """Require each numeric search option to be an integer within its bound."""
-    for name, value in values.items():
-        bound = _BOUNDS[name]
-        if value is None and bound.optional:
-            continue
-        # Page slicing and Indeed's query text need real integers. Booleans
-        # satisfy isinstance(value, int) on their own, and ``radius=False``
-        # would search a 0 km radius where ``None`` omits it.
-        if isinstance(value, bool) or not isinstance(value, int):
-            raise TypeError(f"{name} must be an integer, got {value!r}")
-        if value < bound.minimum:
-            raise ValueError(f"{name} ({value}) must be {bound.requirement}")
+# Options that keep one meaning on every site that declares them, with their smallest value.
+_MINIMUMS = {"results": 1, "radius": 0, "max_age_hours": 1}
 
 
-def check_text(**values: object) -> None:
-    """Require a string for each search text that carries a value."""
-    for name, value in values.items():
-        if value is not None and not isinstance(value, str):
-            raise TypeError(f"{name} must be a string, got {value!r}")
-
-
-def _strings(name: str, value: object, item: str) -> list[str]:
-    """Read an optional list filter, requiring a string for every entry."""
-    if value is None:
-        return []
-    if not isinstance(value, list):
-        raise TypeError(f"{name} must be a list of {item} strings")
-    for entry in value:
-        if not isinstance(entry, str):
-            raise TypeError(f"{item} {entry!r} must be a string")
-    return value
-
-
-def check_flag(name: str, value: object) -> None:
-    """Require a Boolean for one search flag."""
-    if not isinstance(value, bool):
-        raise TypeError(f"{name} must be a boolean, got {value!r}")
-
-
-def check_attributes(name: str, value: object) -> None:
-    """Require a list of nonblank attribute codes when supplied."""
-    for code in _strings(name, value, "attribute code"):
-        if not code.strip():
-            raise ValueError(
-                "attribute code is blank. Find codes with "
-                "'jobrake attributes indeed -c EDITION QUERY'"
-            )
-
-
-def check_language(name: str, value: object) -> None:
-    """Validate an optional two-letter language code."""
-    if value is None:
-        return
-    if not isinstance(value, str):
-        raise TypeError(f"{name} must be a string or None, got {value!r}")
-    if re.fullmatch(r"[A-Za-z]{2}", value) is None:
-        raise ValueError(f"{name} {value!r} must contain exactly two ASCII letters, such as 'en'")
-
-
-def check_company_ids(name: str, value: object) -> None:
-    """Require a list of LinkedIn company IDs when supplied."""
-    for company in _strings(name, value, "company ID"):
-        if not (company.isascii() and company.isdigit()):
-            raise ValueError(
-                f"company ID {company!r} must use digits 0-9, such as '1173'. "
-                "Find IDs with 'jobrake companies linkedin NAME'"
-            )
-
-
-def check_employer_key(name: str, value: object) -> None:
-    """Require a nonblank Indeed employer key when supplied."""
-    if value is None:
-        return
-    if not isinstance(value, str):
-        raise TypeError(f"{name} must be a string, got {value!r}")
-    if not value.strip():
-        raise ValueError(
-            "Indeed employer key is blank. Find a key with "
-            "'jobrake companies indeed NAME --country EDITION'"
-        )
-
-
-def check_geoid(name: str, value: object) -> None:
-    """Require a nonblank geoId string or a Boolean."""
-    if isinstance(value, bool):
-        return
-    if not isinstance(value, str):
-        raise TypeError(f"{name} must be an ID string or a boolean, got {value!r}")
-    if not value.strip():
-        raise ValueError(f"{name} is blank")
-
-
-# Each filter names the providers that apply it and the check each one runs.
-# A provider outside a filter's row accepts the argument and searches without it.
-_FILTERS: dict[str, dict[str, Callable[[str, object], None]]] = {
-    "geoid": {"linkedin": check_geoid},
-    "company_ids": {"linkedin": check_company_ids},
-    "employer_key": {"indeed": check_employer_key},
-    "remote": {"indeed": check_flag},
-    "language": {"indeed": check_language},
-    "attributes": {"indeed": check_attributes},
-    "easy_apply": {"linkedin": check_flag},
-    "early_applicant": {"linkedin": check_flag},
-}
-
-_SITES = frozenset(site for checks in _FILTERS.values() for site in checks)
-
-
-def check_filters(site: str, **filters: object) -> None:
+def site_options(function: Callable[..., object]) -> dict[str, Option]:
     """
-    Validate each filter the provider applies and warn for each one it ignores.
-
-    An ignored filter goes unchecked, and its warning is the only sign that the
-    restriction took no effect. A falsy value asks for no restriction and
-    passes in silence. Warnings follow the last check, so a rejected search
-    logs none.
+    Map each argument after the fetcher to its ``Annotated`` kind, help, and default, keeping signature order.
 
     Raises:
-        KeyError: No provider applies the filter.
-        TypeError: An applied filter has the wrong type.
-        ValueError: The site is unknown, or an applied filter has an unusable value.
+        TypeError: An argument is not ``Annotated[kind, help]`` with a
+            supported kind and nonblank help, or a boolean option has a
+            default other than ``False``.
     """
-    if site not in _SITES:
-        # An unknown site matches no row, which would leave every filter unchecked.
-        raise ValueError(f"unknown site {site!r}. Expected one of {sorted(_SITES)}")
-    ignored = []
-    for name, value in filters.items():
-        checks = _FILTERS[name]
-        if site in checks:
-            checks[site](name, value)
-        elif value:
-            ignored.append(name)
-    for name in ignored:
-        logger.warning(
-            "%s ignores %s and searches without it. Run the search on %s to apply it",
-            site,
-            name,
-            " or ".join(_FILTERS[name]),
-        )
+    where = f"{function.__module__}.{getattr(function, '__qualname__', function)}"
+    _, *params = inspect.signature(function).parameters.values()
+    options = {}
+    for param in params:
+        if param.kind not in (param.POSITIONAL_OR_KEYWORD, param.KEYWORD_ONLY):
+            raise TypeError(f"{where}: declare {param.name} as a named argument")
+        if get_origin(param.annotation) is not Annotated:
+            raise TypeError(f"{where}: annotate {param.name} as Annotated[kind, help]")
+        kind, help_text, *_ = get_args(param.annotation)
+        if not isinstance(help_text, str) or not help_text.strip():
+            raise TypeError(f"{where}: give {param.name} a help string in its Annotated")
+        members = get_args(kind) if get_origin(kind) is Union else ()
+        optional = NoneType in members and len(members) == 2
+        if optional:
+            (kind,) = (member for member in members if member is not NoneType)
+        if kind not in _TYPES:
+            raise TypeError(
+                f"{where}: {param.name} is {kind!r}. Use str, int, bool, or list[str], "
+                "each optionally | None"
+            )
+        positional = param.kind is param.POSITIONAL_OR_KEYWORD
+        # The CLI turns a boolean option into a flag that sets it.
+        if kind is bool and not positional and param.default is not False:
+            raise TypeError(f"{where}: the boolean option {param.name} must default to False")
+        options[param.name] = Option(kind, optional, help_text, param.default, positional)
+    return options
+
+
+def _check(options: dict[str, Option], given: dict[str, object]) -> None:
+    for name, value in given.items():
+        option = options[name]
+        if value is None and option.optional:
+            continue
+        description, accepts = _TYPES[option.kind]
+        if not accepts(value):
+            expected = description + (" or None" if option.optional else "")
+            raise TypeError(f"{name} must be {expected}, got {value!r}")
+        minimum = _MINIMUMS.get(name)
+        if minimum is not None and isinstance(value, int) and value < minimum:
+            raise ValueError(f"{name} ({value}) must be at least {minimum}")
+        # A lookup's text names what to look up, so a blank one asks for nothing.
+        if option.positional and isinstance(value, str) and not value.strip():
+            raise ValueError(f"{name} is blank. Pass the {option.help}")
+        # A blank list entry names nothing either.
+        if isinstance(value, list) and not all(item.strip() for item in value):
+            raise ValueError(f"{name} holds a blank entry. Pass the {option.help}")
+
+
+def checked[**P, R](function: Callable[P, Awaitable[R]]) -> Callable[P, Awaitable[R]]:
+    """
+    Check every call of a site function against its annotations before the function runs.
+
+    The signature is read once, here, so a site function that breaks the
+    rules of ``site_options`` fails when its module is imported. Error
+    messages name the site after the package below ``jobrake.sites``.
+
+    Raises:
+        TypeError: At decoration, the signature breaks a rule of
+            ``site_options``. At a call, an argument is unknown, missing, or of
+            the wrong type.
+        ValueError: At a call, ``results``, ``radius``, or ``max_age_hours``
+            is below its minimum, or a lookup's text or a list entry is blank.
+    """
+    signature = inspect.signature(function)
+    options = site_options(function)
+    site = function.__module__.removeprefix("jobrake.sites.").partition(".")[0]
+    keywords = ", ".join(name for name, option in options.items() if not option.positional)
+    listing = f"Its options are {keywords}" if keywords else "It takes no options"
+
+    @functools.wraps(function)
+    async def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
+        try:
+            _, *given = signature.bind(*args, **kwargs).arguments.items()
+        except TypeError as error:
+            raise TypeError(f"{site}: {error}. {listing}") from None
+        _check(options, dict(given))
+        return await function(*args, **kwargs)
+
+    return wrapper
 
 
 def iso_date(value: str | None) -> str | None:

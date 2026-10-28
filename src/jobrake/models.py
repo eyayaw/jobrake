@@ -1,110 +1,117 @@
-"""Normalized job fields shared by the provider adapters."""
+"""Normalized job fields shared by the site adapters, and ``Stopped``."""
 
+import functools
 import re
-from dataclasses import asdict, dataclass, fields
-from typing import Any
+from typing import Any, NotRequired, TypedDict, cast
 
 from jobrake.utils import iso_date
 
-IDENTITY_FIELDS = ("site", "id", "url")
-SUMMARY_FIELDS = ("title", "company", "location", "date")
 
-
-@dataclass(kw_only=True, slots=True)
-class Job:
+class JobDict(TypedDict, closed=True):
     """
-    A provider posting normalized to shared field names.
+    A posting from any site, under shared field names.
 
-    Identity strings are stripped. Blank summary and detail strings become
-    ``None``. ``date`` prefers the search result's date and falls back to the
-    calendar date in ``posted_at``.
-
-    Attributes:
-        id: Provider-owned identifier. The pair ``(site, id)`` is globally unique.
-        date: Posting date without a time component.
-        is_remote: ``True`` when confirmed remote and ``None`` when unknown.
+    Identity and summary keys are always present, and a summary value the
+    site lacks is ``None``. A detail key appears only when it has a value.
+    ``id`` is the site's own identifier, so ``(site, id)`` is unique. ``date``
+    is a calendar date, and ``is_remote`` is ``True`` only when confirmed.
     """
 
-    # Identity ----
     site: str
     id: str
     url: str
-    # Summary ----
     title: str | None
     company: str | None
     location: str | None
-    date: str | None = None
-    # Detail ----
-    description: str | None = None
-    language: str | None = None
-    company_url: str | None = None
-    company_logo: str | None = None
-    employment_type: str | None = None
-    is_remote: bool | None = None
-    salary_min: float | None = None
-    salary_max: float | None = None
-    salary_currency: str | None = None
-    salary_period: str | None = None
-    city: str | None = None
-    region: str | None = None
-    country_code: str | None = None
-    latitude: float | None = None
-    longitude: float | None = None
-    posted_at: str | None = None
-    expires_at: str | None = None
-    apply_url: str | None = None
-    apply_type: str | None = None
-    applicants: int | None = None
-    experience_months: int | None = None
-    education: str | None = None
-
-    def __post_init__(self) -> None:
-        """Normalize strings and derive the calendar date."""
-        for name in IDENTITY_FIELDS:
-            setattr(self, name, (getattr(self, name) or "").strip())
-        for name in SUMMARY_FIELDS:
-            value = getattr(self, name)
-            value = value.strip() if isinstance(value, str) else None
-            setattr(self, name, value or None)
-        for name in DETAIL_FIELDS:
-            value = getattr(self, name)
-            if isinstance(value, str):
-                setattr(self, name, value.strip() or None)
-        # Prefer the search date. Fall back to the posting timestamp.
-        self.date = iso_date(self.date or self.posted_at)
+    date: str | None
+    description: NotRequired[str]
+    language: NotRequired[str]
+    company_url: NotRequired[str]
+    company_logo: NotRequired[str]
+    employment_type: NotRequired[str]
+    is_remote: NotRequired[bool]
+    salary_min: NotRequired[float]
+    salary_max: NotRequired[float]
+    salary_currency: NotRequired[str]
+    salary_period: NotRequired[str]
+    city: NotRequired[str]
+    region: NotRequired[str]
+    country_code: NotRequired[str]
+    latitude: NotRequired[float]
+    longitude: NotRequired[float]
+    posted_at: NotRequired[str]
+    expires_at: NotRequired[str]
+    apply_url: NotRequired[str]
+    apply_type: NotRequired[str]
+    applicants: NotRequired[int]
+    experience_months: NotRequired[int]
+    education: NotRequired[str]
 
 
-# The public job is the flat dictionary make_job builds. Job is the normalizing dataclass behind it.
-type JobDict = dict[str, Any]
+# The CSV writer uses JOB_FIELDS for its columns, in this order.
+JOB_FIELDS = tuple(JobDict.__annotations__)
+IDENTITY_FIELDS = ("site", "id", "url")
+DETAIL_FIELDS = tuple(name for name in JOB_FIELDS if name in JobDict.__optional_keys__)
+SUMMARY_FIELDS = tuple(name for name in JOB_FIELDS if name not in IDENTITY_FIELDS + DETAIL_FIELDS)
 
 
-def make_job(**scraped: Any) -> JobDict:
+def make_job(**fields: Any) -> JobDict:
     """
-    Build the public job dictionary from provider fields.
+    Build a ``JobDict`` from a site's fields, normalizing their text.
 
-    Identity and summary keys are always present. An unavailable summary value
-    is ``None``. A detail key whose value is ``None`` is omitted.
+    Identity strings are stripped. A blank or missing summary value becomes
+    ``None``, and a blank or ``None`` detail value is left out. ``date`` keeps
+    the calendar date of the given ``date``, falling back to ``posted_at``.
 
     Raises:
-        TypeError: A required field is missing or an unknown field is supplied.
+        TypeError: An identity field is missing, blank, or not a string, or a
+            field is not a ``JobDict`` key.
     """
-    job = asdict(Job(**scraped))
-    return {
-        name: value for name, value in job.items() if name not in DETAIL_FIELDS or value is not None
-    }
+    if unknown := fields.keys() - set(JOB_FIELDS):
+        raise TypeError(f"not a job field: {', '.join(sorted(unknown))}")
+    job: dict[str, Any] = {}
+    for name in IDENTITY_FIELDS:
+        value = fields.get(name)
+        if not isinstance(value, str) or not value.strip():
+            raise TypeError(f"job field {name} must be a nonblank string, got {value!r}")
+        job[name] = value.strip()
+    for name in SUMMARY_FIELDS:
+        value = fields.get(name)
+        job[name] = (value.strip() or None) if isinstance(value, str) else None
+    for name in DETAIL_FIELDS:
+        value = fields.get(name)
+        if isinstance(value, str):
+            value = value.strip() or None
+        if value is not None:
+            job[name] = value
+    # Prefer the search date. Fall back to the posting timestamp.
+    job["date"] = iso_date(job["date"] or job.get("posted_at"))
+    return cast(JobDict, job)
 
 
-# Derive the field lists from ``Job`` so they stay in sync.
-# The CSV writer uses ``JOB_FIELDS`` for its columns.
-JOB_FIELDS = tuple(f.name for f in fields(Job))
-DETAIL_FIELDS = tuple(n for n in JOB_FIELDS if n not in IDENTITY_FIELDS + SUMMARY_FIELDS)
+class Stopped(Exception):
+    """
+    A failed request ended a search or lookup early.
+
+    ``partial`` holds the records collected before the failure, ``[]`` for a lookup.
+    """
+
+    def __init__(self, message: str, *, partial: list[JobDict]) -> None:
+        super().__init__(message)
+        self.partial = partial
+
+    def __reduce__(self) -> tuple[Any, ...]:
+        # Unpickling calls the class with args alone, which lack partial, so a
+        # Stopped raised in a process-pool worker would break the pool.
+        return functools.partial(type(self), partial=self.partial), self.args, self.__dict__
+
 
 # schema.org says CONTRACTOR and INTERN where the boards say Contract and Internship.
 _EMPLOYMENT_ALIASES = {"contractor": "contract", "intern": "internship"}
 
 
 def employment_type(label: str | None) -> str | None:
-    """Normalize a provider's employment label for the shared model."""
+    """Return a site's employment label as a snake_case slug such as ``full_time``, or None."""
     if not label:
         return None
     slug = re.sub(r"[^a-z0-9]+", "_", label.lower()).strip("_")

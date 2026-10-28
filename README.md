@@ -21,10 +21,10 @@ jobrake is a Python package and CLI tool for fetching job postings from LinkedIn
 <td valign="top" width="50%">
 
 ```sh
-jobrake linkedin \
+jobrake linkedin search \
   --query "data scientist" \
   --location "amsterdam, netherlands" \
-  --max-age 48 \
+  --max-age-hours 48 \
   --results 5 \
   --details
 ```
@@ -33,7 +33,7 @@ jobrake linkedin \
 <td valign="top" width="50%">
 
 ```sh
-jobrake indeed \
+jobrake indeed search \
   -q "data scientist" \
   -l amsterdam -c netherlands \
   -a 48 \
@@ -63,7 +63,7 @@ jobrake -h
 
 # LinkedIn ----
 ## Search
-jobrake linkedin \
+jobrake linkedin search \
         -q "research economist" \
         -l "London, England" \
         -n 5 \
@@ -73,18 +73,18 @@ jobrake linkedin \
 
 ## Fetch details
 # You can pass several urls/ids
-jobrake details linkedin \
+jobrake linkedin postings \
         "https://uk.linkedin.com/jobs/view/senior-data-scientist-at-hm-treasury-4461975556"
         # or just 4461975556
 ## Resolve place names
-jobrake places linkedin "amsterdam" # then use the display name in search
+jobrake linkedin places "amsterdam" # then use the display name in search
                                     # -l "Amsterdam, North Holland, Netherlands"
 # Use the geoid of the place directly (instead of location)
-jobrake linkedin -q "data scientist" -g 102011674 -n 2 # Amsterdam, Netherlands
+jobrake linkedin search -q "data scientist" -g 102011674 -n 2 # Amsterdam, Netherlands
 
 # Indeed ----
 ## Search and fetch details
-jobrake indeed \
+jobrake indeed search \
         -q "data analyst" \
         -c "UK" \
         -l "London" \
@@ -92,7 +92,7 @@ jobrake indeed \
         -a 24 \
         -o jobs.jsonl
 # Resolve place names
-jobrake places indeed -c netherlands "amsterdam"
+jobrake indeed places -c netherlands "amsterdam"
 ```
 
 The CLI writes JSON to stdout by default.
@@ -131,7 +131,7 @@ See the [guide](https://github.com/eyayaw/jobrake/blob/main/docs/guide.md) for s
 
 > [!WARNING]
 > LinkedIn answers posting pages with [HTTP 999](https://http.dev/999) from data center IPs, such as a Hetzner VPS.
-> Searches still work there, but `--details` and `jobrake details linkedin` return no details. So use jobrake from the comfort of your home. :D
+> Searches still work there, but `--details` and `jobrake linkedin postings` return no details. So use jobrake from the comfort of your home. :D
 
 ## Credits
 

@@ -1,4 +1,4 @@
-"""CLI output tests for stdout and files, with explicit and inferred formats."""
+"""CLI commands built from the sites, their exit codes, and output to stdout and files."""
 
 import csv
 import io
@@ -6,12 +6,13 @@ import json
 import logging
 import os
 import sys
+import types
 from pathlib import Path
 
 import pytest
 from fakes import StubFetcher
 
-from jobrake import cli, defaults, sites
+from jobrake import Stopped, cli, sites
 from jobrake.models import JOB_FIELDS, make_job
 
 JOBS = [
@@ -47,51 +48,54 @@ def run_cli(monkeypatch):
     monkeypatch.setattr(cli, "scrape", fake_scrape)
 
     def run(*argv):
-        monkeypatch.setattr("sys.argv", ["jobrake", "indeed", "-q", "x", "-c", "usa", *argv])
+        monkeypatch.setattr(
+            "sys.argv", ["jobrake", "indeed", "search", "-q", "x", "-c", "usa", *argv]
+        )
         return cli.main()
 
     return run
 
 
-@pytest.mark.parametrize(
-    ("argv", "lookup", "expected", "hits"),
-    [
-        (
-            ["places", "linkedin", "amsterdam"],
-            "linkedin.places",
-            ("amsterdam",),
-            [{"geoId": "102011674", "displayName": "Amsterdam, North Holland, Netherlands"}],
-        ),
-        (
-            ["places", "indeed", "boston", "-c", "usa"],
-            "indeed.places",
-            ("boston", "usa"),
-            [{"suggestion": "Boston, MA", "locationType": "CITY"}],
-        ),
-        (
-            ["companies", "linkedin", "ABN AMRO"],
-            "linkedin.companies",
-            ("ABN AMRO",),
-            [{"companyId": "1173", "displayName": "ABN AMRO Bank N.V."}],
-        ),
-        (
-            ["companies", "indeed", "ABN AMRO", "-c", "netherlands"],
-            "indeed.companies",
-            ("ABN AMRO", "netherlands"),
-            [{"employerKey": "fe219df7f711aa73", "suggestion": "ABN AMRO"}],
-        ),
-        (
-            ["attributes", "indeed", "-c", "usa", "data scientist"],
-            "indeed.attributes",
-            ("data scientist", "usa"),
-            [{"key": "3CQB7", "label": "Spatial analysis"}],
-        ),
-    ],
-)
-def test_lookup_commands_print_candidates_and_report_failure(
-    monkeypatch, capsys, argv, lookup, expected, hits
+def test_a_registered_site_gets_every_command_without_a_cli_change(
+    fake_site, fetchers, monkeypatch, capsys
 ):
-    answers = [hits, [], None]
+    # The site's signatures alone give its search, lookup, and posting commands.
+    # A submodule the site does not export, such as companies.py, adds none.
+    monkeypatch.setattr(fake_site, "companies", types.ModuleType("companies"), raising=False)
+    search = [
+        "fakesite",
+        "search",
+        "-q",
+        "x",
+        "--board",
+        "acme",
+        "--tags",
+        "a",
+        "b",
+        "--remote",
+        "-n",
+        "2",
+    ]
+    monkeypatch.setattr(sys, "argv", ["jobrake", *search])
+    assert cli.main() is None
+    assert [job["id"] for job in json.loads(capsys.readouterr().out)] == ["0", "1"]
+    monkeypatch.setattr(sys, "argv", ["jobrake", "fakesite", "places", "Utrecht", "--region", "NL"])
+    assert cli.main() is None
+    assert json.loads(capsys.readouterr().out) == [{"id": "1", "name": "Utrecht"}]
+    monkeypatch.setattr(sys, "argv", ["jobrake", "fakesite", "postings", "7"])
+    assert cli.main() is None
+    assert [job["id"] for job in json.loads(capsys.readouterr().out)] == ["7"]
+    assert fake_site.calls == [
+        {"query": "x", "board": "acme", "results": 2, "remote": True, "tags": ["a", "b"]},
+        {"name": "Utrecht", "region": "NL"},
+        {"references": ["7"]},
+    ]
+
+
+@pytest.fixture
+def fetchers(monkeypatch):
+    """Replace the CLI's own HttpxFetcher with a stub that records each one it creates."""
+    created = []
 
     class StubHttpx:
         def __init__(self):
@@ -101,52 +105,53 @@ def test_lookup_commands_print_candidates_and_report_failure(
         async def close(self):
             self.closed = True
 
-    created: list[StubHttpx] = []
-
-    async def fake_lookup(fetcher, *args):
-        assert args == expected
-        return answers.pop(0)
-
-    site, name = lookup.split(".")
     monkeypatch.setattr(cli, "HttpxFetcher", StubHttpx)
-    monkeypatch.setattr(getattr(cli, site), name, fake_lookup)
-    monkeypatch.setattr(sys, "argv", ["jobrake", *argv])
-    assert cli.main() is None
-    assert json.loads(capsys.readouterr().out) == hits
-    assert cli.main() is None
-    assert json.loads(capsys.readouterr().out) == []
-    # A failed lookup exits nonzero with nothing on stdout.
-    assert cli.main() == 1
-    assert capsys.readouterr().out == ""
-    assert len(created) == 3
-    assert all(f.closed for f in created)
+    return created
 
 
-def test_details_command_renders_what_it_resolved(monkeypatch, capsys):
-    calls = []
+@pytest.mark.parametrize(
+    ("name", "status", "out", "err"),
+    [
+        ("Utrecht", None, [{"id": "1", "name": "Utrecht"}], ""),
+        ("nowhere", None, [], "no places found for 'nowhere'"),
+        ("offline", 1, None, "place lookup failed: connection reset"),
+    ],
+)
+def test_a_lookup_prints_its_candidates_or_fails(
+    fake_site, fetchers, monkeypatch, capsys, caplog, name, status, out, err
+):
+    monkeypatch.setattr(sys, "argv", ["jobrake", "fakesite", "places", name])
+    assert cli.main() == status
+    printed = capsys.readouterr().out
+    assert (json.loads(printed) if printed else None) == out  # a failure prints nothing
+    assert err in caplog.text
+    assert [fetcher.closed for fetcher in fetchers] == [True]
+    monkeypatch.setattr(sys, "argv", ["jobrake", "fakesite", "places", " "])
+    with pytest.raises(SystemExit) as error:
+        cli.main()
+    assert error.value.code == 2
 
-    class StubHttpx:
-        async def close(self):
-            pass
 
-    async def fake_details(fetcher, references, *, cache):
-        calls.append((list(references), cache))
-        return JOBS if cache else []
+@pytest.mark.parametrize(
+    ("references", "written", "status"),
+    [
+        # two references to one posting, one gone, and one whose request failed
+        (["1", "https://fake.test/1", "gone", "failed"], ["1"], 1),
+        (["gone"], [], None),  # a gone posting is no failure
+        (["1"], ["1"], None),
+    ],
+)
+def test_postings_command_writes_what_it_fetched_and_fails_on_a_failed_reference(
+    fake_site, fetchers, monkeypatch, capsys, caplog, references, written, status
+):
+    monkeypatch.setattr(sys, "argv", ["jobrake", "fakesite", "postings", *references])
+    assert cli.main() == status
+    assert json.loads(capsys.readouterr().out) == [fake_site.job(n) for n in written]
+    assert ("gone is no longer on fakesite" in caplog.text) == ("gone" in references)
+    assert all(fetcher.closed for fetcher in fetchers)
 
-    monkeypatch.setattr(cli, "HttpxFetcher", StubHttpx)
-    monkeypatch.setattr(cli.linkedin, "fetch_details", fake_details)
-    argv = ["jobrake", "details", "linkedin", "111", "https://nl.linkedin.com/jobs/view/x-222"]
-    monkeypatch.setattr(sys, "argv", argv)
-    assert cli.main() is None
-    assert json.loads(capsys.readouterr().out) == JOBS
-    # nothing resolved: the failures were already reported, so stdout stays empty
-    monkeypatch.setattr(sys, "argv", ["jobrake", "details", "linkedin", "111", "--no-cache"])
-    assert cli.main() == 1
-    assert capsys.readouterr().out == ""
-    assert calls == [(argv[3:], True), (["111"], False)]
 
-
-def test_provider_commands_dispatch_expected_options(monkeypatch):
+def test_site_commands_dispatch_their_options(monkeypatch):
     calls = []
 
     async def record(site, **kwargs):
@@ -157,6 +162,7 @@ def test_provider_commands_dispatch_expected_options(monkeypatch):
     for argv in (
         [
             "indeed",
+            "search",
             "--query",
             "x",
             "--country",
@@ -165,118 +171,115 @@ def test_provider_commands_dispatch_expected_options(monkeypatch):
             "Seattle",
             "--radius",
             "0",
-            "--results",
+        ],
+        [
+            "indeed",
+            "search",
+            "-q",
+            "x",
+            "-c",
+            "usa",
+            "-l",
+            "Seattle",
+            "-r",
+            "0",
+            "-n",
             "3",
-            "--max-age",
+            "-a",
             "48",
-            "--company",
-            "fe219df7f711aa73",
-            "--remote",
+        ],
+        ["indeed", "search", "-q", "x", "-c", "usa", "--company-ids", "fe21", "--remote"],
+        [
+            "indeed",
+            "search",
+            "-q",
+            "x",
+            "-c",
+            "usa",
             "--language",
             "EN",
-            "--attribute",
+            "--attributes",
             "3CQB7",
-            "--attribute",
             "6QC5F",
+        ],
+        ["linkedin", "search", "-q", "x", "-l", "Seattle", "-d", "--easy-apply"],
+        [
+            "linkedin",
+            "search",
+            "-q",
+            "",
+            "-g",
+            "12345",
+            "--company-ids",
+            "1173",
+            "--company-ids",
+            "2220078",
         ],
         [
             "linkedin",
+            "search",
             "-q",
             "x",
             "-l",
             "Seattle",
-            "--details",
-            "--no-cache",
-            "--geoid",
-            "--easy-apply",
-        ],
-        [
-            "linkedin",
-            "-q",
-            "",
-            "--geoid",
-            "12345",
-            "--radius",
-            "40",
-            "--company",
-            "1173",
-            "--company",
-            "2220078",
             "--early-applicant",
+            "--max-age-hours",
+            "24",
         ],
     ):
         monkeypatch.setattr(sys, "argv", ["jobrake", *argv])
         cli.main()
 
-    # Each provider forwards the options its own subparser offers. The rest are
-    # left to scrape's own defaults.
+    # Each site receives the options given on its command line, and its search
+    # supplies the rest.
     assert calls == [
+        ("indeed", {"query": "x", "country": "usa", "location": "Seattle", "radius": 0}),
         (
             "indeed",
             {
                 "query": "x",
-                "location": "Seattle",
                 "country": "usa",
+                "location": "Seattle",
                 "radius": 0,
                 "results": 3,
                 "max_age_hours": 48,
-                "employer_key": "fe219df7f711aa73",
-                "remote": True,
-                "language": "EN",
-                "attributes": ["3CQB7", "6QC5F"],
             },
+        ),
+        ("indeed", {"query": "x", "country": "usa", "company_ids": ["fe21"], "remote": True}),
+        (
+            "indeed",
+            {"query": "x", "country": "usa", "language": "EN", "attributes": ["3CQB7", "6QC5F"]},
         ),
         (
             "linkedin",
             {
                 "query": "x",
                 "location": "Seattle",
-                "radius": None,
-                "results": defaults.RESULTS,
-                "max_age_hours": defaults.MAX_AGE_HOURS,
                 "details": True,
-                "cache": False,
-                "geoid": True,
-                "company_ids": None,
                 "easy_apply": True,
-                "early_applicant": False,
             },
         ),
+        ("linkedin", {"query": "", "geoid": "12345", "company_ids": ["1173", "2220078"]}),
         (
             "linkedin",
-            {
-                "query": "",
-                "location": None,
-                "radius": 40,
-                "results": defaults.RESULTS,
-                "max_age_hours": defaults.MAX_AGE_HOURS,
-                "details": defaults.DETAILS,
-                "cache": defaults.CACHE,
-                "geoid": "12345",
-                "company_ids": ["1173", "2220078"],
-                "easy_apply": False,
-                "early_applicant": True,
-            },
+            {"query": "x", "location": "Seattle", "early_applicant": True, "max_age_hours": 24},
         ),
     ]
 
 
-def test_invalid_provider_arguments_fail_before_scraping(monkeypatch):
+def test_invalid_site_arguments_fail_before_scraping(monkeypatch):
     async def must_not_run(*args, **kwargs):
         raise AssertionError("scrape ran with invalid CLI arguments")
 
     monkeypatch.setattr(cli, "scrape", must_not_run)
     for argv in (
-        ["indeed", "-q", "x"],
-        ["indeed", "-q", "x", "-c", "usa", "--easy-apply"],
-        ["indeed", "-q", "x", "-c", "usa", "--early-applicant"],
-        ["companies", "indeed", "ABN AMRO"],
-        ["attributes", "indeed", "data scientist"],
-        ["attributes", "linkedin", "data scientist"],
-        ["linkedin", "-q", "x", "-l", "Seattle", "--attribute", "3CQB7"],
-        ["linkedin", "-q", "x", "-l", "Seattle", "--detail"],
-        ["linkedin", "-q", "x", "-l", "Seattle", "--remote"],
-        ["linkedin", "-q", "x", "-l", "Seattle", "--language", "en"],
+        ["indeed", "search", "-q", "x"],
+        ["indeed", "search", "-q", "x", "-c", "usa", "--easy-apply"],
+        ["indeed", "companies", "ABN AMRO"],
+        ["linkedin", "attributes", "data scientist"],
+        ["linkedin", "search", "-q", "x", "-l", "Seattle", "--attributes", "3CQB7"],
+        ["linkedin", "search", "-q", "x", "-l", "Seattle", "--detail"],
+        ["linkedin", "search", "-q", "x", "-l", "Seattle", "--country", "usa"],
     ):
         monkeypatch.setattr(sys, "argv", ["jobrake", *argv])
         with pytest.raises(SystemExit):
@@ -286,8 +289,8 @@ def test_invalid_provider_arguments_fail_before_scraping(monkeypatch):
 @pytest.mark.parametrize(
     ("argv", "message"),
     [
-        (["linkedin", "--geoid"], "location is required unless geoid is an ID"),
-        (["indeed", "-c", "atlantis"], "unknown Indeed country 'atlantis'"),
+        (["linkedin", "search"], "location is required without a geoid"),
+        (["indeed", "search", "-c", "atlantis"], "unknown Indeed country 'atlantis'"),
     ],
 )
 def test_a_search_the_library_rejects_is_a_cli_error_before_any_request(
@@ -295,7 +298,7 @@ def test_a_search_the_library_rejects_is_a_cli_error_before_any_request(
 ):
     fetcher = StubFetcher({})
     monkeypatch.setattr(sites, "HttpxFetcher", lambda: fetcher)
-    monkeypatch.setattr(sys, "argv", ["jobrake", *argv, "-q", ""])
+    monkeypatch.setattr(sys, "argv", ["jobrake", *argv])
     with pytest.raises(SystemExit) as error:
         cli.main()
     assert error.value.code == 2
@@ -306,6 +309,16 @@ def test_a_search_the_library_rejects_is_a_cli_error_before_any_request(
 def test_default_output_is_json_on_stdout(run_cli, capsys):
     run_cli()
     assert json.loads(capsys.readouterr().out) == JOBS
+
+
+def test_a_stopped_search_writes_what_it_collected_and_fails(run_cli, monkeypatch, capsys, caplog):
+    async def stopped(*args, **kwargs):
+        raise Stopped("indeed search stopped: HTTP 429", partial=JOBS[:1])
+
+    monkeypatch.setattr(cli, "scrape", stopped)
+    assert run_cli() == 1
+    assert json.loads(capsys.readouterr().out) == JOBS[:1]
+    assert "indeed search stopped: HTTP 429" in caplog.text
 
 
 def test_format_selects_stdout_and_overrides_output_extension(run_cli, capsys, tmp_path):
@@ -324,7 +337,7 @@ def test_output_csv_roundtrips_hostile_fields(run_cli, tmp_path, capsys):
     assert rows[0].keys() == set(JOB_FIELDS)
     # Unavailable summaries and absent details read back as empty cells.
     expected = [
-        {name: "" if job.get(name) is None else str(job[name]) for name in JOB_FIELDS}
+        {name: "" if (value := job.get(name)) is None else str(value) for name in JOB_FIELDS}
         for job in JOBS
     ]
     assert rows == expected
@@ -332,7 +345,7 @@ def test_output_csv_roundtrips_hostile_fields(run_cli, tmp_path, capsys):
 
 
 def test_output_jsonl_one_object_per_line(run_cli, tmp_path):
-    out = tmp_path / "jobs.jsonl"
+    out = tmp_path / "jobs.JSONL"  # the extension picks the format whatever its case
     run_cli("-o", str(out))
     lines = out.read_text(encoding="utf-8").splitlines()
     # A leaked raw newline in a description would break the per-line parse.
@@ -355,18 +368,14 @@ def test_no_jobs_does_not_create_output(run_cli, monkeypatch, tmp_path):
     assert not out.exists()
 
 
-def test_closed_pipe_ends_quietly(run_cli, monkeypatch):
+def test_closed_pipe_ends_quietly(run_cli, fake_site, monkeypatch):
     read_end, write_end = os.pipe()
     os.close(read_end)
     with os.fdopen(write_end, "w") as stdout:
         monkeypatch.setattr(sys, "stdout", stdout)
         assert run_cli() == 1
 
-    async def fake_places(fetcher, name):
-        return [{"geoId": "1", "displayName": "A"}]
-
-    monkeypatch.setattr(cli.linkedin, "places", fake_places)
-    monkeypatch.setattr(sys, "argv", ["jobrake", "places", "linkedin", "a"])
+    monkeypatch.setattr(sys, "argv", ["jobrake", "fakesite", "places", "a"])
     read_end, write_end = os.pipe()
     os.close(read_end)
     with os.fdopen(write_end, "w") as stdout:

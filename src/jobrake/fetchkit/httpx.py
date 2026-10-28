@@ -1,89 +1,82 @@
 """httpx-backed fetcher."""
 
+import logging
 import math
-from collections.abc import Awaitable
-from typing import Any
+from typing import Any, Self
 
-import httpx
+lazy import httpx
 
-from .base import DEFAULT_ACCEPT, DEFAULT_USER_AGENT, HTTP_TIMEOUT, BaseFetcher
-from .types import FetchResult, build_result
+from .types import FetchResult
 
-DEFAULT_HEADERS = {
-    "Accept": DEFAULT_ACCEPT,
-    "User-Agent": DEFAULT_USER_AGENT,
+logger = logging.getLogger(__name__)
+
+_HEADERS = {
+    "Accept": "text/html,application/json,*/*",
+    "User-Agent": (
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+    ),
 }
 
 
-class HttpxFetcher(BaseFetcher):
-    """A pooled httpx transport for GET and JSON POST requests."""
-
-    # Timeouts, sockets, framing, and proxies are operational network failures.
-    # UnsupportedProtocol identifies a malformed caller URL and stays UNKNOWN.
-    network_errors = (
-        httpx.TimeoutException,
-        httpx.NetworkError,
-        httpx.ProtocolError,
-        httpx.ProxyError,
-    )
+class HttpxFetcher:
+    """A pooled httpx transport that follows redirects and returns every httpx exception as ``FetchResult.error``."""
 
     def __init__(
         self,
-        timeout: float = HTTP_TIMEOUT,
+        timeout: float = 30.0,
         *,
         headers: dict[str, str] | None = None,
-        follow_redirects: bool = True,
-        cookies: dict[str, str] | None = None,
-        jitter: float = 0.1,
         transport: httpx.AsyncBaseTransport | None = None,
     ) -> None:
         """
-        Configure the pooled client and GET pacing.
+        Configure the pooled client.
 
-        ``timeout`` applies to each network operation. Headers override the
-        browser-like defaults, and cookies seed the client session. Responses
-        report the final URL when redirects are enabled. ``jitter`` delays GET
-        requests only. Both time values are in seconds. ``transport`` replaces
-        the network, as ``httpx.MockTransport`` does in tests.
+        ``timeout`` applies to each network operation, in seconds. Headers
+        override the browser-like defaults. ``transport`` replaces the
+        network, as ``httpx.MockTransport`` does in tests.
 
         Raises:
-            ValueError: ``timeout`` or ``jitter`` is outside its valid range.
+            ValueError: ``timeout`` is not finite and positive.
         """
         timeout = float(timeout)
         if not math.isfinite(timeout) or timeout <= 0:
             raise ValueError("timeout must be finite and positive")
-        super().__init__(jitter)
-        self.timeout = timeout
-        self.follow_redirects = follow_redirects
         self._client = httpx.AsyncClient(
             timeout=timeout,
-            headers=DEFAULT_HEADERS | (headers or {}),
-            follow_redirects=follow_redirects,
-            cookies=cookies,
+            headers=_HEADERS | (headers or {}),
+            follow_redirects=True,
             transport=transport,
         )
 
-    async def _fetch(self, url: str, headers: dict[str, str] | None) -> FetchResult:
-        response = await self._client.get(url, headers=headers)
-        return build_result(
-            str(response.url), response.status_code, response.text, response.headers
-        )
-
-    async def post(
-        self, url: str, json_body: dict[str, Any], headers: dict[str, str] | None = None
+    async def fetch(
+        self,
+        url: str,
+        *,
+        headers: dict[str, str] | None = None,
+        json: dict[str, Any] | None = None,
     ) -> FetchResult:
-        """Send JSON without GET jitter and capture request exceptions."""
-        operation = self._client.post(url, json=json_body, headers=headers)
-        return await self._capture_result(url, self._response(operation))
-
-    async def _response(self, operation: Awaitable[httpx.Response]) -> FetchResult:
-        response = await operation
-        return build_result(
-            str(response.url), response.status_code, response.text, response.headers
+        """GET ``url``, or POST ``json`` to it when given. Cancellation propagates."""
+        try:
+            if json is None:
+                response = await self._client.get(url, headers=headers)
+            else:
+                response = await self._client.post(url, json=json, headers=headers)
+        except Exception as error:  # noqa: BLE001  the Fetcher contract reports failures in the result
+            logger.debug("fetch error for %s: %r", url, error)
+            return FetchResult(url, error=f"{type(error).__name__}: {error}")
+        return FetchResult(
+            str(response.url), response.status_code, response.text, dict(response.headers)
         )
 
     async def close(self) -> None:
         await self._client.aclose()
+
+    async def __aenter__(self) -> Self:
+        return self
+
+    async def __aexit__(self, *_: object) -> None:
+        await self.close()
 
 
 __all__ = ["HttpxFetcher"]

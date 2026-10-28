@@ -1,6 +1,7 @@
-"""Transport result, exception, and HTTP adapter contracts."""
+"""Transport result and HTTP adapter contracts."""
 
 import asyncio
+import json
 import math
 
 import httpx
@@ -8,99 +9,56 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from jobrake.fetchkit import BaseFetcher, ErrorCategory, HttpxFetcher, build_result
+from jobrake.fetchkit import FetchResult, HttpxFetcher
 
 
-@pytest.mark.parametrize(
-    ("status", "category"),
-    [
-        (400, ErrorCategory.CLIENT),
-        (429, ErrorCategory.RATE_LIMITED),
-        (500, ErrorCategory.SERVER),
-    ],
-)
-def test_build_result_classifies_http_errors(status, category):
-    result = build_result("https://example.test", status, "body", {"Retry-After": "3"})
+def run_with(respond, url, **kwargs):
+    async def run():
+        async with HttpxFetcher(
+            headers={"x-test": "yes"}, transport=httpx.MockTransport(respond)
+        ) as fetcher:
+            return await fetcher.fetch(url, **kwargs)
 
-    assert result.error is not None
-    assert result.text == "body"
+    return asyncio.run(run())
+
+
+def test_an_http_error_status_fails_the_result_and_keeps_the_body():
+    result = FetchResult("https://example.test", 429, "body", {"Retry-After": "3"})
+    assert (result.ok, result.error, result.text) == (False, "HTTP 429", "body")
     assert result.headers == {"retry-after": "3"}
-    assert result.error.category is category
-    assert result.error.http_status == status
+    assert FetchResult("https://example.test", 200, "body").ok
 
 
-def test_base_fetcher_maps_transport_exceptions():
-    class BrokenFetcher(BaseFetcher):
-        network_errors = (OSError,)
+def test_httpx_fetcher_gets_and_posts_json():
+    def respond(request):
+        assert request.headers["x-test"] == "yes"
+        if request.method == "GET":
+            return httpx.Response(200, text="got")
+        return httpx.Response(503, text=json.loads(request.content)["q"])
 
-        async def _fetch(self, url, headers):
-            raise OSError("offline")
-
-    result = asyncio.run(BrokenFetcher().fetch("https://example.test"))
-
-    assert result.error is not None
-    assert result.error.category is ErrorCategory.NETWORK
-    assert isinstance(result.error.original_error, OSError)
+    get = run_with(respond, "https://example.test/get")
+    post = run_with(respond, "https://example.test/post", json={"q": "posted"})
+    assert (get.ok, get.status, get.text) == (True, 200, "got")
+    assert (post.ok, post.status, post.text) == (False, 503, "posted")
 
 
-def test_base_fetcher_lets_cancellation_propagate():
-    class Canceled(BaseFetcher):
-        async def _fetch(self, url, headers):
-            raise asyncio.CancelledError
+def test_httpx_fetcher_returns_a_transport_exception_as_the_error():
+    def explode(request):
+        raise httpx.ConnectError("offline")
+
+    result = run_with(explode, "https://example.test")
+    assert (result.status, result.error) == (None, "ConnectError: offline")
+
+
+def test_httpx_fetcher_lets_cancellation_propagate():
+    def cancel(request):
+        raise asyncio.CancelledError
 
     with pytest.raises(asyncio.CancelledError):
-        asyncio.run(Canceled().fetch("https://example.test"))
-
-
-def test_httpx_fetcher_maps_get_and_post_responses():
-    async def run():
-        def respond(request):
-            assert request.headers["x-test"] == "yes"
-            return httpx.Response(200 if request.method == "GET" else 503, text=request.method)
-
-        fetcher = HttpxFetcher(
-            headers={"x-test": "yes"}, jitter=0, transport=httpx.MockTransport(respond)
-        )
-        try:
-            get = await fetcher.fetch("https://example.test/get")
-            post = await fetcher.post("https://example.test/post", {})
-            return get, post
-        finally:
-            await fetcher.close()
-
-    get, post = asyncio.run(run())
-    assert get.ok and get.text == "GET"
-    assert post.error is not None
-    assert post.error.category is ErrorCategory.SERVER
-    assert post.text == "POST"
+        run_with(cancel, "https://example.test")
 
 
 @given(timeout=st.floats(max_value=0) | st.sampled_from([math.nan, math.inf]))
 def test_httpx_fetcher_rejects_a_timeout_not_positive_or_not_finite(timeout):
     with pytest.raises(ValueError, match="timeout must be finite"):
         HttpxFetcher(timeout=timeout)
-
-
-@pytest.mark.parametrize(
-    ("error", "category"),
-    [
-        (httpx.RemoteProtocolError("server disconnected"), ErrorCategory.NETWORK),
-        (httpx.ProxyError("407 from the proxy"), ErrorCategory.NETWORK),
-        (httpx.UnsupportedProtocol("missing http://"), ErrorCategory.UNKNOWN),
-    ],
-)
-def test_httpx_fetcher_classifies_transport_failures(error, category):
-    async def run():
-        def explode(request):
-            raise error
-
-        fetcher = HttpxFetcher(jitter=0, transport=httpx.MockTransport(explode))
-        try:
-            return await fetcher.fetch("https://example.test")
-        finally:
-            await fetcher.close()
-
-    result = asyncio.run(run())
-    assert result.error is not None
-    assert result.error.category is category
-    assert result.error.original_error is error

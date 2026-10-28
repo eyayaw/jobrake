@@ -5,15 +5,14 @@ import logging
 import math
 import re
 from gettext import ngettext
-from typing import Any
+from typing import Annotated, Any
 
-from jobrake import defaults
-from jobrake.fetchkit import PostFetcher
-from jobrake.models import JobDict, employment_type, make_job
-from jobrake.utils import check_bounds, check_filters, check_text, epoch_ms_to_iso, html_text
+from jobrake.fetchkit import Fetcher
+from jobrake.models import JobDict, Stopped, employment_type, make_job
+from jobrake.utils import checked, epoch_ms_to_iso, html_text
 
 from .client import API_HEADERS, API_URL
-from .countries import indeed_domain
+from .countries import Country, indeed_domain
 
 logger = logging.getLogger(__name__)
 
@@ -71,19 +70,22 @@ query GetJobData {{
 }}
 """
 
+# Indeed ends a cursor chain after this many results.
+MAX_RESULTS = 1000
+
 # Indeed mixes employment types into the attributes bag with skills and
 # benefits. These labels pick them out. The headers pin the en-US locale.
 EMPLOYMENT_TYPES = ("Full-time", "Part-time", "Contract", "Temporary", "Internship", "Per diem")
 
 
-def build_query(
+def _build_query(
     query: str,
     location: str | None,
-    radius: int | None,
+    radius: int,
     max_age_hours: int | None,
     cursor: str | None,
     *,
-    employer_key: str | None = None,
+    company_ids: list[str] | None = None,
     remote: bool = False,
     language: str | None = None,
     attributes: list[str] | None = None,
@@ -92,11 +94,10 @@ def build_query(
     filters = []
     if max_age_hours:
         filters.append(f'{{ date: {{ field: "dateOnIndeed", start: "{max_age_hours}h" }} }}')
-    if employer_key is not None:
+    if company_ids:
+        keys = [company.strip() for company in company_ids]
         filters.append(
-            '{ keyword: { field: "indeedEmployerKey", keys: ['
-            + json.dumps(employer_key.strip())
-            + "] } }"
+            '{ keyword: { field: "indeedEmployerKey", keys: ' + json.dumps(keys) + " } }"
         )
     attribute_keys = list(dict.fromkeys(code.strip() for code in attributes or []))
     if remote and "DSQF7" not in attribute_keys:
@@ -116,8 +117,7 @@ def build_query(
         what=f"what: {json.dumps(query)}" if query else "",
         location=(
             f"location: {{ where: {json.dumps(location)}, "
-            f"radius: {defaults.INDEED_RADIUS if radius is None else radius}, "
-            f"radiusUnit: {defaults.INDEED_RADIUS_UNIT} }}"
+            f"radius: {radius}, radiusUnit: KILOMETERS }}"
             if location
             else ""
         ),
@@ -182,10 +182,8 @@ def _finite_value(value: object) -> float | None:
 
 def _parse_job(job: dict[str, Any], base_url: str) -> JobDict:
     """Normalize one Indeed result into the shared job model."""
-    key = job["key"].strip() if isinstance(job["key"], str) else ""
-    # The provider key becomes both the job ID and the URL's ``jk`` parameter.
-    if not key:
-        raise TypeError(f"job key {job['key']!r} is blank or not a string")
+    # Indeed's job key becomes both the job ID and the URL's ``jk`` parameter.
+    key = (_string_value(job["key"]) or "").strip()
     loc = _dict_value(job.get("location"))
     city = _string_value(loc.get("city"))
     region = _string_value(loc.get("admin1Code"))
@@ -249,14 +247,14 @@ def _graphql_error_message(payload: object) -> str | None:
     return None
 
 
-def parse_jobs(data: dict[str, Any], base_url: str) -> tuple[list[JobDict], str | None, int]:
+def _parse_jobs(data: dict[str, Any], base_url: str) -> tuple[list[JobDict], str | None, int]:
     """
     Parse one GraphQL page while isolating malformed results.
 
     ``base_url`` supplies the origin for posting and company links.
 
     Returns:
-        Parsed jobs, a usable next cursor, and the provider's raw result count.
+        Parsed jobs, a usable next cursor, and the count of results Indeed sent.
         The raw count includes malformed results so pagination still advances.
 
     Raises:
@@ -265,6 +263,8 @@ def parse_jobs(data: dict[str, Any], base_url: str) -> tuple[list[JobDict], str 
     """
     search = data["data"]["jobSearch"]
     results = search["results"]
+    if not isinstance(results, list):
+        raise TypeError(f"results is a {type(results).__name__}, not a list")
     jobs = []
     for result in results:
         try:
@@ -279,70 +279,61 @@ def parse_jobs(data: dict[str, Any], base_url: str) -> tuple[list[JobDict], str 
     return jobs, cursor if isinstance(cursor, str) else None, len(results)
 
 
+def _check_filters(company_ids: list[str] | None, language: str | None) -> None:
+    # Indeed intersects the employer keys it receives, so a search takes one.
+    if len(company_ids or []) > 1:
+        raise ValueError(
+            "indeed takes one company ID per search. "
+            "Search each company on its own and combine the results"
+        )
+    if language is not None and re.fullmatch(r"[A-Za-z]{2}", language) is None:
+        raise ValueError(
+            f"language {language!r} must contain exactly two ASCII letters, such as 'en'"
+        )
+
+
+@checked
 async def search(
-    fetcher: PostFetcher,
+    fetcher: Fetcher,
     *,
-    query: str,
-    location: str | None = None,
-    country: str,
-    radius: int | None = defaults.INDEED_RADIUS,
-    results: int = defaults.RESULTS,
-    max_age_hours: int | None = defaults.MAX_AGE_HOURS,
-    details: bool = defaults.DETAILS,  # noqa: ARG001  shared signature; Indeed results carry their details
-    cache: bool = defaults.CACHE,  # noqa: ARG001  shared signature; Indeed is not cached
-    geoid: str | bool = defaults.GEOID,
-    company_ids: list[str] | None = None,
-    employer_key: str | None = None,
-    remote: bool = False,
-    language: str | None = None,
-    attributes: list[str] | None = None,
-    easy_apply: bool = False,
-    early_applicant: bool = False,
+    query: Annotated[str, "job title or keywords"] = "",
+    country: Country,
+    location: Annotated[str | None, "city or area within the country"] = None,
+    radius: Annotated[int, "search radius in kilometers"] = 40,
+    results: Annotated[int, "maximum number of postings"] = 10,
+    max_age_hours: Annotated[int | None, "maximum posting age in hours"] = None,
+    company_ids: Annotated[list[str] | None, "Indeed company ID, one per search"] = None,
+    remote: Annotated[bool, "only postings Indeed tags Remote"] = False,
+    language: Annotated[str | None, "two-letter posting language code, e.g., en"] = None,
+    attributes: Annotated[list[str] | None, "attribute codes a posting must all carry"] = None,
 ) -> list[JobDict]:
     """
     Search one Indeed country edition through its GraphQL API.
 
     ``country`` selects the edition, and ``location`` narrows it to a place within that edition.
-    ``radius`` is in kilometers, and ``None`` uses ``defaults.INDEED_RADIUS``.
-    ``employer_key`` keeps jobs at one employer, and ``attributes`` keeps postings carrying every listed code.
+    ``company_ids`` takes one employer key and keeps jobs at that employer, and ``attributes`` keeps postings carrying every listed code.
     Whitespace around the key and the codes is removed.
     ``remote=True`` adds Indeed's Remote attribute, ``"DSQF7"``, to those codes.
     ``language`` takes Indeed's two-letter code in either case, such as ``"en"``, including the legacy codes ``"iw"`` and ``"in"``.
     A filter stays out of the search at its default and as ``[]``. The filters that remain combine on every page.
     Age uses Indeed's ``dateOnIndeed`` field, which can differ from the publication timestamp returned as ``posted_at``.
-    ``details`` and ``cache`` are accepted and unused. ``geoid``, ``company_ids``, ``easy_apply``, and ``early_applicant`` belong to LinkedIn.
-    Indeed warns when one of them carries a value and leaves its type unexamined.
     The caller owns ``fetcher``.
 
     Each request asks for 100 jobs, newest first. The returned list keeps
-    that order and trims the final page to ``results``. Requests are
-    neither paced nor retried. A transport failure, provider error without
-    usable data, or unreadable response ends the search with a warning and the
-    jobs already collected. A malformed result costs only that result. An
-    invalid field costs only that field.
+    that order and trims the final page to ``results``, which Indeed caps at
+    ``MAX_RESULTS`` with a warning. Requests are neither paced nor retried. A
+    malformed result costs only that result. An invalid field costs only that
+    field.
 
     Raises:
-        TypeError: An argument Indeed applies has the wrong type.
-        ValueError: The country is missing or unknown, a numeric argument is out of range,
-            the employer key or an attribute code is blank, or ``language`` is not two ASCII letters.
+        Stopped: A request failed, or Indeed answered with an error or an
+            unreadable response. ``partial`` holds the jobs collected before it.
+        ValueError: The country is unknown, ``company_ids`` holds more than
+            one ID, a list holds a blank entry, or ``language`` is not two
+            ASCII letters.
     """
-    check_text(query=query, location=location, country=country)
-    if country is None:
-        # scrape() forwards its own default when the caller names no edition.
-        raise ValueError("country is required for Indeed. Try 'usa' or 'germany'")
     subdomain, api_code = indeed_domain(country)
-    check_bounds(results=results, radius=radius, max_age_hours=max_age_hours)
-    check_filters(
-        "indeed",
-        geoid=geoid,
-        company_ids=company_ids,
-        employer_key=employer_key,
-        remote=remote,
-        language=language,
-        attributes=attributes,
-        easy_apply=easy_apply,
-        early_applicant=early_applicant,
-    )
+    _check_filters(company_ids, language)
     base_url = f"https://{subdomain}.indeed.com"
     headers = {**API_HEADERS, "indeed-co": api_code}
     logger.info(
@@ -353,52 +344,46 @@ async def search(
     seen: set[str] = set()
     cursors: set[str] = set()
     cursor: str | None = None
+    served = 0  # results Indeed has sent, malformed ones included
     while len(jobs) < results:
-        graphql = build_query(
+        graphql = _build_query(
             query,
             location,
             radius,
             max_age_hours,
             cursor,
-            employer_key=employer_key,
+            company_ids=company_ids,
             remote=remote,
             language=language,
             attributes=attributes,
         )
-        result = await fetcher.post(API_URL, {"query": graphql}, headers=headers)
+        result = await fetcher.fetch(API_URL, headers=headers, json={"query": graphql})
+        kept = ngettext("%d job", "%d jobs", len(jobs)) % len(jobs)
         if result.error:
-            logger.warning(
-                "indeed search stopped: %s. Keeping the %s already collected",
-                result.error.message,
-                ngettext("%d job", "%d jobs", len(jobs)) % len(jobs),
+            raise Stopped(
+                f"indeed search stopped: {result.error}. Kept the {kept} collected", partial=jobs
             )
-            break
         payload = None
         try:
             payload = json.loads(result.text)
-            page, cursor, raw = parse_jobs(payload, base_url)
+            page, cursor, raw = _parse_jobs(payload, base_url)
         except (json.JSONDecodeError, KeyError, TypeError) as error:
             # A GraphQL error arrives as HTTP 200 with null data. Usable data
             # alongside errors parses above and is kept.
-            if message := _graphql_error_message(payload):
-                logger.warning(
-                    "indeed search stopped by provider error (%s); keeping the %s "
-                    "already collected",
-                    message,
-                    ngettext("%d job", "%d jobs", len(jobs)) % len(jobs),
-                )
-            else:
-                logger.warning(
-                    "indeed sent a response this version cannot read (%r), likely an "
-                    "API change; keeping the %s already collected",
-                    error,
-                    ngettext("%d job", "%d jobs", len(jobs)) % len(jobs),
-                )
-            break
+            message = _graphql_error_message(payload)
+            cause = (
+                f"Indeed reported {message!r}"
+                if message
+                else f"indeed sent a response this version cannot read ({error!r}), likely an API change"
+            )
+            raise Stopped(
+                f"indeed search stopped: {cause}. Kept the {kept} collected", partial=jobs
+            ) from error
         # A page without results ends the search. A page whose results all
         # failed to parse costs only those results; its cursor still advances.
         if not raw:
             break
+        served += raw
         for job in page:
             if job["id"] in seen:
                 continue
@@ -407,6 +392,14 @@ async def search(
         if not cursor or cursor in cursors:
             break
         cursors.add(cursor)
+    if len(jobs) < results and served >= MAX_RESULTS:
+        logger.warning(
+            "indeed serves at most %d results per search; returning %d of the %d jobs "
+            "requested. Narrow the search to reach more of its inventory",
+            MAX_RESULTS,
+            len(jobs),
+            results,
+        )
     jobs = jobs[:results]
     logger.info(
         "indeed search finished with %s", ngettext("%d job", "%d jobs", len(jobs)) % len(jobs)
