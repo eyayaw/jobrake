@@ -140,7 +140,9 @@ def test_indeed_parses_and_paginates():
     assert [j["title"] for j in jobs] == ["Job a", "Job b", "Job c"]
     assert jobs[0]["id"] == "a"
     assert jobs[0]["url"] == "https://www.indeed.com/viewjob?jk=a"
-    assert jobs[0]["location"] == "NYC, NY, US"
+    assert jobs[0]["locations"] == [
+        {"name": "NYC, NY, US", "city": "NYC", "region": "NY", "country_code": "US"}
+    ]
     assert jobs[0]["description"] == "Economist & analyst"
     assert jobs[0]["date"] == "2024-06-01"
     assert "language" not in jobs[0]
@@ -400,8 +402,16 @@ def test_indeed_maps_detail_onto_the_model(language):
     assert job["is_remote"] is True
     assert (job["salary_min"], job["salary_max"]) == (38.2, 77.4)
     assert (job["salary_currency"], job["salary_period"]) == ("USD", "HOUR")
-    assert (job["city"], job["region"], job["country_code"]) == ("Boston", "MA", "US")
-    assert (job["latitude"], job["longitude"]) == (42.36, -71.06)
+    assert job["locations"] == [
+        {
+            "name": "Boston, MA, US",
+            "city": "Boston",
+            "region": "MA",
+            "country_code": "US",
+            "latitude": 42.36,
+            "longitude": -71.06,
+        }
+    ]
 
 
 @pytest.mark.parametrize("language", [None, "", "   "])
@@ -464,7 +474,7 @@ def test_indeed_omits_invalid_detail_values():
         )
     )
     assert (job["id"], job["url"]) == ("a", "https://www.indeed.com/viewjob?jk=a")
-    assert (job["title"], job["company"], job["location"]) == (None, None, None)
+    assert (job["title"], job["company"], job["locations"]) == (None, None, [])
     # a numeric string, nan, and an integer beyond float range each cost
     # only their field
     assert set(job) == {*IDENTITY_FIELDS, *SUMMARY_FIELDS, "posted_at", "expires_at"}

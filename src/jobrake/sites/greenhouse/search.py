@@ -36,7 +36,7 @@ def _parse_posting(posting: dict[str, Any]) -> JobDict:
         url=posting.get("absolute_url"),
         title=posting.get("title"),
         company=posting.get("company_name"),
-        location=as_dict(posting.get("location")).get("name"),
+        locations=[{"name": as_dict(posting.get("location")).get("name")}],
         description=html_text(content),
         language=as_str(posting.get("language")),
         posted_at=as_str(posting.get("first_published")),

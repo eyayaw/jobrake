@@ -9,7 +9,7 @@ from urllib.parse import quote
 from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, employment_type, make_job
 from jobrake.sites.responses import json_list, parse_postings, read_json
-from jobrake.utils import as_dict, as_str, checked, epoch_ms_to_iso, finite, html_text, join_places
+from jobrake.utils import as_dict, as_str, checked, epoch_ms_to_iso, finite, html_text
 
 logger = logging.getLogger(__name__)
 
@@ -51,20 +51,26 @@ def _parse_posting(posting: dict[str, Any]) -> JobDict:
         AttributeError: The posting is not an object.
     """
     categories = as_dict(posting.get("categories"))
-    # allLocations repeats the primary location, which join_places() names once.
-    places = categories.get("allLocations")
+    primary = categories.get("location")
+    others = categories.get("allLocations")
     return make_job(
         site="lever",
         id=posting.get("id"),
         url=posting.get("hostedUrl"),
         title=posting.get("text"),
-        location=join_places(
-            [categories.get("location"), *(places if isinstance(places, list) else [])]
-        ),
+        locations=[
+            # The posting's country is the primary location's.
+            {"name": primary, "country_code": posting.get("country")},
+            # Lever documents that allLocations repeats the primary location.
+            *(
+                {"name": name}
+                for name in (others if isinstance(others, list) else [])
+                if name != primary
+            ),
+        ],
         description=_description(posting),
         employment_type=employment_type(as_str(categories.get("commitment"))),
         is_remote=True if posting.get("workplaceType") == "remote" else None,
-        country_code=as_str(posting.get("country")),
         posted_at=_posted_at(posting),
         apply_url=as_str(posting.get("applyUrl")),
     )

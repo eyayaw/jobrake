@@ -6,15 +6,20 @@ from typing import Annotated, Any
 from urllib.parse import quote
 
 from jobrake.fetchkit import Fetcher
-from jobrake.models import JobDict, employment_type, make_job
+from jobrake.models import JobDict, employment_type, make_job, make_places
 from jobrake.sites.responses import json_list, parse_postings, read_json
-from jobrake.utils import as_dict, as_str, checked, html_text, join_places
+from jobrake.utils import as_dict, as_str, checked, html_text
 
 logger = logging.getLogger(__name__)
 
 # Workable documents www.workable.com/api/accounts/<board>, which answers with
 # a 302 to this URL. Requesting it directly costs one request on any fetcher.
 API_URL = "https://apply.workable.com/api/v1/widget/accounts"
+
+
+def _texts(source: dict[str, Any], keys: tuple[str, ...]) -> tuple[str, ...]:
+    """Return the stripped text under each key, using an empty string where a key holds none."""
+    return tuple((as_str(source.get(key)) or "").strip() for key in keys)
 
 
 def _parse_posting(posting: dict[str, Any], company: str | None) -> JobDict:
@@ -26,8 +31,27 @@ def _parse_posting(posting: dict[str, Any], company: str | None) -> JobDict:
         AttributeError: The posting is not an object.
     """
     places = posting.get("locations")
-    place = as_dict(places[0] if isinstance(places, list) and places else None)
-    parts = (as_str(posting.get(key)) for key in ("city", "state", "country"))
+    listed = [as_dict(place) for place in (places if isinstance(places, list) else [])]
+    # Each place is named with Workable's own text, whose country is a name
+    # such as France, so a country without its code keeps the place.
+    locations = make_places(
+        [
+            {
+                "name": ", ".join(filter(None, _texts(place, ("city", "region", "country")))),
+                "city": place.get("city"),
+                "region": place.get("region"),
+                "country_code": place.get("countryCode"),
+            }
+            for place in listed
+        ]
+    )
+    top = _texts(posting, ("city", "state", "country"))
+    # On the board we measured, the top-level fields repeated the first place
+    # and added none.
+    if all(_texts(place, ("city", "region", "country")) != top for place in listed):
+        city, state, _ = top
+        name = ", ".join(filter(None, top))
+        locations = [*locations, {"name": name, "city": city, "region": state}]
     education = as_str(posting.get("education"))
     return make_job(
         site="workable",
@@ -37,13 +61,10 @@ def _parse_posting(posting: dict[str, Any], company: str | None) -> JobDict:
         url=posting.get("url"),
         title=posting.get("title"),
         company=company,
-        location=", ".join(part.strip() for part in parts if part and part.strip()),
+        locations=locations,
         description=html_text(as_str(posting.get("description")) or ""),
         employment_type=employment_type(as_str(posting.get("employment_type"))),
         is_remote=True if posting.get("telecommuting") is True else None,
-        city=as_str(place.get("city")),
-        region=as_str(place.get("region")),
-        country_code=as_str(place.get("countryCode")),
         posted_at=as_str(posting.get("published_on")),
         apply_url=as_str(posting.get("application_url")),
         # Workable's education menu offers "Unspecified" for no requirement.
@@ -57,7 +78,8 @@ def _one_per_shortcode(jobs: list[JobDict]) -> list[JobDict]:
     for job in jobs:
         kept = first.setdefault(job["id"], job)
         if job is not kept:
-            kept["location"] = join_places([*(kept["location"] or "").split("; "), job["location"]])
+            # make_places drops a place equal to one the posting already has.
+            kept["locations"] = make_places(kept["locations"] + job["locations"])
     return list(first.values())
 
 
@@ -73,7 +95,7 @@ async def search(
     ``board`` is the token that follows the host in the careers page address,
     as in ``apply.workable.com/huggingface``. One request returns the whole
     board, descriptions included, in Workable's order. A posting open in several
-    places comes back once, with each place in ``location``. It is neither paced
+    places comes back once, with each place in ``locations``. It is neither paced
     nor retried. A malformed posting costs only that posting. The caller owns
     ``fetcher``.
 

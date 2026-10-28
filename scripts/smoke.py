@@ -13,7 +13,7 @@ PLACES: dict[str, dict[str, Any]] = {
 
 
 def column(value: str | None, width: int) -> str:
-    # Title, company, and location are nullable summary fields.
+    # Title and company are nullable summary fields, and a posting can name no place.
     return f"{(value or '?')[:width]:<{width + 1}}"
 
 
@@ -26,7 +26,7 @@ async def main() -> None:
             for job in jobs[:3]:
                 print(
                     f"  [{job['date'] or '????-??-??'}] {column(job['title'], 44)} "
-                    f"{column(job['company'], 20)} {column(job['location'], 24)} "
+                    f"{column(job['company'], 20)} {column('; '.join(place['name'] for place in job['locations']), 24)} "
                     f"desc={len(job.get('description', ''))}ch"
                 )
         except Exception as e:  # noqa: BLE001  a smoke run reports each site's failure and goes on

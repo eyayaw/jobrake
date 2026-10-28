@@ -91,7 +91,7 @@ def test_a_board_parses_into_records():
             "url": "https://jobs.lever.co/palantir/6ed76ce8-4156-4b60-b120-403538bd66cd",
             "title": "Administrative Business Partner",
             "company": None,
-            "location": "Singapore, Singapore",
+            "locations": [{"name": "Singapore, Singapore", "country_code": "SG"}],
             "date": "2026-08-11",
             "description": "A World-Changing Company\n"
             "Palantir builds the world’s leading "  # noqa: RUF001  the posting's own apostrophe
@@ -102,7 +102,6 @@ def test_a_board_parses_into_records():
             "in applicants who have a current right to work in Singapore, and we encourage "
             "Singapore citizens to apply.",
             "employment_type": "full_time",
-            "country_code": "SG",
             "posted_at": "2026-08-11T17:38:11.368000+00:00",
             "apply_url": "https://jobs.lever.co/palantir/6ed76ce8-4156-4b60-b120-403538bd66cd/apply",
         },
@@ -112,14 +111,16 @@ def test_a_board_parses_into_records():
             "url": "https://jobs.lever.co/palantir/a237973c-cb29-41fe-9c80-416e6f42e087",
             "title": "Administrative Business Partner - ShipOS",
             "company": None,
-            "location": "Washington, D.C.; New York, NY",
+            "locations": [
+                {"name": "Washington, D.C.", "country_code": "US"},
+                {"name": "New York, NY"},
+            ],
             "date": "2026-06-18",
             "description": "A World-Changing Company\nWhat We Value\nYou move fast and close "
             "loops — you don't let things fall through the cracks.\nSalary\nThe estimated "
             "salary range for this position is estimated to be $60,000 - $97,000/year.",
             "employment_type": "full_time",
             "is_remote": True,
-            "country_code": "US",
             "posted_at": "2026-06-18T08:34:20.468000+00:00",
             "apply_url": "https://jobs.lever.co/palantir/a237973c-cb29-41fe-9c80-416e6f42e087/apply",
         },

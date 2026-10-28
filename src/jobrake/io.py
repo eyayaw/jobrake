@@ -8,12 +8,14 @@ from .models import JOB_FIELDS, JobDict
 
 
 def _csv(jobs: list[JobDict]) -> str:
-    """Serialize jobs with a header and one column per model field, in model order."""
+    """Serialize jobs with a header and one column per model field, in model order, with places by name."""
     buf = io.StringIO()
     # A missing detail field leaves its cell empty.
     writer = csv.DictWriter(buf, fieldnames=JOB_FIELDS, restval="", lineterminator="\n")
     writer.writeheader()
-    writer.writerows(jobs)
+    writer.writerows(
+        {**job, "locations": "; ".join(place["name"] for place in job["locations"])} for job in jobs
+    )
     return buf.getvalue()
 
 

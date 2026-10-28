@@ -72,15 +72,19 @@ def test_a_board_parses_into_records():
             "url": "https://jobs.smartrecruiters.com/BoschGroup/744000158197889",
             "title": "Product Industrialization Expert_PS_RBCW",
             "company": "Bosch Group",
-            "location": "Wuxi, Jiangsu, China",
+            "locations": [
+                {
+                    "name": "Wuxi, Jiangsu, China",
+                    "city": "Wuxi",
+                    "region": "Jiangsu",
+                    "country_code": "CN",
+                    "latitude": 31.4912,
+                    "longitude": 120.3119,
+                }
+            ],
             "date": "2026-10-28",
             "language": "en",
             "employment_type": "full_time",
-            "city": "Wuxi",
-            "region": "Jiangsu",
-            "country_code": "CN",
-            "latitude": 31.4912,
-            "longitude": 120.3119,
             "posted_at": "2026-10-28T02:14:12.200Z",
         },
         {
@@ -89,14 +93,18 @@ def test_a_board_parses_into_records():
             "url": "https://jobs.smartrecruiters.com/BoschGroup/744000158108729",
             "title": "Roadside Assistance Territory Manager, Southwest region",
             "company": "Bosch Group",
-            "location": "Itasca, IL, United States",
+            "locations": [
+                {
+                    "name": "Itasca, IL, United States",
+                    "city": "Itasca",
+                    "region": "IL",
+                    "country_code": "US",
+                }
+            ],
             "date": "2026-10-27",
             "language": "en",
             "employment_type": "full_time",
             "is_remote": True,
-            "city": "Itasca",
-            "region": "IL",
-            "country_code": "US",
             "posted_at": "2026-10-27T17:07:18.526Z",
         },
     ]
@@ -105,7 +113,14 @@ def test_a_board_parses_into_records():
     location = {"city": "San Francisco", "region": "CA", "country": "us"}
     fetcher = StubFetcher({"BoschGroup/postings": page([{**CARDS[0], "location": location}], 1)})
     (job,) = asyncio.run(smartrecruiters.search(fetcher, board="BoschGroup"))
-    assert job["location"] == "San Francisco, CA, US"
+    assert job["locations"] == [
+        {
+            "name": "San Francisco, CA, US",
+            "city": "San Francisco",
+            "region": "CA",
+            "country_code": "US",
+        }
+    ]
 
 
 def test_the_options_become_query_parameters():

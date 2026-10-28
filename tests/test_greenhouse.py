@@ -57,7 +57,7 @@ def test_a_board_parses_into_records():
             "url": "https://careers.airbnb.com/positions/8285171?gh_jid=8285171",
             "title": "Strategic Finance & Analytics Intern (MBA)",
             "company": "Airbnb",
-            "location": "United States",
+            "locations": [{"name": "United States"}],
             "date": "2026-10-15",
             "description": "The Community You Will Join:\nAirbnb is seeking MBA students to "
             "join the Finance organization as Strategic Finance & Analytics Interns for our "
@@ -72,7 +72,7 @@ def test_a_board_parses_into_records():
             "url": "https://careers.airbnb.com/positions/8264827?gh_jid=8264827",
             "title": "Gestionnaire, Excellence de la prestation de services",
             "company": "Airbnb",
-            "location": "Ontario, Canada, Quebec, Canada",
+            "locations": [{"name": "Ontario, Canada, Quebec, Canada"}],
             "date": "2026-10-14",
             "description": "La différence que vous ferez :",
             "language": "fr",

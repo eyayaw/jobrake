@@ -166,9 +166,6 @@ def _parse_job(job: dict[str, Any], base_url: str) -> JobDict:
     # Indeed's job key becomes both the job ID and the URL's ``jk`` parameter.
     key = (as_str(job["key"]) or "").strip()
     loc = as_dict(job.get("location"))
-    city = as_str(loc.get("city"))
-    region = as_str(loc.get("admin1Code"))
-    country_code = as_str(loc.get("countryCode"))
     employer = as_dict(job.get("employer"))
     compensation = as_dict(job.get("compensation"))
     salary = as_dict(compensation.get("baseSalary"))
@@ -192,7 +189,15 @@ def _parse_job(job: dict[str, Any], base_url: str) -> JobDict:
         title=as_str(job.get("title")),
         language=as_str(job.get("language")),
         company=as_str(employer.get("name")),
-        location=", ".join(part for part in (city, region, country_code) if part) or None,
+        locations=[
+            {
+                "city": loc.get("city"),
+                "region": loc.get("admin1Code"),
+                "country_code": loc.get("countryCode"),
+                "latitude": loc.get("latitude"),
+                "longitude": loc.get("longitude"),
+            }
+        ],
         description=_scrub_css(
             html_text(as_str(as_dict(job.get("description")).get("html")) or "")
         ),
@@ -210,11 +215,6 @@ def _parse_job(job: dict[str, Any], base_url: str) -> JobDict:
         salary_max=finite(amount.get("max", exactly)),
         salary_currency=as_str(compensation.get("currencyCode")),
         salary_period=as_str(salary.get("unitOfWork")),
-        city=city,
-        region=region,
-        country_code=country_code,
-        latitude=finite(loc.get("latitude")),
-        longitude=finite(loc.get("longitude")),
         apply_url=as_str(as_dict(job.get("recruit")).get("viewJobUrl")),
     )
 

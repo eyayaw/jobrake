@@ -10,7 +10,7 @@ from jobrake.sites import ashby
 # Two postings from api.ashbyhq.com/posting-api/job-board/ramp?includeCompensation=true,
 # fetched 2026-10-28, trimmed to the fields jobrake reads plus isListed and isRemote,
 # with each description cut to its role heading and a sentence or two, with
-# compensation cut to its summaryComponents, and with each secondary location cut to its name.
+# compensation cut to its summaryComponents.
 POSTINGS = [
     {
         "id": "c63ba7d7-5290-4d9b-b002-40b2873b66f6",
@@ -18,9 +18,30 @@ POSTINGS = [
         "employmentType": "FullTime",
         "location": "Remote (US)",
         "secondaryLocations": [
-            {"location": "Remote (Canada)"},
-            {"location": "San Francisco, CA"},
-            {"location": "New York, NY (HQ)"},
+            {
+                "location": "Remote (Canada)",
+                "address": {"postalAddress": {"addressCountry": "Canada"}},
+            },
+            {
+                "location": "San Francisco, CA",
+                "address": {
+                    "postalAddress": {
+                        "addressRegion": "California ",
+                        "addressCountry": "USA",
+                        "addressLocality": "San Fransisco",
+                    }
+                },
+            },
+            {
+                "location": "New York, NY (HQ)",
+                "address": {
+                    "postalAddress": {
+                        "addressRegion": "NY",
+                        "addressCountry": "USA",
+                        "addressLocality": "New York City",
+                    }
+                },
+            },
         ],
         "publishedAt": "2026-09-02T17:17:20.841+00:00",
         "isListed": True,
@@ -104,7 +125,13 @@ def test_a_board_parses_into_records():
             "url": "https://jobs.ashbyhq.com/ramp/c63ba7d7-5290-4d9b-b002-40b2873b66f6",
             "title": "Partner Consultant, Accounting",
             "company": None,
-            "location": "Remote (US); Remote (Canada); San Francisco, CA; New York, NY (HQ)",
+            "locations": [
+                {"name": "Remote (US)"},
+                {"name": "Remote (Canada)"},
+                # Each secondary place keeps its own address, as Ashby spells it.
+                {"name": "San Francisco, CA", "city": "San Fransisco", "region": "California"},
+                {"name": "New York, NY (HQ)", "city": "New York City", "region": "NY"},
+            ],
             "date": "2026-09-02",
             "description": "About the Role\nThe Solutions Team are technical experts that work "
             "directly with customers and partners to provide world-class product, sales, "
@@ -124,7 +151,7 @@ def test_a_board_parses_into_records():
             "url": "https://jobs.ashbyhq.com/ramp/b39ceb08-a0a7-4f8b-a760-2fb88e209956",
             "title": "Applied Scientist Intern",
             "company": None,
-            "location": "New York, NY (HQ)",
+            "locations": [{"name": "New York, NY (HQ)", "city": "New York City", "region": "NY"}],
             "date": "2026-09-15",
             "description": "About the Role\nThe Applied Science team builds models and tools that "
             "solve Ramp’s most critical problems: from underwriting businesses to combatting "  # noqa: RUF001  the posting's own apostrophe
@@ -134,8 +161,6 @@ def test_a_board_parses_into_records():
             "salary_max": 12500,
             "salary_currency": "USD",
             "salary_period": "MONTH",
-            "city": "New York City",
-            "region": "NY",
             "posted_at": "2026-09-15T01:44:04.643+00:00",
             "apply_url": "https://jobs.ashbyhq.com/ramp/b39ceb08-a0a7-4f8b-a760-2fb88e209956/application",
         },
@@ -148,3 +173,20 @@ def test_a_board_parses_into_records():
     fetcher = StubFetcher({"job-board/ramp": board([odd, POSTINGS[1]])})
     jobs = asyncio.run(ashby.search(fetcher, board="ramp"))
     assert [job["url"] for job in jobs] == ["https://[invalid", POSTINGS[1]["jobUrl"]]
+    # Ashby documents a secondary location's address without postalAddress.
+    documented = {
+        **POSTINGS[1],
+        "secondaryLocations": [
+            {
+                "location": "San Francisco",
+                "address": {"addressLocality": "San Francisco", "addressRegion": "California"},
+            }
+        ],
+    }
+    fetcher = StubFetcher({"job-board/ramp": board([documented])})
+    (job,) = asyncio.run(ashby.search(fetcher, board="ramp"))
+    assert job["locations"][1] == {
+        "name": "San Francisco",
+        "city": "San Francisco",
+        "region": "California",
+    }

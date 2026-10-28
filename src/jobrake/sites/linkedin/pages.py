@@ -13,7 +13,7 @@ lazy from bs4 import BeautifulSoup
 
 from jobrake import cache
 from jobrake.fetchkit import Fetcher
-from jobrake.models import JobDict, employment_type, make_job
+from jobrake.models import JobDict, Place, employment_type, make_job, make_places
 from jobrake.utils import checked, finite, html_text
 
 from .client import FRAGMENT_URL, job_id, numeric, paced_fetch
@@ -158,6 +158,28 @@ def _applicants(soup: BeautifulSoup) -> int | None:
     return int(found.group()) if found else None
 
 
+def _block_places(posting: dict[str, Any]) -> list[dict[str, Any]]:
+    """Read the parts of each schema.org ``jobLocation``, one place per entry."""
+    entries = posting.get("jobLocation")
+    places = []
+    for place in entries if isinstance(entries, list) else [entries]:
+        if not isinstance(place, dict):
+            continue
+        address = _obj(place.get("address"))
+        # addressCountry is Text or a Country object carrying its name.
+        country = address.get("addressCountry")
+        places.append(
+            {
+                "city": _text_value(address.get("addressLocality")),
+                "region": _text_value(address.get("addressRegion")),
+                "country_code": _text_value(country) or _text_value(_obj(country).get("name")),
+                "latitude": _number_value(place.get("latitude")),
+                "longitude": _number_value(place.get("longitude")),
+            }
+        )
+    return places
+
+
 def _parse_posting(soup: BeautifulSoup) -> tuple[dict[str, Any], bool]:
     """
     Extract model fields from a posting page, and report whether its schema.org block was present.
@@ -170,12 +192,19 @@ def _parse_posting(soup: BeautifulSoup) -> tuple[dict[str, Any], bool]:
     """
     posting = _job_posting(soup)
     org = _obj(posting.get("hiringOrganization"))
-    place = _obj(posting.get("jobLocation"))
-    address = _obj(place.get("address"))
     pay = _obj(posting.get("baseSalary"))
     amount = _obj(pay.get("value"))
-    # addressCountry is Text or a Country object carrying its name.
-    country = address.get("addressCountry")
+    # The topcard bullets hold the place, the posting age, and the applicant
+    # count. Age and count also carry the metadata class, so the plain bullet
+    # is the place.
+    label = _tag_text(soup, ".topcard__flavor--bullet:not(.topcard__flavor--metadata)")
+    # Places count once normalized, so a block of empty entries holds none.
+    places = make_places(_block_places(posting))
+    # A lone block place is the place the bullet names. Several keep the names of their parts.
+    if len(places) == 1 and label:
+        places = [{**places[0], "name": label}]
+    elif not places and label:
+        places = [Place(name=label)]
     # JobDict counts whole months.
     months = _number_value(_obj(posting.get("experienceRequirements")).get("monthsOfExperience"))
     # Normalize each schema.org union before adding it to the result. Omit
@@ -189,11 +218,7 @@ def _parse_posting(soup: BeautifulSoup) -> tuple[dict[str, Any], bool]:
         "expires_at": _text_value(posting.get("validThrough")),
         "company_url": _text_value(org.get("sameAs")),
         "company_logo": _url(org.get("logo")),
-        "city": _text_value(address.get("addressLocality")),
-        "region": _text_value(address.get("addressRegion")),
-        "country_code": _text_value(country) or _text_value(_obj(country).get("name")),
-        "latitude": _number_value(place.get("latitude")),
-        "longitude": _number_value(place.get("longitude")),
+        "locations": places,
         "salary_min": _number_value(amount.get("minValue")),
         "salary_max": _number_value(amount.get("maxValue")),
         "salary_currency": _text_value(pay.get("currency")),
@@ -210,10 +235,6 @@ def _parse_posting(soup: BeautifulSoup) -> tuple[dict[str, Any], bool]:
     from_markup = {
         "title": _tag_text(soup, ".topcard__title"),
         "company": _tag_text(soup, "a.topcard__org-name-link"),
-        # The topcard bullets hold the place, the posting age, and the
-        # applicant count. Age and count also carry the metadata class, so the
-        # plain bullet is the place.
-        "location": _tag_text(soup, ".topcard__flavor--bullet:not(.topcard__flavor--metadata)"),
         "description": _description(soup),
         "employment_type": employment_type(_criteria(soup).get("Employment type")),
         **_company(soup),
@@ -226,7 +247,7 @@ def _parse_posting(soup: BeautifulSoup) -> tuple[dict[str, Any], bool]:
         name: value
         for source in (from_markup, from_block)
         for name, value in source.items()
-        if value not in (None, "")
+        if value not in (None, "", [])
     }
     return fields, bool(posting)
 
@@ -398,9 +419,15 @@ def _job(posting_id: str, known: dict[str, Any], fields: dict[str, Any]) -> JobD
     Build a posting's record from the fields known for it, overridden by its page's fields.
 
     A known ``url`` and ``date``, such as a search card's, stay when set, and a
-    ``None`` page value leaves the known one in place.
+    ``None`` or empty page value leaves the known one in place. When the page
+    and the known fields each have one place, the page's place takes the known
+    place's name, so a record read from the cache names its place as a fresh
+    read does.
     """
-    page = {name: value for name, value in fields.items() if value is not None}
+    page = {name: value for name, value in fields.items() if value not in (None, [])}
+    places, known_places = page.get("locations"), known.get("locations") or []
+    if places and len(places) == 1 and len(known_places) == 1:
+        page["locations"] = [{**places[0], "name": known_places[0]["name"]}]
     kept = {name: known[name] for name in ("url", "date") if known.get(name)}
     return make_job(**(known | page | kept | {"site": "linkedin", "id": posting_id}))
 

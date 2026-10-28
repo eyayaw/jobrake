@@ -54,7 +54,7 @@ def test_linkedin_parses_cards_and_dedups_by_posting_id(unlimited):
     assert jobs[0]["id"] == "111"
     assert jobs[0]["title"] == "Economist"
     assert jobs[0]["company"] == "Acme"
-    assert jobs[0]["location"] == "Seattle, WA"
+    assert jobs[0]["locations"] == [{"name": "Seattle, WA"}]
     assert jobs[0]["date"] == "2026-08-01"
     # search cards carry no detail fields
     assert set(jobs[0]) == {*IDENTITY_FIELDS, *SUMMARY_FIELDS}
@@ -639,6 +639,27 @@ def test_search_details_hydrate_from_the_canonical_page(unlimited):
     assert jobs[0]["employment_type"] == "full_time"
     assert jobs[0]["applicants"] == 200
     assert jobs[0]["title"] == "Economist"  # summary fields survive the merge
+    # The page's lone place takes the card's label.
+    assert jobs[0]["locations"] == [
+        {"name": "Seattle, WA", "country_code": "NL", "latitude": 52.37}
+    ]
+    fetcher = StubFetcher(
+        {
+            "seeMoreJobPostings": ok(linkedin_card("222")),
+            "jobs/view/222": ok(job_page(jobLocation=[{}, {}])),  # entries without a part
+        }
+    )
+    jobs = asyncio.run(
+        linkedin.search(fetcher, query="x", location="Seattle", results=1, details=True)
+    )
+    assert jobs[0]["locations"] == [
+        {"name": "Seattle, WA"}
+    ]  # a page without a place keeps the card's
+    cards = StubFetcher({"seeMoreJobPostings": ok(linkedin_card("222"))})
+    again = asyncio.run(
+        linkedin.search(cards, query="x", location="Seattle", results=1, details=True)
+    )
+    assert again[0]["locations"] == [{"name": "Seattle, WA"}]  # and so does its cached record
 
 
 def test_search_keeps_the_summary_when_the_posting_is_gone(unlimited):
@@ -780,7 +801,7 @@ def test_a_posting_page_omits_what_it_cannot_extract(unlimited):
     assert job["employment_type"] == "full_time"  # unified across sites
     assert job["posted_at"] == "2026-08-05T08:04:27.000Z"  # timestamps kept whole
     assert job["expires_at"] == "2026-09-04T08:04:27.000Z"
-    assert job["country_code"] == "NL"
+    assert job["locations"] == [{"name": "NL", "country_code": "NL", "latitude": 52.37}]
     assert job["applicants"] == 200
     # the posting has no salary and no experience: the keys are absent
     assert "salary_min" not in job
@@ -802,7 +823,16 @@ def test_a_posting_page_maps_schema_org_onto_the_record(unlimited):
     job = parsed(page)
     assert (job["salary_min"], job["salary_max"]) == (105000, 135000)
     assert (job["salary_currency"], job["salary_period"]) == ("USD", "YEAR")
-    assert (job["city"], job["region"], job["country_code"]) == ("Delft", "ZH", "NL")
+    assert job["locations"] == [
+        {"name": "Delft, ZH, NL", "city": "Delft", "region": "ZH", "country_code": "NL"}
+    ]
+    # Each of several jobLocation entries is a place, named from its parts.
+    delft, tokyo = {"addressLocality": "Delft", "addressCountry": "NL"}, {"addressCountry": "JP"}
+    several = job_page(jobLocation=[{"address": delft}, {"address": tokyo}])
+    assert parsed(several)["locations"] == [
+        {"name": "Delft, NL", "city": "Delft", "country_code": "NL"},
+        {"name": "JP", "country_code": "JP"},
+    ]
     assert job["experience_months"] == 36
     fractional = job_page(experienceRequirements={"monthsOfExperience": 24.5})
     assert "experience_months" not in parsed(fractional)  # JobDict holds whole months
@@ -851,7 +881,7 @@ def test_a_posting_page_survives_schema_variants(unlimited):
         experienceRequirements="3 years", jobLocation=[{"address": {"addressCountry": "DE"}}]
     )
     job = parsed(page)
-    assert job["country_code"] == "DE"
+    assert job["locations"] == [{"name": "DE", "country_code": "DE"}]
     assert "experience_months" not in job
     assert parse("<html><body>signup wall</body></html>") is None
 
@@ -899,8 +929,8 @@ def test_a_posting_page_normalizes_union_valued_fields(unlimited):
     assert job["employment_type"] == "full_time"  # the first of a list
     assert job["company_url"] == "https://nl.linkedin.com/company/acme"
     assert job["company_logo"] == "https://media.licdn.com/acme.png"  # unwrapped ImageObject
-    assert job["country_code"] == "US"  # a Country object's name
-    assert "latitude" not in job  # only numbers reach the model
+    # a Country object's name, and only numbers reach the model
+    assert job["locations"] == [{"name": "US", "country_code": "US"}]
 
 
 def test_a_posting_page_falls_back_to_the_markup_without_the_block(unlimited):
@@ -919,7 +949,7 @@ def test_a_posting_page_reads_the_summary_fields(unlimited):
     markup = parsed(en_fragment())
     assert (markup["title"], markup["company"]) == ("Economist", "Acme")
     # the place bullet, not the applicant count sitting in the bullet beside it
-    assert markup["location"] == "Seattle, WA"
+    assert markup["locations"] == [{"name": "Seattle, WA"}]
     page = job_page(title="Senior Economist", hiringOrganization={"name": "Acme BV"})
     block = parsed(page)
     assert (block["title"], block["company"]) == ("Senior Economist", "Acme BV")
@@ -1062,6 +1092,7 @@ def test_a_details_search_caches_the_page_without_its_card(unlimited):
         linkedin.search(cards, query="x", location="Seattle", results=1, details=True)
     )
     assert again[0]["date"] == "2026-08-01"  # a cached page keeps the card's date too
+    assert again[0]["locations"] == jobs[0]["locations"]  # and names its place as the card does
 
 
 def test_postings_attempt_each_posting_once(unlimited, caplog):

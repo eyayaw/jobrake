@@ -3,7 +3,7 @@
 ## Purpose
 
 jobrake reads the postings a job board publishes and returns each one as a
-flat record with the same fields, whichever board it came from. It is an async
+record with the same fields, whichever board it came from. It is an async
 Python package and CLI that reads LinkedIn's guest API, Indeed's GraphQL API,
 EconJobMarket's ad feed, and the board APIs of six applicant tracking
 systems, and it depends on `httpx` and `bs4`.
@@ -29,7 +29,7 @@ systems, and it depends on `httpx` and `bs4`.
 - `utils.py`: `site_options`, which reads the `Annotated` arguments of a
   site function, `checked`, which checks every call against them, and the
   JSON value, text, number, and date helpers.
-- `models.py`: `JobDict`, `make_job`, and `Stopped`.
+- `models.py`: `JobDict`, its `Place`, `make_job`, `make_places`, and `Stopped`.
 - `fetchkit/`: the `Fetcher` protocol, `FetchResult`, and `HttpxFetcher`.
 - `cache.py`: one SQLite table of `JobDict` records keyed by site and ID, and
   the shared `CACHE`.
@@ -61,8 +61,16 @@ the CLI, and the contract test in `tests/test_scrape.py` need no edit.
   `-b`.
 - One record. Every site returns `JobDict` records with the same keys, types,
   and units. The identity keys `site`, `id`, and `url` and the summary keys
-  `title`, `company`, `location`, and `date` are always present. A detail
+  `title`, `company`, `locations`, and `date` are always present. A detail
   key appears only when it has a value. Each site parses its own responses.
+- A posting's places are `locations`, a list of `Place` in the site's order,
+  `[]` when none was extracted. A `Place` has a `name`, the site's label or
+  its parts joined, and only the parts the site gives for that place.
+  `make_job` normalizes places with `make_places`, for every site and every
+  cache read, and nothing is parsed out of a label. Two places are one only
+  when they are equal once normalized. A site treats two of its entries as
+  one place only when its response says so. Where one source's fields
+  override another's, an empty `locations` overrides nothing.
 - A site owns its options. `search` declares only the options its server
   applies, keyword-only, as `Annotated[T, "help"]` with `T` one of `str`,
   `int`, `bool`, `list[str]`, or `T | None`, and with defaults in the
@@ -85,10 +93,11 @@ the CLI, and the contract test in `tests/test_scrape.py` need no edit.
   paces them once per process, and retries a 429 up to three times.
 - The cache is transparent. It stores the whole `JobDict` of each fetched
   LinkedIn posting, rows carry no version, and each row read passes through
-  `make_job`, so a row whose keys no longer fit `JobDict` is a miss. Values
-  go unchecked, so a parser fix reaches a cached posting when its row
-  expires. `JOBRAKE_CACHE_PATH` and `JOBRAKE_CACHE_TTL` configure it, and
-  no site function takes a cache option. Only LinkedIn is paced and cached.
+  `make_job`, so a row whose keys no longer fit `JobDict` or `Place` is a
+  miss. `make_job` normalizes a row as it does a site's fields and cannot
+  redo a parser's work, so a parser fix reaches a cached posting when its row
+  expires. `JOBRAKE_CACHE_PATH` and `JOBRAKE_CACHE_TTL` configure it, and no
+  site function takes a cache option. Only LinkedIn is paced and cached.
 - Library code logs under the `jobrake` logger and prints nothing. The CLI
   sends logs to stderr and data to stdout. It exits 2 for a bad argument, and
   1 when a search or lookup raises `Stopped`, a named posting could not be
