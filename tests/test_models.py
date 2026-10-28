@@ -8,10 +8,15 @@ from jobrake.models import IDENTITY_FIELDS, SUMMARY_FIELDS, Stopped, employment_
 
 
 def test_employment_type_is_unified_across_sites():
-    # LinkedIn uses schema.org enums, Indeed uses labels
+    # LinkedIn uses schema.org enums, Indeed uses labels, and Ashby uses camelCase enums
     assert employment_type("FULL_TIME") == employment_type("Full-time") == "full_time"
     assert employment_type("CONTRACTOR") == employment_type("Contract") == "contract"
     assert employment_type("INTERN") == employment_type("Internship") == "internship"
+    assert [employment_type(label) for label in ("FullTime", "PartTime", "Intern")] == [
+        "full_time",
+        "part_time",
+        "internship",
+    ]
     assert employment_type(None) is None
     assert employment_type("---") is None
 
