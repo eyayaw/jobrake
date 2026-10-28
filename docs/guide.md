@@ -600,7 +600,7 @@ To narrow the ads, [pipe the results](#pipe-results) through `jq` or load them i
 
 ```sh
 jobrake econjobmarket search \
-  | jq -r '.[] | select(.country_code == "DE") | [.expires_at, .company, .title] | @tsv'
+  | jq -r '.[] | select(.location // "" | test(", DE(;|$)")) | [.expires_at, .company, .title] | @tsv'
 ```
 
 ### EconJobMarket terms
