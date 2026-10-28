@@ -60,8 +60,9 @@ def make_job(**fields: Any) -> JobDict:
     Build a ``JobDict`` from a site's fields, normalizing their text.
 
     Identity strings are stripped. A blank or missing summary value becomes
-    ``None``, and a blank or ``None`` detail value is left out. ``date`` keeps
-    the calendar date of the given ``date``, falling back to ``posted_at``.
+    ``None``, and a blank or ``None`` detail value is left out.
+    ``country_code`` is uppercased. ``date`` keeps the calendar date of the
+    given ``date``, falling back to ``posted_at``.
 
     Raises:
         TypeError: An identity field is missing, blank, or not a string, or a
@@ -81,7 +82,8 @@ def make_job(**fields: Any) -> JobDict:
     for name in DETAIL_FIELDS:
         value = fields.get(name)
         if isinstance(value, str):
-            value = value.strip() or None
+            # Some sites send a country code in lowercase, and ISO 3166 writes it in capitals.
+            value = (value.upper() if name == "country_code" else value).strip() or None
         if value is not None:
             job[name] = value
     # Prefer the search date. Fall back to the posting timestamp.
