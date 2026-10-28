@@ -1,11 +1,12 @@
 # jobrake guide
 
-jobrake provides one interface for Indeed and LinkedIn, but they differ in how they interpret geography, apply search filters, and fetch posting details.
+jobrake provides one interface for Indeed, LinkedIn, and employers' Greenhouse boards, but the sites differ in how they interpret geography, apply search filters, and fetch posting details.
 Run `jobrake -h` for the sites, `jobrake <site> -h` for a site's commands, and `jobrake <site> <command> -h` for their options.
 
 - [Search for jobs](#search-for-jobs)
 - [Narrow the results](#narrow-the-results)
 - [Fetch posting details](#fetch-posting-details)
+- [Employer boards](#employer-boards)
 - [Read and save results](#read-and-save-results)
 - [Use the Python API](#use-the-python-api)
 - [Request limits and partial results](#request-limits-and-partial-results)
@@ -421,6 +422,42 @@ postings = asyncio.run(main())
 `postings()` maps each ID or URL to its whole job, or to `None` when LinkedIn reports the posting gone.
 A reference whose request failed is absent from the result, and calling the function again retries it.
 
+## Employer boards
+
+Many employers publish their openings on a board that their applicant tracking system (ATS) hosts.
+jobrake reads Greenhouse boards. A search names one employer's board with `--board | -b` and returns every posting on it:
+
+```sh
+jobrake greenhouse search -b airbnb
+jobrake greenhouse search -b gitlab -o gitlab.jsonl
+```
+
+```python
+import asyncio
+
+from jobrake import scrape
+
+jobs = asyncio.run(scrape("greenhouse", board="airbnb"))
+```
+
+A board search takes no query, result limit, or filters, because Greenhouse applies none.
+To narrow the postings, [pipe the results](#pipe-results) through `jq` or load them into another tool.
+
+### Find a board token
+
+The board token is the last part of the board's address: `airbnb` in `boards.greenhouse.io/airbnb`, or `gitlab` in `job-boards.greenhouse.io/gitlab`.
+A token Greenhouse does not know stops the search with an error that says so.
+
+### Greenhouse fields
+
+A Greenhouse record carries `title`, `location`, and `description`.
+It also carries `company`, `date`, and the details `posted_at`, `language`, and `expires_at` when Greenhouse supplies them, which its documented list response does not promise.
+`posted_at` is the time the posting was first published, and `date` is its calendar date. `expires_at` is the application deadline.
+`location` is the text the employer entered, such as `Remote, Canada; Remote, United States`.
+`url` is the posting on the employer's own careers site when the board lives there, as Airbnb's does, and on `job-boards.greenhouse.io` otherwise.
+In our tests on two boards, every posting carried a company, a location, a first-published time, and a language, and one posting in 430 had a deadline.
+Employers can add facts such as a workplace type as custom fields, which differ from board to board. jobrake leaves those out, so a Greenhouse record has no salary, employment type, or remote flag.
+
 ## Read and save results
 
 ### Returned fields
@@ -434,8 +471,8 @@ Every job is a flat dictionary, with three groups of keys.
 Identity and summary keys are always present, with `None` for an unavailable summary value.
 A detail key is absent when the site omits or does not publish the value, or when jobrake did not fetch the posting page.
 
-Both sites use the same names for the details they share. A few come from one site only:
-`apply_type`, `applicants`, `experience_months`, and `education` from LinkedIn, and `is_remote`, `apply_url`, and `language` from Indeed.
+The sites use the same names for the details they share. A few come from some sites only:
+`apply_type`, `applicants`, `experience_months`, and `education` from LinkedIn, `is_remote` and `apply_url` from Indeed, and `language` from Indeed and Greenhouse.
 
 A posting can carry two dates. `date` holds the calendar date, such as `2026-09-19`, and `posted_at` holds the full timestamp, such as `2026-09-19T05:00:00+00:00`.
 jobrake prefers the date a search result states and falls back to the calendar portion of `posted_at`. Compare on `date`, and read `posted_at` for a time of day.
@@ -557,6 +594,12 @@ async def main():
 
 The CLI writes those jobs and exits 1. Reaching a site's own result cap is not a failure. jobrake warns on stderr and returns what the site served.
 
+### Greenhouse requests
+
+A board search is one request, which returns the whole board. It gets a single attempt and no pacing.
+A failed request raises `Stopped` with an empty `partial`, and the CLI exits 1.
+jobrake skips a posting it cannot read and leaves out a field it cannot read.
+
 ### Indeed requests
 
 One search reaches at most 1,000 results, and jobrake warns when that cap cuts a search short.
@@ -594,7 +637,7 @@ On a data center IP, such as a VPS, LinkedIn refuses posting pages with [HTTP 99
 ## Cache location and lifetimes
 
 jobrake keeps the LinkedIn postings it fetched in one SQLite file under your user cache directory: `~/Library/Caches/jobrake/` on macOS, `$XDG_CACHE_HOME/jobrake/` on Linux, `%LOCALAPPDATA%\jobrake\` on Windows.
-Indeed is not cached.
+Indeed and Greenhouse are not cached.
 
 A cached posting stays fresh for seven days and is fetched again after that. A posting that LinkedIn reports gone is not cached.
 An upgrade keeps the cache, and a posting whose cached copy no longer fits the job fields is fetched again.
@@ -621,3 +664,5 @@ A storage failure disables the cache with a warning, and scraping carries on wit
 ## Other job boards
 
 Glassdoor is not planned because it is now [part of Indeed](https://web.archive.org/web/20260704043638/https://www.glassdoor.com/about/).
+AEA JOE is not planned because its [listings](https://www.aeaweb.org/joe/listings) forbid scraping or collecting them without the American Economic Association's written permission. Its listings page offers its own XML and Excel downloads.
+Wellfound is not planned because it has no public API, and its job data sits behind a Cloudflare challenge that only a browser passes.

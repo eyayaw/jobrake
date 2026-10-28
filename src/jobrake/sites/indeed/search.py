@@ -9,7 +9,7 @@ from typing import Annotated, Any
 
 from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, Stopped, employment_type, make_job
-from jobrake.utils import checked, epoch_ms_to_iso, html_text
+from jobrake.utils import as_dict, as_str, checked, epoch_ms_to_iso, html_text
 
 from .client import API_HEADERS, API_URL
 from .countries import Country, indeed_domain
@@ -162,14 +162,6 @@ def _timestamp(job: dict[str, Any], field: str) -> str | None:
         return None
 
 
-def _dict_value(value: object) -> dict[str, Any]:
-    return value if isinstance(value, dict) else {}
-
-
-def _string_value(value: object) -> str | None:
-    return value if isinstance(value, str) else None
-
-
 def _finite_value(value: object) -> float | None:
     if isinstance(value, bool) or not isinstance(value, int | float):
         return None
@@ -183,15 +175,15 @@ def _finite_value(value: object) -> float | None:
 def _parse_job(job: dict[str, Any], base_url: str) -> JobDict:
     """Normalize one Indeed result into the shared job model."""
     # Indeed's job key becomes both the job ID and the URL's ``jk`` parameter.
-    key = (_string_value(job["key"]) or "").strip()
-    loc = _dict_value(job.get("location"))
-    city = _string_value(loc.get("city"))
-    region = _string_value(loc.get("admin1Code"))
-    country_code = _string_value(loc.get("countryCode"))
-    employer = _dict_value(job.get("employer"))
-    compensation = _dict_value(job.get("compensation"))
-    salary = _dict_value(compensation.get("baseSalary"))
-    amount = _dict_value(salary.get("range"))
+    key = (as_str(job["key"]) or "").strip()
+    loc = as_dict(job.get("location"))
+    city = as_str(loc.get("city"))
+    region = as_str(loc.get("admin1Code"))
+    country_code = as_str(loc.get("countryCode"))
+    employer = as_dict(job.get("employer"))
+    compensation = as_dict(job.get("compensation"))
+    salary = as_dict(compensation.get("baseSalary"))
+    amount = as_dict(salary.get("range"))
     exactly = _finite_value(amount.get("value"))
     # Employment types share the attributes bag with skills and benefits.
     # Malformed entries, or a bag that is not a list, are ignored.
@@ -201,24 +193,24 @@ def _parse_job(job: dict[str, Any], base_url: str) -> JobDict:
         for attribute in (attributes if isinstance(attributes, list) else [])
         if isinstance(attribute, dict) and isinstance(attribute.get("label"), str)
     ]
-    company_page = _string_value(employer.get("relativeCompanyPageUrl"))
-    dossier = _dict_value(employer.get("dossier"))
-    images = _dict_value(dossier.get("images"))
+    company_page = as_str(employer.get("relativeCompanyPageUrl"))
+    dossier = as_dict(employer.get("dossier"))
+    images = as_dict(dossier.get("images"))
     return make_job(
         site="indeed",
         id=key,
         url=f"{base_url}/viewjob?jk={key}",
-        title=_string_value(job.get("title")),
-        language=_string_value(job.get("language")),
-        company=_string_value(employer.get("name")),
+        title=as_str(job.get("title")),
+        language=as_str(job.get("language")),
+        company=as_str(employer.get("name")),
         location=", ".join(part for part in (city, region, country_code) if part) or None,
         description=_scrub_css(
-            html_text(_string_value(_dict_value(job.get("description")).get("html")) or "")
+            html_text(as_str(as_dict(job.get("description")).get("html")) or "")
         ),
         posted_at=_timestamp(job, "datePublished"),
         expires_at=_timestamp(job, "expirationDate"),
         company_url=base_url + company_page if company_page else None,
-        company_logo=_string_value(images.get("squareLogoUrl")),
+        company_logo=as_str(images.get("squareLogoUrl")),
         employment_type=next(
             (employment_type(label) for label in labels if label in EMPLOYMENT_TYPES),
             None,
@@ -227,14 +219,14 @@ def _parse_job(job: dict[str, Any], base_url: str) -> JobDict:
         is_remote=True if "Remote" in labels else None,
         salary_min=_finite_value(amount.get("min", exactly)),
         salary_max=_finite_value(amount.get("max", exactly)),
-        salary_currency=_string_value(compensation.get("currencyCode")),
-        salary_period=_string_value(salary.get("unitOfWork")),
+        salary_currency=as_str(compensation.get("currencyCode")),
+        salary_period=as_str(salary.get("unitOfWork")),
         city=city,
         region=region,
         country_code=country_code,
         latitude=_finite_value(loc.get("latitude")),
         longitude=_finite_value(loc.get("longitude")),
-        apply_url=_string_value(_dict_value(job.get("recruit")).get("viewJobUrl")),
+        apply_url=as_str(as_dict(job.get("recruit")).get("viewJobUrl")),
     )
 
 
@@ -367,7 +359,7 @@ async def search(
         try:
             payload = json.loads(result.text)
             page, cursor, raw = _parse_jobs(payload, base_url)
-        except (json.JSONDecodeError, KeyError, TypeError) as error:
+        except (ValueError, KeyError, TypeError) as error:
             # A GraphQL error arrives as HTTP 200 with null data. Usable data
             # alongside errors parses above and is kept.
             message = _graphql_error_message(payload)

@@ -6,7 +6,7 @@ import logging
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from types import NoneType
-from typing import Annotated, NamedTuple, Union, get_args, get_origin
+from typing import Annotated, Any, NamedTuple, Union, get_args, get_origin
 
 lazy from bs4 import BeautifulSoup
 
@@ -111,8 +111,10 @@ def _check(options: dict[str, Option], given: dict[str, object]) -> None:
         minimum = _MINIMUMS.get(name)
         if minimum is not None and isinstance(value, int) and value < minimum:
             raise ValueError(f"{name} ({value}) must be at least {minimum}")
-        # A lookup's text names what to look up, so a blank one asks for nothing.
-        if option.positional and isinstance(value, str) and not value.strip():
+        # A required text, such as a lookup's name or a board, names what to
+        # read, so a blank one asks for nothing.
+        required = option.default is inspect.Parameter.empty
+        if required and isinstance(value, str) and not value.strip():
             raise ValueError(f"{name} is blank. Pass the {option.help}")
         # A blank list entry names nothing either.
         if isinstance(value, list) and not all(item.strip() for item in value):
@@ -132,7 +134,7 @@ def checked[**P, R](function: Callable[P, Awaitable[R]]) -> Callable[P, Awaitabl
             ``site_options``. At a call, an argument is unknown, missing, or of
             the wrong type.
         ValueError: At a call, ``results``, ``radius``, or ``max_age_hours``
-            is below its minimum, or a lookup's text or a list entry is blank.
+            is below its minimum, or a required string or a list entry is blank.
     """
     signature = inspect.signature(function)
     options = site_options(function)
@@ -150,6 +152,16 @@ def checked[**P, R](function: Callable[P, Awaitable[R]]) -> Callable[P, Awaitabl
         return await function(*args, **kwargs)
 
     return wrapper
+
+
+def as_str(value: object) -> str | None:
+    """Return a JSON value when it is a string, or None for anything else."""
+    return value if isinstance(value, str) else None
+
+
+def as_dict(value: object) -> dict[str, Any]:
+    """Return a JSON value unchanged when it is an object, or ``{}`` for anything else, so a ``.get`` can follow."""
+    return value if isinstance(value, dict) else {}
 
 
 def iso_date(value: str | None) -> str | None:

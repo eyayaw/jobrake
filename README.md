@@ -14,7 +14,7 @@ ___Scrape job postings together and heap them up.___ Read the launch post [here]
 >
 > _Did **Jo** show up? **Jo** hit the **brake**, too._
 
-jobrake is a Python package and CLI tool for fetching job postings from LinkedIn and Indeed.
+jobrake is a Python package and CLI tool for fetching job postings from LinkedIn, Indeed, and employers' Greenhouse boards.
 
 <table>
 <tr>
@@ -93,6 +93,10 @@ jobrake indeed search \
         -o jobs.jsonl
 # Resolve place names
 jobrake indeed places -c netherlands "amsterdam"
+
+# Greenhouse ----
+## Every posting on one employer's board
+jobrake greenhouse search -b airbnb -o airbnb.csv
 ```
 
 The CLI writes JSON to stdout by default.
@@ -123,10 +127,11 @@ jobs = asyncio.run(main())
 
 | Site | Search | Posting details |
 | --- | --- | --- |
+| `greenhouse` | Public Job Board API, one employer's board | Included in search results |
 | `indeed` | Mobile-app GraphQL API | Included in search results |
 | `linkedin` | Login-free guest API | Optional, paced, and cached |
 
-Indeed requires `country`. LinkedIn accepts either `location` or a geoId.
+Greenhouse requires `board`, the employer's board token. Indeed requires `country`. LinkedIn accepts either `location` or a geoId.
 See the [guide](https://github.com/eyayaw/jobrake/blob/main/docs/guide.md) for search queries, geography, filters, pagination, rate limits, retries, and LinkedIn detail fetching.
 
 > [!WARNING]
@@ -140,6 +145,6 @@ jobrake's Indeed GraphQL endpoint and LinkedIn guest-search approach are based o
 ## Disclaimer
 
 > [!WARNING]
-> jobrake has no affiliation with LinkedIn or Indeed. Use it to find jobs, not to build datasets by scraping regularly.
-> Scraping may violate their terms of service, and either site may rate-limit or block your IP address.
+> jobrake has no affiliation with LinkedIn, Indeed, or Greenhouse. Use it to find jobs, not to build datasets by scraping regularly.
+> Scraping may violate their terms of service, and any of them may rate-limit or block your IP address.
 > You are responsible for checking and complying with their terms.
