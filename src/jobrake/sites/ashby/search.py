@@ -80,6 +80,8 @@ def _parse_posting(posting: dict[str, Any]) -> JobDict:
         locations=[_place(posting), *map(_place, others)],
         description=html_text(as_str(posting.get("descriptionHtml")) or ""),
         employment_type=employment_type(as_str(posting.get("employmentType"))),
+        department=as_str(posting.get("department")),
+        team=as_str(posting.get("team")),
         # isRemote is also true for a hybrid posting, so the workplace type says which.
         workplace_type=workplace_type(as_str(posting.get("workplaceType"))),
         posted_at=as_str(posting.get("publishedAt")),

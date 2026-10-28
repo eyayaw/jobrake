@@ -513,8 +513,9 @@ Workday publishes no documentation for this API. The behavior described here was
 ### Greenhouse fields
 
 A Greenhouse record carries `title`, `locations`, and `description`.
-It also carries `company`, `date`, and the details `posted_at`, `language`, and `expires_at` when Greenhouse supplies them, which its documented list response does not promise.
+It also carries `company`, `date`, and the details `posted_at`, `language`, `department`, and `expires_at` when Greenhouse supplies them, which its documented list response does not promise.
 `posted_at` is the time the posting was first published, and `date` is its calendar date. `expires_at` is the application deadline.
+`department` is the job's department when Greenhouse lists exactly one, as it did for all 195 postings on Airbnb's board on 2026-10-28.
 `locations` holds one place, named with the text the employer entered, such as `Remote, Canada; Remote, United States`.
 `url` is the posting on the employer's own careers site when the board lives there, as Airbnb's does, and on `job-boards.greenhouse.io` otherwise.
 In our tests on two boards, every posting carried a company, a location, a first-published time, and a language, and one posting in 430 had a deadline.
@@ -522,12 +523,13 @@ Employers can add facts such as a workplace type as custom fields, which differ 
 
 ### Ashby fields
 
-An Ashby record carries `title`, `locations`, `date`, and `description`, and the details `posted_at`, `employment_type`, `apply_url`, `workplace_type`, and, when present, `salary_min`, `salary_max`, `salary_currency`, and `salary_period`.
+An Ashby record carries `title`, `locations`, `date`, and `description`, and the details `posted_at`, `employment_type`, `department`, `team`, `apply_url`, `workplace_type`, and, when present, `salary_min`, `salary_max`, `salary_currency`, and `salary_period`.
 `company` is always `None`, because Ashby's response never names the employer. The board token tells you whose board it is.
 `posted_at` is the time the posting was published, and `date` is its calendar date.
 `locations` holds the posting's primary location first and then its other places, named as the employer entered them, such as `Remote (US)` and `Remote (Canada)`. Each place carries the `city` and `region` of its address as Ashby spells them, and `region` can be a code or a name, such as `NY` or `Ontario`.
 Ashby gives the country as a name, such as `USA` or `United Kingdom`, so an Ashby place has no `country_code`.
 `workplace_type` is `remote`, `hybrid`, or `on_site`, as the employer set it.
+`team` is the posting's team, such as `Solutions Consulting`.
 The salary fields come from the posting's salary range. jobrake leaves out equity, commission, and bonus, which have no record fields.
 `url` and `apply_url` point to the posting on `jobs.ashbyhq.com`.
 A search also returns postings the employer marked unlisted, which Ashby intends for direct links only.
@@ -535,7 +537,7 @@ In our test on one board of 172 postings, every posting carried a location, a pu
 
 ### Lever fields
 
-A Lever record carries `title`, `locations`, `date`, and `description`, and the details `posted_at`, `employment_type`, `workplace_type`, and `apply_url`.
+A Lever record carries `title`, `locations`, `date`, and `description`, and the details `posted_at`, `employment_type`, `workplace_type`, `apply_url`, `team`, and, when present, `department`.
 `company` is always `None`, because Lever's response never names the employer.
 `posted_at` is the time the posting was created, and `date` is its calendar date.
 `description` joins the posting's description, its lists such as requirements and benefits, each under its own heading, and its closing text.
@@ -544,11 +546,12 @@ A Lever record carries `title`, `locations`, `date`, and `description`, and the 
 `workplace_type` is `remote`, `hybrid`, or `on_site`, as the employer set it, and is absent for a posting the employer left unspecified.
 `url` is the posting on `jobs.lever.co` or `jobs.eu.lever.co`, and `apply_url` is its application form.
 Lever can send a salary range, but its documentation does not list the pay intervals it uses, so jobrake leaves salary out. Salary text in the description stays in `description`.
+`team` is the posting's team, such as `Administrative`.
 In our tests on one board, every one of five postings carried a location, a country, a commitment, and a workplace type, and none had a salary range.
 
 ### Workable fields
 
-A Workable record carries `title`, `company`, `locations`, `date`, and `description`, and the details `posted_at`, `employment_type`, `apply_url`, and, when present, `workplace_type` and `education`.
+A Workable record carries `title`, `company`, `locations`, `date`, and `description`, and the details `posted_at`, `employment_type`, `department`, `apply_url`, and, when present, `workplace_type` and `education`.
 `posted_at` is the date the posting was published, with no time of day, so it equals `date`.
 Each place carries the `city`, `region`, and `country_code` the employer entered and is named with the city, region, and country name, such as `Paris, Île-de-France, France`.
 Workable lists a posting open in several places once per place. jobrake returns it once, with each of its places.
@@ -561,7 +564,7 @@ A Workable record has no salary or language, because the board does not publish 
 
 ### SmartRecruiters fields
 
-A SmartRecruiters record carries `title`, `company`, `locations`, and `date`, and the details `posted_at`, `employment_type`, `language`, and, when present, `workplace_type`.
+A SmartRecruiters record carries `title`, `company`, `locations`, and `date`, and the details `posted_at`, `employment_type`, `language`, and, when present, `department` and `workplace_type`.
 `locations` holds one place, named as SmartRecruiters writes it, such as `Wuxi, Jiangsu, China`, with its `city`, `country_code`, and, when present, `region`, `latitude`, and `longitude`.
 `posted_at` is the time the posting was released, and `date` is its calendar date. `language` is a code such as `en` or `zh-CN`.
 `url` opens the posting on `jobs.smartrecruiters.com`.
@@ -616,14 +619,15 @@ See [Accessing the EJM Ad Feed](https://backend.econjobmarket.org/docs/ad-redisp
 
 ### EconJobMarket fields
 
-An EconJobMarket record carries `title`, `company`, `locations`, `date`, and `description`, and the details `posted_at`, `expires_at`, and `company_logo`.
+An EconJobMarket record carries `title`, `company`, `locations`, `date`, and `description`, and the details `posted_at`, `expires_at`, `company_logo`, and, when present, `department`.
 `company` is the hiring institution, such as `University of Zurich`. `company_logo` links to its logo on EJM.
 `posted_at` is the ad's start date on EJM, and `date` is the same day. Both are calendar dates without a time.
 `expires_at` is the application deadline. In our read of the feed, 7 ads in 319 were still open after their deadline.
 `locations` holds each location the ad lists, with its `city`, `region`, `country_code`, and coordinates when present, named from them, such as `Boston, Massachusetts, US`.
 Two ads in 319 listed no location, and their `locations` is empty.
 `url` is the ad on `econjobmarket.org`, and candidates apply there, so a record has no separate `apply_url`.
-jobrake leaves out the ad's department, its position types (ranks such as `Assistant Professor`), and its fields of economics, which have no record fields.
+`department` is the hiring unit, such as `Department of Economics`. An ad that says `All departments`, as 61 of 319 did, has no `department`.
+jobrake leaves out the ad's position types (ranks such as `Assistant Professor`) and its fields of economics, which have no record fields.
 The feed carries no salary, employment type, or workplace type.
 
 ## Read and save results
@@ -644,6 +648,7 @@ An empty `locations` says only that jobrake extracted no place. It does not say 
 A place the site lists twice with the same parts appears once. Places that share a name but differ in any part, such as `Remote` in two countries, each appear.
 
 `workplace_type` is `remote`, `hybrid`, or `on_site`, and appears only when the site states it. An absent `workplace_type` leaves the workplace unknown and does not mean on-site.
+`department` is the hiring unit within the employer, as the site names it, such as `Engineering`, and `team` the posting's team within it, on Ashby and Lever.
 A detail key is absent when the site omits or does not publish the value, or when jobrake did not fetch the posting page.
 
 The sites use the same names for the details they share. A fields subsection under [Employer boards](#employer-boards) or [EconJobMarket](#econjobmarket) lists the details its site carries.

@@ -64,6 +64,7 @@ def _parse_posting(posting: dict[str, Any], company: str | None) -> JobDict:
         locations=locations,
         description=html_text(as_str(posting.get("description")) or ""),
         employment_type=employment_type(as_str(posting.get("employment_type"))),
+        department=as_str(posting.get("department")),
         # The widget flags remote alone, so a posting without the flag has no workplace type.
         workplace_type="remote" if posting.get("telecommuting") is True else None,
         posted_at=as_str(posting.get("published_on")),

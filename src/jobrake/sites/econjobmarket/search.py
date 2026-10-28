@@ -30,6 +30,8 @@ def _parse_ad(ad: dict[str, Any]) -> JobDict:
     match = _AD_ID.search(url) if isinstance(url, str) else None
     if match is None:
         raise TypeError(f"ad url {url!r} holds no /positions/<number>")
+    # "All departments" stands for no unit in particular, in 61 of 319 ads on 2026-10-28.
+    department = as_str(ad.get("department"))
     locations = ad.get("locations")
     # The top-level coordinates are the institution's, which can lie on
     # another continent, so each place takes its own.
@@ -52,6 +54,7 @@ def _parse_ad(ad: dict[str, Any]) -> JobDict:
         locations=places,
         description=html_text(as_str(ad.get("adtext")) or ""),
         company_logo=as_str(ad.get("logo_url")),
+        department=department if department != "All departments" else None,
         posted_at=as_str(ad.get("startdate")),
         expires_at=as_str(ad.get("deadline_date")),
     )

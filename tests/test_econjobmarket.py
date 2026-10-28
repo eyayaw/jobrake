@@ -19,6 +19,7 @@ ADS = [
         "enddate": "2026-12-01",
         "deadline_date": "2026-11-06",
         "name": "Charles River Associates",
+        "department": "All departments",
         "latitude": 42.3493011,
         "longitude": -71.0752547,
         "locations": [
@@ -48,6 +49,7 @@ ADS = [
         "enddate": "2026-12-01",
         "deadline_date": "2026-11-06",
         "name": "Charles River Associates",
+        "department": "All departments",
         "latitude": 42.3493011,
         "longitude": -71.0752547,
         "locations": [
@@ -76,6 +78,7 @@ ADS = [
         "enddate": "2027-02-03",
         "deadline_date": "2027-02-03",
         "name": "Heidelberg University",
+        "department": "Heidelberg Institute of Global Health",
         "latitude": 49.41260787196709,
         "longitude": 8.67098002533317,
         "locations": [],
@@ -149,6 +152,7 @@ def test_the_feed_parses_into_records():
             "date": "2026-08-03",
             "description": "We are looking for a talented researcher to help the Geldsetzer lab.",
             "company_logo": "https://backend.econjobmarket.org/data/zz_public/json/Logo/10426",
+            "department": "Heidelberg Institute of Global Health",
             "posted_at": "2026-08-03",
             "expires_at": "2027-02-03",
         },

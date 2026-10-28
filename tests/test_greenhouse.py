@@ -19,6 +19,7 @@ POSTINGS = [
         "location": {"name": "United States"},
         "absolute_url": "https://careers.airbnb.com/positions/8285171?gh_jid=8285171",
         "language": "en",
+        "departments": [{"id": 73688, "name": "Intern", "child_ids": [], "parent_id": 73700}],
         "first_published": "2026-10-15T11:14:03-04:00",
         "updated_at": "2026-10-16T02:02:58-04:00",
         "application_deadline": "2026-11-01T23:45:00-05:00",
@@ -36,6 +37,9 @@ POSTINGS = [
         "location": {"name": "Ontario, Canada, Quebec, Canada"},
         "absolute_url": "https://careers.airbnb.com/positions/8264827?gh_jid=8264827",
         "language": "fr",
+        "departments": [
+            {"id": 249, "name": "Community Support", "child_ids": [], "parent_id": 73698}
+        ],
         "first_published": "2026-10-14T16:45:33-04:00",
         "updated_at": "2026-10-14T16:45:33-04:00",
         "application_deadline": None,
@@ -63,6 +67,7 @@ def test_a_board_parses_into_records():
             "join the Finance organization as Strategic Finance & Analytics Interns for our "
             "2027 Summer Intern Program from May 24, 2027 - August 13, 2027.",
             "language": "en",
+            "department": "Intern",
             "posted_at": "2026-10-15T11:14:03-04:00",
             "expires_at": "2026-11-01T23:45:00-05:00",
         },
@@ -76,12 +81,18 @@ def test_a_board_parses_into_records():
             "date": "2026-10-14",
             "description": "La différence que vous ferez :",
             "language": "fr",
+            "department": "Community Support",
             "posted_at": "2026-10-14T16:45:33-04:00",
         },
     ]
     assert fetcher.requests == [
         "https://boards-api.greenhouse.io/v1/boards/airbnb/jobs?content=true"
     ]
+    # Of several departments, none is promised as the hiring unit.
+    intern, support = ({"id": 73688, "name": "Intern"}, {"id": 249, "name": "Community Support"})
+    both = {**POSTINGS[0], "departments": [intern, support]}
+    fetcher = StubFetcher({"boards/airbnb/jobs": board([both])})
+    assert "department" not in asyncio.run(greenhouse.search(fetcher, board="airbnb"))[0]
 
 
 def test_a_posting_without_an_integer_id_is_skipped(caplog):

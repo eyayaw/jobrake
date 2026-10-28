@@ -30,6 +30,13 @@ def _parse_posting(posting: dict[str, Any]) -> JobDict:
         raise TypeError(f"posting id {posting_id!r} is not an integer")
     # Greenhouse escapes the description HTML, so its tags arrive as entities.
     content = unescape(as_str(posting.get("content")) or "")
+    # Greenhouse does not say which of several departments hires, so only a lone one counts.
+    departments = posting.get("departments")
+    department = (
+        as_dict(departments[0]).get("name")
+        if isinstance(departments, list) and len(departments) == 1
+        else None
+    )
     return make_job(
         site="greenhouse",
         id=str(posting_id),
@@ -39,6 +46,7 @@ def _parse_posting(posting: dict[str, Any]) -> JobDict:
         locations=[{"name": as_dict(posting.get("location")).get("name")}],
         description=html_text(content),
         language=as_str(posting.get("language")),
+        department=as_str(department),
         posted_at=as_str(posting.get("first_published")),
         expires_at=as_str(posting.get("application_deadline")),
     )

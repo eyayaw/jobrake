@@ -70,6 +70,8 @@ def _parse_posting(posting: dict[str, Any]) -> JobDict:
         ],
         description=_description(posting),
         employment_type=employment_type(as_str(categories.get("commitment"))),
+        department=as_str(categories.get("department")),
+        team=as_str(categories.get("team")),
         # Lever's unspecified is no workplace type.
         workplace_type=workplace_type(as_str(posting.get("workplaceType"))),
         posted_at=_posted_at(posting),

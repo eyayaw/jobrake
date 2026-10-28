@@ -16,6 +16,8 @@ POSTINGS = [
         "id": "c63ba7d7-5290-4d9b-b002-40b2873b66f6",
         "title": "Partner Consultant, Accounting",
         "employmentType": "FullTime",
+        "department": "Sales",
+        "team": "Solutions Consulting",
         "location": "Remote (US)",
         "secondaryLocations": [
             {
@@ -75,6 +77,8 @@ POSTINGS = [
         "id": "b39ceb08-a0a7-4f8b-a760-2fb88e209956",
         "title": "Applied Scientist Intern",
         "employmentType": "Intern",
+        "department": "Data",
+        "team": "Emerging Talent - Data",
         "location": "New York, NY (HQ)",
         "publishedAt": "2026-09-15T01:44:04.643+00:00",
         "isListed": True,
@@ -137,6 +141,8 @@ def test_a_board_parses_into_records():
             "directly with customers and partners to provide world-class product, sales, "
             "industry, and domain expertise.",
             "employment_type": "full_time",
+            "department": "Sales",
+            "team": "Solutions Consulting",
             "workplace_type": "remote",
             "salary_min": 151000,
             "salary_max": 231000,
@@ -157,6 +163,8 @@ def test_a_board_parses_into_records():
             "solve Ramp’s most critical problems: from underwriting businesses to combatting "  # noqa: RUF001  the posting's own apostrophe
             "fraud to making spend management smarter.",
             "employment_type": "internship",
+            "department": "Data",
+            "team": "Emerging Talent - Data",
             "workplace_type": "hybrid",  # isRemote says true for it
             "salary_min": 12500,
             "salary_max": 12500,

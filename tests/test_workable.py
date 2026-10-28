@@ -95,6 +95,7 @@ def test_a_board_parses_into_records():
             "description": "At Hugging Face, we're on a journey to democratize good AI. "
             "Our open-source libraries have more than 600k+ stars on Github.\nAbout the Role",
             "employment_type": "full_time",
+            "department": "Science",
             "workplace_type": "remote",
             "posted_at": "2026-09-02",
             "apply_url": "https://apply.workable.com/j/9E2A4C02C7/apply",
@@ -111,6 +112,7 @@ def test_a_board_parses_into_records():
             "description": "If you don't see the perfect job position, just apply to this "
             "one!\nRequirements",
             "employment_type": "full_time",
+            "department": "Wild Card",
             "posted_at": "2024-10-17",
             "apply_url": "https://apply.workable.com/j/0BD8C06DB3/apply",
         },

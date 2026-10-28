@@ -53,6 +53,8 @@ class JobDict(TypedDict, closed=True):
     language: NotRequired[str]
     company_url: NotRequired[str]
     company_logo: NotRequired[str]
+    department: NotRequired[str]
+    team: NotRequired[str]
     employment_type: NotRequired[str]
     workplace_type: NotRequired[WorkplaceType]
     salary_min: NotRequired[float]

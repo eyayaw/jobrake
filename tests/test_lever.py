@@ -13,11 +13,11 @@ GLOBAL = "https://api.lever.co/v0/postings"
 EU = "https://api.eu.lever.co/v0/postings"
 
 # Two postings from api.lever.co/v0/postings/palantir?mode=json, fetched
-# 2026-10-28, trimmed to the fields jobrake reads plus categories.team and
-# opening, with each HTML field and list cut to a block or two. The second
-# posting's workplaceType is changed from hybrid to remote to cover a second
-# workplace type, and New York is added to its allLocations to cover a second
-# place.
+# 2026-10-28, trimmed to the fields jobrake reads plus opening, with each HTML
+# field and list cut to a block or two. The second posting's workplaceType is
+# changed from hybrid to remote to cover a second workplace type, New York is
+# added to its allLocations to cover a second place, and the first posting
+# gains categories.department, which Lever documents and palantir leaves out.
 POSTINGS = [
     {
         "id": "6ed76ce8-4156-4b60-b120-403538bd66cd",
@@ -29,6 +29,7 @@ POSTINGS = [
         "workplaceType": "hybrid",
         "categories": {
             "commitment": "Full-time",
+            "department": "Operations",
             "location": "Singapore, Singapore",
             "team": "Administrative",
             "allLocations": ["Singapore, Singapore"],
@@ -103,9 +104,11 @@ def test_a_board_parses_into_records():
             "in applicants who have a current right to work in Singapore, and we encourage "
             "Singapore citizens to apply.",
             "employment_type": "full_time",
+            "department": "Operations",
             "workplace_type": "hybrid",
             "posted_at": "2026-08-11T17:38:11.368000+00:00",
             "apply_url": "https://jobs.lever.co/palantir/6ed76ce8-4156-4b60-b120-403538bd66cd/apply",
+            "team": "Administrative",
         },
         {
             "site": "lever",
@@ -125,6 +128,7 @@ def test_a_board_parses_into_records():
             "workplace_type": "remote",
             "posted_at": "2026-06-18T08:34:20.468000+00:00",
             "apply_url": "https://jobs.lever.co/palantir/a237973c-cb29-41fe-9c80-416e6f42e087/apply",
+            "team": "Administrative",
         },
     ]
     assert fetcher.requests == [f"{GLOBAL}/palantir?mode=json"]

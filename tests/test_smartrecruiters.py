@@ -14,7 +14,8 @@ from jobrake.sites import smartrecruiters
 
 # Two cards from api.smartrecruiters.com/v1/companies/BoschGroup/postings, the
 # second with locationType=REMOTE, fetched 2026-10-28, trimmed to the fields
-# jobrake reads plus a few it leaves out.
+# jobrake reads plus a few it leaves out. The first card gains a department in
+# SmartRecruiters' documented shape, which BoschGroup leaves out.
 CARDS = [
     {
         "id": "744000158197889",
@@ -34,6 +35,7 @@ CARDS = [
             "fullLocation": "Wuxi, Jiangsu, China",
         },
         "typeOfEmployment": {"id": "permanent", "label": "Full-time"},
+        "department": {"id": "8193", "label": "Manufacturing"},
         "language": {"code": "en", "label": "English"},
     },
     {
@@ -85,6 +87,7 @@ def test_a_board_parses_into_records():
             "date": "2026-10-28",
             "language": "en",
             "employment_type": "full_time",
+            "department": "Manufacturing",
             "posted_at": "2026-10-28T02:14:12.200Z",
         },
         {
