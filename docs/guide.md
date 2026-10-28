@@ -484,7 +484,7 @@ A Lever record carries `title`, `location`, `date`, and `description`, and the d
 `company` is always `None`, because Lever's response never names the employer.
 `posted_at` is the time the posting was created, and `date` is its calendar date.
 `description` joins the posting's description, its lists such as requirements and benefits, each under its own heading, and its closing text.
-`location` is the posting's primary location as the employer entered it, such as `London, United Kingdom`. `country_code` is that location's country.
+`location` names the posting's primary location and then its other places, as the employer entered them, such as `London, United Kingdom`. `country_code` is the primary location's country.
 `employment_type` is the employer's commitment label as a slug, such as `full_time` for `Full-time`.
 `is_remote` is `True` when the employer marked the workplace remote, and absent for on-site, hybrid, and unspecified postings.
 `url` is the posting on `jobs.lever.co` or `jobs.eu.lever.co`, and `apply_url` is its application form.

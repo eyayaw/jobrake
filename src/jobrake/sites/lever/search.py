@@ -9,7 +9,7 @@ from urllib.parse import quote
 from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, employment_type, make_job
 from jobrake.sites.responses import json_list, parse_postings, read_json
-from jobrake.utils import as_dict, as_str, checked, epoch_ms_to_iso, finite, html_text
+from jobrake.utils import as_dict, as_str, checked, epoch_ms_to_iso, finite, html_text, join_places
 
 logger = logging.getLogger(__name__)
 
@@ -51,12 +51,16 @@ def _parse_posting(posting: dict[str, Any]) -> JobDict:
         AttributeError: The posting is not an object.
     """
     categories = as_dict(posting.get("categories"))
+    # allLocations repeats the primary location, which join_places() names once.
+    places = categories.get("allLocations")
     return make_job(
         site="lever",
         id=posting.get("id"),
         url=posting.get("hostedUrl"),
         title=posting.get("text"),
-        location=as_str(categories.get("location")),
+        location=join_places(
+            [categories.get("location"), *(places if isinstance(places, list) else [])]
+        ),
         description=_description(posting),
         employment_type=employment_type(as_str(categories.get("commitment"))),
         is_remote=True if posting.get("workplaceType") == "remote" else None,
