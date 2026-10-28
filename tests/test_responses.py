@@ -21,6 +21,7 @@ UNREADABLE = r"^acme sent a response this version cannot read \("
         (not_found(), {"board": "x"}, r"^acme search of board 'x' stopped: HTTP 404$"),
         (network_down(), {}, "^acme search stopped: connection reset$"),
         (ok("not JSON"), {}, UNREADABLE + "JSONDecodeError"),
+        (ok("[" + "9" * 5000 + "]"), {}, UNREADABLE + "ValueError"),
         (ok("[]"), {}, UNREADABLE + "TypeError"),
         (ok("{}"), {}, UNREADABLE + r"KeyError\('jobs'\)"),
         (ok('{"jobs": {}}'), {}, UNREADABLE + r"TypeError\('jobs is a dict, not a list'\)"),
