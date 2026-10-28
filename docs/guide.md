@@ -1,6 +1,6 @@
 # jobrake guide
 
-jobrake provides one interface for Indeed, LinkedIn, and employers' Greenhouse boards, but the sites differ in how they interpret geography, apply search filters, and fetch posting details.
+jobrake provides one interface for Indeed, LinkedIn, and employers' Ashby and Greenhouse boards, but the sites differ in how they interpret geography, apply search filters, and fetch posting details.
 Run `jobrake -h` for the sites, `jobrake <site> -h` for a site's commands, and `jobrake <site> <command> -h` for their options.
 
 - [Search for jobs](#search-for-jobs)
@@ -425,11 +425,12 @@ A reference whose request failed is absent from the result, and calling the func
 ## Employer boards
 
 Many employers publish their openings on a board that their applicant tracking system (ATS) hosts.
-jobrake reads Greenhouse boards. A search names one employer's board with `--board | -b` and returns every posting on it:
+jobrake reads Ashby and Greenhouse boards. A search names one employer's board with `--board | -b` and returns every posting on it:
 
 ```sh
 jobrake greenhouse search -b airbnb
 jobrake greenhouse search -b gitlab -o gitlab.jsonl
+jobrake ashby search -b ramp -o ramp.csv
 ```
 
 ```python
@@ -440,13 +441,17 @@ from jobrake import scrape
 jobs = asyncio.run(scrape("greenhouse", board="airbnb"))
 ```
 
-A board search takes no query, result limit, or filters, because Greenhouse applies none.
+A board search takes no query, result limit, or filters, because neither Ashby nor Greenhouse applies any.
 To narrow the postings, [pipe the results](#pipe-results) through `jq` or load them into another tool.
 
 ### Find a board token
 
-The board token is the last part of the board's address: `airbnb` in `boards.greenhouse.io/airbnb`, or `gitlab` in `job-boards.greenhouse.io/gitlab`.
-A token Greenhouse does not know stops the search with an error that says so.
+The board token is the last part of the board's address:
+
+- Greenhouse: `airbnb` in `boards.greenhouse.io/airbnb`, or `gitlab` in `job-boards.greenhouse.io/gitlab`.
+- Ashby: `ramp` in `jobs.ashbyhq.com/ramp`.
+
+A token the site does not know stops the search with an error that says so.
 
 ### Greenhouse fields
 
@@ -457,6 +462,19 @@ It also carries `company`, `date`, and the details `posted_at`, `language`, and 
 `url` is the posting on the employer's own careers site when the board lives there, as Airbnb's does, and on `job-boards.greenhouse.io` otherwise.
 In our tests on two boards, every posting carried a company, a location, a first-published time, and a language, and one posting in 430 had a deadline.
 Employers can add facts such as a workplace type as custom fields, which differ from board to board. jobrake leaves those out, so a Greenhouse record has no salary, employment type, or remote flag.
+
+### Ashby fields
+
+An Ashby record carries `title`, `location`, `date`, and `description`, and the details `posted_at`, `employment_type`, `apply_url`, and, when present, `is_remote`, `salary_min`, `salary_max`, `salary_currency`, `salary_period`, `city`, and `region`.
+`company` is always `None`, because Ashby's response never names the employer. The board token tells you whose board it is.
+`posted_at` is the time the posting was published, and `date` is its calendar date.
+`location` names the posting's primary location and then its other places, such as `Remote (US); Remote (Canada)`. `city` and `region` come from the address of the primary location, and `region` can be a code or a name, such as `NY` or `Ontario`.
+Ashby gives the country as a name, such as `USA` or `United Kingdom`, so an Ashby record has no `country_code`.
+`is_remote` is `True` for a posting the employer marked remote, and absent for a hybrid or on-site one.
+The salary fields come from the posting's salary range. jobrake leaves out equity, commission, and bonus, which have no record fields.
+`url` and `apply_url` point to the posting on `jobs.ashbyhq.com`.
+A search also returns postings the employer marked unlisted, which Ashby intends for direct links only.
+In our test on one board of 172 postings, every posting carried a location, a publish time, and an employment type, 165 carried a salary range, 162 a city, and 16 were remote.
 
 ## Read and save results
 
@@ -469,10 +487,11 @@ Every job is a flat dictionary, with three groups of keys.
 - **Detail keys:** included when a value is available.
 
 Identity and summary keys are always present, with `None` for an unavailable summary value.
+When a site lists a posting's places one by one, `location` names each, separated by `; `, and place details such as `city` describe the first.
 A detail key is absent when the site omits or does not publish the value, or when jobrake did not fetch the posting page.
 
 The sites use the same names for the details they share. A few come from some sites only:
-`apply_type`, `applicants`, `experience_months`, and `education` from LinkedIn, `is_remote` and `apply_url` from Indeed, and `language` from Indeed and Greenhouse.
+`apply_type`, `applicants`, `experience_months`, and `education` from LinkedIn, `is_remote` and `apply_url` from Ashby and Indeed, and `language` from Greenhouse and Indeed.
 
 A posting can carry two dates. `date` holds the calendar date, such as `2026-09-19`, and `posted_at` holds the full timestamp, such as `2026-09-19T05:00:00+00:00`.
 jobrake prefers the date a search result states and falls back to the calendar portion of `posted_at`. Compare on `date`, and read `posted_at` for a time of day.
@@ -594,6 +613,12 @@ async def main():
 
 The CLI writes those jobs and exits 1. Reaching a site's own result cap is not a failure. jobrake warns on stderr and returns what the site served.
 
+### Ashby requests
+
+A board search is one request, which returns the whole board, descriptions and salaries included. It gets a single attempt and no pacing.
+A failed request raises `Stopped` with an empty `partial`, and the CLI exits 1.
+jobrake skips a posting it cannot read and leaves out a field it cannot read.
+
 ### Greenhouse requests
 
 A board search is one request, which returns the whole board. It gets a single attempt and no pacing.
@@ -637,7 +662,7 @@ On a data center IP, such as a VPS, LinkedIn refuses posting pages with [HTTP 99
 ## Cache location and lifetimes
 
 jobrake keeps the LinkedIn postings it fetched in one SQLite file under your user cache directory: `~/Library/Caches/jobrake/` on macOS, `$XDG_CACHE_HOME/jobrake/` on Linux, `%LOCALAPPDATA%\jobrake\` on Windows.
-Indeed and Greenhouse are not cached.
+No other site is cached.
 
 A cached posting stays fresh for seven days and is fetched again after that. A posting that LinkedIn reports gone is not cached.
 An upgrade keeps the cache, and a posting whose cached copy no longer fits the job fields is fetched again.

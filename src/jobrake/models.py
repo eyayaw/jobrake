@@ -106,7 +106,8 @@ class Stopped(Exception):
         return functools.partial(type(self), partial=self.partial), self.args, self.__dict__
 
 
-# schema.org says CONTRACTOR and INTERN where the boards say Contract and Internship.
+# schema.org says CONTRACTOR and INTERN, and Ashby says Intern, where the
+# other boards say Contract and Internship.
 _EMPLOYMENT_ALIASES = {"contractor": "contract", "intern": "internship"}
 
 
@@ -114,5 +115,7 @@ def employment_type(label: str | None) -> str | None:
     """Return a site's employment label as a snake_case slug such as ``full_time``, or None."""
     if not label:
         return None
-    slug = re.sub(r"[^a-z0-9]+", "_", label.lower()).strip("_")
+    # A camelCase label, such as Ashby's FullTime, splits before a capital that follows a lowercase letter or digit.
+    words = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", "_", label)
+    slug = re.sub(r"[^a-z0-9]+", "_", words.lower()).strip("_")
     return _EMPLOYMENT_ALIASES.get(slug, slug or None)

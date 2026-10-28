@@ -5,7 +5,8 @@
 jobrake reads the postings a job board publishes and returns each one as a
 flat record with the same fields, whichever board it came from. It is an async
 Python package and CLI that reads LinkedIn's guest API, Indeed's GraphQL API,
-and Greenhouse's Job Board API, and it depends on `httpx` and `bs4`.
+Ashby's Job Posting API, and Greenhouse's Job Board API, and it depends on
+`httpx` and `bs4`.
 
 ## Map
 
@@ -15,8 +16,8 @@ and Greenhouse's Job Board API, and it depends on `httpx` and `bs4`.
   of `places`, `companies`, `attributes`, and `postings`, and the first line
   of its docstring is the site's CLI help. `search.py` builds requests and
   parses results. LinkedIn's and Indeed's `client.py` hold their URLs,
-  headers, and pacing, and their `lookups.py` hold the lookups. Greenhouse
-  has one URL and no headers, so its `search.py` holds the URL. LinkedIn's
+  headers, and pacing, and their `lookups.py` hold the lookups. The other
+  sites need no headers or pacing and have no `client.py`. LinkedIn's
   `pages.py` fetches posting pages for `postings` and `details=True`, and
   Indeed's `countries.py` maps country names to editions.
 - `sites/responses.py`: the response reading the JSON sites share, for one
@@ -26,7 +27,7 @@ and Greenhouse's Job Board API, and it depends on `httpx` and `bs4`.
   site of this kind writes no error handling of its own.
 - `utils.py`: `site_options`, which reads the `Annotated` arguments of a
   site function, `checked`, which checks every call against them, and the
-  JSON value, text, and date helpers.
+  JSON value, text, number, and date helpers.
 - `models.py`: `JobDict`, `make_job`, and `Stopped`.
 - `fetchkit/`: the `Fetcher` protocol, `FetchResult`, and `HttpxFetcher`.
 - `cache.py`: one SQLite table of `JobDict` records keyed by site and ID, and

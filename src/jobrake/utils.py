@@ -3,7 +3,8 @@
 import functools
 import inspect
 import logging
-from collections.abc import Awaitable, Callable
+import math
+from collections.abc import Awaitable, Callable, Iterable
 from datetime import UTC, datetime
 from types import NoneType
 from typing import Annotated, Any, NamedTuple, Union, get_args, get_origin
@@ -154,6 +155,19 @@ def checked[**P, R](function: Callable[P, Awaitable[R]]) -> Callable[P, Awaitabl
     return wrapper
 
 
+def finite(value: object) -> float | None:
+    """Return a JSON number that fits a record field, or None for anything else."""
+    # json.loads admits NaN and the infinities, which strict JSON output
+    # forbids, and bool is an int subclass.
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        return None
+    try:
+        return value if math.isfinite(value) else None
+    except OverflowError:
+        # An integer beyond float range is no usable field value.
+        return None
+
+
 def as_str(value: object) -> str | None:
     """Return a JSON value when it is a string, or None for anything else."""
     return value if isinstance(value, str) else None
@@ -162,6 +176,14 @@ def as_str(value: object) -> str | None:
 def as_dict(value: object) -> dict[str, Any]:
     """Return a JSON value unchanged when it is an object, or ``{}`` for anything else, so a ``.get`` can follow."""
     return value if isinstance(value, dict) else {}
+
+
+def join_places(places: Iterable[object]) -> str | None:
+    """Join a posting's place names with ``"; "``, skipping blanks, repeats, and non-strings, or return None for none."""
+    names = dict.fromkeys(
+        place.strip() for place in places if isinstance(place, str) and place.strip()
+    )
+    return "; ".join(names) or None
 
 
 def iso_date(value: str | None) -> str | None:
