@@ -663,3 +663,5 @@ A storage failure disables the cache with a warning, and scraping carries on wit
 ## Other job boards
 
 Glassdoor is not planned because it is now [part of Indeed](https://web.archive.org/web/20260704043638/https://www.glassdoor.com/about/).
+AEA JOE is not planned because its [listings](https://www.aeaweb.org/joe/listings) forbid scraping or collecting them without the American Economic Association's written permission. Its listings page offers its own XML and Excel downloads.
+Wellfound is not planned because it has no public API, and its job data sits behind a Cloudflare challenge that only a browser passes.
