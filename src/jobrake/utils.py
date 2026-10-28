@@ -3,6 +3,7 @@
 import functools
 import inspect
 import logging
+import math
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from types import NoneType
@@ -152,6 +153,19 @@ def checked[**P, R](function: Callable[P, Awaitable[R]]) -> Callable[P, Awaitabl
         return await function(*args, **kwargs)
 
     return wrapper
+
+
+def finite(value: object) -> float | None:
+    """Return a JSON number that fits a record field, or None for anything else."""
+    # json.loads admits NaN and the infinities, which strict JSON output
+    # forbids, and bool is an int subclass.
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        return None
+    try:
+        return value if math.isfinite(value) else None
+    except OverflowError:
+        # An integer beyond float range is no usable field value.
+        return None
 
 
 def as_str(value: object) -> str | None:

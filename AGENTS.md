@@ -26,7 +26,7 @@ and Greenhouse's Job Board API, and it depends on `httpx` and `bs4`.
   site of this kind writes no error handling of its own.
 - `utils.py`: `site_options`, which reads the `Annotated` arguments of a
   site function, `checked`, which checks every call against them, and the
-  JSON value, text, and date helpers.
+  JSON value, text, number, and date helpers.
 - `models.py`: `JobDict`, `make_job`, and `Stopped`.
 - `fetchkit/`: the `Fetcher` protocol, `FetchResult`, and `HttpxFetcher`.
 - `cache.py`: one SQLite table of `JobDict` records keyed by site and ID, and

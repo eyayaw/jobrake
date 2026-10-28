@@ -14,7 +14,7 @@ lazy from bs4 import BeautifulSoup
 from jobrake import cache
 from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, employment_type, make_job
-from jobrake.utils import checked, html_text
+from jobrake.utils import checked, finite, html_text
 
 from .client import FRAGMENT_URL, job_id, numeric, paced_fetch
 
@@ -42,15 +42,7 @@ def _text_value(value: object) -> str | None:
 def _number_value(value: object) -> float | None:
     if isinstance(value, list):
         value = value[0] if value else None
-    # json.loads admits NaN and the infinities, which strict JSON output
-    # forbids. Only finite numbers become fields.
-    if isinstance(value, bool) or not isinstance(value, int | float):
-        return None
-    try:
-        return value if math.isfinite(value) else None
-    except OverflowError:
-        # An integer beyond float range is no usable field value.
-        return None
+    return finite(value)
 
 
 def _url(value: object) -> str | None:

@@ -2,14 +2,13 @@
 
 import json
 import logging
-import math
 import re
 from gettext import ngettext
 from typing import Annotated, Any
 
 from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, Stopped, employment_type, make_job
-from jobrake.utils import as_dict, as_str, checked, epoch_ms_to_iso, html_text
+from jobrake.utils import as_dict, as_str, checked, epoch_ms_to_iso, finite, html_text
 
 from .client import API_HEADERS, API_URL
 from .countries import Country, indeed_domain
@@ -162,16 +161,6 @@ def _timestamp(job: dict[str, Any], field: str) -> str | None:
         return None
 
 
-def _finite_value(value: object) -> float | None:
-    if isinstance(value, bool) or not isinstance(value, int | float):
-        return None
-    try:
-        return value if math.isfinite(value) else None
-    except OverflowError:
-        # An integer beyond float range is no usable field value.
-        return None
-
-
 def _parse_job(job: dict[str, Any], base_url: str) -> JobDict:
     """Normalize one Indeed result into the shared job model."""
     # Indeed's job key becomes both the job ID and the URL's ``jk`` parameter.
@@ -184,7 +173,7 @@ def _parse_job(job: dict[str, Any], base_url: str) -> JobDict:
     compensation = as_dict(job.get("compensation"))
     salary = as_dict(compensation.get("baseSalary"))
     amount = as_dict(salary.get("range"))
-    exactly = _finite_value(amount.get("value"))
+    exactly = finite(amount.get("value"))
     # Employment types share the attributes bag with skills and benefits.
     # Malformed entries, or a bag that is not a list, are ignored.
     attributes = job.get("attributes")
@@ -217,15 +206,15 @@ def _parse_job(job: dict[str, Any], base_url: str) -> JobDict:
         ),
         # A Remote tag proves remote; absence proves nothing, so the field stays None.
         is_remote=True if "Remote" in labels else None,
-        salary_min=_finite_value(amount.get("min", exactly)),
-        salary_max=_finite_value(amount.get("max", exactly)),
+        salary_min=finite(amount.get("min", exactly)),
+        salary_max=finite(amount.get("max", exactly)),
         salary_currency=as_str(compensation.get("currencyCode")),
         salary_period=as_str(salary.get("unitOfWork")),
         city=city,
         region=region,
         country_code=country_code,
-        latitude=_finite_value(loc.get("latitude")),
-        longitude=_finite_value(loc.get("longitude")),
+        latitude=finite(loc.get("latitude")),
+        longitude=finite(loc.get("longitude")),
         apply_url=as_str(as_dict(job.get("recruit")).get("viewJobUrl")),
     )
 
