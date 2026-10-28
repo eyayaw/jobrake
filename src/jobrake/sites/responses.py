@@ -41,9 +41,10 @@ def read_json[T](
     if result.error:
         where = f" of board {board!r}" if board else ""
         raise Stopped(f"{site} search{where} stopped: {result.error}{kept}", partial=partial)
+    # ValueError covers JSONDecodeError and an integer longer than Python reads.
     try:
         return unpack(json.loads(result.text))
-    except (json.JSONDecodeError, KeyError, TypeError) as error:
+    except (ValueError, KeyError, TypeError) as error:
         raise Stopped(
             f"{site} sent a response this version cannot read ({error!r}), "
             f"likely an API change{kept}",

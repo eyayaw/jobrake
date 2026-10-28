@@ -485,7 +485,8 @@ jobs = asyncio.run(scrape("smartrecruiters", board="BoschGroup", query="engineer
 
 ### Greenhouse fields
 
-A Greenhouse record carries `title`, `company`, `location`, `date`, and `description`, and the details `posted_at`, `language`, and `expires_at`.
+A Greenhouse record carries `title`, `location`, and `description`.
+It also carries `company`, `date`, and the details `posted_at`, `language`, and `expires_at` when Greenhouse supplies them, which its documented list response does not promise.
 `posted_at` is the time the posting was first published, and `date` is its calendar date. `expires_at` is the application deadline.
 `location` is the text the employer entered, such as `Remote, Canada; Remote, United States`.
 `url` is the posting on the employer's own careers site when the board lives there, as Airbnb's does, and on `job-boards.greenhouse.io` otherwise.
