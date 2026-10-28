@@ -146,6 +146,10 @@ def test_the_description_keeps_every_section_on_its_own_line():
     assert job["description"] == (
         "Build software\nRequirements\nPython\nPlus commission\nBenefits included"
     )
+    # An unreadable lists field costs only its own sections.
+    fetcher = StubFetcher({"api.lever.co": ok(json.dumps([{**posting, "lists": 1}]))})
+    (job,) = asyncio.run(lever.search(fetcher, board="palantir"))
+    assert job["description"] == "Build software\nPlus commission\nBenefits included"
 
 
 def test_only_a_404_from_the_global_host_sends_the_board_to_the_eu_host():

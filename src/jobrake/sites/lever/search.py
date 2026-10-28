@@ -20,7 +20,8 @@ API_URLS = ("https://api.lever.co/v0/postings", "https://api.eu.lever.co/v0/post
 def _description(posting: dict[str, Any]) -> str:
     # description already holds the opening, so the opening fields stay out.
     parts = [as_str(posting.get("description")) or ""]
-    for entry in posting.get("lists") or []:
+    lists = posting.get("lists")
+    for entry in lists if isinstance(lists, list) else []:
         if isinstance(entry, dict):
             # The list name is plain text, and its content is bare <li> elements.
             heading = escape(as_str(entry.get("text")) or "")
