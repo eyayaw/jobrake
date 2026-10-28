@@ -3,7 +3,7 @@
 import logging
 from gettext import ngettext
 from typing import Annotated, Any
-from urllib.parse import quote
+from urllib.parse import quote, urlsplit
 
 from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, employment_type, make_job
@@ -45,14 +45,18 @@ def _parse_posting(posting: dict[str, Any]) -> JobDict:
     Build a record from one entry of a board's ``jobs`` list.
 
     Raises:
-        TypeError: The posting lacks a string ``id`` or a ``jobUrl``.
+        TypeError: The posting lacks a ``jobUrl``, or an ID in ``id`` or at its end.
         AttributeError: The posting is not an object.
     """
     address = as_dict(as_dict(posting.get("address")).get("postalAddress"))
+    url = as_str(posting.get("jobUrl"))
+    # Ashby's documentation lists no id. Every posting carried one on 2026-10-28,
+    # and the last part of its jobUrl was the same ID, which stands in without it.
+    tail = urlsplit(url).path.rstrip("/").rsplit("/", 1)[-1] if url else None
     return make_job(
         site="ashby",
-        id=posting.get("id"),
-        url=posting.get("jobUrl"),
+        id=as_str(posting.get("id")) or tail,
+        url=url,
         title=posting.get("title"),
         company=None,  # the response never names the employer
         location=posting.get("location"),

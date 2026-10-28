@@ -88,7 +88,9 @@ def board(postings):
 
 def test_a_board_parses_into_records():
     # Ashby serves an unlisted posting for direct links, and jobrake returns it too.
+    # It also lacks id, which Ashby does not document, so its ID comes from jobUrl.
     unlisted = {**POSTINGS[1], "isListed": False}
+    del unlisted["id"]
     fetcher = StubFetcher({"job-board/ramp": board([POSTINGS[0], unlisted])})
     assert asyncio.run(ashby.search(fetcher, board="ramp")) == [
         {
