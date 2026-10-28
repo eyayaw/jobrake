@@ -7,7 +7,7 @@ from typing import Annotated, Any
 from urllib.parse import quote, urlencode
 
 from jobrake.fetchkit import Fetcher
-from jobrake.models import JobDict, employment_type, make_job
+from jobrake.models import JobDict, Stopped, employment_type, make_job
 from jobrake.sites.responses import json_page, parse_postings, read_json
 from jobrake.utils import as_dict, as_str, checked, finite
 
@@ -109,16 +109,16 @@ async def search(
     applies every option: ``query`` searches titles and locations, and
     ``max_age_hours`` keeps postings released within that many hours. Pages
     of up to 100 cards follow one another without pacing or retries until
-    ``results``, the board's last match, or an empty page, which warns when
-    it comes before the reported total. A posting that a later page repeats
-    is kept once. An unknown board
+    ``results``, the board's last match, or an empty page. A posting that a
+    later page repeats is kept once. An unknown board
     answers like a board with no postings, so it returns ``[]`` and logs that
     the board may be misspelled. A malformed card costs only that card. The
     caller owns ``fetcher``.
 
     Raises:
-        Stopped: A request failed or SmartRecruiters sent an unreadable
-            response. ``partial`` holds the postings of the pages before it.
+        Stopped: A request failed, SmartRecruiters sent an unreadable
+            response, or an empty page came before the reported total.
+            ``partial`` holds the postings of the pages before it.
         ValueError: ``board`` is blank, or ``results`` or ``max_age_hours``
             is below 1.
     """
@@ -146,12 +146,11 @@ async def search(
                 seen.add(job["id"])
                 jobs.append(job)
         if not cards and offset < total:
-            logger.warning(
-                "smartrecruiters board %r reported %d postings but sent an empty page after %d. "
-                "Postings may have closed during the search, so rerun it for the current list",
-                token,
-                total,
-                offset,
+            raise Stopped(
+                f"smartrecruiters board {token!r} reported {total} postings but sent an empty "
+                f"page after {offset}, so the result may be incomplete. Postings may have "
+                "closed during the search. A rerun reads the current list",
+                partial=jobs,
             )
         offset += len(cards)
         if not cards or offset >= total:

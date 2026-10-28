@@ -745,7 +745,7 @@ An exception your own `Fetcher` raises propagates out of `scrape()`.
 
 ## Request limits and partial results
 
-A failed request ends a search with `Stopped`, and its `partial` holds the jobs collected before the failure:
+A failed request ends a search with `Stopped`, and so does a page that ends it short of the total the site reported. Its `partial` holds the jobs collected before the search stopped:
 
 ```python
 from jobrake import Stopped, scrape
@@ -822,8 +822,8 @@ On a data center IP, such as a VPS, LinkedIn refuses posting pages with [HTTP 99
 ### SmartRecruiters requests
 
 A search reads the board in pages of up to 100 postings, which follow one another without pacing, and each request gets a single attempt.
-It stops at `--results`, at the board's last matching posting, or at an empty page. An empty page that comes before the number of matches SmartRecruiters reported logs a warning, because postings may have closed during the search.
-A failed request raises `Stopped` with the postings of the pages before it, and the CLI exits 1.
+It stops at `--results`, at the board's last matching posting, or at an empty page.
+A failed request raises `Stopped` with the postings of the pages before it, and the CLI exits 1. So does an empty page that comes before the number of matches SmartRecruiters reported, because postings may have closed during the search and a rerun may find more.
 jobrake skips a posting it cannot read and leaves out a field it cannot read.
 
 ### Workable requests
