@@ -8,7 +8,7 @@ from urllib.parse import quote
 from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, employment_type, make_job
 from jobrake.sites.responses import json_list, parse_postings, read_json
-from jobrake.utils import as_dict, as_str, checked, html_text
+from jobrake.utils import as_dict, as_str, checked, html_text, join_places
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +51,16 @@ def _parse_posting(posting: dict[str, Any], company: str | None) -> JobDict:
     )
 
 
+def _one_per_shortcode(jobs: list[JobDict]) -> list[JobDict]:
+    """Merge the entries of one posting, which Workable repeats once per place, into its first."""
+    first: dict[str, JobDict] = {}
+    for job in jobs:
+        kept = first.setdefault(job["id"], job)
+        if job is not kept:
+            kept["location"] = join_places([*(kept["location"] or "").split("; "), job["location"]])
+    return list(first.values())
+
+
 @checked
 async def search(
     fetcher: Fetcher,
@@ -62,8 +72,9 @@ async def search(
 
     ``board`` is the token that follows the host in the careers page address,
     as in ``apply.workable.com/huggingface``. One request returns the whole
-    board, descriptions included, in Workable's order. It is neither paced nor
-    retried. A malformed posting costs only that posting. The caller owns
+    board, descriptions included, in Workable's order. A posting open in several
+    places comes back once, with each place in ``location``. It is neither paced
+    nor retried. A malformed posting costs only that posting. The caller owns
     ``fetcher``.
 
     Raises:
@@ -83,8 +94,8 @@ async def search(
         unknown=f"workable has no board {token!r}. Pass the token that follows the host in the "
         "employer's careers page URL, apply.workable.com/<token>",
     )
-    jobs = parse_postings(
-        postings, lambda posting: _parse_posting(posting, company), site="workable"
+    jobs = _one_per_shortcode(
+        parse_postings(postings, lambda posting: _parse_posting(posting, company), site="workable")
     )
     logger.info(
         "workable board %r has %s",

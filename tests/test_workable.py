@@ -113,3 +113,9 @@ def test_a_board_parses_into_records():
     assert fetcher.requests == [
         "https://apply.workable.com/api/v1/widget/accounts/huggingface?details=true"
     ]
+    # Workable repeats a posting open in several places once per place, under one shortcode.
+    london = {**POSTINGS[0], "city": "London", "state": "England", "country": "United Kingdom"}
+    fetcher = StubFetcher({"accounts/huggingface": board([POSTINGS[0], london, POSTINGS[0]])})
+    (job,) = asyncio.run(workable.search(fetcher, board="huggingface"))
+    assert job["location"] == "Paris, Île-de-France, France; London, England, United Kingdom"
+    assert job["city"] == "Paris"

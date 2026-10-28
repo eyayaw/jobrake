@@ -101,6 +101,11 @@ def test_a_board_parses_into_records():
         },
     ]
     assert fetcher.requests == [f"{URL}?limit=100&offset=0"]
+    # A card without fullLocation names its place from the place fields.
+    location = {"city": "San Francisco", "region": "CA", "country": "us"}
+    fetcher = StubFetcher({"BoschGroup/postings": page([{**CARDS[0], "location": location}], 1)})
+    (job,) = asyncio.run(smartrecruiters.search(fetcher, board="BoschGroup"))
+    assert job["location"] == "San Francisco, CA, US"
 
 
 def test_the_options_become_query_parameters():
