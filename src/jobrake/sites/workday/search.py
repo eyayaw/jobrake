@@ -139,8 +139,10 @@ async def _collect_cards(
             unknown=unknown if total is None else None,
             partial=jobs,
         )
+        # Later pages are reported to say 0, so the first page's total stands.
+        total = page_total if total is None else total
         if not cards:
-            if total is not None and offset < total:
+            if offset < total:
                 logger.warning(
                     "workday site %s reported %d postings but sent an empty page after %d. "
                     "Postings may have closed during the search, so rerun it for the current list",
@@ -149,8 +151,6 @@ async def _collect_cards(
                     offset,
                 )
             break
-        # Later pages are reported to say 0, so the first page's total stands.
-        total = page_total if total is None else total
         offset += len(cards)
         for job in parse_postings(cards, parse, site="workday"):
             if job["id"] not in seen:

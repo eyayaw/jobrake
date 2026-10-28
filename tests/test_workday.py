@@ -263,6 +263,9 @@ def test_paging_stops_at_results_at_the_first_total_and_at_an_empty_page(caplog,
     fetcher = PagedFetcher([page(numbered(20), total=2000), page([], total=2000)])
     assert len(asyncio.run(workday.search(fetcher, board=BOARD, results=100))) == 20
     assert "reported 2000 postings but sent an empty page after 20" in caplog.text
+    fetcher = PagedFetcher([page([], total=20)])
+    assert asyncio.run(workday.search(fetcher, board=BOARD)) == []
+    assert "reported 20 postings but sent an empty page after 0" in caplog.text
     # A search that reaches a total below the cap is complete.
     fetcher = PagedFetcher([page(numbered(20), total=25), page(numbered(5, 20), total=25)])
     assert len(asyncio.run(workday.search(fetcher, board=BOARD, results=100))) == 25
