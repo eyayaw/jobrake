@@ -10,9 +10,9 @@ from typing import Annotated, Any
 from urllib.parse import urlsplit
 
 from jobrake.fetchkit import Fetcher
-from jobrake.models import JobDict, Stopped, employment_type, make_job
+from jobrake.models import JobDict, Place, Stopped, employment_type, make_job
 from jobrake.sites.responses import json_page, parse_postings, read_json
-from jobrake.utils import as_dict, as_str, checked, html_text, join_places
+from jobrake.utils import as_dict, as_str, checked, html_text
 
 logger = logging.getLogger(__name__)
 
@@ -93,7 +93,7 @@ def _parse_card(card: dict[str, Any], site_url: str, tenant: str) -> JobDict:
         id=f"{tenant}:{match.group(1)}",
         url=site_url + path,
         title=card.get("title"),
-        location=location,
+        locations=[{"name": location}],
         date=_posted_date(card.get("postedOn")),
     )
 
@@ -159,7 +159,9 @@ async def _collect_cards(
     return jobs, total is not None and offset >= total >= MAX_TOTAL
 
 
-async def _detail_fields(fetcher: Fetcher, url: str, posting: str) -> dict[str, Any] | None:
+async def _detail_fields(
+    fetcher: Fetcher, url: str, posting: str, card_places: list[Place]
+) -> dict[str, Any] | None:
     """
     Fetch one posting's detail fields, or ``{}`` when Workday reports it gone.
 
@@ -175,15 +177,22 @@ async def _detail_fields(fetcher: Fetcher, url: str, posting: str) -> dict[str, 
     try:
         info = json.loads(result.text)["jobPostingInfo"]
         country = as_dict(as_dict(info.get("jobRequisitionLocation")).get("country"))
+        primary = (as_str(info.get("location")) or "").strip()
         others = info.get("additionalLocations")
-        places = join_places([info.get("location"), *(others if isinstance(others, list) else [])])
+        # The requisition's country is the primary location's. Without one, the card's place leads.
+        locations = [
+            *(
+                [{"name": primary, "country_code": country.get("alpha2Code")}]
+                if primary
+                else card_places
+            ),
+            *({"name": name} for name in (others if isinstance(others, list) else [])),
+        ]
         return {
             "description": html_text(as_str(info.get("jobDescription")) or ""),
             "posted_at": as_str(info.get("startDate")),
             "employment_type": employment_type(as_str(info.get("timeType"))),
-            "country_code": as_str(country.get("alpha2Code")),
-            # A detail without a location keeps the card's.
-            **({"location": places} if places else {}),
+            "locations": locations,
         }
     except (ValueError, KeyError, TypeError, AttributeError) as error:
         logger.warning(
@@ -214,7 +223,7 @@ async def _fill_details(
             "workday details %d/%d", position, len(jobs), extra={"progress": (position, len(jobs))}
         )
         fields = await _detail_fields(
-            fetcher, api_url + job["url"].removeprefix(site_url), job["url"]
+            fetcher, api_url + job["url"].removeprefix(site_url), job["url"], job["locations"]
         )
         missing += fields is None
         # Without a card date, make_job falls back to posted_at.

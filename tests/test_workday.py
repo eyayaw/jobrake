@@ -73,7 +73,7 @@ def test_a_search_page_parses_into_records(today):
             "url": f"{BOARD}/job/US-CA-Santa-Clara/Networking-Architect_JR1996377",
             "title": "Networking Architect",
             "company": None,
-            "location": "US, CA, Santa Clara",
+            "locations": [{"name": "US, CA, Santa Clara"}],
             "date": "2026-10-28",
         },
         {
@@ -83,7 +83,7 @@ def test_a_search_page_parses_into_records(today):
             "Principal-Architect--System-Software---Orbital-Data-Center_JR2019010",
             "title": "Principal Architect, System Software - Orbital Data Center",
             "company": None,
-            "location": None,
+            "locations": [],
             "date": "2026-10-28",
         },
         {
@@ -92,7 +92,7 @@ def test_a_search_page_parses_into_records(today):
             "url": f"{BOARD}/job/Singapore-Singapore-Suntec-Tower/AI-Research-Scientist_JR2018673",
             "title": "AI Research Scientist",
             "company": None,
-            "location": None,
+            "locations": [],
             "date": None,
         },
     ]
@@ -150,6 +150,21 @@ TWO_PLACES = {
 }
 
 
+def test_a_detail_without_a_location_keeps_the_cards_place(today):
+    info = {
+        name: value for name, value in TWO_PLACES["jobPostingInfo"].items() if name != "location"
+    }
+    fetcher = StubFetcher(
+        {
+            "/jobs": ok(page(CARDS[:1])),
+            "Networking-Architect_JR1996377": ok(json.dumps({"jobPostingInfo": info})),
+        }
+    )
+    (job,) = asyncio.run(workday.search(fetcher, board=BOARD, details=True))
+    # The card's place leads the additional ones, and the requisition's country stays off both.
+    assert job["locations"] == [{"name": "US, CA, Santa Clara"}, {"name": "US, Remote"}]
+
+
 def test_details_fill_each_card_and_stop_when_one_fails(today, caplog):
     fetcher = StubFetcher(
         {
@@ -167,12 +182,11 @@ def test_details_fill_each_card_and_stop_when_one_fails(today, caplog):
         "url": f"{BOARD}/job/US-CA-Santa-Clara/Networking-Architect_JR1996377",
         "title": "Networking Architect",
         "company": None,
-        "location": "US, CA, Santa Clara",
+        "locations": [{"name": "US, CA, Santa Clara", "country_code": "US"}],
         "date": "2026-10-27",  # the start date, a day before the card's "Posted Today"
         "description": "NVIDIA Networking has been a leader in high performance networking "
         "infrastructure for many years.\nWhat you’ll be doing:",  # noqa: RUF001  the posting's own apostrophe
         "employment_type": "full_time",
-        "country_code": "US",
         "posted_at": "2026-10-27",
     }
     two_places = {
@@ -182,11 +196,13 @@ def test_details_fill_each_card_and_stop_when_one_fails(today, caplog):
         "Principal-Architect--System-Software---Orbital-Data-Center_JR2019010",
         "title": "Principal Architect, System Software - Orbital Data Center",
         "company": None,
-        "location": "US, CA, Santa Clara; US, Remote",
+        "locations": [
+            {"name": "US, CA, Santa Clara", "country_code": "US"},
+            {"name": "US, Remote"},
+        ],
         "date": "2026-10-27",
         "description": "Space-1 is NVIDIA's first Orbital Data Center (ODC) module.",
         "employment_type": "full_time",
-        "country_code": "US",
         "posted_at": "2026-10-27",
     }
     assert asyncio.run(workday.search(fetcher, board=BOARD, results=2, details=True)) == [

@@ -68,6 +68,15 @@ POSTINGS = [
 ]
 
 
+# The first posting's place, named with Workable's text.
+PARIS = {
+    "name": "Paris, Île-de-France, France",
+    "city": "Paris",
+    "region": "Île-de-France",
+    "country_code": "FR",
+}
+
+
 def board(postings):
     return ok(json.dumps({"name": "Hugging Face", "description": "", "jobs": postings}))
 
@@ -81,15 +90,13 @@ def test_a_board_parses_into_records():
             "url": "https://apply.workable.com/j/9E2A4C02C7",
             "title": "Senior Machine Learning Engineer, Voice Agents - EMEA Remote",
             "company": "Hugging Face",
-            "location": "Paris, Île-de-France, France",
+            "locations": [PARIS],
             "date": "2026-09-02",
             "description": "At Hugging Face, we're on a journey to democratize good AI. "
             "Our open-source libraries have more than 600k+ stars on Github.\nAbout the Role",
             "employment_type": "full_time",
-            "is_remote": True,
-            "city": "Paris",
-            "region": "Île-de-France",
-            "country_code": "FR",
+            "department": "Science",
+            "workplace_type": "remote",
             "posted_at": "2026-09-02",
             "apply_url": "https://apply.workable.com/j/9E2A4C02C7/apply",
             "education": "Master's Degree",
@@ -100,12 +107,12 @@ def test_a_board_parses_into_records():
             "url": "https://apply.workable.com/j/0BD8C06DB3",
             "title": "Wild Card",
             "company": "Hugging Face",
-            "location": "United States",
+            "locations": [{"name": "United States", "country_code": "US"}],
             "date": "2024-10-17",
             "description": "If you don't see the perfect job position, just apply to this "
             "one!\nRequirements",
             "employment_type": "full_time",
-            "country_code": "US",
+            "department": "Wild Card",
             "posted_at": "2024-10-17",
             "apply_url": "https://apply.workable.com/j/0BD8C06DB3/apply",
         },
@@ -114,8 +121,55 @@ def test_a_board_parses_into_records():
         "https://apply.workable.com/api/v1/widget/accounts/huggingface?details=true"
     ]
     # Workable repeats a posting open in several places once per place, under one shortcode.
-    london = {**POSTINGS[0], "city": "London", "state": "England", "country": "United Kingdom"}
+    place = {
+        "country": "United Kingdom",
+        "countryCode": "GB",
+        "city": "London",
+        "region": "England",
+    }
+    london = {
+        **POSTINGS[0],
+        "city": "London",
+        "state": "England",
+        "country": "United Kingdom",
+        "locations": [place],
+    }
     fetcher = StubFetcher({"accounts/huggingface": board([POSTINGS[0], london, POSTINGS[0]])})
     (job,) = asyncio.run(workable.search(fetcher, board="huggingface"))
-    assert job["location"] == "Paris, Île-de-France, France; London, England, United Kingdom"
-    assert job["city"] == "Paris"
+    assert job["locations"] == [
+        PARIS,
+        {
+            "name": "London, England, United Kingdom",
+            "city": "London",
+            "region": "England",
+            "country_code": "GB",
+        },
+    ]
+    # Top-level fields that no listed place matches in city, region, and
+    # country make a place of their own, whose name holds the country as
+    # Workable names it.
+    paris = {"name": "Paris, Île-de-France, France", "city": "Paris", "region": "Île-de-France"}
+    for top, listed, expected in (
+        ({}, [], [paris]),
+        (
+            {"state": ""},
+            [{"city": "Paris"}],
+            [{"name": "Paris", "city": "Paris"}, {"name": "Paris, France", "city": "Paris"}],
+        ),
+        (
+            {"city": "", "state": ""},
+            [{"country": "Germany", "countryCode": "DE"}],
+            [{"name": "Germany", "country_code": "DE"}, {"name": "France"}],
+        ),
+        # A listed country without its code is still a place, and matches the top level.
+        (
+            {"city": "", "state": "", "country": "United States"},
+            [{"country": "United States"}],
+            [{"name": "United States"}],
+        ),
+    ):
+        posting = {**POSTINGS[0], **top, "locations": listed}
+        fetcher = StubFetcher({"accounts/huggingface": board([posting])})
+        assert (
+            asyncio.run(workable.search(fetcher, board="huggingface"))[0]["locations"] == expected
+        )

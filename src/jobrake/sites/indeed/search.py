@@ -7,7 +7,7 @@ from gettext import ngettext
 from typing import Annotated, Any
 
 from jobrake.fetchkit import Fetcher
-from jobrake.models import JobDict, Stopped, employment_type, make_job
+from jobrake.models import JobDict, Stopped, WorkplaceType, employment_type, make_job
 from jobrake.utils import as_dict, as_str, checked, epoch_ms_to_iso, finite, html_text
 
 from .client import API_HEADERS, API_URL
@@ -161,14 +161,25 @@ def _timestamp(job: dict[str, Any], field: str) -> str | None:
         return None
 
 
+def _workplace_type(labels: list[str]) -> WorkplaceType | None:
+    """
+    Read the workplace from Indeed's Remote and Hybrid work tags.
+
+    Return None when both tags are present or both are absent, because a
+    missing tag proves nothing. Indeed tagged 1 of 100 hybrid postings Remote
+    as well on 2026-10-28.
+    """
+    remote, hybrid = "Remote" in labels, "Hybrid work" in labels
+    if remote == hybrid:
+        return None
+    return "remote" if remote else "hybrid"
+
+
 def _parse_job(job: dict[str, Any], base_url: str) -> JobDict:
     """Normalize one Indeed result into the shared job model."""
     # Indeed's job key becomes both the job ID and the URL's ``jk`` parameter.
     key = (as_str(job["key"]) or "").strip()
     loc = as_dict(job.get("location"))
-    city = as_str(loc.get("city"))
-    region = as_str(loc.get("admin1Code"))
-    country_code = as_str(loc.get("countryCode"))
     employer = as_dict(job.get("employer"))
     compensation = as_dict(job.get("compensation"))
     salary = as_dict(compensation.get("baseSalary"))
@@ -192,7 +203,15 @@ def _parse_job(job: dict[str, Any], base_url: str) -> JobDict:
         title=as_str(job.get("title")),
         language=as_str(job.get("language")),
         company=as_str(employer.get("name")),
-        location=", ".join(part for part in (city, region, country_code) if part) or None,
+        locations=[
+            {
+                "city": loc.get("city"),
+                "region": loc.get("admin1Code"),
+                "country_code": loc.get("countryCode"),
+                "latitude": loc.get("latitude"),
+                "longitude": loc.get("longitude"),
+            }
+        ],
         description=_scrub_css(
             html_text(as_str(as_dict(job.get("description")).get("html")) or "")
         ),
@@ -204,17 +223,11 @@ def _parse_job(job: dict[str, Any], base_url: str) -> JobDict:
             (employment_type(label) for label in labels if label in EMPLOYMENT_TYPES),
             None,
         ),
-        # A Remote tag proves remote; absence proves nothing, so the field stays None.
-        is_remote=True if "Remote" in labels else None,
+        workplace_type=_workplace_type(labels),
         salary_min=finite(amount.get("min", exactly)),
         salary_max=finite(amount.get("max", exactly)),
         salary_currency=as_str(compensation.get("currencyCode")),
         salary_period=as_str(salary.get("unitOfWork")),
-        city=city,
-        region=region,
-        country_code=country_code,
-        latitude=finite(loc.get("latitude")),
-        longitude=finite(loc.get("longitude")),
         apply_url=as_str(as_dict(job.get("recruit")).get("viewJobUrl")),
     )
 

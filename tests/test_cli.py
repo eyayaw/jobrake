@@ -22,7 +22,8 @@ JOBS = [
         company="Acme, Inc.",
         url="https://example.com/1",
         site="indeed",
-        location="Seattle, WA",
+        locations=[{"name": "Seattle, WA", "city": "Seattle"}, {"name": "Portland, OR"}],
+        site_data={"team": "Économie", "levels": ["Senior"]},
         description="line one\nline two",
         language="en",
         date="2026-08-01",
@@ -33,7 +34,7 @@ JOBS = [
         company="Beta",
         url="https://example.com/2",
         site="indeed",
-        location="Remote",
+        locations=[{"name": "Remote"}],
     ),
 ]
 
@@ -335,10 +336,19 @@ def test_output_csv_roundtrips_hostile_fields(run_cli, tmp_path, capsys):
     with out.open(newline="", encoding="utf-8") as f:
         rows = list(csv.DictReader(f))
     assert rows[0].keys() == set(JOB_FIELDS)
-    # Unavailable summaries and absent details read back as empty cells.
+    # Unavailable summaries and absent details read back as empty cells, the
+    # places as their names, and the site's own fields as JSON.
+    nested = [
+        {
+            "locations": "Seattle, WA; Portland, OR",
+            "site_data": '{"team": "Économie", "levels": ["Senior"]}',
+        },
+        {"locations": "Remote", "site_data": ""},
+    ]
     expected = [
         {name: "" if (value := job.get(name)) is None else str(value) for name in JOB_FIELDS}
-        for job in JOBS
+        | cells
+        for job, cells in zip(JOBS, nested, strict=True)
     ]
     assert rows == expected
     assert capsys.readouterr().out == ""  # File output leaves stdout silent.

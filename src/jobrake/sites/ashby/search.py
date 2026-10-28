@@ -6,9 +6,9 @@ from typing import Annotated, Any
 from urllib.parse import quote
 
 from jobrake.fetchkit import Fetcher
-from jobrake.models import JobDict, employment_type, make_job
+from jobrake.models import JobDict, employment_type, make_job, workplace_type
 from jobrake.sites.responses import json_list, parse_postings, read_json
-from jobrake.utils import as_dict, as_str, checked, finite, html_text, join_places
+from jobrake.utils import as_dict, as_str, checked, finite, html_text
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +40,20 @@ def _salary(compensation: dict[str, Any]) -> dict[str, Any]:
     return {}
 
 
+def _place(source: dict[str, Any]) -> dict[str, Any]:
+    """Read the place of a posting or of one of its ``secondaryLocations``."""
+    address = as_dict(source.get("address"))
+    # A posting's address nests under postalAddress. Ashby documents a secondary
+    # location's address without it, though all 199 we measured nested it too.
+    address = as_dict(address.get("postalAddress")) or address
+    # addressCountry is a name, such as USA, so no place carries a country code.
+    return {
+        "name": source.get("location"),
+        "city": address.get("addressLocality"),
+        "region": address.get("addressRegion"),
+    }
+
+
 def _parse_posting(posting: dict[str, Any]) -> JobDict:
     """
     Build a record from one entry of a board's ``jobs`` list.
@@ -48,7 +62,6 @@ def _parse_posting(posting: dict[str, Any]) -> JobDict:
         TypeError: The posting lacks a ``jobUrl``, or an ID in ``id`` or at its end.
         AttributeError: The posting is not an object.
     """
-    address = as_dict(as_dict(posting.get("address")).get("postalAddress"))
     url = as_str(posting.get("jobUrl"))
     # Ashby's documentation lists no id. Every posting carried one on 2026-10-28,
     # and the last part of its jobUrl was the same ID, which stands in without it.
@@ -56,30 +69,27 @@ def _parse_posting(posting: dict[str, Any]) -> JobDict:
     posting_id = as_str(posting.get("id"))
     if not posting_id and url:
         posting_id = url.split("?", 1)[0].split("#", 1)[0].rstrip("/").rsplit("/", 1)[-1]
-    # Ashby's documentation lists no secondaryLocations either. On 2026-10-28,
-    # 103 of the 172 postings on ramp listed more places there.
     secondary = posting.get("secondaryLocations")
-    places = (
-        [as_dict(entry).get("location") for entry in secondary]
-        if isinstance(secondary, list)
-        else []
-    )
+    compensation = as_dict(posting.get("compensation"))
+    others = map(as_dict, secondary) if isinstance(secondary, list) else []
     return make_job(
         site="ashby",
         id=posting_id,
         url=url,
         title=posting.get("title"),
         company=None,  # the response never names the employer
-        location=join_places([posting.get("location"), *places]),
+        locations=[_place(posting), *map(_place, others)],
         description=html_text(as_str(posting.get("descriptionHtml")) or ""),
         employment_type=employment_type(as_str(posting.get("employmentType"))),
-        # isRemote is also true for a hybrid posting, so only the workplace type confirms remote.
-        is_remote=True if posting.get("workplaceType") == "Remote" else None,
-        city=as_str(address.get("addressLocality")),
-        region=as_str(address.get("addressRegion")),
+        department=as_str(posting.get("department")),
+        team=as_str(posting.get("team")),
+        # isRemote is also true for a hybrid posting, so the workplace type says which.
+        workplace_type=workplace_type(as_str(posting.get("workplaceType"))),
         posted_at=as_str(posting.get("publishedAt")),
         apply_url=as_str(posting.get("applyUrl")),
-        **_salary(as_dict(posting.get("compensation"))),
+        **_salary(compensation),
+        # Equity, commission, and bonus have no record fields, and the salary fields hold one range.
+        site_data={"summaryComponents": compensation.get("summaryComponents")},
     )
 
 

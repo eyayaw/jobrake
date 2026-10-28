@@ -47,7 +47,7 @@ def _parse_page(html: str) -> tuple[list[JobDict], int]:
                 title=title_tag.get_text(strip=True) if title_tag else None,
                 company=company_tag.get_text(strip=True) if company_tag else None,
                 url=url,
-                location=location_tag.get_text(strip=True) if location_tag else None,
+                locations=[{"name": location_tag.get_text(strip=True)}] if location_tag else [],
                 date=time_tag.get("datetime") if time_tag else None,
                 site="linkedin",
             )

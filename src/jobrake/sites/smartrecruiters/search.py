@@ -39,16 +39,16 @@ def _parse_card(card: dict[str, Any]) -> JobDict:
     """
     company = as_dict(card.get("company"))
     location = as_dict(card.get("location"))
-    # SmartRecruiters' own example card has the place fields without fullLocation.
-    country = as_str(location.get("country"))
-    parts = (
-        as_str(location.get("city")),
-        as_str(location.get("region")),
-        country and country.upper(),
-    )
-    place = as_str(location.get("fullLocation")) or ", ".join(
-        part.strip() for part in parts if part and part.strip()
-    )
+    # SmartRecruiters' own example card has the place fields without
+    # fullLocation, so make_job names that place from its parts.
+    place = {
+        "name": location.get("fullLocation"),
+        "city": location.get("city"),
+        "region": location.get("region"),
+        "country_code": location.get("country"),
+        "latitude": _coordinate(location.get("latitude")),
+        "longitude": _coordinate(location.get("longitude")),
+    }
     identifier, posting_id = company.get("identifier"), card.get("id")
     url = (
         POSTING_URL.format(company=identifier, id=posting_id)
@@ -61,14 +61,15 @@ def _parse_card(card: dict[str, Any]) -> JobDict:
         url=url,
         title=card.get("name"),
         company=company.get("name"),
-        location=place,
+        locations=[place],
         employment_type=employment_type(as_str(as_dict(card.get("typeOfEmployment")).get("label"))),
-        is_remote=True if location.get("remote") is True else None,
-        city=as_str(location.get("city")),
-        region=as_str(location.get("region")),
-        country_code=as_str(location.get("country")),
-        latitude=_coordinate(location.get("latitude")),
-        longitude=_coordinate(location.get("longitude")),
+        department=as_str(as_dict(card.get("department")).get("label")),
+        # Both flags false does not state on-site, so such a card has no workplace type.
+        workplace_type="remote"
+        if location.get("remote") is True
+        else "hybrid"
+        if location.get("hybrid") is True
+        else None,
         language=as_str(as_dict(card.get("language")).get("code")),
         posted_at=as_str(card.get("releasedDate")),
     )

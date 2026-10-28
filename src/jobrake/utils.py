@@ -4,7 +4,7 @@ import functools
 import inspect
 import logging
 import math
-from collections.abc import Awaitable, Callable, Iterable
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from types import NoneType
 from typing import Annotated, Any, NamedTuple, Union, get_args, get_origin
@@ -176,14 +176,6 @@ def as_str(value: object) -> str | None:
 def as_dict(value: object) -> dict[str, Any]:
     """Return a JSON value unchanged when it is an object, or ``{}`` for anything else, so a ``.get`` can follow."""
     return value if isinstance(value, dict) else {}
-
-
-def join_places(places: Iterable[object]) -> str | None:
-    """Join a posting's place names with ``"; "``, skipping blanks, repeats, and non-strings, or return None for none."""
-    names = dict.fromkeys(
-        place.strip() for place in places if isinstance(place, str) and place.strip()
-    )
-    return "; ".join(names) or None
 
 
 def iso_date(value: str | None) -> str | None:

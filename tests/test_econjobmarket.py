@@ -9,7 +9,8 @@ from jobrake.sites import econjobmarket
 
 # Three ads from backend.econjobmarket.org/data/zz_public/json/Ads, fetched
 # 2026-10-28, trimmed to the fields jobrake reads plus enddate, with each ad
-# text cut to a sentence or two and the first two of its locations kept.
+# text cut to a sentence or two, the first two of its locations kept, and its
+# categories cut to the first two.
 ADS = [
     {
         "adtitle": "Senior Associate (North America)",
@@ -19,6 +20,9 @@ ADS = [
         "enddate": "2026-12-01",
         "deadline_date": "2026-11-06",
         "name": "Charles River Associates",
+        "department": "All departments",
+        "position_types": [{"name": "Consultant"}],
+        "categories": [{"name": "Econometrics"}, {"name": "Finance"}],
         "latitude": 42.3493011,
         "longitude": -71.0752547,
         "locations": [
@@ -48,6 +52,9 @@ ADS = [
         "enddate": "2026-12-01",
         "deadline_date": "2026-11-06",
         "name": "Charles River Associates",
+        "department": "All departments",
+        "position_types": [{"name": "Consultant"}],
+        "categories": [{"name": "Econometrics"}, {"name": "Industrial Organization"}],
         "latitude": 42.3493011,
         "longitude": -71.0752547,
         "locations": [
@@ -76,6 +83,9 @@ ADS = [
         "enddate": "2027-02-03",
         "deadline_date": "2027-02-03",
         "name": "Heidelberg University",
+        "department": "Heidelberg Institute of Global Health",
+        "position_types": [{"name": "Postdoctoral Scholar"}],
+        "categories": [{"name": "Any field"}],
         "latitude": 49.41260787196709,
         "longitude": 8.67098002533317,
         "locations": [],
@@ -94,18 +104,32 @@ def test_the_feed_parses_into_records():
             "url": "https://econjobmarket.org/positions/12622",
             "title": "Senior Associate (North America)",
             "company": "Charles River Associates",
-            "location": "Boston, Massachusetts, US; Chicago, Illinois, US",
+            "locations": [
+                {
+                    "name": "Boston, Massachusetts, US",
+                    "city": "Boston",
+                    "region": "Massachusetts",
+                    "country_code": "US",
+                    "latitude": 42.34915593041873,
+                    "longitude": -71.07513728955853,
+                },
+                {
+                    "name": "Chicago, Illinois, US",
+                    "city": "Chicago",
+                    "region": "Illinois",
+                    "country_code": "US",
+                },
+            ],
             "date": "2026-09-03",
             "description": "About Charles River Associates\n"
             "Charles River Associates is a leading global consulting firm.",
             "company_logo": "https://backend.econjobmarket.org/data/zz_public/json/Logo/470",
-            "city": "Boston",
-            "region": "Massachusetts",
-            "country_code": "US",
-            "latitude": 42.34915593041873,
-            "longitude": -71.07513728955853,
             "posted_at": "2026-09-03",
             "expires_at": "2026-11-06",
+            "site_data": {
+                "position_types": ["Consultant"],
+                "categories": ["Econometrics", "Finance"],
+            },
         },
         {
             "site": "econjobmarket",
@@ -113,16 +137,25 @@ def test_the_feed_parses_into_records():
             "url": "https://econjobmarket.org/positions/12723",
             "title": "Senior Associate/Antitrust & Competition Economics (Europe)",
             "company": "Charles River Associates",
-            "location": "London, GB; Brussels, BE",
+            "locations": [
+                {
+                    "name": "London, GB",
+                    "city": "London",
+                    "country_code": "GB",
+                    "latitude": 51.518512067411244,
+                    "longitude": -0.08701994054260755,
+                },
+                {"name": "Brussels, BE", "city": "Brussels", "country_code": "BE"},
+            ],
             "date": "2026-09-30",
             "description": "Charles River Associates is a leading global consulting firm.",
             "company_logo": "https://backend.econjobmarket.org/data/zz_public/json/Logo/470",
-            "city": "London",
-            "country_code": "GB",
-            "latitude": 51.518512067411244,
-            "longitude": -0.08701994054260755,
             "posted_at": "2026-09-30",
             "expires_at": "2026-11-06",
+            "site_data": {
+                "position_types": ["Consultant"],
+                "categories": ["Econometrics", "Industrial Organization"],
+            },
         },
         {
             "site": "econjobmarket",
@@ -130,12 +163,14 @@ def test_the_feed_parses_into_records():
             "url": "https://econjobmarket.org/positions/12558",
             "title": "Postdoctoral position - Causal inference in electronic health record data",
             "company": "Heidelberg University",
-            "location": None,
+            "locations": [],
             "date": "2026-08-03",
             "description": "We are looking for a talented researcher to help the Geldsetzer lab.",
             "company_logo": "https://backend.econjobmarket.org/data/zz_public/json/Logo/10426",
+            "department": "Heidelberg Institute of Global Health",
             "posted_at": "2026-08-03",
             "expires_at": "2027-02-03",
+            "site_data": {"position_types": ["Postdoctoral Scholar"], "categories": ["Any field"]},
         },
     ]
     assert fetcher.requests == ["https://backend.econjobmarket.org/data/zz_public/json/Ads"]

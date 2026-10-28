@@ -14,7 +14,8 @@ from jobrake.sites import smartrecruiters
 
 # Two cards from api.smartrecruiters.com/v1/companies/BoschGroup/postings, the
 # second with locationType=REMOTE, fetched 2026-10-28, trimmed to the fields
-# jobrake reads plus a few it leaves out.
+# jobrake reads plus a few it leaves out. The first card gains a department in
+# SmartRecruiters' documented shape, which BoschGroup leaves out.
 CARDS = [
     {
         "id": "744000158197889",
@@ -34,6 +35,7 @@ CARDS = [
             "fullLocation": "Wuxi, Jiangsu, China",
         },
         "typeOfEmployment": {"id": "permanent", "label": "Full-time"},
+        "department": {"id": "8193", "label": "Manufacturing"},
         "language": {"code": "en", "label": "English"},
     },
     {
@@ -72,15 +74,20 @@ def test_a_board_parses_into_records():
             "url": "https://jobs.smartrecruiters.com/BoschGroup/744000158197889",
             "title": "Product Industrialization Expert_PS_RBCW",
             "company": "Bosch Group",
-            "location": "Wuxi, Jiangsu, China",
+            "locations": [
+                {
+                    "name": "Wuxi, Jiangsu, China",
+                    "city": "Wuxi",
+                    "region": "Jiangsu",
+                    "country_code": "CN",
+                    "latitude": 31.4912,
+                    "longitude": 120.3119,
+                }
+            ],
             "date": "2026-10-28",
             "language": "en",
             "employment_type": "full_time",
-            "city": "Wuxi",
-            "region": "Jiangsu",
-            "country_code": "CN",
-            "latitude": 31.4912,
-            "longitude": 120.3119,
+            "department": "Manufacturing",
             "posted_at": "2026-10-28T02:14:12.200Z",
         },
         {
@@ -89,23 +96,40 @@ def test_a_board_parses_into_records():
             "url": "https://jobs.smartrecruiters.com/BoschGroup/744000158108729",
             "title": "Roadside Assistance Territory Manager, Southwest region",
             "company": "Bosch Group",
-            "location": "Itasca, IL, United States",
+            "locations": [
+                {
+                    "name": "Itasca, IL, United States",
+                    "city": "Itasca",
+                    "region": "IL",
+                    "country_code": "US",
+                }
+            ],
             "date": "2026-10-27",
             "language": "en",
             "employment_type": "full_time",
-            "is_remote": True,
-            "city": "Itasca",
-            "region": "IL",
-            "country_code": "US",
+            "workplace_type": "remote",
             "posted_at": "2026-10-27T17:07:18.526Z",
         },
     ]
     assert fetcher.requests == [f"{URL}?limit=100&offset=0"]
+    hybrid = {**CARDS[0], "location": {"fullLocation": "Wuxi, Jiangsu, China", "hybrid": True}}
+    fetcher = StubFetcher({"BoschGroup/postings": page([hybrid], 1)})
+    assert (
+        asyncio.run(smartrecruiters.search(fetcher, board="BoschGroup"))[0]["workplace_type"]
+        == "hybrid"
+    )
     # A card without fullLocation names its place from the place fields.
     location = {"city": "San Francisco", "region": "CA", "country": "us"}
     fetcher = StubFetcher({"BoschGroup/postings": page([{**CARDS[0], "location": location}], 1)})
     (job,) = asyncio.run(smartrecruiters.search(fetcher, board="BoschGroup"))
-    assert job["location"] == "San Francisco, CA, US"
+    assert job["locations"] == [
+        {
+            "name": "San Francisco, CA, US",
+            "city": "San Francisco",
+            "region": "CA",
+            "country_code": "US",
+        }
+    ]
 
 
 def test_the_options_become_query_parameters():

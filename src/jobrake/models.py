@@ -1,20 +1,48 @@
 """Normalized job fields shared by the site adapters, and ``Stopped``."""
 
 import functools
+import math
 import re
-from typing import Any, NotRequired, TypedDict, cast
+from typing import Any, Literal, NotRequired, TypedDict, cast, get_args
 
-from jobrake.utils import iso_date
+from jobrake.utils import as_str, finite, iso_date
+
+WorkplaceType = Literal["remote", "hybrid", "on_site"]
+WORKPLACE_TYPES: tuple[WorkplaceType, ...] = get_args(WorkplaceType)
+
+
+class Place(TypedDict, closed=True):
+    """
+    One place a posting names, with the parts the site gives for it.
+
+    ``name`` is the site's label for the place, or its city, region, and
+    country code joined when the site gives no label. ``country_code`` is two
+    uppercase letters in the form of an ISO 3166-1 alpha-2 code. ``make_places``
+    checks the form only, so an unassigned code such as ``ZZ`` stays. Nothing
+    is parsed out of a label.
+    """
+
+    name: str
+    city: NotRequired[str]
+    region: NotRequired[str]
+    country_code: NotRequired[str]
+    latitude: NotRequired[float]
+    longitude: NotRequired[float]
 
 
 class JobDict(TypedDict, closed=True):
     """
     A posting from any site, under shared field names.
 
-    Identity and summary keys are always present, and a summary value the
-    site lacks is ``None``. A detail key appears only when it has a value.
-    ``id`` is the site's own identifier, so ``(site, id)`` is unique. ``date``
-    is a calendar date, and ``is_remote`` is ``True`` only when confirmed.
+    Identity and summary keys are always present. A summary value the site
+    lacks is ``None``, and ``locations`` is ``[]`` when no place was
+    extracted, which says nothing about whether the posting has one. A
+    detail key appears only when it has a value. ``id`` is the site's own
+    identifier, so ``(site, id)`` is unique. ``locations`` keeps the site's
+    order. ``date`` is a calendar date. ``workplace_type`` appears only
+    when the site states it, so its absence leaves the workplace unknown.
+    ``site_data`` holds fields only the site named in ``site`` carries, under
+    that site's own names, as JSON values.
     """
 
     site: str
@@ -22,23 +50,20 @@ class JobDict(TypedDict, closed=True):
     url: str
     title: str | None
     company: str | None
-    location: str | None
+    locations: list[Place]
     date: str | None
     description: NotRequired[str]
     language: NotRequired[str]
     company_url: NotRequired[str]
     company_logo: NotRequired[str]
+    department: NotRequired[str]
+    team: NotRequired[str]
     employment_type: NotRequired[str]
-    is_remote: NotRequired[bool]
+    workplace_type: NotRequired[WorkplaceType]
     salary_min: NotRequired[float]
     salary_max: NotRequired[float]
     salary_currency: NotRequired[str]
     salary_period: NotRequired[str]
-    city: NotRequired[str]
-    region: NotRequired[str]
-    country_code: NotRequired[str]
-    latitude: NotRequired[float]
-    longitude: NotRequired[float]
     posted_at: NotRequired[str]
     expires_at: NotRequired[str]
     apply_url: NotRequired[str]
@@ -46,6 +71,7 @@ class JobDict(TypedDict, closed=True):
     applicants: NotRequired[int]
     experience_months: NotRequired[int]
     education: NotRequired[str]
+    site_data: NotRequired[dict[str, Any]]
 
 
 # The CSV writer uses JOB_FIELDS for its columns, in this order.
@@ -53,6 +79,103 @@ JOB_FIELDS = tuple(JobDict.__annotations__)
 IDENTITY_FIELDS = ("site", "id", "url")
 DETAIL_FIELDS = tuple(name for name in JOB_FIELDS if name in JobDict.__optional_keys__)
 SUMMARY_FIELDS = tuple(name for name in JOB_FIELDS if name not in IDENTITY_FIELDS + DETAIL_FIELDS)
+_PLACE_TEXT = ("city", "region", "country_code")
+_ALPHA2 = re.compile(r"[A-Za-z]{2}")
+
+
+def _place(entry: object) -> dict[str, Any]:
+    """
+    Normalize one place, leaving out a blank or malformed part and naming it from its parts when it has no name.
+
+    A ``country_code`` that is not two letters, such as a country name, is
+    left out. The result has no ``name`` when the place has neither a name
+    nor a text part.
+
+    Raises:
+        TypeError: ``entry`` is not an object or has a key that is not a ``Place`` field.
+    """
+    if not isinstance(entry, dict):
+        raise TypeError(f"a place must be an object, got {entry!r}")
+    if unknown := entry.keys() - Place.__annotations__.keys():
+        raise TypeError(f"not a place field: {', '.join(sorted(unknown))}")
+    parts: dict[str, Any] = {}
+    for key in _PLACE_TEXT:
+        text = (as_str(entry.get(key)) or "").strip()
+        if key == "country_code":
+            text = text.upper() if _ALPHA2.fullmatch(text) else ""
+        if text:
+            parts[key] = text
+    for key in ("latitude", "longitude"):
+        if (number := finite(entry.get(key))) is not None:
+            parts[key] = number
+    name = (as_str(entry.get("name")) or "").strip()
+    name = name or ", ".join(parts[key] for key in _PLACE_TEXT if key in parts)
+    return {"name": name, **parts} if name else {}
+
+
+def make_places(value: object) -> list[Place]:
+    """
+    Normalize a site's or a cache row's places, so that normalizing the result changes nothing.
+
+    A place with neither a name nor a text part is left out, and a place equal
+    to an earlier one once normalized appears once. Places that differ in any
+    part stay separate, because a shared name alone does not make them one.
+
+    Raises:
+        TypeError: ``value`` is not a list, or a place is not an object or
+            has a key that is not a ``Place`` field.
+    """
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        raise TypeError(f"job field locations must be a list, got {value!r}")
+    places: list[Place] = []
+    for place in filter(None, map(_place, value)):
+        if place not in places:
+            places.append(cast(Place, place))
+    return places
+
+
+def _strict_json(value: object) -> object:
+    """Replace each NaN or infinity inside value with None, because strict JSON has neither."""
+    if isinstance(value, float) and not math.isfinite(value):
+        return None
+    if isinstance(value, dict):
+        return {key: _strict_json(entry) for key, entry in value.items()}
+    if isinstance(value, list):
+        return [_strict_json(entry) for entry in value]
+    return value
+
+
+def _site_data(value: object) -> dict[str, Any] | None:
+    """
+    Return the site's own fields that have a value, or None if no field has one.
+
+    A number that strict JSON cannot write becomes None and leaves the rest of
+    its field in place. One example is the infinity that ``json.loads`` makes
+    of ``1e400``.
+
+    Raises:
+        TypeError: ``value`` is not an object with text keys, so a cache row
+            of another shape is a miss.
+    """
+    if value is None:
+        return None
+    if not isinstance(value, dict) or not all(isinstance(key, str) for key in value):
+        raise TypeError(f"job field site_data must be an object with text keys, got {value!r}")
+    fields = {key: _strict_json(entry) for key, entry in value.items()}
+    return {key: entry for key, entry in fields.items() if entry not in (None, "", [])} or None
+
+
+def _detail(name: str, value: object) -> object:
+    """Normalize one detail value, or return None to leave its key out."""
+    if isinstance(value, str):
+        value = value.strip() or None
+    if name == "workplace_type":
+        return value if value in WORKPLACE_TYPES else None
+    if name == "site_data":
+        return _site_data(value)
+    return value
 
 
 def make_job(**fields: Any) -> JobDict:
@@ -60,13 +183,14 @@ def make_job(**fields: Any) -> JobDict:
     Build a ``JobDict`` from a site's fields, normalizing their text.
 
     Identity strings are stripped. A blank or missing summary value becomes
-    ``None``, and a blank or ``None`` detail value is left out.
-    ``country_code`` is uppercased. ``date`` keeps the calendar date of the
-    given ``date``, falling back to ``posted_at``.
+    ``None``, a missing ``locations`` becomes ``[]``, and a blank or ``None``
+    detail value is left out. ``date`` keeps the calendar date of the given
+    ``date``, falling back to ``posted_at``.
 
     Raises:
-        TypeError: An identity field is missing, blank, or not a string, or a
-            field is not a ``JobDict`` key.
+        TypeError: An identity field is missing, blank, or not a string, a
+            field is not a ``JobDict`` key, or ``locations`` or ``site_data``
+            is malformed.
     """
     if unknown := fields.keys() - set(JOB_FIELDS):
         raise TypeError(f"not a job field: {', '.join(sorted(unknown))}")
@@ -78,13 +202,12 @@ def make_job(**fields: Any) -> JobDict:
         job[name] = value.strip()
     for name in SUMMARY_FIELDS:
         value = fields.get(name)
-        job[name] = (value.strip() or None) if isinstance(value, str) else None
+        if name == "locations":
+            job[name] = make_places(value)
+        else:
+            job[name] = (value.strip() or None) if isinstance(value, str) else None
     for name in DETAIL_FIELDS:
-        value = fields.get(name)
-        if isinstance(value, str):
-            # Some sites send a country code in lowercase, and ISO 3166 writes it in capitals.
-            value = (value.upper() if name == "country_code" else value).strip() or None
-        if value is not None:
+        if (value := _detail(name, fields.get(name))) is not None:
             job[name] = value
     # Prefer the search date. Fall back to the posting timestamp.
     job["date"] = iso_date(job["date"] or job.get("posted_at"))
@@ -113,11 +236,22 @@ class Stopped(Exception):
 _EMPLOYMENT_ALIASES = {"contractor": "contract", "intern": "internship"}
 
 
-def employment_type(label: str | None) -> str | None:
-    """Return a site's employment label as a snake_case slug such as ``full_time``, or None."""
+def _slug(label: str | None) -> str | None:
+    """Return a site's label as a snake_case slug such as ``full_time``, or None for no label."""
     if not label:
         return None
     # A camelCase label, such as Ashby's FullTime, splits before a capital that follows a lowercase letter or digit.
     words = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", "_", label)
-    slug = re.sub(r"[^a-z0-9]+", "_", words.lower()).strip("_")
-    return _EMPLOYMENT_ALIASES.get(slug, slug or None)
+    return re.sub(r"[^a-z0-9]+", "_", words.lower()).strip("_") or None
+
+
+def employment_type(label: str | None) -> str | None:
+    """Return a site's employment label as a snake_case slug such as ``full_time``, or None."""
+    slug = _slug(label)
+    return _EMPLOYMENT_ALIASES.get(slug, slug) if slug else None
+
+
+def workplace_type(label: str | None) -> WorkplaceType | None:
+    """Return a site's workplace label, such as Ashby's ``OnSite`` or Lever's ``on-site``, as ``remote``, ``hybrid``, or ``on_site``, or None for any other label."""
+    slug = _slug(label)
+    return next((kind for kind in WORKPLACE_TYPES if kind == slug), None)
