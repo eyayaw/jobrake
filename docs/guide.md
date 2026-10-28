@@ -367,6 +367,7 @@ Employment type is still available as a posting detail with `--details`.
 Indeed returns the details it has with the search itself, so an Indeed search needs nothing further.
 LinkedIn's guest search returns summary cards only. Add `--details | -d` (`details=True`) to fetch each posting page and fill in the rest.
 That costs one paced request per uncached posting, and sometimes a second.
+A Workday search also returns cards without descriptions, and `--details` fetches each posting with one more request, as [Workday fields](#workday-fields) describes.
 See [request limits](#request-limits-and-partial-results) for pacing and retries, and [cache settings](#cache-location-and-lifetimes) for reuse.
 
 ### Fetch known postings
@@ -492,6 +493,7 @@ A Workday search applies a query on the server:
 
 ```sh
 jobrake workday search -b https://nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite -q architect
+jobrake workday search -b https://nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite -n 100 -d -o nvidia.jsonl
 ```
 
 ```python
@@ -500,7 +502,7 @@ import asyncio
 from jobrake import scrape
 
 board = "https://nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite"
-jobs = asyncio.run(scrape("workday", board=board, query="architect"))
+jobs = asyncio.run(scrape("workday", board=board, query="architect", details=True))
 ```
 
 `--query | -q` is Workday's keyword search, and `--results | -n` caps the postings returned, 20 by default.
@@ -563,11 +565,13 @@ A record has no description or apply link, which SmartRecruiters serves only one
 
 ### Workday fields
 
-A Workday record carries `title`, `location`, and `date`, and no description.
+A Workday search result carries `title`, `location`, and `date`, but no description.
+`--details | -d` fetches each posting and adds `description`, `posted_at`, `employment_type`, and `country_code`.
 
 - `company` is always `None`. Workday names only the employer's legal entity, such as `2100 NVIDIA USA`.
 - `location` is `None` for a posting with several locations, because Workday shows only their count, such as `2 Locations`.
-- `date` comes from Workday's label: "Posted Today", "Posted Yesterday", or "Posted 3 Days Ago", counted back from today in UTC. Workday counts from its own day, so this `date` can be a day late. On one posting we fetched at 02:22 UTC, Workday said "Posted Today" and the posting's start date was the previous day. Workday stops counting at "Posted 30+ Days Ago", so an older posting has no `date`.
+- Without `--details`, `date` comes from Workday's label: "Posted Today", "Posted Yesterday", or "Posted 3 Days Ago", counted back from today in UTC. Workday counts from its own day, so this `date` can be a day late. On one posting we fetched at 02:22 UTC, Workday said "Posted Today" and the posting's start date was the previous day. Workday stops counting at "Posted 30+ Days Ago", so an older posting has no `date`.
+- `posted_at` is a calendar date, Workday's start date for the posting. With `--details`, `date` is `posted_at`.
 - `id` joins the employer's Workday name and the requisition ID, as in `nvidia:JR1996377`.
 
 A Workday record has no salary, remote flag, or application link.
@@ -830,6 +834,8 @@ jobrake skips a posting it cannot read and leaves out a field it cannot read.
 A search pages through the results one request after another, without pacing, and each request gets a single attempt.
 Workday reports at most 2,000 postings per search, and jobrake warns when that cap cuts a search short. Narrow the search with `--query` to reach the rest.
 A failed request raises `Stopped` with the postings collected before it, and the CLI exits 1.
+`--details` adds one request per posting, also one after another. A posting removed since the search keeps its search result.
+A posting whose details cannot be fetched also keeps its search result, and once the rest are fetched the search raises `Stopped` with every posting in `partial`. A rerun retries them.
 jobrake skips a posting it cannot read and leaves out a field it cannot read.
 
 ## Cache location and lifetimes

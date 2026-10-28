@@ -139,10 +139,10 @@ jobs = asyncio.run(main())
 | `linkedin` | Login-free guest API | Optional, paced, and cached |
 | `smartrecruiters` | Public Posting API, one employer's board | Search results only, without descriptions |
 | `workable` | Public widget API, one employer's board | Included in search results |
-| `workday` | Career site JSON API, one employer's career site | Search results only, without descriptions |
+| `workday` | Career site JSON API, one employer's career site | Optional, one request per posting |
 
 The sites that read one employer's board require `board`, the employer's board token, or for Workday the career site URL. Indeed requires `country`. LinkedIn accepts either `location` or a geoId.
-See the [guide](https://github.com/eyayaw/jobrake/blob/main/docs/guide.md) for search queries, geography, filters, pagination, rate limits, retries, and LinkedIn detail fetching.
+See the [guide](https://github.com/eyayaw/jobrake/blob/main/docs/guide.md) for search queries, geography, filters, pagination, rate limits, retries, and detail fetching.
 
 > [!WARNING]
 > LinkedIn answers posting pages with [HTTP 999](https://http.dev/999) from data center IPs, such as a Hetzner VPS.

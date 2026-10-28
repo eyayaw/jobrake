@@ -6,7 +6,7 @@ import json
 from datetime import date
 
 import pytest
-from fakes import PagedFetcher, StubFetcher, not_found, ok
+from fakes import PagedFetcher, StubFetcher, network_down, not_found, ok
 
 from jobrake import Stopped
 from jobrake.sites import workday
@@ -100,6 +100,73 @@ def test_a_search_page_parses_into_records(today):
     assert fetcher.bodies == [
         {"appliedFacets": {}, "limit": 20, "offset": 0, "searchText": "architect"}
     ]
+
+
+# GET {API}/job/US-CA-Santa-Clara/Networking-Architect_JR1996377 on 2026-10-28,
+# trimmed to jobPostingInfo and hiringOrganization, with the description cut
+# to its first two paragraphs.
+DETAIL = {
+    "jobPostingInfo": {
+        "id": "9683fb87cfe610016c0dba112fad0000",
+        "title": "Networking Architect",
+        "jobDescription": "<p>NVIDIA Networking has been a leader in high performance "
+        "networking infrastructure for many years.</p><p>What you’ll be doing:</p>",  # noqa: RUF001  the posting's own apostrophe
+        "location": "US, CA, Santa Clara",
+        "postedOn": "Posted Today",
+        "startDate": "2026-10-27",
+        "timeType": "Full time",
+        "jobReqId": "JR1996377",
+        "jobPostingId": "Networking-Architect_JR1996377",
+        "jobRequisitionLocation": {
+            "descriptor": "US, CA, Santa Clara",
+            "country": {
+                "descriptor": "United States of America",
+                "id": "bc33aa3152ec42d4995f4791a106ed09",
+                "alpha2Code": "US",
+            },
+        },
+        "externalUrl": f"{BOARD}/job/US-CA-Santa-Clara/Networking-Architect_JR1996377",
+    },
+    "hiringOrganization": {"name": "2100 NVIDIA USA", "url": ""},
+}
+
+
+def test_details_fill_each_card_and_stop_when_one_fails(today, caplog):
+    fetcher = StubFetcher(
+        {
+            "/jobs": ok(page([*CARDS, *numbered(1)])),
+            "Networking-Architect_JR1996377": ok(json.dumps(DETAIL)),
+            "Orbital-Data-Center_JR2019010": not_found(),  # removed since the search
+            "AI-Research-Scientist_JR2018673": network_down(),
+            "Engineer_JR0": ok("[]"),
+        }
+    )
+    filled = {
+        "site": "workday",
+        "id": "nvidia:JR1996377",
+        "url": f"{BOARD}/job/US-CA-Santa-Clara/Networking-Architect_JR1996377",
+        "title": "Networking Architect",
+        "company": None,
+        "location": "US, CA, Santa Clara",
+        "date": "2026-10-27",  # the start date, a day before the card's "Posted Today"
+        "description": "NVIDIA Networking has been a leader in high performance networking "
+        "infrastructure for many years.\nWhat you’ll be doing:",  # noqa: RUF001  the posting's own apostrophe
+        "employment_type": "full_time",
+        "country_code": "US",
+        "posted_at": "2026-10-27",
+    }
+    assert asyncio.run(workday.search(fetcher, board=BOARD, results=1, details=True)) == [filled]
+    assert fetcher.requests[1] == f"{API}/job/US-CA-Santa-Clara/Networking-Architect_JR1996377"
+    with pytest.raises(Stopped, match="details of 2 of 4 postings") as stop:
+        asyncio.run(workday.search(fetcher, board=BOARD, details=True))
+    assert [job["id"] for job in stop.value.partial] == [
+        "nvidia:JR1996377",
+        "nvidia:JR2019010",
+        "nvidia:JR2018673",
+        "nvidia:JR0",
+    ]
+    assert stop.value.partial[0] == filled
+    assert caplog.text.count("skipping the details of") == 2
 
 
 def test_a_relative_posting_date_counts_back_from_today(today):
