@@ -213,7 +213,11 @@ async def _fetch_on_turn(fetcher: Fetcher, url: str, tried: set[str]) -> FetchRe
 
 
 def numeric(text: str) -> bool:
-    """Tell whether text is all digits 0-9, as a LinkedIn ID is. ``isdigit`` alone accepts any script's."""
+    """
+    Tell whether text is all digits 0-9, as a LinkedIn ID is.
+
+    ``isdigit`` alone also accepts other scripts' digits, such as fullwidth ones.
+    """
     return text.isascii() and text.isdigit()
 
 
