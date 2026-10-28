@@ -109,8 +109,9 @@ async def search(
     applies every option: ``query`` searches titles and locations, and
     ``max_age_hours`` keeps postings released within that many hours. Pages
     of up to 100 cards follow one another without pacing or retries until
-    ``results``, the board's last match, or an empty page, and a posting
-    that a later page repeats is kept once. An unknown board
+    ``results``, the board's last match, or an empty page, which warns when
+    it comes before the reported total. A posting that a later page repeats
+    is kept once. An unknown board
     answers like a board with no postings, so it returns ``[]`` and logs that
     the board may be misspelled. A malformed card costs only that card. The
     caller owns ``fetcher``.
@@ -144,6 +145,14 @@ async def search(
             if job["id"] not in seen:
                 seen.add(job["id"])
                 jobs.append(job)
+        if not cards and offset < total:
+            logger.warning(
+                "smartrecruiters board %r reported %d postings but sent an empty page after %d. "
+                "Postings may have closed during the search, so rerun it for the current list",
+                token,
+                total,
+                offset,
+            )
         offset += len(cards)
         if not cards or offset >= total:
             break
