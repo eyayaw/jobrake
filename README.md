@@ -14,7 +14,7 @@ ___Scrape job postings together and heap them up.___ Read the launch post [here]
 >
 > _Did **Jo** show up? **Jo** hit the **brake**, too._
 
-jobrake is a Python package and CLI tool for fetching job postings from LinkedIn, Indeed, and employers' Ashby, Greenhouse, and Lever boards.
+jobrake is a Python package and CLI tool for fetching job postings from LinkedIn, Indeed, and employers' boards on four applicant tracking systems.
 
 <table>
 <tr>
@@ -132,8 +132,9 @@ jobs = asyncio.run(main())
 | `indeed` | Mobile-app GraphQL API | Included in search results |
 | `lever` | Public Postings API, one employer's board | Included in search results |
 | `linkedin` | Login-free guest API | Optional, paced, and cached |
+| `workable` | Public widget API, one employer's board | Included in search results |
 
-Ashby, Greenhouse, and Lever require `board`, the employer's board token. Indeed requires `country`. LinkedIn accepts either `location` or a geoId.
+Ashby, Greenhouse, Lever, and Workable require `board`, the employer's board token. Indeed requires `country`. LinkedIn accepts either `location` or a geoId.
 See the [guide](https://github.com/eyayaw/jobrake/blob/main/docs/guide.md) for search queries, geography, filters, pagination, rate limits, retries, and LinkedIn detail fetching.
 
 > [!WARNING]
@@ -147,6 +148,6 @@ jobrake's Indeed GraphQL endpoint and LinkedIn guest-search approach are based o
 ## Disclaimer
 
 > [!WARNING]
-> jobrake has no affiliation with LinkedIn, Indeed, Ashby, Greenhouse, or Lever. Use it to find jobs, not to build datasets by scraping regularly.
+> jobrake has no affiliation with any of the [supported sites](#supported-job-boards). Use it to find jobs, not to build datasets by scraping regularly.
 > Scraping may violate their terms of service, and any of them may rate-limit or block your IP address.
 > You are responsible for checking and complying with their terms.
