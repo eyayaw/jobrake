@@ -252,7 +252,9 @@ def test_a_card_without_a_requisition_id_is_skipped(caplog):
     assert "skipping malformed workday posting" in caplog.text
 
 
-def test_paging_stops_at_results_at_the_first_total_and_at_an_empty_page(caplog, monkeypatch):
+def test_paging_ends_at_results_or_the_first_total_and_stops_at_an_early_empty_page(
+    caplog, monkeypatch
+):
     # A posting added between two requests repeats a card on the next page.
     pages = [numbered(20), numbered(5, 19), numbered(1, 24)]
     fetcher = PagedFetcher([page(cards, total=2000) for cards in pages])
@@ -260,12 +262,14 @@ def test_paging_stops_at_results_at_the_first_total_and_at_an_empty_page(caplog,
     assert [job["id"] for job in jobs] == [f"nvidia:JR{n}" for n in range(25)]
     requested = [(body["offset"], body["limit"]) for body in fetcher.bodies]
     assert requested == [(0, 20), (20, 5), (25, 1)]
-    fetcher = PagedFetcher([page(numbered(20), total=2000), page([], total=2000)])
-    assert len(asyncio.run(workday.search(fetcher, board=BOARD, results=100))) == 20
-    assert "reported 2000 postings but sent an empty page after 20" in caplog.text
-    fetcher = PagedFetcher([page([], total=20)])
-    assert asyncio.run(workday.search(fetcher, board=BOARD)) == []
-    assert "reported 20 postings but sent an empty page after 0" in caplog.text
+    # An empty page before the reported total may have skipped postings.
+    for pages, kept in (
+        ([page(numbered(20), total=2000), page([], total=2000)], 20),
+        ([page([], total=20)], 0),
+    ):
+        with pytest.raises(Stopped, match="may be incomplete") as stop:
+            asyncio.run(workday.search(PagedFetcher(pages), board=BOARD, results=100))
+        assert len(stop.value.partial) == kept
     # A search that reaches a total below the cap is complete.
     fetcher = PagedFetcher([page(numbered(20), total=25), page(numbered(5, 20), total=25)])
     assert len(asyncio.run(workday.search(fetcher, board=BOARD, results=100))) == 25

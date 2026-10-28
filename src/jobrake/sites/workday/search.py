@@ -111,12 +111,13 @@ async def _collect_cards(
     """
     Return the unique cards, paging until ``results`` cards, the first page's total, or an empty page.
 
-    An empty page before that total warns. The flag tells whether the paging
-    reached a total at ``MAX_TOTAL``, the most Workday reports.
+    The flag tells whether the paging reached a total at ``MAX_TOTAL``, the
+    most Workday reports.
 
     Raises:
-        Stopped: A page request failed, Workday has no such site, or it sent
-            an unreadable response. ``partial`` holds the cards collected before it.
+        Stopped: A page request failed, Workday has no such site, it sent
+            an unreadable response, or an empty page came before the first
+            page's total. ``partial`` holds the cards collected before it.
     """
     jobs: list[JobDict] = []
     seen: set[str] = set()
@@ -143,12 +144,11 @@ async def _collect_cards(
         total = page_total if total is None else total
         if not cards:
             if offset < total:
-                logger.warning(
-                    "workday site %s reported %d postings but sent an empty page after %d. "
-                    "Postings may have closed during the search, so rerun it for the current list",
-                    site_url,
-                    total,
-                    offset,
+                raise Stopped(
+                    f"workday site {site_url} reported {total} postings but sent an empty page "
+                    f"after {offset}, so the result may be incomplete. Postings may have closed "
+                    "during the search. A rerun reads the current list",
+                    partial=jobs,
                 )
             break
         offset += len(cards)
@@ -251,9 +251,9 @@ async def search(
     malformed card costs only that posting. The caller owns ``fetcher``.
 
     Raises:
-        Stopped: A request failed, Workday has no such career site, or it
-            sent an unreadable response. ``partial`` holds the postings
-            collected before it. With ``details``, a posting's details could
+        Stopped: A request failed, Workday has no such career site, it
+            sent an unreadable response, or an empty page came before the
+            reported total. ``partial`` holds the postings collected before it. With ``details``, a posting's details could
             not be fetched, and ``partial`` holds every posting, with the
             details fetched so far.
         ValueError: ``board`` is not a Workday career site URL.
