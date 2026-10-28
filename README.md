@@ -14,7 +14,7 @@ ___Scrape job postings together and heap them up.___ Read the launch post [here]
 >
 > _Did **Jo** show up? **Jo** hit the **brake**, too._
 
-jobrake is a Python package and CLI tool for fetching job postings from LinkedIn, Indeed, and employers' boards on five applicant tracking systems.
+jobrake is a Python package and CLI tool for fetching job postings from LinkedIn, Indeed, EconJobMarket, and employers' boards on five applicant tracking systems.
 
 <table>
 <tr>
@@ -97,6 +97,10 @@ jobrake indeed places -c netherlands "amsterdam"
 # Greenhouse ----
 ## Every posting on one employer's board
 jobrake greenhouse search -b airbnb -o airbnb.csv
+
+# EconJobMarket ----
+## Every open ad
+jobrake econjobmarket search -o ejm.csv
 ```
 
 The CLI writes JSON to stdout by default.
@@ -128,6 +132,7 @@ jobs = asyncio.run(main())
 | Site | Search | Posting details |
 | --- | --- | --- |
 | `ashby` | Public Job Posting API, one employer's board | Included in search results |
+| `econjobmarket` | Public ad feed, every open ad | Included in search results |
 | `greenhouse` | Public Job Board API, one employer's board | Included in search results |
 | `indeed` | Mobile-app GraphQL API | Included in search results |
 | `lever` | Public Postings API, one employer's board | Included in search results |
@@ -151,4 +156,5 @@ jobrake's Indeed GraphQL endpoint and LinkedIn guest-search approach are based o
 > [!WARNING]
 > jobrake has no affiliation with any of the [supported sites](#supported-job-boards). Use it to find jobs, not to build datasets by scraping regularly.
 > Scraping may violate their terms of service, and any of them may rate-limit or block your IP address.
+> EconJobMarket offers its ad feed for personal use and academic research, and redisplaying its ads on your own website needs EconJobMarket's approval.
 > You are responsible for checking and complying with their terms.

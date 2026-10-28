@@ -5,8 +5,8 @@
 jobrake reads the postings a job board publishes and returns each one as a
 flat record with the same fields, whichever board it came from. It is an async
 Python package and CLI that reads LinkedIn's guest API, Indeed's GraphQL API,
-and the public board APIs of five applicant tracking systems, and it depends
-on `httpx` and `bs4`.
+EconJobMarket's ad feed, and the public board APIs of five applicant tracking
+systems, and it depends on `httpx` and `bs4`.
 
 ## Map
 
