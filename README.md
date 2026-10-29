@@ -137,7 +137,7 @@ jobs = asyncio.run(main())
 | `indeed` | Mobile-app GraphQL API | Included in search results |
 | `lever` | Public Postings API, one employer's board | Included in search results |
 | `linkedin` | Login-free guest API | Optional, paced, and cached |
-| `smartrecruiters` | Public Posting API, one employer's board | Search results only, without descriptions |
+| `smartrecruiters` | Public Posting API, one employer's board | Optional, one request per posting |
 | `workable` | Public widget API, one employer's board | Included in search results |
 | `workday` | Career site JSON API, one employer's career site | Optional, one request per posting |
 
