@@ -457,7 +457,7 @@ async def fetch_pages(
     remaining fields, one more request unless the lookup fetched it.
     A persistent 429 stops further requests and keeps what the cache and
     the completed requests hold. INFO records report the start, progress,
-    and resolved count.
+    and the count of pages read.
 
     Returns:
         A ``JobDict`` per fetched posting and ``None`` per posting LinkedIn
@@ -466,8 +466,7 @@ async def fetch_pages(
     if not wanted:
         return {}
     total = len(wanted)
-    wanted_count = ngettext("%d posting", "%d postings", total) % total
-    logger.info("fetching linkedin details for %s", wanted_count)
+    logger.info("reading %s", ngettext("%d linkedin page", "%d linkedin pages", total) % total)
     # Cached postings come back even when a 429 stops the requests below.
     cached = cache.CACHE.get("linkedin", wanted)
     found: dict[str, JobDict | None] = {
@@ -478,9 +477,7 @@ async def fetch_pages(
     for position, (posting_id, known) in enumerate(wanted.items(), start=1):
         # The CLI renders progress-flagged records as one self-updating
         # stderr line; other logging configurations show them as plain lines.
-        logger.info(
-            "linkedin details %d/%d", position, total, extra={"progress": (position, total)}
-        )
+        logger.info("linkedin pages %d/%d", position, total, extra={"progress": (position, total)})
         if posting_id in found:
             continue
         try:
@@ -497,14 +494,16 @@ async def fetch_pages(
             cache.CACHE.put([_job(posting_id, {}, fields)])
     if stopped:
         logger.warning(
-            "linkedin is rate limiting this IP, so detail fetching stopped with %d of "
-            "%d postings resolved. Wait a while, then rerun to fill in the rest",
+            "linkedin is rate limiting this IP, so reading pages stopped at %d of %d. "
+            "Wait a while, then rerun to fill in the rest",
             len(found),
             total,
         )
     else:
         logger.info(
-            "linkedin detail fetch finished with %d of %s resolved", len(found), wanted_count
+            ngettext("read %d of %d linkedin page", "read %d of %d linkedin pages", total),
+            len(found),
+            total,
         )
     return found
 
