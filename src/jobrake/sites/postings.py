@@ -15,8 +15,12 @@ type Reader = Callable[[JobDict], Awaitable[dict[str, Any] | None]]
 
 
 def _merge(card: JobDict, fields: dict[str, Any]) -> JobDict:
-    # A None or empty field leaves the card's value in place.
-    kept = {name: value for name, value in fields.items() if value not in (None, "", [])}
+    # A None, blank, or empty field leaves the card's value in place.
+    kept = {
+        name: value
+        for name, value in fields.items()
+        if value not in (None, []) and not (isinstance(value, str) and not value.strip())
+    }
     return make_job(**(card | kept))
 
 
@@ -54,3 +58,28 @@ async def fill_details(site: str, cards: list[JobDict], read: Reader) -> list[Jo
             partial=filled,
         )
     return filled
+
+
+async def fetch_postings(
+    site: str, references: list[str], card: Callable[[str], JobDict], read: Reader
+) -> dict[str, JobDict | None]:
+    """
+    Fetch the posting each reference names, keyed by the references given.
+
+    ``card`` reads a reference as the card it names, so every reference is
+    checked before the first request. References naming one posting share
+    one request. A posting the site reports gone maps to None, and a
+    reference whose read failed has no key.
+
+    Raises:
+        ValueError: ``card`` rejected a reference.
+    """
+    cards = {reference: card(reference) for reference in references}
+    unique = list({found["id"]: found for found in cards.values()}.values())
+    fields = await _read_each(site, unique, read)
+    records = {
+        posting["id"]: _merge(posting, found) if found else None
+        for posting, found in zip(unique, fields, strict=True)
+        if found is not None
+    }
+    return {reference: records[c["id"]] for reference, c in cards.items() if c["id"] in records}

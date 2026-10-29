@@ -373,18 +373,19 @@ See [request limits](#request-limits-and-partial-results) for pacing and retries
 
 ### Fetch known postings
 
-Fetch a LinkedIn posting by ID or URL without repeating a search:
+Fetch postings you already know on LinkedIn or Workday without repeating a search:
 
 ```sh
 jobrake linkedin postings 4449382178
 jobrake linkedin postings https://nl.linkedin.com/jobs/view/data-scientist-at-acme-4449382178
+jobrake workday postings https://nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite/job/US-CA-Santa-Clara/Networking-Architect_JR1996377
 ```
 
-LinkedIn takes postings down over time, so the examples above may be gone. Use IDs and URLs from a recent search.
+Sites take postings down over time, so the examples above may be gone. Use references from a recent search.
 Name as many postings as you like. Results follow the order given and have the same fields as a search with `--details`. Several references to one posting return one job.
-The command accepts the same `--output | -o` and `--format | -f` options as a LinkedIn search.
+The command accepts the same `--output | -o` and `--format | -f` options as a search.
 A posting that is gone or unreachable is reported on stderr and left out. When one was unreachable, the command writes the others and exits nonzero.
-A reference that is neither a numeric ID nor a LinkedIn posting URL is an error, and nothing is fetched.
+A LinkedIn reference is a numeric ID or a posting URL, and a Workday reference is a search result's `url`. Any other reference is an error, and nothing is fetched.
 
 LinkedIn serves a posting's dates, coordinates, and requirements only at its canonical URL: the title slug on the host of the posting's country.
 That host is `www.linkedin.com` for the United States and a country subdomain, such as `nl.linkedin.com`, elsewhere.
@@ -393,7 +394,7 @@ A posting placed in a whole country, such as "United States" or "Netherlands", c
 jobrake fetches a country-subdomain URL with a slug as given. Any other reference costs one lookup first to find the canonical URL.
 A cached posting holds its URL, so it costs no request.
 
-Library callers use `jobrake.sites.linkedin.postings`.
+Library callers use `jobrake.sites.linkedin.postings` and `jobrake.sites.workday.postings`.
 
 ### Fetch selected results
 
@@ -575,6 +576,7 @@ A record has no description or apply link, which SmartRecruiters serves only one
 
 A Workday search result carries `title`, `locations`, and `date`, but no description.
 `--details | -d` fetches each posting and adds `description`, `posted_at`, and `employment_type`, and gives the primary place its `country_code`.
+[`jobrake workday postings`](#fetch-known-postings) builds the same record from a search result's `url` in a later run.
 
 - `company` is always `None`. Workday names only the employer's legal entity, such as `2100 NVIDIA USA`.
 - `locations` is empty for a posting with several locations, because a search result shows only their count, such as `2 Locations`. With `--details`, it holds the primary location and then the others, by name.
@@ -854,6 +856,7 @@ Workday reports at most 2,000 postings per search, and jobrake warns when that c
 A failed request raises `Stopped` with the postings collected before it, and the CLI exits 1. So does an empty page that comes before the number of postings Workday reported, because postings may have closed during the search and a rerun may find more.
 `--details` adds one request per posting, also one after another. A posting removed since the search keeps its search result.
 A posting whose details cannot be fetched also keeps its search result, and once the rest are fetched the search raises `Stopped` with every posting in `partial`. A rerun retries them.
+`postings` sends the same one request per posting and never raises `Stopped`. It leaves out a posting whose request failed or whose response it cannot read.
 jobrake skips a posting it cannot read and leaves out a field it cannot read.
 
 ## Cache location and lifetimes

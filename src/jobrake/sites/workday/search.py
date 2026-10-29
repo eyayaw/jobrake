@@ -11,7 +11,7 @@ from urllib.parse import urlsplit
 
 from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, Stopped, employment_type, make_job
-from jobrake.sites.postings import fill_details
+from jobrake.sites.postings import fetch_postings, fill_details
 from jobrake.sites.responses import json_page, parse_postings, read_json
 from jobrake.utils import as_dict, as_str, checked, html_text
 
@@ -30,12 +30,12 @@ _REQUISITION = re.compile(r"/.*_([^/_]+)")
 _LOCATION_COUNT = re.compile(r"\d+ Locations")
 
 
-def _career_site(board: str) -> tuple[str, str, str]:
+def _career_site(board: str) -> tuple[str, str, str, str]:
     """
-    Split a career site URL into its host, tenant, and site name.
+    Split a career site URL into its tenant, site URL, API URL, and the path after the site name.
 
-    A locale segment such as ``en-US`` before the site name is skipped, and
-    anything after the site name is ignored.
+    A locale segment such as ``en-US`` before the site name is skipped. The
+    API serves a site and its postings under their public paths.
 
     Raises:
         ValueError: ``board`` is not a ``myworkdayjobs.com`` career site URL,
@@ -53,7 +53,13 @@ def _career_site(board: str) -> tuple[str, str, str]:
             f"board {board!r} is not a Workday career site URL. Pass the address a visitor "
             f"sees, https://<tenant>.wd<n>.myworkdayjobs.com/<site>, such as {EXAMPLE_BOARD}"
         )
-    return host, host.partition(".")[0], names[0]
+    tenant, career_site, rest = host.partition(".")[0], names[0], "/".join(names[1:])
+    return (
+        tenant,
+        f"https://{host}/{career_site}",
+        f"https://{host}/wday/cxs/{tenant}/{career_site}",
+        f"/{rest}" if rest else "",
+    )
 
 
 def _today() -> date:
@@ -160,9 +166,7 @@ async def _collect_cards(
     return jobs, total is not None and offset >= total >= MAX_TOTAL
 
 
-async def _detail_fields(
-    fetcher: Fetcher, card: JobDict, *, api_url: str, site_url: str
-) -> dict[str, Any] | None:
+async def _detail_fields(fetcher: Fetcher, card: JobDict) -> dict[str, Any] | None:
     """
     Fetch the detail fields of a card's posting, or ``{}`` when Workday reports it gone.
 
@@ -171,7 +175,8 @@ async def _detail_fields(
     Returns None when the request failed or the response is unreadable, which it logs.
     """
     posting = card["url"]
-    result = await fetcher.fetch(api_url + posting.removeprefix(site_url))
+    _, _, api_url, path = _career_site(posting)
+    result = await fetcher.fetch(api_url + path)
     if result.status == 404:
         return {}
     if result.error:
@@ -194,6 +199,7 @@ async def _detail_fields(
         ]
         start = as_str(info.get("startDate"))
         return {
+            "title": as_str(info.get("title")),
             "description": html_text(as_str(info.get("jobDescription")) or ""),
             "date": start,
             "posted_at": start,
@@ -236,10 +242,7 @@ async def search(
             details fetched so far.
         ValueError: ``board`` is not a Workday career site URL.
     """
-    host, tenant, career_site = _career_site(board)
-    site_url = f"https://{host}/{career_site}"
-    # The API serves a site and its postings under their public paths.
-    api_url = f"https://{host}/wday/cxs/{tenant}/{career_site}"
+    tenant, site_url, api_url, _ = _career_site(board)
     logger.info("searching workday site %s for %r", site_url, query)
     jobs, capped = await _collect_cards(
         fetcher,
@@ -264,6 +267,51 @@ async def search(
         ngettext("%d posting", "%d postings", len(jobs)) % len(jobs),
     )
     if details:
-        read = functools.partial(_detail_fields, fetcher, api_url=api_url, site_url=site_url)
-        return await fill_details("workday", jobs, read)
+        return await fill_details("workday", jobs, functools.partial(_detail_fields, fetcher))
     return jobs
+
+
+def _card(reference: str) -> JobDict:
+    """
+    Read a Workday posting URL as the card it names.
+
+    Raises:
+        ValueError: The reference is not a posting URL on a Workday career site.
+    """
+    try:
+        tenant, site_url, _, path = _career_site(reference)
+    except ValueError:
+        match = None
+    else:
+        path = path.rstrip("/")
+        match = _REQUISITION.fullmatch(path) if path.startswith("/job/") else None
+    if match is None:
+        raise ValueError(
+            f"{reference!r} is not a Workday posting URL. Pass a record's url, such as "
+            f"{EXAMPLE_BOARD}/job/US-CA-Santa-Clara/Networking-Architect_JR1996377"
+        ) from None
+    return make_job(site="workday", id=f"{tenant}:{match.group(1)}", url=site_url + path)
+
+
+@checked
+async def postings(
+    fetcher: Fetcher,
+    references: Annotated[list[str], "Workday posting URLs"],
+) -> dict[str, JobDict | None]:
+    """
+    Fetch known Workday postings by URL, one request each.
+
+    The result is keyed by the references given. A reference is a record's
+    ``url``, the posting's address on its career site, and references naming
+    one posting share one request. A reference maps to ``None`` when Workday
+    reports its posting gone, and has no key after a failed request or an
+    unreadable response, each logged, so a rerun retries it. The caller owns
+    ``fetcher``.
+
+    Raises:
+        ValueError: A reference is not a Workday posting URL. Nothing is
+            fetched in that case.
+    """
+    return await fetch_postings(
+        "workday", references, _card, functools.partial(_detail_fields, fetcher)
+    )
