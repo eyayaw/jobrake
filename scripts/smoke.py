@@ -7,7 +7,7 @@ from jobrake import scrape
 
 # Each site names the United States its own way.
 PLACES: dict[str, dict[str, Any]] = {
-    "indeed": {"country": "usa"},
+    "indeed": {"country": "us"},
     "linkedin": {"location": "United States"},
 }
 

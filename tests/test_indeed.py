@@ -23,7 +23,7 @@ def test_query_escapes_graphql_strings_as_json():
         indeed.search(
             fetcher,
             query='C:\\jobs "quoted"',
-            country="usa",
+            country="us",
             location='Brussels "center"',
             radius=0,
             company_ids=[tricky],
@@ -72,7 +72,7 @@ def test_company_lookup_keeps_usable_keys_in_indeed_order():
         {"employerKey": "6495c5a19835b81b", "suggestion": "Abn amro, bouwfonds"},
     ]
     fetcher = StubFetcher({"suggestions/company": ok(json.dumps(hits))})
-    assert asyncio.run(indeed.companies(fetcher, " ABN & AMRO ", country="netherlands")) == [
+    assert asyncio.run(indeed.companies(fetcher, " ABN & AMRO ", country="nl")) == [
         {"id": "fe219df7f711aa73", "name": "ABN AMRO"},
         {"id": "6495c5a19835b81b", "name": "Abn amro, bouwfonds"},
     ]
@@ -80,7 +80,7 @@ def test_company_lookup_keeps_usable_keys_in_indeed_order():
     assert params["query"] == ["ABN & AMRO"]
     assert params["country"] == ["NL"]
     for name, country, message in [
-        (" ", "usa", "is blank"),
+        (" ", "us", "is blank"),
         ("ABN", "atlantis", "unknown Indeed country"),
     ]:
         with pytest.raises(ValueError, match=message):
@@ -90,11 +90,11 @@ def test_company_lookup_keeps_usable_keys_in_indeed_order():
 
 def test_company_lookup_distinguishes_no_matches_from_failure():
     fetcher = StubFetcher({"suggestions/company": ok("[]")})
-    assert asyncio.run(indeed.companies(fetcher, "ABN", country="netherlands")) == []
+    assert asyncio.run(indeed.companies(fetcher, "ABN", country="nl")) == []
     for response in (ok("[{}]"), ok("{}"), ok("not JSON"), rate_limited()):
         fetcher = StubFetcher({"suggestions/company": response})
         with pytest.raises(Stopped, match="company"):
-            asyncio.run(indeed.companies(fetcher, "ABN", country="netherlands"))
+            asyncio.run(indeed.companies(fetcher, "ABN", country="nl"))
 
 
 def test_places_lists_edition_suggestions():
@@ -106,7 +106,7 @@ def test_places_lists_edition_suggestions():
         {"suggestion": "Boston Massacre Marker, MA", "payload": {"locationType": "MISC"}},
     ]
     fetcher = StubFetcher({"suggestions/location": ok(json.dumps(hits))})
-    assert asyncio.run(indeed.places(fetcher, "boston", country="usa")) == [
+    assert asyncio.run(indeed.places(fetcher, "boston", country="us")) == [
         {"id": "Boston, MA", "name": "Boston, MA"},
         {"id": "Boston Common, MA", "name": "Boston Common, MA"},
         {"id": "Boston Massacre Marker, MA", "name": "Boston Massacre Marker, MA"},
@@ -115,16 +115,16 @@ def test_places_lists_edition_suggestions():
     with pytest.raises(ValueError, match="country"):
         asyncio.run(indeed.places(fetcher, "boston", country="atlantis"))
     with pytest.raises(ValueError, match="blank"):
-        asyncio.run(indeed.places(fetcher, "", country="usa"))
+        asyncio.run(indeed.places(fetcher, "", country="us"))
     assert len(fetcher.requests) == 1
 
 
-def test_a_country_alias_selects_its_edition():
+def test_an_iso_code_selects_its_edition():
     for country, code, host in (
-        ("usa", "US", "www"),
-        ("United States", "US", "www"),
-        ("uk", "GB", "uk"),
-        ("netherlands", "NL", "nl"),
+        ("us", "US", "www"),
+        ("GB", "GB", "uk"),
+        ("my", "MY", "malaysia"),
+        (" nl ", "NL", "nl"),
     ):
         fetcher = StubFetcher({"apis.indeed.com": ok(json.dumps(indeed_payload(["a"])))})
         (job,) = asyncio.run(indeed.search(fetcher, query="x", country=country))
@@ -136,7 +136,7 @@ def test_indeed_parses_and_paginates():
     pages = [indeed_payload(["a", "b"], cursor="next"), indeed_payload(["b", "c"])]
 
     fetcher = PagedFetcher([json.dumps(page) for page in pages])
-    jobs = asyncio.run(indeed.search(fetcher, query="economist", country="usa", results=10))
+    jobs = asyncio.run(indeed.search(fetcher, query="economist", country="us", results=10))
     assert [j["title"] for j in jobs] == ["Job a", "Job b", "Job c"]
     assert jobs[0]["id"] == "a"
     assert jobs[0]["url"] == "https://www.indeed.com/viewjob?jk=a"
@@ -153,7 +153,7 @@ def test_indeed_stops_a_repeated_cursor_without_repeating_jobs():
     page = ok(json.dumps(indeed_payload(["a"], cursor="same")))
     fetcher = StubFetcher({"apis.indeed.com": page})
 
-    jobs = asyncio.run(indeed.search(fetcher, query="x", country="usa", results=10))
+    jobs = asyncio.run(indeed.search(fetcher, query="x", country="us", results=10))
 
     assert [job["id"] for job in jobs] == ["a"]
     assert len(fetcher.requests) == 2
@@ -167,7 +167,7 @@ def test_indeed_warns_when_its_result_cap_cuts_a_search_short(monkeypatch, caplo
         caplog.clear()
         fetcher = StubFetcher({"apis.indeed.com": page})
         with caplog.at_level(logging.WARNING, logger="jobrake.sites.indeed"):
-            jobs = asyncio.run(indeed.search(fetcher, query="x", country="usa", results=5))
+            jobs = asyncio.run(indeed.search(fetcher, query="x", country="us", results=5))
         assert [job["id"] for job in jobs] == ["a", "b"]
         assert ("at most 2 results" in caplog.text) is warned
 
@@ -177,7 +177,7 @@ def test_indeed_keeps_a_job_whose_date_is_not_milliseconds(caplog):
     payload["data"]["jobSearch"]["results"][0]["job"]["datePublished"] = 1717200000  # seconds
     fetcher = StubFetcher({"apis.indeed.com": ok(json.dumps(payload))})
     with caplog.at_level(logging.WARNING, logger="jobrake.sites.indeed"):
-        jobs = asyncio.run(indeed.search(fetcher, query="x", country="usa"))
+        jobs = asyncio.run(indeed.search(fetcher, query="x", country="us"))
     assert jobs[0]["title"] == "Job a"  # the posting survives
     assert "posted_at" not in jobs[0]  # only its timestamp is lost
     assert jobs[0]["date"] is None
@@ -218,7 +218,7 @@ def test_indeed_requests_full_pages_throughout_a_cursor_chain(
         indeed.search(
             fetcher,
             query="x",
-            country="usa",
+            country="us",
             results=3,
             company_ids=company_ids,
             max_age_hours=age,
@@ -265,13 +265,13 @@ def test_indeed_graphql_error_reports_the_indeed_message():
     pages = [indeed_payload(["a"], cursor="next"), rejected]
     fetcher = PagedFetcher([json.dumps(page) for page in pages])
     with pytest.raises(Stopped, match=r"BAD_USER_INPUT.*Kept the 1 job collected") as stop:
-        asyncio.run(indeed.search(fetcher, query="x", country="usa", results=10))
+        asyncio.run(indeed.search(fetcher, query="x", country="us", results=10))
     assert [job["id"] for job in stop.value.partial] == ["a"]  # earlier pages survive
 
 
 def test_indeed_returns_the_requested_number_of_results():
     fetcher = StubFetcher({"apis.indeed.com": ok(json.dumps(indeed_payload(["a", "b", "c"])))})
-    jobs = asyncio.run(indeed.search(fetcher, query="x", country="usa", results=2))
+    jobs = asyncio.run(indeed.search(fetcher, query="x", country="us", results=2))
     assert len(jobs) == 2
 
 
@@ -281,7 +281,7 @@ def test_indeed_returns_the_requested_number_of_results():
 def test_indeed_rejects_a_language_before_any_request(language):
     fetcher = StubFetcher({})
     with pytest.raises(ValueError, match="two ASCII letters"):
-        asyncio.run(indeed.search(fetcher, query="x", country="usa", language=language))
+        asyncio.run(indeed.search(fetcher, query="x", country="us", language=language))
     assert fetcher.requests == []
 
 
@@ -290,7 +290,7 @@ def test_indeed_failed_or_unreadable_response_stops_the_search():
     for response, message in ((rate_limited(), "HTTP 429"), (ok("9" * 5000), "cannot read")):
         fetcher = StubFetcher({"apis.indeed.com": response})
         with pytest.raises(Stopped, match=message) as stop:
-            asyncio.run(indeed.search(fetcher, query="x", country="usa"))
+            asyncio.run(indeed.search(fetcher, query="x", country="us"))
         assert stop.value.partial == []
 
 
@@ -306,7 +306,7 @@ def test_indeed_skips_malformed_results_and_keeps_valid_siblings(caplog):
     ]
     fetcher = StubFetcher({"apis.indeed.com": ok(json.dumps(payload))})
     with caplog.at_level(logging.WARNING, logger="jobrake.sites.indeed"):
-        jobs = asyncio.run(indeed.search(fetcher, query="x", country="usa"))
+        jobs = asyncio.run(indeed.search(fetcher, query="x", country="us"))
     assert [job["id"] for job in jobs] == ["a", "b"]
     assert sum("malformed" in record.message for record in caplog.records) == 5
 
@@ -317,7 +317,7 @@ def test_indeed_all_malformed_page_keeps_paginating():
     pages = [bad, indeed_payload(["b"])]
 
     fetcher = PagedFetcher([json.dumps(page) for page in pages])
-    jobs = asyncio.run(indeed.search(fetcher, query="x", country="usa", results=10))
+    jobs = asyncio.run(indeed.search(fetcher, query="x", country="us", results=10))
     assert [job["id"] for job in jobs] == ["b"]  # the cursor survives the bad page
 
 
@@ -329,7 +329,7 @@ def test_indeed_malformed_later_page_keeps_collected_jobs(job_search):
     fetcher = PagedFetcher([json.dumps(page) for page in pages])
     # The message names the caught error.
     with pytest.raises(Stopped, match="TypeError") as stop:
-        asyncio.run(indeed.search(fetcher, query="x", country="usa", results=10))
+        asyncio.run(indeed.search(fetcher, query="x", country="us", results=10))
     assert [job["id"] for job in stop.value.partial] == ["a"]
 
 
@@ -349,7 +349,7 @@ def test_indeed_damaged_page_info_ends_the_search_with_the_page_kept(damage):
     pages = [indeed_payload(["a"], cursor="next"), last]
 
     fetcher = PagedFetcher([json.dumps(page) for page in pages])
-    jobs = asyncio.run(indeed.search(fetcher, query="x", country="usa", results=10))
+    jobs = asyncio.run(indeed.search(fetcher, query="x", country="us", results=10))
     assert [job["id"] for job in jobs] == ["a", "b"]  # Both pages survive the bad cursor.
 
 
@@ -384,7 +384,7 @@ def rich_job(**overrides):
 def parse_one(job):
     payload = {"data": {"jobSearch": {"pageInfo": {}, "results": [{"job": job}]}}}
     fetcher = StubFetcher({"apis.indeed.com": ok(json.dumps(payload))})
-    (parsed,) = asyncio.run(indeed.search(fetcher, query="x", country="usa"))
+    (parsed,) = asyncio.run(indeed.search(fetcher, query="x", country="us"))
     return parsed
 
 
@@ -521,7 +521,7 @@ def test_attribute_lookup_preserves_distinct_codes_and_skips_malformed_entries()
     }
 
     fetcher = StubFetcher({"apis.indeed.com": ok(json.dumps(payload))})
-    assert asyncio.run(indeed.attributes(fetcher, 'data "scientist"', country="netherlands")) == [
+    assert asyncio.run(indeed.attributes(fetcher, 'data "scientist"', country="nl")) == [
         {"id": "4N39D", "name": "Economics"},
         {"id": "5DH8C", "name": "Economics"},
     ]
@@ -533,7 +533,7 @@ def test_attribute_lookup_preserves_distinct_codes_and_skips_malformed_entries()
     assert "filters:" not in graphql
     assert len(fetcher.requests) == 1
     for query, country, message in (
-        (" ", "usa", "is blank"),
+        (" ", "us", "is blank"),
         ("data", "unknown", "unknown Indeed country"),
     ):
         with pytest.raises(ValueError, match=message):
@@ -552,11 +552,11 @@ def test_attribute_lookup_distinguishes_empty_results_from_failure():
     ):
         fetcher = StubFetcher({"apis.indeed.com": ok(json.dumps(payload))})
         if found:
-            assert asyncio.run(indeed.attributes(fetcher, "data", country="usa")) == []
+            assert asyncio.run(indeed.attributes(fetcher, "data", country="us")) == []
         else:
             with pytest.raises(Stopped, match="attributes"):
-                asyncio.run(indeed.attributes(fetcher, "data", country="usa"))
+                asyncio.run(indeed.attributes(fetcher, "data", country="us"))
     for response in (ok("not json"), rate_limited()):
         fetcher = StubFetcher({"apis.indeed.com": response})
         with pytest.raises(Stopped, match="attribute"):
-            asyncio.run(indeed.attributes(fetcher, "data", country="usa"))
+            asyncio.run(indeed.attributes(fetcher, "data", country="us"))
