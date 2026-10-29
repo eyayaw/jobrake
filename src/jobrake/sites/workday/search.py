@@ -10,7 +10,8 @@ from typing import Annotated, Any
 from urllib.parse import urlsplit
 
 from jobrake.fetchkit import Fetcher
-from jobrake.models import JobDict, Place, Stopped, employment_type, make_job
+from jobrake.models import JobDict, Stopped, employment_type, make_job
+from jobrake.sites.postings import fill_details
 from jobrake.sites.responses import json_page, parse_postings, read_json
 from jobrake.utils import as_dict, as_str, checked, html_text
 
@@ -160,14 +161,17 @@ async def _collect_cards(
 
 
 async def _detail_fields(
-    fetcher: Fetcher, url: str, posting: str, card_places: list[Place]
+    fetcher: Fetcher, card: JobDict, *, api_url: str, site_url: str
 ) -> dict[str, Any] | None:
     """
-    Fetch one posting's detail fields, or ``{}`` when Workday reports it gone.
+    Fetch the detail fields of a card's posting, or ``{}`` when Workday reports it gone.
 
+    A posting with a start date takes its ``date`` from it, because the
+    card's date counts from today in UTC and can be a day past Workday's own.
     Returns None when the request failed or the response is unreadable, which it logs.
     """
-    result = await fetcher.fetch(url)
+    posting = card["url"]
+    result = await fetcher.fetch(api_url + posting.removeprefix(site_url))
     if result.status == 404:
         return {}
     if result.error:
@@ -184,13 +188,15 @@ async def _detail_fields(
             *(
                 [{"name": primary, "country_code": country.get("alpha2Code")}]
                 if primary
-                else card_places
+                else card["locations"]
             ),
             *({"name": name} for name in (others if isinstance(others, list) else [])),
         ]
+        start = as_str(info.get("startDate"))
         return {
             "description": html_text(as_str(info.get("jobDescription")) or ""),
-            "posted_at": as_str(info.get("startDate")),
+            "date": start,
+            "posted_at": start,
             "employment_type": employment_type(as_str(info.get("timeType"))),
             "locations": locations,
         }
@@ -199,43 +205,6 @@ async def _detail_fields(
             "skipping the details of %s, which this version cannot read: %r", posting, error
         )
         return None
-
-
-async def _fill_details(
-    fetcher: Fetcher, jobs: list[JobDict], *, api_url: str, site_url: str
-) -> list[JobDict]:
-    """
-    Hydrate each card with its posting's detail fields, one request after another.
-
-    A posting Workday reports gone keeps its card. A posting with a start
-    date takes its ``date`` from it, because the card's date counts from
-    today in UTC and can be a day past Workday's own.
-
-    Raises:
-        Stopped: A posting's details could not be fetched. ``partial`` holds
-            every posting, with the details fetched so far.
-    """
-    filled: list[JobDict] = []
-    missing = 0
-    for position, job in enumerate(jobs, start=1):
-        # The CLI renders progress-flagged records as one self-updating stderr line.
-        logger.info(
-            "workday details %d/%d", position, len(jobs), extra={"progress": (position, len(jobs))}
-        )
-        fields = await _detail_fields(
-            fetcher, api_url + job["url"].removeprefix(site_url), job["url"], job["locations"]
-        )
-        missing += fields is None
-        # Without a card date, make_job falls back to posted_at.
-        card = {**job, "date": None} if fields and fields["posted_at"] else job
-        filled.append(make_job(**{**card, **(fields or {})}))
-    if missing:
-        raise Stopped(
-            f"workday could not fetch the details of {missing} of {len(jobs)} postings. "
-            "A rerun retries them",
-            partial=filled,
-        )
-    return filled
 
 
 @checked
@@ -295,5 +264,6 @@ async def search(
         ngettext("%d posting", "%d postings", len(jobs)) % len(jobs),
     )
     if details:
-        return await _fill_details(fetcher, jobs, api_url=api_url, site_url=site_url)
+        read = functools.partial(_detail_fields, fetcher, api_url=api_url, site_url=site_url)
+        return await fill_details("workday", jobs, read)
     return jobs
