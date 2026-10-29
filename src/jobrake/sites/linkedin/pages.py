@@ -7,7 +7,7 @@ import re
 from gettext import ngettext
 from html import unescape
 from typing import Annotated, Any
-from urllib.parse import urlsplit, urlunsplit
+from urllib.parse import parse_qs, urlsplit, urlunsplit
 
 lazy from bs4 import BeautifulSoup
 
@@ -385,6 +385,9 @@ def _reference(reference: str) -> tuple[str, str | None]:
     """
     Read a reference as its posting ID, and the address to fetch it from when it names one.
 
+    A posting URL is its page, its guest API address, the link in a job alert
+    email, or a search page that names it in ``currentJobId``.
+
     LinkedIn serves the schema.org block only from a posting's canonical URL,
     the title slug on the host of the posting's country. That host is ``www``
     for a US posting and a country subdomain elsewhere. A ``www`` or bare
@@ -398,6 +401,15 @@ def _reference(reference: str) -> tuple[str, str | None]:
     ref = reference.strip()
     if numeric(ref):
         return ref, None
+    parts = urlsplit(ref)
+    shown = parse_qs(parts.query).get("currentJobId", [""])[0]
+    # The /comm/ link redirects to the page, and a search page carries only the
+    # ID, so each reads as the page address of its ID. A path that names a
+    # posting keeps it over any currentJobId.
+    if parts.path.startswith(f"/comm{_PAGE_PATH}"):
+        ref = urlunsplit(parts._replace(path=parts.path.removeprefix("/comm")))
+    elif numeric(shown) and not job_id(ref):
+        ref = urlunsplit(parts._replace(path=f"{_PAGE_PATH}{shown}"))
     posting_id = job_id(ref)
     if not (posting_id and _posting_url(ref, posting_id, _REFERENCE_PATHS)):
         raise ValueError(
