@@ -1,6 +1,22 @@
 # Changelog
 
-## Unreleased
+## [0.22.0](https://github.com/eyayaw/jobrake/releases/tag/v0.22.0) - 2026-10-29
+
+### Added
+
+- `department` holds the hiring unit within the employer, on Ashby, Greenhouse, Lever, Workable, SmartRecruiters, and EconJobMarket, and `team` the posting's team on Ashby and Lever.
+- `site_data` holds the fields only one site carries, under that site's own names: EconJobMarket's position types and fields of economics, and Ashby's pay components.
+- `jobrake.Place` types one entry of `locations`. `jobrake.models.make_places()` normalizes a list of them, and `jobrake.models.workplace_type()` maps a site's workplace label to `remote`, `hybrid`, or `on_site`.
+
+### Changed
+
+- **Breaking:** `locations`, a list of places, replaces `location`, `city`, `region`, `country_code`, `latitude`, and `longitude`. Each place has a `name` and only the parts the site gives for it, and a posting open in several places lists each one. Each cached LinkedIn posting is fetched again once, because its row no longer fits.
+- **Breaking:** `workplace_type`, one of `remote`, `hybrid`, or `on_site`, replaces `is_remote`, and appears only when the site states it.
+- CSV writes `locations` as the place names, separated by `; `, and `site_data` as JSON text.
+
+### Removed
+
+- **Breaking:** `jobrake.utils.join_places()`, because `locations` lists each place on its own.
 
 ## [0.21.0](https://github.com/eyayaw/jobrake/releases/tag/v0.21.0) - 2026-10-28
 
