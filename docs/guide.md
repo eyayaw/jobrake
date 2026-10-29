@@ -701,6 +701,24 @@ jobrake indeed search -q "data scientist" -c us -n 2 \
 
 `scrape()` creates and closes an HTTP client when `fetcher` is omitted.
 Library calls log under the `jobrake` logger, and your application sets its level and handlers.
+While jobrake fetches LinkedIn posting pages or Workday details, it logs one INFO record per posting whose `progress` attribute holds `(done, total)`.
+The CLI draws its progress line from these records, and a handler of your own can do the same:
+
+```python
+import logging
+import sys
+
+
+class Progress(logging.Handler):
+    def emit(self, record):
+        if progress := getattr(record, "progress", None):
+            print("\r%d/%d" % progress, end="", file=sys.stderr)
+
+
+logger = logging.getLogger("jobrake")
+logger.setLevel(logging.INFO)
+logger.addHandler(Progress())
+```
 
 ```python
 import asyncio
