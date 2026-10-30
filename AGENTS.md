@@ -19,7 +19,7 @@ systems, and it depends on `httpx` and `bs4`.
   headers, and pacing, and their `lookups.py` hold the lookups. The other
   sites need no headers or pacing and have no `client.py`. LinkedIn's
   `pages.py` fetches posting pages for `postings` and `details=True`, and
-  Indeed's `countries.py` maps country names to editions.
+  Indeed's `countries.py` maps ISO country codes to editions.
 - `sites/responses.py`: the response reading the JSON sites share, for one
   request or each page. `read_json` raises `Stopped` for an unknown board, a
   failed request, or an unreadable response, `json_list` checks the posting
@@ -63,6 +63,9 @@ the CLI, and the contract test in `tests/test_scrape.py` need no edit.
   employer's board on an ATS site, such as `airbnb` on Greenhouse. Every ATS
   site declares it as a required `str` named `board`, with the short flag
   `-b`.
+- `country`: a country's ISO 3166-1 alpha-2 code, in either case, such as
+  `de`. A site that searches one country edition at a time takes it and maps
+  it to the site's own code. It replaces country names and Indeed's codes.
 - One record. Every site returns `JobDict` records with the same keys, types,
   and units. The identity keys `site`, `id`, and `url` and the summary keys
   `title`, `company`, `locations`, and `date` are always present. A detail

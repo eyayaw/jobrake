@@ -7,7 +7,7 @@ import re
 from gettext import ngettext
 from html import unescape
 from typing import Annotated, Any
-from urllib.parse import urlsplit, urlunsplit
+from urllib.parse import parse_qs, urlsplit, urlunsplit
 
 lazy from bs4 import BeautifulSoup
 
@@ -385,6 +385,9 @@ def _reference(reference: str) -> tuple[str, str | None]:
     """
     Read a reference as its posting ID, and the address to fetch it from when it names one.
 
+    A posting URL is its page, its guest API address, the link in a job alert
+    email, or a search page that names it in ``currentJobId``.
+
     LinkedIn serves the schema.org block only from a posting's canonical URL,
     the title slug on the host of the posting's country. That host is ``www``
     for a US posting and a country subdomain elsewhere. A ``www`` or bare
@@ -398,6 +401,15 @@ def _reference(reference: str) -> tuple[str, str | None]:
     ref = reference.strip()
     if numeric(ref):
         return ref, None
+    parts = urlsplit(ref)
+    shown = parse_qs(parts.query).get("currentJobId", [""])[0]
+    # The /comm/ link redirects to the page, and a search page carries only the
+    # ID, so each reads as the page address of its ID. A path that names a
+    # posting keeps it over any currentJobId.
+    if parts.path.startswith(f"/comm{_PAGE_PATH}"):
+        ref = urlunsplit(parts._replace(path=parts.path.removeprefix("/comm")))
+    elif numeric(shown) and not job_id(ref):
+        ref = urlunsplit(parts._replace(path=f"{_PAGE_PATH}{shown}"))
     posting_id = job_id(ref)
     if not (posting_id and _posting_url(ref, posting_id, _REFERENCE_PATHS)):
         raise ValueError(
@@ -445,7 +457,7 @@ async def fetch_pages(
     remaining fields, one more request unless the lookup fetched it.
     A persistent 429 stops further requests and keeps what the cache and
     the completed requests hold. INFO records report the start, progress,
-    and resolved count.
+    and the count of pages read.
 
     Returns:
         A ``JobDict`` per fetched posting and ``None`` per posting LinkedIn
@@ -454,8 +466,7 @@ async def fetch_pages(
     if not wanted:
         return {}
     total = len(wanted)
-    wanted_count = ngettext("%d posting", "%d postings", total) % total
-    logger.info("fetching linkedin details for %s", wanted_count)
+    logger.info("reading %s", ngettext("%d linkedin page", "%d linkedin pages", total) % total)
     # Cached postings come back even when a 429 stops the requests below.
     cached = cache.CACHE.get("linkedin", wanted)
     found: dict[str, JobDict | None] = {
@@ -466,9 +477,7 @@ async def fetch_pages(
     for position, (posting_id, known) in enumerate(wanted.items(), start=1):
         # The CLI renders progress-flagged records as one self-updating
         # stderr line; other logging configurations show them as plain lines.
-        logger.info(
-            "linkedin details %d/%d", position, total, extra={"progress": (position, total)}
-        )
+        logger.info("linkedin pages %d/%d", position, total, extra={"progress": (position, total)})
         if posting_id in found:
             continue
         try:
@@ -485,14 +494,16 @@ async def fetch_pages(
             cache.CACHE.put([_job(posting_id, {}, fields)])
     if stopped:
         logger.warning(
-            "linkedin is rate limiting this IP, so detail fetching stopped with %d of "
-            "%d postings resolved. Wait a while, then rerun to fill in the rest",
+            "linkedin is rate limiting this IP, so reading pages stopped at %d of %d. "
+            "Wait a while, then rerun to fill in the rest",
             len(found),
             total,
         )
     else:
         logger.info(
-            "linkedin detail fetch finished with %d of %s resolved", len(found), wanted_count
+            ngettext("read %d of %d linkedin page", "read %d of %d linkedin pages", total),
+            len(found),
+            total,
         )
     return found
 

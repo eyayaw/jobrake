@@ -50,7 +50,7 @@ def run_cli(monkeypatch):
 
     def run(*argv):
         monkeypatch.setattr(
-            "sys.argv", ["jobrake", "indeed", "search", "-q", "x", "-c", "usa", *argv]
+            "sys.argv", ["jobrake", "indeed", "search", "-q", "x", "-c", "us", *argv]
         )
         return cli.main()
 
@@ -167,7 +167,7 @@ def test_site_commands_dispatch_their_options(monkeypatch):
             "--query",
             "x",
             "--country",
-            "usa",
+            "us",
             "--location",
             "Seattle",
             "--radius",
@@ -179,7 +179,7 @@ def test_site_commands_dispatch_their_options(monkeypatch):
             "-q",
             "x",
             "-c",
-            "usa",
+            "us",
             "-l",
             "Seattle",
             "-r",
@@ -189,14 +189,14 @@ def test_site_commands_dispatch_their_options(monkeypatch):
             "-a",
             "48",
         ],
-        ["indeed", "search", "-q", "x", "-c", "usa", "--company-ids", "fe21", "--remote"],
+        ["indeed", "search", "-q", "x", "-c", "us", "--company-ids", "fe21", "--remote"],
         [
             "indeed",
             "search",
             "-q",
             "x",
             "-c",
-            "usa",
+            "us",
             "--language",
             "EN",
             "--attributes",
@@ -234,22 +234,22 @@ def test_site_commands_dispatch_their_options(monkeypatch):
     # Each site receives the options given on its command line, and its search
     # supplies the rest.
     assert calls == [
-        ("indeed", {"query": "x", "country": "usa", "location": "Seattle", "radius": 0}),
+        ("indeed", {"query": "x", "country": "us", "location": "Seattle", "radius": 0}),
         (
             "indeed",
             {
                 "query": "x",
-                "country": "usa",
+                "country": "us",
                 "location": "Seattle",
                 "radius": 0,
                 "results": 3,
                 "max_age_hours": 48,
             },
         ),
-        ("indeed", {"query": "x", "country": "usa", "company_ids": ["fe21"], "remote": True}),
+        ("indeed", {"query": "x", "country": "us", "company_ids": ["fe21"], "remote": True}),
         (
             "indeed",
-            {"query": "x", "country": "usa", "language": "EN", "attributes": ["3CQB7", "6QC5F"]},
+            {"query": "x", "country": "us", "language": "EN", "attributes": ["3CQB7", "6QC5F"]},
         ),
         (
             "linkedin",
@@ -275,7 +275,7 @@ def test_invalid_site_arguments_fail_before_scraping(monkeypatch):
     monkeypatch.setattr(cli, "scrape", must_not_run)
     for argv in (
         ["indeed", "search", "-q", "x"],
-        ["indeed", "search", "-q", "x", "-c", "usa", "--easy-apply"],
+        ["indeed", "search", "-q", "x", "-c", "us", "--easy-apply"],
         ["indeed", "companies", "ABN AMRO"],
         ["linkedin", "attributes", "data scientist"],
         ["linkedin", "search", "-q", "x", "-l", "Seattle", "--attributes", "3CQB7"],

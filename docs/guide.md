@@ -19,7 +19,7 @@ Run `jobrake -h` for the sites, `jobrake <site> -h` for a site's commands, and `
 Choose a site and supply a job title or keywords:
 
 ```sh
-jobrake indeed search -q "data scientist" -c Netherlands -l Amsterdam -n 2
+jobrake indeed search -q "data scientist" -c nl -l Amsterdam -n 2
 jobrake linkedin search -q "data scientist" -l "Amsterdam, North Holland, Netherlands" -n 2
 ```
 
@@ -81,11 +81,11 @@ so write plain keywords for LinkedIn queries.
 
 #### Indeed locations
 
-Set `country` to a name such as `Germany` or `Netherlands`. Accepted shortcuts
-are `USA`, `US`, and `UK`. `location` may contain a city or another place within
-that country.
+Set `country` to the country's ISO 3166-1 alpha-2 code in either case, such as `de`, `gb`, or `us`.
+A code with no Indeed edition is an error that lists the codes Indeed serves.
+`location` may contain a city or another place within that country.
 
-`jobrake indeed places <name> --country <edition>` prints the edition's location
+`jobrake indeed places <name> --country <code>` prints the edition's location
 suggestions as JSON, best match first. Each `id` can be passed directly
 to `--location`. For library calls use `jobrake.sites.indeed.places`.
 
@@ -172,7 +172,7 @@ The identifiers differ in form, and so does the number of companies a single sea
 Find an Indeed employer key by looking up the company name in a country edition:
 
 ```sh
-jobrake indeed companies "Booking" -c Netherlands
+jobrake indeed companies "Booking" -c nl
 ```
 ```json
 [
@@ -199,8 +199,8 @@ Library callers use `jobrake.sites.indeed.companies(fetcher, name, country=...)`
 Use the selected key to restrict job results to that employer:
 
 ```sh
-jobrake indeed search -c Netherlands -q "data scientist" --company-ids 8e8f030e53ea29e4
-jobrake indeed search -c Netherlands --company-ids 8e8f030e53ea29e4
+jobrake indeed search -c nl -q "data scientist" --company-ids 8e8f030e53ea29e4
+jobrake indeed search -c nl --company-ids 8e8f030e53ea29e4
 ```
 
 This key selects _Booking.com_. Without `-q`, the search covers its postings without keywords.
@@ -286,7 +286,7 @@ These IDs select _Booking.com_ and _ING Nederland_. For a library search, pass
 Use `--language CODE` to select Indeed postings in one language:
 
 ```sh
-jobrake indeed search -q econometrics -c Netherlands --language en
+jobrake indeed search -q econometrics -c nl --language en
 ```
 
 Indeed decides each posting's language. The option accepts two-letter language codes
@@ -301,7 +301,7 @@ LinkedIn does not have language support.
 The `attributes` command helps you find codes on postings matching a job title or keywords.
 
 ```sh
-jobrake indeed attributes -c usa "data scientist"
+jobrake indeed attributes -c us "data scientist"
 ```
 
 The command reads the first 100 matching postings and prints a JSON list of code and label pairs, as `id` and `name`.
@@ -309,7 +309,7 @@ It applies no posting-age restriction. Those postings carry several (hundred) at
 Search the list by label:
 
 ```sh
-jobrake indeed attributes -c usa "data scientist" \
+jobrake indeed attributes -c us "data scientist" \
   | jq -r '.[] | select(.name | test("python"; "i")) | [.id, .name] | @tsv'
 # X62BT	Python
 ```
@@ -322,8 +322,8 @@ jobrake reads the codes live from Indeed. Library callers use `jobrake.sites.ind
 Once you find the codes you want, then use those codes to filter jobs:
 
 ```sh
-jobrake indeed search -q "data scientist" -c usa --attributes X62BT
-jobrake indeed search -q economist -c usa --attributes CF3CP 6QC5F
+jobrake indeed search -q "data scientist" -c us --attributes X62BT
+jobrake indeed search -q economist -c us --attributes CF3CP 6QC5F
 ```
 
 `X62BT` selects Python. The second search requires both Full-time (`CF3CP`) and Doctoral degree (`6QC5F`),
@@ -339,7 +339,7 @@ For a library search, pass the codes as a list of strings, such as `attributes=[
 Pass `--remote` to search postings that Indeed tags Remote:
 
 ```sh
-jobrake indeed search -q "econometrics" -c usa --remote
+jobrake indeed search -q "econometrics" -c us --remote
 ```
 
 `--remote` is shorthand for `--attributes DSQF7`, so a posting must carry the Remote tag and every other code you pass.
@@ -386,7 +386,7 @@ Sites take postings down over time, so the examples above may be gone. Use refer
 Name as many postings as you like. Results follow the order given and have the fields of a search with `--details`, except a field only the search result carries, such as SmartRecruiters' `department`. Several references to one posting return one job.
 The command accepts the same `--output | -o` and `--format | -f` options as a search.
 A posting that is gone or unreachable is reported on stderr and left out. When one was unreachable, the command writes the others and exits nonzero.
-A LinkedIn reference is a numeric ID or a posting URL. A Workday or SmartRecruiters reference is a search result's `url`, and SmartRecruiters also takes the posting's address with its title slug. Any other reference is an error, and nothing is fetched.
+A LinkedIn reference is a numeric ID or a posting URL, including the link in a LinkedIn job alert email and a search page address with `currentJobId=`. A Workday or SmartRecruiters reference is a search result's `url`, and SmartRecruiters also takes the posting's address with its title slug. Any other reference is an error, and nothing is fetched.
 
 LinkedIn serves a posting's dates, coordinates, and requirements only at its canonical URL: the title slug on the host of the posting's country.
 That host is `www.linkedin.com` for the United States and a country subdomain, such as `nl.linkedin.com`, elsewhere.
@@ -697,7 +697,7 @@ The formats represent unavailable fields differently.
 Pipe stdout into another program to reshape the jobs. [`jq`](https://github.com/jqlang/jq) picks out fields:
 
 ```sh
-jobrake indeed search -q "data scientist" -c usa -n 2 \
+jobrake indeed search -q "data scientist" -c us -n 2 \
   | jq -r '.[] | [.date, .title, .company, .url] | @tsv'
 ```
 
@@ -705,6 +705,24 @@ jobrake indeed search -q "data scientist" -c usa -n 2 \
 
 `scrape()` creates and closes an HTTP client when `fetcher` is omitted.
 Library calls log under the `jobrake` logger, and your application sets its level and handlers.
+While jobrake fetches LinkedIn posting pages or Workday details, it logs one INFO record per posting whose `progress` attribute holds `(done, total)`.
+The CLI draws its progress line from these records, and a handler of your own can do the same:
+
+```python
+import logging
+import sys
+
+
+class Progress(logging.Handler):
+    def emit(self, record):
+        if progress := getattr(record, "progress", None):
+            print("\r%d/%d" % progress, end="", file=sys.stderr)
+
+
+logger = logging.getLogger("jobrake")
+logger.setLevel(logging.INFO)
+logger.addHandler(Progress())
+```
 
 ```python
 import asyncio
@@ -716,7 +734,7 @@ async def main():
     jobs = await scrape(
         "indeed",
         query="economist",
-        country="United States",
+        country="us",
         results=2,
     )
     for job in jobs:
@@ -743,14 +761,14 @@ async def main():
             site,
             query=query,
             location="Amsterdam",
-            country="Netherlands",
+            country="nl",
             fetcher=fetcher,
         )
         us = await scrape(
             site,
             query=query,
             location="New York",
-            country="USA",
+            country="us",
             fetcher=fetcher,
         )
     return nl, us
@@ -773,7 +791,7 @@ from jobrake import Stopped, scrape
 
 async def main():
     try:
-        return await scrape("indeed", query="economist", country="usa", results=500)
+        return await scrape("indeed", query="economist", country="us", results=500)
     except Stopped as stop:
         print(stop)  # what failed
         return stop.partial  # the jobs collected before it

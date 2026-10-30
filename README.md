@@ -35,7 +35,7 @@ jobrake linkedin search \
 ```sh
 jobrake indeed search \
   -q "data scientist" \
-  -l amsterdam -c netherlands \
+  -l amsterdam -c nl \
   -a 48 \
   -n 5 \
   --radius 100
@@ -86,13 +86,13 @@ jobrake linkedin search -q "data scientist" -g 102011674 -n 2 # Amsterdam, Nethe
 ## Search and fetch details
 jobrake indeed search \
         -q "data analyst" \
-        -c "UK" \
+        -c gb \
         -l "London" \
         -n 5 \
         -a 24 \
         -o jobs.jsonl
 # Resolve place names
-jobrake indeed places -c netherlands "amsterdam"
+jobrake indeed places -c nl "amsterdam"
 
 # Greenhouse ----
 ## Every posting on one employer's board
@@ -119,7 +119,7 @@ async def main():
     return await scrape(
         "indeed",
         query="economist",
-        country="United States",
+        country="us",
         results=2,
     )
 
