@@ -9,6 +9,7 @@ import pytest
 from fakes import PagedFetcher, StubFetcher, network_down, not_found, ok
 
 from jobrake import Stopped
+from jobrake.fetchkit import FetchResult
 from jobrake.sites import workday
 
 BOARD = "https://nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite"
@@ -130,6 +131,23 @@ DETAIL = {
     "hiringOrganization": {"name": "2100 NVIDIA USA", "url": ""},
 }
 
+POSTING = f"{BOARD}/job/US-CA-Santa-Clara/Networking-Architect_JR1996377"
+# The record DETAIL fills, from a card or from its URL alone.
+FILLED = {
+    "site": "workday",
+    "id": "nvidia:JR1996377",
+    "url": POSTING,
+    "title": "Networking Architect",
+    "company": None,
+    "locations": [{"name": "US, CA, Santa Clara", "country_code": "US"}],
+    "date": "2026-10-27",  # the start date, a day before the card's "Posted Today"
+    "description": "NVIDIA Networking has been a leader in high performance networking "
+    "infrastructure for many years.\nWhat you’ll be doing:",  # noqa: RUF001  the posting's own apostrophe
+    "employment_type": "full_time",
+    "posted_at": "2026-10-27",
+}
+
+
 # GET {API}/job/US-CA-Santa-Clara/Principal-Architect--System-Software---Orbital-Data-Center_JR2019010
 # on 2026-10-28, a card that says "2 Locations", trimmed to the fields jobrake
 # reads, with the description cut to its first sentence.
@@ -150,10 +168,10 @@ TWO_PLACES = {
 }
 
 
-def test_a_detail_without_a_location_keeps_the_cards_place(today):
+def test_a_detail_without_a_location_or_title_keeps_the_cards(today):
     info = {
         name: value for name, value in TWO_PLACES["jobPostingInfo"].items() if name != "location"
-    }
+    } | {"title": "   "}
     fetcher = StubFetcher(
         {
             "/jobs": ok(page(CARDS[:1])),
@@ -163,6 +181,7 @@ def test_a_detail_without_a_location_keeps_the_cards_place(today):
     (job,) = asyncio.run(workday.search(fetcher, board=BOARD, details=True))
     # The card's place leads the additional ones, and the requisition's country stays off both.
     assert job["locations"] == [{"name": "US, CA, Santa Clara"}, {"name": "US, Remote"}]
+    assert job["title"] == "Networking Architect"
 
 
 def test_details_fill_each_card_and_stop_when_one_fails(today, caplog):
@@ -176,19 +195,6 @@ def test_details_fill_each_card_and_stop_when_one_fails(today, caplog):
             "Engineer_JR1": network_down(),
         }
     )
-    filled = {
-        "site": "workday",
-        "id": "nvidia:JR1996377",
-        "url": f"{BOARD}/job/US-CA-Santa-Clara/Networking-Architect_JR1996377",
-        "title": "Networking Architect",
-        "company": None,
-        "locations": [{"name": "US, CA, Santa Clara", "country_code": "US"}],
-        "date": "2026-10-27",  # the start date, a day before the card's "Posted Today"
-        "description": "NVIDIA Networking has been a leader in high performance networking "
-        "infrastructure for many years.\nWhat you’ll be doing:",  # noqa: RUF001  the posting's own apostrophe
-        "employment_type": "full_time",
-        "posted_at": "2026-10-27",
-    }
     two_places = {
         "site": "workday",
         "id": "nvidia:JR2019010",
@@ -206,7 +212,7 @@ def test_details_fill_each_card_and_stop_when_one_fails(today, caplog):
         "posted_at": "2026-10-27",
     }
     assert asyncio.run(workday.search(fetcher, board=BOARD, results=2, details=True)) == [
-        filled,
+        FILLED,
         two_places,
     ]
     assert fetcher.requests[1] == f"{API}/job/US-CA-Santa-Clara/Networking-Architect_JR1996377"
@@ -219,8 +225,55 @@ def test_details_fill_each_card_and_stop_when_one_fails(today, caplog):
         "nvidia:JR0",
         "nvidia:JR1",
     ]
-    assert stop.value.partial[:2] == [filled, two_places]
+    assert stop.value.partial[:2] == [FILLED, two_places]
     assert caplog.text.count("skipping the details of") == 2
+
+
+def test_postings_fetch_each_posting_once_and_key_it_by_reference(caplog):
+    url = POSTING
+    copied = (
+        "https://NVIDIA.wd5.myworkdayjobs.com/en-US/NVIDIAExternalCareerSite"
+        "/job/US-CA-Santa-Clara/Networking-Architect_JR1996377/?source=email#apply"
+    )
+    gone, failed = f"{BOARD}/job/Remote/Engineer_JR0", f"{BOARD}/job/Remote/Engineer_JR1"
+    withdrawn, blocked = f"{BOARD}/job/Remote/Engineer_JR2", f"{BOARD}/job/Remote/Engineer_JR3"
+    # A withdrawn posting's 403 names error S22, in the shape of Workday's 404 body.
+    s22 = {"errorCode": "S22", "httpStatus": 403, "message": "permission denied"}
+    fetcher = StubFetcher(
+        {
+            "Networking-Architect_JR1996377": ok(json.dumps(DETAIL)),
+            "Engineer_JR0": not_found(),
+            "Engineer_JR1": network_down(),
+            "Engineer_JR2": FetchResult("stub", 403, json.dumps(s22), error="HTTP 403"),
+            "Engineer_JR3": FetchResult("stub", 403, "<html>blocked</html>", error="HTTP 403"),
+        }
+    )
+    references = [url, copied, gone, failed, withdrawn, blocked]
+    got = asyncio.run(workday.postings(fetcher, references))
+    # The URL alone fills the record, and a failed read leaves its reference out.
+    assert got == {url: FILLED, copied: FILLED, gone: None, withdrawn: None}
+    assert fetcher.requests == [
+        f"{API}/job/US-CA-Santa-Clara/Networking-Architect_JR1996377",
+        *(f"{API}/job/Remote/Engineer_JR{n}" for n in range(4)),
+    ]
+    assert "skipping the details of" in caplog.text
+
+
+@pytest.mark.parametrize(
+    "reference",
+    [
+        BOARD,  # the career site, not one of its postings
+        f"{BOARD}/job/Remote/Engineer",  # no requisition ID
+        f"{BOARD}/Remote/Engineer_JR1",  # no job segment, which the API would answer 404
+        f"{API}/job/Remote/Engineer_JR1",  # the API's address
+        "https://careers.nvidia.com/NVIDIAExternalCareerSite/job/Remote/Engineer_JR1",
+    ],
+)
+def test_postings_reject_a_reference_that_is_not_a_workday_posting(reference):
+    fetcher = StubFetcher({})
+    with pytest.raises(ValueError, match="not a Workday posting URL"):
+        asyncio.run(workday.postings(fetcher, [POSTING, reference]))
+    assert fetcher.requests == []
 
 
 def test_a_relative_posting_date_counts_back_from_today(today):
@@ -262,10 +315,16 @@ def test_only_a_404_on_the_first_page_means_an_unknown_site():
 
 
 def test_a_card_without_a_requisition_id_is_skipped(caplog):
-    malformed = [{**CARDS[0], "externalPath": "/job/no-requisition"}, CARDS[1]]
+    malformed = [
+        {**CARDS[0], "externalPath": "/job/no-requisition"},
+        {**CARDS[0], "externalPath": "/job/Remote/Data_Scientist"},  # a title word, not an ID
+        {**CARDS[0], "externalPath": "/job/Remote/Senior-Analyst_JR_2024_00123"},
+        CARDS[1],
+    ]
     jobs = asyncio.run(workday.search(StubFetcher({"/jobs": ok(page(malformed))}), board=BOARD))
-    assert [job["id"] for job in jobs] == ["nvidia:JR2019010"]
-    assert "skipping malformed workday posting" in caplog.text
+    # An ID with underscores of its own stays whole.
+    assert [job["id"] for job in jobs] == ["nvidia:JR_2024_00123", "nvidia:JR2019010"]
+    assert caplog.text.count("skipping malformed workday posting") == 2
 
 
 def test_paging_ends_at_results_or_the_first_total_and_stops_at_an_early_empty_page(

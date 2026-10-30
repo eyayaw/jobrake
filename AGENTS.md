@@ -26,6 +26,10 @@ systems, and it depends on `httpx` and `bs4`.
   list, `json_page` checks a page's list and its total, and `parse_postings`
   skips a malformed posting with a warning. A new site of this kind writes
   no error handling of its own.
+- `sites/postings.py`: the posting loop of the sites that fill a card with
+  one request per posting. `fill_details` serves `details=True` and
+  `fetch_postings` serves `postings`, and each site supplies only the reader
+  of one posting. A field the posting leaves empty keeps the card's value.
 - `utils.py`: `site_options`, which reads the `Annotated` arguments of a
   site function, `checked`, which checks every call against them, and the
   JSON value, text, number, and date helpers.
@@ -94,6 +98,11 @@ the CLI, and the contract test in `tests/test_scrape.py` need no edit.
   reported, raises `Stopped`, whose `partial` holds what was collected. A
   site's own result cap warns and returns, because a rerun meets it again. `postings` never raises `Stopped`
   and leaves a failed reference out of its result.
+- A site whose search cards lack fields its posting endpoint serves takes
+  `details` on `search` and exports `postings(fetcher, references)`, so a
+  caller can fill cards in the same run or a later one. A reference is at
+  least a record's `url`. `postings` keys its result by the references given
+  and maps a posting the site reports gone to `None`.
 - The transport is the caller's. Code takes a `Fetcher` and leaves it open,
   and the caller that created it closes it. LinkedIn requests go through
   `paced_fetch`, which pins requests to LinkedIn's data centers in turn,

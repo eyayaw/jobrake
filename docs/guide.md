@@ -368,24 +368,25 @@ Employment type is still available as a posting detail with `--details`.
 Indeed returns the details it has with the search itself, so an Indeed search needs nothing further.
 LinkedIn's guest search returns summary cards only. Add `--details | -d` (`details=True`) to fetch each posting page and fill in the rest.
 That costs one paced request per uncached posting, and sometimes a second.
-A Workday search also returns cards without descriptions, and `--details` fetches each posting with one more request, as [Workday fields](#workday-fields) describes.
+Workday and SmartRecruiters searches also return cards without descriptions, and `--details` fetches each posting with one more request, as [Workday fields](#workday-fields) and [SmartRecruiters fields](#smartrecruiters-fields) describe.
 See [request limits](#request-limits-and-partial-results) for pacing and retries, and [cache settings](#cache-location-and-lifetimes) for reuse.
 
 ### Fetch known postings
 
-Fetch a LinkedIn posting by ID or URL without repeating a search:
+Fetch postings you already know on LinkedIn, Workday, or SmartRecruiters without repeating a search:
 
 ```sh
 jobrake linkedin postings 4449382178
 jobrake linkedin postings https://nl.linkedin.com/jobs/view/data-scientist-at-acme-4449382178
+jobrake workday postings https://nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite/job/US-CA-Santa-Clara/Networking-Architect_JR1996377
+jobrake smartrecruiters postings https://jobs.smartrecruiters.com/BoschGroup/744000158197889
 ```
 
-LinkedIn takes postings down over time, so the examples above may be gone. Use IDs and URLs from a recent search.
-Name as many postings as you like. Results follow the order given and have the same fields as a search with `--details`. Several references to one posting return one job.
-The command accepts the same `--output | -o` and `--format | -f` options as a LinkedIn search.
+Sites take postings down over time, so the examples above may be gone. Use references from a recent search.
+Name as many postings as you like. Results follow the order given and have the fields of a search with `--details`, except a field only the search result carries, such as SmartRecruiters' `department`. Several references to one posting return one job.
+The command accepts the same `--output | -o` and `--format | -f` options as a search.
 A posting that is gone or unreachable is reported on stderr and left out. When one was unreachable, the command writes the others and exits nonzero.
-The link in a LinkedIn job alert email and a search page address with `currentJobId=` also name a posting.
-A reference that is neither a numeric ID nor a LinkedIn posting URL is an error, and nothing is fetched.
+A LinkedIn reference is a numeric ID or a posting URL, including the link in a LinkedIn job alert email and a search page address with `currentJobId=`. A Workday or SmartRecruiters reference is a search result's `url`, and SmartRecruiters also takes the posting's address with its title slug. Any other reference is an error, and nothing is fetched.
 
 LinkedIn serves a posting's dates, coordinates, and requirements only at its canonical URL: the title slug on the host of the posting's country.
 That host is `www.linkedin.com` for the United States and a country subdomain, such as `nl.linkedin.com`, elsewhere.
@@ -394,7 +395,7 @@ A posting placed in a whole country, such as "United States" or "Netherlands", c
 jobrake fetches a country-subdomain URL with a slug as given. Any other reference costs one lookup first to find the canonical URL.
 A cached posting holds its URL, so it costs no request.
 
-Library callers use `jobrake.sites.linkedin.postings`.
+Library callers use the `postings` function of `jobrake.sites.linkedin`, `jobrake.sites.workday`, or `jobrake.sites.smartrecruiters`.
 
 ### Fetch selected results
 
@@ -570,12 +571,15 @@ A SmartRecruiters record carries `title`, `company`, `locations`, and `date`, an
 `posted_at` is the time the posting was released, and `date` is its calendar date. `language` is a code such as `en` or `zh-CN`.
 `url` opens the posting on `jobs.smartrecruiters.com`.
 `workplace_type` is `remote` or `hybrid` for a posting the employer marks so, and absent otherwise, because SmartRecruiters does not mark on-site. `--remote` keeps the postings SmartRecruiters files as remote, which can include ones whose `workplace_type` is `hybrid`.
-A record has no description or apply link, which SmartRecruiters serves only one posting at a time, and no salary, which it does not publish.
+SmartRecruiters serves a description only with each posting, so a search result has none. `--details | -d` fetches each posting and adds `description`. It holds every section of the ad under its title, in SmartRecruiters' order: the company description, the job description, the qualifications, and additional information.
+[`jobrake smartrecruiters postings`](#fetch-known-postings) builds the same record from a search result's `url` in a later run, without the `department`, which only the search result carries.
+A record has no apply link. It has no salary either, because SmartRecruiters does not publish one.
 
 ### Workday fields
 
 A Workday search result carries `title`, `locations`, and `date`, but no description.
 `--details | -d` fetches each posting and adds `description`, `posted_at`, and `employment_type`, and gives the primary place its `country_code`.
+[`jobrake workday postings`](#fetch-known-postings) builds the same record from a search result's `url` in a later run.
 
 - `company` is always `None`. Workday names only the employer's legal entity, such as `2100 NVIDIA USA`.
 - `locations` is empty for a posting with several locations, because a search result shows only their count, such as `2 Locations`. With `--details`, it holds the primary location and then the others, by name.
@@ -858,6 +862,8 @@ On a data center IP, such as a VPS, LinkedIn refuses posting pages with [HTTP 99
 A search reads the board in pages of up to 100 postings, which follow one another without pacing, and each request gets a single attempt.
 It stops at `--results`, at the board's last matching posting, or at an empty page.
 A failed request raises `Stopped` with the postings of the pages before it, and the CLI exits 1. So does an empty page that comes before the number of matches SmartRecruiters reported, because postings may have closed during the search and a rerun may find more.
+`--details` and `postings` add one request per posting, one after another, and handle a failed request as on Workday.
+A posting SmartRecruiters reports missing or marks inactive counts as gone.
 jobrake skips a posting it cannot read and leaves out a field it cannot read.
 
 ### Workable requests
@@ -871,8 +877,9 @@ jobrake skips a posting it cannot read and leaves out a field it cannot read.
 A search pages through the results one request after another, without pacing, and each request gets a single attempt.
 Workday reports at most 2,000 postings per search, and jobrake warns when that cap cuts a search short. Narrow the search with `--query` to reach the rest.
 A failed request raises `Stopped` with the postings collected before it, and the CLI exits 1. So does an empty page that comes before the number of postings Workday reported, because postings may have closed during the search and a rerun may find more.
-`--details` adds one request per posting, also one after another. A posting removed since the search keeps its search result.
+`--details` adds one request per posting, also one after another. A posting removed or withdrawn since the search keeps its search result.
 A posting whose details cannot be fetched also keeps its search result, and once the rest are fetched the search raises `Stopped` with every posting in `partial`. A rerun retries them.
+`postings` also sends one request per posting, but never raises `Stopped`. It leaves out a posting whose request failed or whose response it cannot read.
 jobrake skips a posting it cannot read and leaves out a field it cannot read.
 
 ## Cache location and lifetimes
