@@ -294,7 +294,8 @@ def test_postings_fetch_each_posting_once_and_key_it_by_reference():
     shouted = "https://JOBS.SMARTRECRUITERS.COM/BoschGroup/744000158197889"
     board = "https://jobs.smartrecruiters.com/BoschGroup/"
     gone, malformed, closed, failed = (f"{board}{n}" for n in (1, 2, 3, 4))
-    # The API answered a malformed request so on 2026-10-30, which says nothing of the posting.
+    # SmartRecruiters answered a malformed request this way on 2026-10-30.
+    # A 400 says nothing about the posting.
     bad_request = FetchResult("stub", 400, "Bad Request", error="client error (HTTP 400)")
     fetcher = StubFetcher(
         {

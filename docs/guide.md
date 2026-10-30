@@ -571,9 +571,9 @@ A SmartRecruiters record carries `title`, `company`, `locations`, and `date`, an
 `posted_at` is the time the posting was released, and `date` is its calendar date. `language` is a code such as `en` or `zh-CN`.
 `url` opens the posting on `jobs.smartrecruiters.com`.
 `workplace_type` is `remote` or `hybrid` for a posting the employer marks so, and absent otherwise, because SmartRecruiters does not mark on-site. `--remote` keeps the postings SmartRecruiters files as remote, which can include ones whose `workplace_type` is `hybrid`.
-A search result has no description, which SmartRecruiters serves only one posting at a time. `--details | -d` fetches each posting and adds `description`, every section of the ad under its title, in SmartRecruiters' order: the company description, the job description, the qualifications, and additional information.
+SmartRecruiters serves a description only with each posting, so a search result has none. `--details | -d` fetches each posting and adds `description`. It holds every section of the ad under its title, in SmartRecruiters' order: the company description, the job description, the qualifications, and additional information.
 [`jobrake smartrecruiters postings`](#fetch-known-postings) builds the same record from a search result's `url` in a later run, without the `department`, which only the search result carries.
-A record has no apply link, and no salary, which SmartRecruiters does not publish.
+A record has no apply link. It has no salary either, because SmartRecruiters does not publish one.
 
 ### Workday fields
 
@@ -844,8 +844,8 @@ On a data center IP, such as a VPS, LinkedIn refuses posting pages with [HTTP 99
 A search reads the board in pages of up to 100 postings, which follow one another without pacing, and each request gets a single attempt.
 It stops at `--results`, at the board's last matching posting, or at an empty page.
 A failed request raises `Stopped` with the postings of the pages before it, and the CLI exits 1. So does an empty page that comes before the number of matches SmartRecruiters reported, because postings may have closed during the search and a rerun may find more.
-`--details` and `postings` add one request per posting, one after another, and treat a failed one as Workday's do.
-A posting SmartRecruiters marks inactive, or an ID the board does not hold, counts as gone.
+`--details` and `postings` add one request per posting, one after another, and handle a failed request as on Workday.
+A posting SmartRecruiters reports missing or marks inactive counts as gone.
 jobrake skips a posting it cannot read and leaves out a field it cannot read.
 
 ### Workable requests
@@ -861,7 +861,7 @@ Workday reports at most 2,000 postings per search, and jobrake warns when that c
 A failed request raises `Stopped` with the postings collected before it, and the CLI exits 1. So does an empty page that comes before the number of postings Workday reported, because postings may have closed during the search and a rerun may find more.
 `--details` adds one request per posting, also one after another. A posting removed or withdrawn since the search keeps its search result.
 A posting whose details cannot be fetched also keeps its search result, and once the rest are fetched the search raises `Stopped` with every posting in `partial`. A rerun retries them.
-`postings` sends the same one request per posting and never raises `Stopped`. It leaves out a posting whose request failed or whose response it cannot read.
+`postings` also sends one request per posting, but never raises `Stopped`. It leaves out a posting whose request failed or whose response it cannot read.
 jobrake skips a posting it cannot read and leaves out a field it cannot read.
 
 ## Cache location and lifetimes

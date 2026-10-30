@@ -21,7 +21,8 @@ logger = logging.getLogger(__name__)
 API_URL = "https://api.smartrecruiters.com/v1/companies"
 # The list cards carry no URL. This one opens the posting's page on the hosted board.
 POSTING_URL = "https://jobs.smartrecruiters.com/{company}/{id}"
-# A posting's page, whose ID may carry the title slug, as in 744000158197889-product-expert.
+# A posting's page path, where a title slug may follow the ID, as in
+# /BoschGroup/744000158197889-product-expert.
 _POSTING_PATH = re.compile(r"/([^/]+)/(\d+)(?:-[^/]*)?/?")
 PAGE_SIZE = 100  # the largest limit the API accepts
 

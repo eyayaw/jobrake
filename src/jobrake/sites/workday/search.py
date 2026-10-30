@@ -28,8 +28,8 @@ _LOCALE = re.compile(r"[a-z]{2}-[A-Z]{2}")
 _POSTED = re.compile(r"Posted (?:Today|(Yesterday)|(\d{1,4}) Days Ago)")
 # The requisition ID follows the first underscore of the path's last segment,
 # because title slugs join words with hyphens, so an ID such as JR_2024_00123
-# stays whole. An ID holds a digit, which tells /job/Remote/Data_Scientist
-# apart as a path without one.
+# stays whole. An ID holds a digit, and a title word such as Scientist in
+# /job/Remote/Data_Scientist does not.
 _REQUISITION = re.compile(r"/(?:[^/]+/)*[^/_]*_([^/]*\d[^/]*)")
 _LOCATION_COUNT = re.compile(r"\d+ Locations")
 
