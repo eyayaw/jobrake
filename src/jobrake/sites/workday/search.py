@@ -222,7 +222,10 @@ async def _detail_fields(fetcher: Fetcher, card: JobDict) -> dict[str, Any] | No
         }
     except (ValueError, KeyError, TypeError, AttributeError) as error:
         logger.warning(
-            "skipping the details of %s, which this version cannot read: %r", posting, error
+            "skipping the details of %s: workday sent a response this version cannot read "
+            "(%r), likely an API change. Check for a newer jobrake",
+            posting,
+            error,
         )
         return None
 
