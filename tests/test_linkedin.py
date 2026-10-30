@@ -1149,6 +1149,9 @@ def test_postings_resolve_an_id_before_fetching_the_page(unlimited):
         "https://nl.linkedin.com/jobs/view/111",
         "https://linkedin.com/jobs/view/economist-at-acme-111",
         "https://www.linkedin.com:443/jobs/view/111",
+        "https://www.linkedin.com/comm/jobs/view/111?trk=eml",  # a job alert email's link
+        "https://nl.linkedin.com/jobs/search/?currentJobId=111&keywords=economist",
+        "https://nl.linkedin.com/jobs/view/111?currentJobId=222",  # the path names the posting
     )
     # the cache holds the address and the posting, so no reference costs a request
     for address in ("111", CANONICAL, *others):
@@ -1169,6 +1172,7 @@ def test_postings_resolve_an_id_before_fetching_the_page(unlimited):
     "reference",
     [
         "https://www.linkedin.com/jobs/search",  # no posting id anywhere
+        "https://www.linkedin.com/jobs/search/?currentJobId=111%2F222",  # not one id
         "https://example.test/private-123",  # another site's page ending in digits
         "https://nl.linkedin.com/company/acme-111",  # linkedin, but not a posting
         "ftp://nl.linkedin.com/jobs/view/economist-at-acme-111",  # not a web address

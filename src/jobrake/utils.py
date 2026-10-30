@@ -4,36 +4,80 @@ import functools
 import inspect
 import logging
 import math
+import re
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from types import NoneType
 from typing import Annotated, Any, NamedTuple, Union, get_args, get_origin
 
 lazy from bs4 import BeautifulSoup
+lazy from bs4.element import Tag
 
 logger = logging.getLogger(__name__)
 
 _BLOCK_TAGS = ("p", "div", "li", "ul", "ol", "h1", "h2", "h3", "h4", "h5", "h6", "table", "tr", "br", )  # fmt: skip
+# Characters that render as nothing and can split a word or reverse a run of
+# text. ZWJ, ZWNJ, and the LRM and RLM marks stay, because Persian, Arabic,
+# and Indic text use them.
+_INVISIBLE = re.compile("[\u00ad\u200b\u2060\ufeff\u202a-\u202e\u2066-\u2069]")
+
+
+def _style(tag: Tag) -> dict[str, str]:
+    """Read a tag's inline declarations, the last one winning for each property."""
+    css = re.sub(r"/\*.*?\*/", "", str(tag.get("style", "")), flags=re.DOTALL)
+    declarations = (part.partition(":") for part in css.split(";"))
+    return {
+        name.strip().lower(): value.strip().lower().removesuffix("!important").strip()
+        for name, _, value in declarations
+    }
+
+
+def _zero(value: str | None) -> bool:
+    """Tell whether a CSS number or length is zero, such as ``0``, ``.0``, or ``0px``."""
+    number = re.fullmatch(r"(\d*\.?\d+)[a-z%]*", value or "")
+    return number is not None and float(number[1]) == 0
+
+
+def _hidden(tag: Tag) -> bool:
+    if tag.has_attr("hidden"):
+        return True
+    style = _style(tag)
+    if style.get("display") == "none" or _zero(style.get("opacity")):
+        return True
+    # Visibility and font size inherit, and a descendant that sets either one
+    # again can show its text, so the element then stays.
+    inherited = set()
+    if style.get("visibility") in ("hidden", "collapse"):
+        inherited.add("visibility")
+    if _zero(style.get("font-size")):
+        inherited.add("font-size")
+    descendants = (_style(child) for child in tag.find_all(style=True))
+    return bool(inherited) and not any(inherited & child.keys() for child in descendants)
 
 
 def html_text(html: str) -> str:
     """
-    Extract readable text from an HTML fragment.
+    Extract the text a reader sees from an HTML fragment.
 
     Block tags become line breaks. Inline tags join without spaces. Style and
-    script bodies and empty lines are omitted.
+    script bodies, elements hidden by the ``hidden`` attribute or an inline
+    style, invisible characters, and empty lines are omitted. A stylesheet's
+    classes are not resolved, so an element they hide stays.
     """
     if not html:
         return ""
     soup = BeautifulSoup(html, "html.parser")
     for tag in soup.find_all(("style", "script")):
         tag.decompose()
+    for tag in soup.find_all(_hidden):
+        tag.decompose()
     for tag in soup.find_all(_BLOCK_TAGS):
         tag.insert_before("\n")
         tag.insert_after("\n")
     for cell in soup.find_all(("td", "th")):
         cell.insert_after(" ")
-    lines = (" ".join(line.split()) for line in soup.get_text().split("\n"))
+    text = _INVISIBLE.sub("", soup.get_text())
+    lines = (" ".join(line.split()) for line in text.split("\n"))
     return "\n".join(line for line in lines if line)
 
 

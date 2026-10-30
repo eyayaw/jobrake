@@ -1,54 +1,40 @@
-"""Indeed country editions and their name aliases."""
+"""Indeed country editions by ISO 3166-1 alpha-2 code."""
 
 from typing import Annotated
 
 # The country option of every Indeed function that searches one edition.
-Country = Annotated[str, "Indeed country edition, e.g., usa, uk, or netherlands"]
+Country = Annotated[str, "ISO 3166-1 alpha-2 code of an Indeed edition, e.g., de, gb, or us"]
 
-# Ported from jobspy's Country enum, keeping only what Indeed needs. A value
-# is the subdomain; where the API code differs it is "subdomain:code".
+# The country sites Indeed lists at https://www.indeed.com/worldwide, as read
+# on 2026-10-29. The code is also the edition's API code and, except in
+# _SUBDOMAINS, its website subdomain. The API answered HTTP 400 for unlisted
+# countries we tried, such as SI and HR.
 # fmt: off
-_INDEED = {
-    "argentina": "ar", "australia": "au", "austria": "at", "bahrain": "bh",
-    "bangladesh": "bd", "belgium": "be", "bulgaria": "bg", "brazil": "br",
-    "canada": "ca", "chile": "cl", "china": "cn", "colombia": "co",
-    "costa rica": "cr", "croatia": "hr", "cyprus": "cy",
-    "czech republic": "cz", "czechia": "cz", "denmark": "dk", "ecuador": "ec",
-    "egypt": "eg", "estonia": "ee", "finland": "fi", "france": "fr",
-    "germany": "de", "greece": "gr", "hong kong": "hk", "hungary": "hu",
-    "india": "in", "indonesia": "id", "ireland": "ie", "israel": "il",
-    "italy": "it", "japan": "jp", "kuwait": "kw", "latvia": "lv",
-    "lithuania": "lt", "luxembourg": "lu", "malaysia": "malaysia:my",
-    "malta": "malta:mt", "mexico": "mx", "morocco": "ma", "netherlands": "nl",
-    "new zealand": "nz", "nigeria": "ng", "norway": "no", "oman": "om",
-    "pakistan": "pk", "panama": "pa", "peru": "pe", "philippines": "ph",
-    "poland": "pl", "portugal": "pt", "qatar": "qa", "romania": "ro",
-    "saudi arabia": "sa", "singapore": "sg", "slovakia": "sk",
-    "slovenia": "sl", "south africa": "za", "south korea": "kr",
-    "spain": "es", "sweden": "se", "switzerland": "ch", "taiwan": "tw",
-    "thailand": "th", "türkiye": "tr", "turkey": "tr", "ukraine": "ua",
-    "united arab emirates": "ae", "uk": "uk:gb", "united kingdom": "uk:gb",
-    "usa": "www:us", "us": "www:us", "united states": "www:us",
-    "uruguay": "uy", "venezuela": "ve", "vietnam": "vn",
+_EDITIONS = {
+    "ae", "ar", "at", "au", "be", "bh", "br", "ca", "ch", "cl", "cn", "co", "cr",
+    "cz", "de", "dk", "ec", "eg", "es", "fi", "fr", "gb", "gr", "hk", "hu", "id",
+    "ie", "il", "in", "it", "jp", "kr", "kw", "lu", "ma", "mx", "my", "ng", "nl",
+    "no", "nz", "om", "pa", "pe", "ph", "pk", "pl", "pt", "qa", "ro", "sa", "se",
+    "sg", "th", "tr", "tw", "ua", "us", "uy", "ve", "vn", "za",
 }
 # fmt: on
+_SUBDOMAINS = {"gb": "uk", "my": "malaysia", "us": "www"}
 
 
 def indeed_domain(country: str) -> tuple[str, str]:
     """
-    Resolve a country name or alias to an Indeed edition.
+    Resolve an ISO country code, in either case, to an Indeed edition.
 
     Returns:
         The website subdomain and uppercase API country code.
 
     Raises:
-        ValueError: The country name or alias is unknown.
+        ValueError: No Indeed edition has the code.
     """
-    try:
-        value = _INDEED[country.strip().lower()]
-    except KeyError:
+    code = country.strip().lower()
+    if code not in _EDITIONS:
         raise ValueError(
-            f"unknown Indeed country {country!r}. Choose one of {', '.join(sorted(_INDEED))}"
-        ) from None
-    subdomain, _, code = value.partition(":")
-    return subdomain, (code or subdomain).upper()
+            f"unknown Indeed country {country!r}. Pass the ISO 3166-1 alpha-2 code of an "
+            f"Indeed edition: {' '.join(sorted(_EDITIONS))}"
+        )
+    return _SUBDOMAINS.get(code, code), code.upper()
