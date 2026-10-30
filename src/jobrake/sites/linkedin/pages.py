@@ -404,7 +404,7 @@ def _reference(reference: str) -> tuple[str, str | None]:
     parts = urlsplit(ref)
     shown = parse_qs(parts.query).get("currentJobId", [""])[0]
     # The /comm/ link redirects to the page, and a search page carries only the
-    # ID, so each reads as the page address of its ID. A path that names a
+    # ID, so each is rewritten to the page address of its ID. A path that names a
     # posting keeps it over any currentJobId.
     if parts.path.startswith(f"/comm{_PAGE_PATH}"):
         ref = urlunsplit(parts._replace(path=parts.path.removeprefix("/comm")))

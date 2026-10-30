@@ -705,7 +705,7 @@ jobrake indeed search -q "data scientist" -c us -n 2 \
 
 `scrape()` creates and closes an HTTP client when `fetcher` is omitted.
 Library calls log under the `jobrake` logger, and your application sets its level and handlers.
-While jobrake fetches LinkedIn posting pages or Workday details, it logs one INFO record per posting whose `progress` attribute holds `(done, total)`.
+While jobrake fetches postings one at a time, for LinkedIn pages or Workday and SmartRecruiters details, it logs one INFO record per posting whose `progress` attribute holds `(done, total)`.
 The CLI draws its progress line from these records, and a handler of your own can do the same:
 
 ```python
@@ -878,6 +878,7 @@ A search pages through the results one request after another, without pacing, an
 Workday reports at most 2,000 postings per search, and jobrake warns when that cap cuts a search short. Narrow the search with `--query` to reach the rest.
 A failed request raises `Stopped` with the postings collected before it, and the CLI exits 1. So does an empty page that comes before the number of postings Workday reported, because postings may have closed during the search and a rerun may find more.
 `--details` adds one request per posting, also one after another. A posting removed or withdrawn since the search keeps its search result.
+jobrake reads a 403 that names error `S22` as withdrawn, a rule from career-ops' liveness checks that we have not observed ourselves.
 A posting whose details cannot be fetched also keeps its search result, and once the rest are fetched the search raises `Stopped` with every posting in `partial`. A rerun retries them.
 `postings` also sends one request per posting, but never raises `Stopped`. It leaves out a posting whose request failed or whose response it cannot read.
 jobrake skips a posting it cannot read and leaves out a field it cannot read.
