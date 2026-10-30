@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.23.0](https://github.com/eyayaw/jobrake/releases/tag/v0.23.0) - 2026-10-30
+
+This release lets a caller fill Workday and SmartRecruiters search results in the same run or a later one, as LinkedIn's already could. Indeed takes ISO country codes, and `description` drops text that inline styles and invisible characters hide.
+
+### Added
+
+- `jobrake workday postings URL...` and `workday.postings()` fetch known Workday postings by a search result's `url`.
+- `jobrake smartrecruiters search --details` and `details=True` add each posting's ad as `description`.
+- `jobrake smartrecruiters postings URL...` and `smartrecruiters.postings()` fetch known SmartRecruiters postings by URL.
+- `jobrake linkedin postings` and `linkedin.postings()` accept the link in a LinkedIn job alert email, `/comm/jobs/view/ID`, and a search page's address that names a posting in `currentJobId`.
+
+### Changed
+
+- **Breaking:** A Workday posting whose requisition ID holds an underscore keeps its whole ID, so its `id` changes, as from `guidewire:15332` to `guidewire:JR_15332`. A card whose path ends in a title word, such as `/job/Remote/Data_Scientist`, is skipped. It used to take `Scientist` as its ID, which unrelated postings could share.
+- **Breaking:** Indeed's `country` and `--country` take the country's ISO 3166-1 alpha-2 code, such as `de` or `gb`, in place of its name. `uk` and `usa` become `gb` and `us`.
+- `description` leaves out text that an inline style or an invisible character hides from a reader, such as an element styled `display:none` or a zero-width space. A cached LinkedIn description keeps such text until its row expires.
+- LinkedIn's page fetch counts pages in its log lines, as in `read 99 of 100 linkedin pages`, instead of details resolved.
+- Workday's detail progress records log under `jobrake.sites.postings`, as SmartRecruiters' do.
+
+### Fixed
+
+- A Workday detail answered with a 403 that names error `S22` counts as a gone posting: `details` keeps its search result and `postings` maps it to `None`. The career-ops project reads that answer as a withdrawn posting, and we have not seen one ourselves. It used to count as a failed request, so a `details` search that met one raised `Stopped`.
+- Indeed's country table drops ten countries its API rejects: Bangladesh, Bulgaria, Croatia, Cyprus, Estonia, Latvia, Lithuania, Malta, Slovakia, and Slovenia. A search of one raises `ValueError` before any request, where it used to stop with HTTP 400.
+
 ## [0.22.0](https://github.com/eyayaw/jobrake/releases/tag/v0.22.0) - 2026-10-29
 
 ### Added
