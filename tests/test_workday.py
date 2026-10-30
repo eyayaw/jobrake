@@ -309,10 +309,16 @@ def test_only_a_404_on_the_first_page_means_an_unknown_site():
 
 
 def test_a_card_without_a_requisition_id_is_skipped(caplog):
-    malformed = [{**CARDS[0], "externalPath": "/job/no-requisition"}, CARDS[1]]
+    malformed = [
+        {**CARDS[0], "externalPath": "/job/no-requisition"},
+        {**CARDS[0], "externalPath": "/job/Remote/Data_Scientist"},  # a title word, not an ID
+        {**CARDS[0], "externalPath": "/job/Remote/Senior-Analyst_JR_2024_00123"},
+        CARDS[1],
+    ]
     jobs = asyncio.run(workday.search(StubFetcher({"/jobs": ok(page(malformed))}), board=BOARD))
-    assert [job["id"] for job in jobs] == ["nvidia:JR2019010"]
-    assert "skipping malformed workday posting" in caplog.text
+    # An ID with underscores of its own stays whole.
+    assert [job["id"] for job in jobs] == ["nvidia:JR_2024_00123", "nvidia:JR2019010"]
+    assert caplog.text.count("skipping malformed workday posting") == 2
 
 
 def test_paging_ends_at_results_or_the_first_total_and_stops_at_an_early_empty_page(
