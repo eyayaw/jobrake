@@ -170,9 +170,19 @@ async def _collect_cards(
     return jobs, total is not None and offset >= total >= MAX_TOTAL
 
 
+def _withdrawn(text: str) -> bool:
+    # Workday answers a withdrawn posting with a 403 whose body names error S22,
+    # a rule from career-ops' liveness classification, not yet seen here. Any
+    # other 403 is a block, which a rerun may pass.
+    try:
+        return as_dict(json.loads(text)).get("errorCode") == "S22"
+    except ValueError:
+        return False
+
+
 async def _detail_fields(fetcher: Fetcher, card: JobDict) -> dict[str, Any] | None:
     """
-    Fetch the detail fields of a card's posting, or ``{}`` when Workday reports it gone.
+    Fetch the detail fields of a card's posting, or ``{}`` when Workday reports it gone or withdrawn.
 
     A posting with a start date takes its ``date`` from it, because the
     card's date counts from today in UTC and can be a day past Workday's own.
@@ -181,7 +191,7 @@ async def _detail_fields(fetcher: Fetcher, card: JobDict) -> dict[str, Any] | No
     posting = card["url"]
     _, _, api_url, path = _career_site(posting)
     result = await fetcher.fetch(api_url + path)
-    if result.status == 404:
+    if result.status == 404 or (result.status == 403 and _withdrawn(result.text)):
         return {}
     if result.error:
         logger.warning("skipping the details of %s: %s. A rerun retries it", posting, result.error)

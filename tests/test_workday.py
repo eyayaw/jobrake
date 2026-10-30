@@ -9,6 +9,7 @@ import pytest
 from fakes import PagedFetcher, StubFetcher, network_down, not_found, ok
 
 from jobrake import Stopped
+from jobrake.fetchkit import FetchResult
 from jobrake.sites import workday
 
 BOARD = "https://nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite"
@@ -235,20 +236,25 @@ def test_postings_fetch_each_posting_once_and_key_it_by_reference(caplog):
         "/job/US-CA-Santa-Clara/Networking-Architect_JR1996377/?source=email#apply"
     )
     gone, failed = f"{BOARD}/job/Remote/Engineer_JR0", f"{BOARD}/job/Remote/Engineer_JR1"
+    withdrawn, blocked = f"{BOARD}/job/Remote/Engineer_JR2", f"{BOARD}/job/Remote/Engineer_JR3"
+    # A withdrawn posting's 403 names error S22, in the shape of Workday's 404 body.
+    s22 = {"errorCode": "S22", "httpStatus": 403, "message": "permission denied"}
     fetcher = StubFetcher(
         {
             "Networking-Architect_JR1996377": ok(json.dumps(DETAIL)),
             "Engineer_JR0": not_found(),
             "Engineer_JR1": network_down(),
+            "Engineer_JR2": FetchResult("stub", 403, json.dumps(s22), error="HTTP 403"),
+            "Engineer_JR3": FetchResult("stub", 403, "<html>blocked</html>", error="HTTP 403"),
         }
     )
-    got = asyncio.run(workday.postings(fetcher, [url, copied, gone, failed]))
+    references = [url, copied, gone, failed, withdrawn, blocked]
+    got = asyncio.run(workday.postings(fetcher, references))
     # The URL alone fills the record, and a failed read leaves its reference out.
-    assert got == {url: FILLED, copied: FILLED, gone: None}
+    assert got == {url: FILLED, copied: FILLED, gone: None, withdrawn: None}
     assert fetcher.requests == [
         f"{API}/job/US-CA-Santa-Clara/Networking-Architect_JR1996377",
-        f"{API}/job/Remote/Engineer_JR0",
-        f"{API}/job/Remote/Engineer_JR1",
+        *(f"{API}/job/Remote/Engineer_JR{n}" for n in range(4)),
     ]
     assert "skipping the details of" in caplog.text
 
