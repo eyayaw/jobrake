@@ -1451,21 +1451,24 @@ def test_postings_resolve_an_id_before_fetching_the_page(unlimited):
     assert job["posted_at"] == "2026-08-05T08:04:27.000Z"  # what the block adds
     others = (
         f"{FRAGMENT}/111",
-        "https://www.linkedin.com/jobs/view/economist-at-acme-111",
         "https://nl.linkedin.com/jobs/view/111",
-        "https://linkedin.com/jobs/view/economist-at-acme-111",
         "https://www.linkedin.com:443/jobs/view/111",
         "https://www.linkedin.com/comm/jobs/view/111?trk=eml",  # a job alert email's link
         "https://nl.linkedin.com/jobs/search/?currentJobId=111&keywords=economist",
         "https://nl.linkedin.com/jobs/view/111?currentJobId=222",  # the path names the posting
     )
     # the cache holds the address and the posting, so no reference costs a request
-    for address in ("111", CANONICAL, *others):
+    for address in (
+        "111",
+        CANONICAL,
+        "https://www.linkedin.com/jobs/view/economist-at-acme-111",
+        "https://linkedin.com/jobs/view/economist-at-acme-111",
+        *others,
+    ):
         fetcher.requests.clear()
         assert asyncio.run(linkedin.postings(fetcher, [address])) == {address: job}
         assert fetcher.requests == []
-    # without the cache, every other address is resolved like an id, so none
-    # of them can leave a record holding a page without the block
+    # Slugless references need the guest resolver even when they name a country.
     for address in others:
         fetcher.requests.clear()
         cache.CACHE.close()
@@ -1506,7 +1509,12 @@ def test_postings_distrust_a_lookup_that_names_another_page(unlimited):
 
 def test_postings_collapse_the_addresses_of_one_posting(unlimited):
     fetcher = StubFetcher({"economist-at-acme-111": ok(job_page(title="Economist"))})
-    references = [CANONICAL, "https://uk.linkedin.com/jobs/view/economist-at-acme-111", "111"]
+    references = [
+        "https://www.linkedin.com/jobs/view/economist-at-acme-111",
+        CANONICAL,
+        "https://uk.linkedin.com/jobs/view/economist-at-acme-111",
+        "111",
+    ]
     got = asyncio.run(linkedin.postings(fetcher, references))
     # one posting, fetched once from the first canonical address
     assert fetcher.requests == [CANONICAL]
@@ -1554,15 +1562,134 @@ def test_postings_keep_what_they_resolved_in_reference_order(unlimited, caplog):
     assert fetcher.requests == [f"{FRAGMENT}/333?_l=en_US", f"{FRAGMENT}/222?_l=en_US"]
 
 
-def test_postings_fetch_a_us_posting_on_www(unlimited, caplog):
-    # A US posting has no country subdomain, so the fragment names its www page,
-    # and that page carries the schema.org block.
+@pytest.mark.parametrize("by_id", [False, True])
+def test_postings_fetch_a_us_posting_on_www(unlimited, caplog, by_id):
     www = "https://www.linkedin.com/jobs/view/economist-at-acme-111"
+    reference = "111" if by_id else www
     fetcher = StubFetcher(
-        {"jobPosting/111": ok(en_fragment(url=www)), www: ok(job_page(title="Economist"))}
+        {
+            "jobPosting/111": ok(en_fragment(url=www)),
+            www: ok(f'<link rel="canonical" href="{www}">' + job_page(title="Economist")),
+        }
     )
     with caplog.at_level(logging.WARNING, logger="jobrake.sites.linkedin"):
-        job = fetched(asyncio.run(linkedin.postings(fetcher, ["111"])), "111")
+        job = fetched(asyncio.run(linkedin.postings(fetcher, [reference])), reference)
     assert (job["id"], job["url"], job["title"]) == ("111", www, "Economist")
     assert job["posted_at"] == "2026-08-05T08:04:27.000Z"
+    assert fetcher.requests == ([f"{FRAGMENT}/111?_l=en_US", www] if by_id else [www])
     assert caplog.records == []
+
+
+def test_postings_follow_a_foreign_www_pages_canonical_link(unlimited):
+    www = "https://www.linkedin.com/jobs/view/economist-at-acme-111"
+    fetcher = StubFetcher(
+        {
+            www: ok(f'<link rel="canonical" href="{CANONICAL}">' + en_fragment(url=www)),
+            CANONICAL: ok(job_page(title="Economist")),
+        }
+    )
+    got = asyncio.run(linkedin.postings(fetcher, [www]))
+    job = fetched(got, www)
+    assert fetcher.requests == [www, CANONICAL]
+    assert (job["url"], job["title"], job["description"]) == (
+        CANONICAL,
+        "Economist",
+        "Great & big role",
+    )
+    assert job["posted_at"] == "2026-08-05T08:04:27.000Z"
+    assert job["locations"] == [{"name": "NL", "country_code": "NL", "latitude": 52.37}]
+    assert asyncio.run(linkedin.postings(StubFetcher({}), [www])) == got
+
+
+@pytest.mark.parametrize(
+    "candidate",
+    [
+        not_found(),
+        network_down(),
+        ok(
+            '<link rel="canonical" href="https://www.linkedin.com/jobs/view/economist-at-acme-111">'
+        ),
+    ],
+)
+def test_postings_resolve_a_failed_candidate_with_the_guest_fragment(unlimited, candidate, caplog):
+    www = "https://www.linkedin.com/jobs/view/economist-at-acme-111"
+    fetcher = StubFetcher(
+        {
+            www: candidate,
+            "jobPosting/111": ok(en_fragment()),
+            CANONICAL: ok(job_page(title="Economist")),
+        }
+    )
+    job = fetched(asyncio.run(linkedin.postings(fetcher, [www])), www)
+    assert (job["url"], job["title"], job["posted_at"]) == (
+        CANONICAL,
+        "Economist",
+        "2026-08-05T08:04:27.000Z",
+    )
+    assert fetcher.requests == [www, f"{FRAGMENT}/111?_l=en_US", CANONICAL]
+    assert [record for record in caplog.records if record.levelno >= logging.WARNING] == []
+
+
+@pytest.mark.parametrize("canonical", [None, OTHER])
+def test_postings_resolve_a_page_without_its_own_canonical_metadata(unlimited, canonical):
+    www = "https://www.linkedin.com/jobs/view/economist-at-acme-111"
+    metadata = f'<link rel="canonical" href="{canonical}">' if canonical else ""
+    fetcher = StubFetcher(
+        {
+            www: ok(metadata + job_page(title="Wrong")),
+            "jobPosting/111": ok(en_fragment()),
+            CANONICAL: ok(job_page(title="Economist")),
+        }
+    )
+    job = fetched(asyncio.run(linkedin.postings(fetcher, [www])), www)
+    assert (job["url"], job["title"]) == (CANONICAL, "Economist")
+    assert fetcher.requests == [www, f"{FRAGMENT}/111?_l=en_US", CANONICAL]
+
+
+@pytest.mark.parametrize("has_fields", [False, True])
+def test_an_expired_page_cannot_replace_fields_from_its_surviving_fragment(unlimited, has_fields):
+    search_page = '<img class="artdeco-entity-image" data-delayed-url="wrong-logo.png">'
+
+    class Expired(StubFetcher):
+        async def fetch(self, url, *, headers=None, json=None, follow_redirects=True):
+            result = await super().fetch(
+                url, headers=headers, json=json, follow_redirects=follow_redirects
+            )
+            if url == CANONICAL:
+                result.url = "https://nl.linkedin.com/jobs/search?trk=expired_jd_redirect"
+            return result
+
+    fragment = en_fragment() if has_fields else f'<a class="topcard__link" href="{CANONICAL}"></a>'
+    fetcher = Expired({CANONICAL: ok(search_page), "jobPosting/111": ok(fragment)})
+    got = asyncio.run(linkedin.postings(fetcher, ["111"]))
+    if not has_fields:
+        assert got == {}
+        assert cache.CACHE.get("linkedin", ["111"]) == {}
+        return
+    job = fetched(got, "111")
+    assert (job["title"], job["company"], job["company_logo"]) == (
+        "Economist",
+        "Acme",
+        "https://media.licdn.com/acme-logo.png",
+    )
+    assert job["url"] == CANONICAL
+    assert fetcher.requests == [f"{FRAGMENT}/111?_l=en_US", CANONICAL]
+
+
+def test_postings_reuse_a_response_already_redirected_to_its_canonical_url(unlimited):
+    www = "https://www.linkedin.com/jobs/view/economist-at-acme-111"
+
+    class Redirected(StubFetcher):
+        async def fetch(self, url, *, headers=None, json=None, follow_redirects=True):
+            result = await super().fetch(
+                url, headers=headers, json=json, follow_redirects=follow_redirects
+            )
+            result.url = CANONICAL
+            return result
+
+    fetcher = Redirected(
+        {www: ok(f'<link rel="canonical" href="{CANONICAL}">' + job_page(title="Economist"))}
+    )
+    job = fetched(asyncio.run(linkedin.postings(fetcher, [www])), www)
+    assert (job["url"], job["title"]) == (CANONICAL, "Economist")
+    assert fetcher.requests == [www]

@@ -388,12 +388,12 @@ The command accepts the same `--output | -o` and `--format | -f` options as a se
 A posting that is gone or unreachable is reported on stderr and left out. When one was unreachable, the command writes the others and exits nonzero.
 A LinkedIn reference is a numeric ID or a posting URL, including the link in a LinkedIn job alert email and a search page address with `currentJobId=`. A Workday or SmartRecruiters reference is a search result's `url`, and SmartRecruiters also takes the posting's address with its title slug. Any other reference is an error, and nothing is fetched.
 
-LinkedIn serves a posting's dates, coordinates, and requirements only at its canonical URL: the title slug on the host of the posting's country.
+In our measurements, LinkedIn served a posting's dates, coordinates, and requirements only at its canonical URL: the title slug on the host of the posting's country.
 That host is `www.linkedin.com` for the United States and a country subdomain, such as `nl.linkedin.com`, elsewhere.
 A posting placed in a whole country, such as "United States" or "Netherlands", comes without those fields at any address.
 
-jobrake fetches a country-subdomain URL with a slug as given. Any other reference costs one lookup first to find the canonical URL.
-A cached posting holds its URL, so it costs no request.
+jobrake follows a title-slug URL's canonical metadata to preserve those fields.
+Other references need a lookup to find the canonical URL. Cached postings need no request.
 
 Library callers use the `postings` function of `jobrake.sites.linkedin`, `jobrake.sites.workday`, or `jobrake.sites.smartrecruiters`.
 
