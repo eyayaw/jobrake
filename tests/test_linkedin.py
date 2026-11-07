@@ -120,10 +120,10 @@ class Routing(StubFetcher):
         super().__init__({"linkedin.com": ok("[]")})
         self.fabrics = fabrics
 
-    async def fetch(self, url, *, headers=None, json=None):
+    async def fetch(self, url, *, headers=None, json=None, follow_redirects=True):
         cookie = (headers or {})["cookie"]
         fabric = cookie[6:-1] if cookie != "lidc=" else self.fabrics.pop(0)
-        result = await super().fetch(url, headers=headers)
+        result = await super().fetch(url, headers=headers, follow_redirects=follow_redirects)
         result.headers = {
             "x-li-fabric": fabric,
             "set-cookie": f'bcookie="x"; Path=/, lidc="{fabric}"; Path=/',
@@ -167,8 +167,8 @@ def test_pacing_drops_a_pin_whose_request_lands_elsewhere(unlimited, monkeypatch
     client.POOL.unpinned = 1  # discovery is spent
 
     class Rerouting(Routing):
-        async def fetch(self, url, *, headers=None, json=None):
-            result = await super().fetch(url, headers=headers)
+        async def fetch(self, url, *, headers=None, json=None, follow_redirects=True):
+            result = await super().fetch(url, headers=headers, follow_redirects=follow_redirects)
             if (headers or {})["cookie"] == 'lidc="prod-b"':
                 result.headers = {"x-li-fabric": "prod-a"}
             return result
@@ -226,7 +226,7 @@ class QueuedOnOneFabric:
         self.parked.append(waiter)
         await waiter
 
-    async def fetch(self, url, *, headers=None, json=None):
+    async def fetch(self, url, *, headers=None, json=None, follow_redirects=True):
         self.sends.append(self.now)
         return FetchResult(url=url, status=200, text="[]", headers={"x-li-fabric": "prod-a"})
 
@@ -305,7 +305,7 @@ def test_a_retry_skips_the_fabric_that_refused_an_unpinned_attempt(unlimited):
     client.POOL.known = {name: f'"{name}"' for name in ("prod-a", "prod-b")}
 
     class Refusing(StubFetcher):
-        async def fetch(self, url, *, headers=None, json=None):
+        async def fetch(self, url, *, headers=None, json=None, follow_redirects=True):
             cookie = (headers or {})["cookie"]
             fabric = cookie[6:-1] if cookie != "lidc=" else "prod-b"
             result = rate_limited() if fabric == "prod-b" else ok("[]")
@@ -351,7 +351,7 @@ def test_pacing_retries_a_refusal_on_an_untried_fabric(unlimited, monkeypatch):
 
         answering = True
 
-        async def fetch(self, url, *, headers=None, json=None):
+        async def fetch(self, url, *, headers=None, json=None, follow_redirects=True):
             fabric = (headers or {})["cookie"][6:-1]
             result = ok("[]") if fabric == "prod-b" and self.answering else rate_limited()
             self.requests.append(url)
@@ -410,7 +410,7 @@ def test_concurrent_retries_try_each_fabric_once_and_keep_each_fabric_paced(monk
     target: list[str] = []  # the fabrics the target request went to
 
     class Refusing(StubFetcher):
-        async def fetch(self, url, *, headers=None, json=None):
+        async def fetch(self, url, *, headers=None, json=None, follow_redirects=True):
             fabric = (headers or {})["cookie"][6:-1]
             sends.setdefault(fabric, []).append(clock)
             if "query=target" in url:
@@ -450,11 +450,11 @@ def test_concurrent_retries_try_each_fabric_once_and_keep_each_fabric_paced(monk
 
 def test_linkedin_keeps_collected_jobs_after_a_later_page_failure(unlimited):
     class DownAfterFirst(StubFetcher):
-        async def fetch(self, url, *, headers=None, json=None):
+        async def fetch(self, url, *, headers=None, json=None, follow_redirects=True):
             if self.requests:
                 self.requests.append(url)
                 return network_down()
-            return await super().fetch(url, headers=headers)
+            return await super().fetch(url, headers=headers, follow_redirects=follow_redirects)
 
     fetcher = DownAfterFirst(
         {"seeMoreJobPostings": ok(linkedin_card("111") + linkedin_card("222"))}
@@ -616,9 +616,9 @@ def test_every_request_waits_for_its_turn_before_it_sends(unlimited, monkeypatch
         return pick(tried)
 
     class Sending(StubFetcher):
-        async def fetch(self, url, *, headers=None, json=None):
+        async def fetch(self, url, *, headers=None, json=None, follow_redirects=True):
             events.append("send")
-            return await super().fetch(url, headers=headers)
+            return await super().fetch(url, headers=headers, follow_redirects=follow_redirects)
 
     monkeypatch.setattr(client.POOL, "pick", turn)
     fetcher = Sending(
@@ -1107,10 +1107,10 @@ def test_postings_attempt_each_posting_once(unlimited, caplog):
 
 def test_an_interrupted_fetch_keeps_paid_results(unlimited):
     class DiesOnSecond(StubFetcher):
-        async def fetch(self, url, *, headers=None, json=None):
+        async def fetch(self, url, *, headers=None, json=None, follow_redirects=True):
             if len(self.requests) == 1:
                 raise RuntimeError("interrupted")
-            return await super().fetch(url, headers=headers)
+            return await super().fetch(url, headers=headers, follow_redirects=follow_redirects)
 
     fetcher = DiesOnSecond({"economist-at-acme-111": ok(job_page())})
     with pytest.raises(RuntimeError):

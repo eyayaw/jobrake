@@ -46,8 +46,13 @@ class Fetcher(Protocol):
         *,
         headers: dict[str, str] | None = None,
         json: dict[str, Any] | None = None,
+        follow_redirects: bool = True,
     ) -> FetchResult:
-        """GET ``url``, or POST ``json`` to it when given. Cancellation propagates."""
+        """
+        GET ``url``, or POST ``json`` to it when given. Cancellation propagates.
+
+        With ``follow_redirects=False``, return the first response, including its Location header.
+        """
         ...
 
     async def close(self) -> None: ...

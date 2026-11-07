@@ -42,6 +42,40 @@ def test_httpx_fetcher_gets_and_posts_json():
     assert (post.ok, post.status, post.text) == (False, 503, "posted")
 
 
+@pytest.mark.parametrize(("payload", "method"), [(None, "GET"), ({"q": "x"}, "POST")])
+def test_redirect_following_can_be_disabled_for_one_request(payload, method):
+    requests = []
+
+    def respond(request):
+        requests.append((request.url.path, request.method))
+        if request.url.path == "/start":
+            return httpx.Response(307, headers={"location": "/final"}, text="redirect")
+        return httpx.Response(200, text="arrived")
+
+    async def run():
+        async with HttpxFetcher(transport=httpx.MockTransport(respond)) as fetcher:
+            followed = await fetcher.fetch("https://example.test/start", json=payload)
+            first = await fetcher.fetch(
+                "https://example.test/start", json=payload, follow_redirects=False
+            )
+            again = await fetcher.fetch("https://example.test/start", json=payload)
+        return followed, first, again
+
+    followed, first, again = asyncio.run(run())
+    assert (followed.url, followed.text) == ("https://example.test/final", "arrived")
+    assert (again.url, again.text) == ("https://example.test/final", "arrived")
+    assert (first.url, first.status, first.text, first.ok) == (
+        "https://example.test/start",
+        307,
+        "redirect",
+        True,
+    )
+    assert first.headers["location"] == "/final"
+    assert requests == [
+        (path, method) for path in ("/start", "/final", "/start", "/start", "/final")
+    ]
+
+
 def test_httpx_fetcher_returns_a_transport_exception_as_the_error():
     def explode(request):
         raise httpx.ConnectError("offline")
