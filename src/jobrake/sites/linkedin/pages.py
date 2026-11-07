@@ -1,5 +1,6 @@
 """LinkedIn posting details from schema.org data and page markup."""
 
+import asyncio
 import json
 import logging
 import math
@@ -16,7 +17,7 @@ from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, Place, employment_type, make_job, make_places
 from jobrake.utils import checked, finite, html_text
 
-from .client import FRAGMENT_URL, job_id, numeric, paced_fetch
+from .client import _REQUEST_STARTED, FRAGMENT_URL, job_id, numeric, paced_fetch
 
 logger = logging.getLogger(__name__)
 
@@ -444,6 +445,22 @@ def _job(posting_id: str, known: dict[str, Any], fields: dict[str, Any]) -> JobD
     return make_job(**(known | page | kept | {"site": "linkedin", "id": posting_id}))
 
 
+async def _read_page(
+    fetcher: Fetcher, posting_id: str, known: dict[str, Any]
+) -> dict[str, JobDict | None]:
+    try:
+        fields = await _fetch_posting(fetcher, posting_id, known.get("url"))
+    except _Skip as skip:
+        if skip.stop:
+            raise
+        return {}
+    if fields is None:
+        return {posting_id: None}
+    # Store the page without its card, whichever search found it first.
+    cache.CACHE.put([_job(posting_id, {}, fields)])
+    return {posting_id: _job(posting_id, known, fields)}
+
+
 async def fetch_pages(
     fetcher: Fetcher, wanted: dict[str, dict[str, Any]]
 ) -> dict[str, JobDict | None]:
@@ -455,9 +472,10 @@ async def fetch_pages(
     hold no ``url`` costs a guest-fragment request to learn its canonical
     URL. A page without the schema.org block needs that fragment for the
     remaining fields, one more request unless the lookup fetched it.
-    A persistent 429 stops further requests and keeps what the cache and
-    the completed requests hold. INFO records report the start, progress,
-    and the count of pages read.
+    Concurrent readers leave request pacing to ``paced_fetch``. A persistent
+    429 cancels unfinished reads and keeps what the cache and completed
+    requests hold. INFO records report the start, progress, and the count of
+    pages read.
 
     Returns:
         A ``JobDict`` per fetched posting and ``None`` per posting LinkedIn
@@ -474,24 +492,40 @@ async def fetch_pages(
         for posting_id, job in cached.items()
     }
     stopped = False
-    for position, (posting_id, known) in enumerate(wanted.items(), start=1):
-        # The CLI renders progress-flagged records as one self-updating
-        # stderr line; other logging configurations show them as plain lines.
-        logger.info("linkedin pages %d/%d", position, total, extra={"progress": (position, total)})
-        if posting_id in found:
-            continue
-        try:
-            fields = await _fetch_posting(fetcher, posting_id, known.get("url"))
-        except _Skip as skip:
-            if skip.stop:
-                stopped = True
-                break
-            continue
-        found[posting_id] = None if fields is None else _job(posting_id, known, fields)
-        if fields is not None:
-            # The cache keeps the page's record without the card, so a later
-            # fetch reads the same posting whichever search found it first.
-            cache.CACHE.put([_job(posting_id, {}, fields)])
+    done = len(cached)
+    logger.info("linkedin pages %d/%d", done, total, extra={"progress": (done, total)})
+
+    async def read_page(posting_id: str, known: dict[str, Any]) -> None:
+        nonlocal done
+        found.update(await _read_page(fetcher, posting_id, known))
+        done += 1
+        logger.info("linkedin pages %d/%d", done, total, extra={"progress": (done, total)})
+
+    tasks: set[asyncio.Task[None]] = set()
+    try:
+        for posting_id, known in wanted.items():
+            if posting_id in cached:
+                continue
+            started = asyncio.get_running_loop().create_future()
+            token = _REQUEST_STARTED.set(started)
+            try:
+                task = asyncio.create_task(read_page(posting_id, known))
+            finally:
+                _REQUEST_STARTED.reset(token)
+            tasks.add(task)
+            while not started.done() and not task.done():
+                finished, _ = await asyncio.wait(
+                    tasks | {started}, return_when=asyncio.FIRST_COMPLETED
+                )
+                await asyncio.gather(*tasks.intersection(finished))
+                tasks.difference_update(finished)
+        await asyncio.gather(*tasks)
+    except _Skip:
+        stopped = True
+    finally:
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
     if stopped:
         logger.warning(
             "linkedin is rate limiting this IP, so reading pages stopped at %d of %d. "

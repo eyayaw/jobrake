@@ -3,6 +3,7 @@
 import asyncio
 import logging
 import re
+from contextvars import ContextVar
 from math import inf
 from time import monotonic
 from urllib.parse import urlsplit
@@ -11,6 +12,10 @@ from jobrake.fetchkit import Fetcher, FetchResult
 
 logger = logging.getLogger(__name__)
 
+# The page dispatcher can start another read as soon as a request is admitted.
+_REQUEST_STARTED: ContextVar[asyncio.Future[None] | None] = ContextVar(
+    "linkedin_request_started", default=None
+)
 
 BASE_URL = "https://www.linkedin.com"
 SEARCH_URL = f"{BASE_URL}/jobs-guest/jobs/api/seeMoreJobPostings/search"
@@ -41,8 +46,9 @@ HEADERS = {
 # land on any fabric, and the response sets that fabric's cookie. A client
 # that keeps its cookie jar therefore spends one fabric's budget only.
 #
-# As of 2026-10-13, from a residential IP, a fabric serves 5 requests per
-# sliding 11.5-second window. The same three fabrics answer from North
+# Measured 2026-10-13 from a residential IP: a fabric serves 5 requests per
+# sliding 11.5-second window. Live posting-page probes on 2026-11-07 also
+# accepted five-request bursts. The same three fabrics answer from North
 # America, Europe, Asia, and Oceania.
 #
 # A cookie holding only the b= field pins a request to the fabric its first
@@ -51,16 +57,14 @@ HEADERS = {
 # the least recently used fabric. When a pin drops, it sends requests without
 # the cookie to learn a replacement. If LinkedIn starts ignoring these
 # cookies, their pins drop the same way.
-# pick opens a turn every PACE / number of fabrics, which gives each fabric
-# PACE between its requests while the fabrics take turns. A retry
-# skips the fabrics it tried, so it can reach a fabric before that fabric's
-# turn. pick therefore keeps each fabric's latest send time, and a request
-# that reaches a fabric early waits for the rest of PACE.
+# pick records sends in a sliding window, allowing a short batch to finish
+# without waiting between requests while keeping the sustained rate bounded.
 # A request that LinkedIn reroutes to another fabric lands there out of turn
 # and can put one request too many in that fabric's window. The pool
 # coordinates this process only; LinkedIn counts every process on the IP.
 FABRICS = {"prod-lor1": '"b=OGST02"', "prod-ltx1": '"b=TGST02"', "prod-lva1": '"b=VGST02"'}
-PACE = 2.5  # seconds between requests to one fabric: five per window, 1 s to spare
+WINDOW = 11.6  # seconds per fabric window, with 0.1 s beyond the measured limit
+REQUESTS = 5  # requests per fabric window
 FABRICS_WANTED = len(FABRICS)  # distinct fabrics to look for before every request is pinned
 DISCOVERY = 12  # unpinned requests to spend looking for them
 # In our runs, LinkedIn refused up to a quarter of requests however slow the
@@ -71,7 +75,7 @@ RETRIES = 3
 # LinkedIn's guest 429 responses carry no Retry-After header. A 429 from a
 # full window clears once the window's oldest request ages out, so a retry
 # that waits sleeps one full window.
-RETRY_DELAY = 12.0
+RETRY_DELAY = WINDOW
 
 # The cookie value is quoted and holds neither comma nor semicolon, so it
 # survives the comma-joined set-cookie header a fetcher may deliver.
@@ -86,8 +90,9 @@ class Fabrics:
         self.known: dict[str, str] = dict(FABRICS)
         self.unpinned = 0
         self.sent: dict[str, float] = {}  # monotonic time of each fabric's latest send
-        # A pinned send opens the next turn PACE / len(known) later. An unpinned
-        # one may land on any fabric, so the next turn waits a full PACE.
+        # None holds unanswered unpinned sends, charged against every fabric.
+        self.history: dict[str | None, list[float]] = {}
+        # Discovery stays spaced because its routing is unknown until the answer.
         self.next_turn = -inf
 
     def discovering(self) -> bool:
@@ -100,28 +105,41 @@ class Fabrics:
 
         During discovery the request goes out unpinned, as ``None``, unless
         it is a retry with a known fabric left to try. An unpinned request can
-        land on any fabric, so it waits until every fabric's latest request is
-        PACE old. Otherwise pick chooses the least recently used known fabric
-        outside ``tried``, or of all known fabrics once the request has tried
-        each one, and waits until that fabric's latest request is PACE old.
-        Either way it also waits for the next turn. With no wait, pick records
-        the send, opens the next turn, and adds the fabric to ``tried``.
+        land on any fabric, so it needs room in every fabric's window.
+        Otherwise pick chooses the earliest available fabric outside ``tried``,
+        or among all known fabrics once the request has tried each one, with
+        the least recently used first. With no wait, pick records the send
+        and adds a pinned fabric to ``tried``.
         """
         now = monotonic()
+        self.history = {
+            name: [stamp for stamp in times if stamp > now - WINDOW]
+            for name, times in self.history.items()
+        }
+        unknown = self.history.get(None, [])
+        waits = {}
+        for name in self.known.keys() | self.history.keys() | {None}:
+            times = sorted(self.history.get(name, []) + (unknown if name is not None else []))
+            waits[name] = (
+                max(0.0, times[-REQUESTS] + WINDOW - now) if len(times) >= REQUESTS else 0.0
+            )
         fresh = [name for name in self.known if name not in tried]
         if self.discovering() and not (tried and fresh):
-            wait = max(self.next_turn, max(self.sent.values(), default=-inf) + PACE) - now
+            wait = max(self.next_turn - now, *waits.values())
             if wait > 0:
                 return None, wait
             self.unpinned += 1
-            self.next_turn = now + PACE
+            self.history.setdefault(None, []).append(now)
+            self.next_turn = now + WINDOW / REQUESTS
             return None, 0.0
-        name = min(fresh or list(self.known), key=lambda name: self.sent.get(name, -inf))
-        wait = max(self.next_turn, self.sent.get(name, -inf) + PACE) - now
+        name = min(
+            fresh or list(self.known), key=lambda name: (waits[name], self.sent.get(name, -inf))
+        )
+        wait = max(self.next_turn - now, waits[name])
         if wait > 0:
             return name, wait
         self.sent[name] = now
-        self.next_turn = now + PACE / len(self.known)
+        self.history.setdefault(name, []).append(now)
         tried.add(name)
         return name, 0.0
 
@@ -149,8 +167,13 @@ class Fabrics:
             self.unpinned = 0
         if fabric and fabric != pinned:
             # An unpinned or rerouted request still spent this fabric's
-            # budget, so its next turn comes PACE after this one.
+            # budget. Out-of-order replies must keep its window chronological.
             self.sent[fabric] = max(self.sent.get(fabric, -inf), sent)
+            self.history[fabric] = sorted([*self.history.get(fabric, []), sent])
+            if pinned is None:
+                self.history[None] = [
+                    stamp for stamp in self.history.get(None, []) if stamp != sent
+                ]
         if fabric and (found := _LIDC.search(result.headers.get("set-cookie", ""))):
             if fabric not in self.known:
                 logger.debug("linkedin fabric %s found, %d known", fabric, len(self.known) + 1)
@@ -178,9 +201,8 @@ async def paced_fetch(fetcher: Fetcher, url: str) -> FetchResult:
         # has its own budget. Once it has tried every known fabric, it waits
         # for the window to clear first, so a fabric that refused it does not
         # get it back at once. During discovery that retry goes out unpinned
-        # instead, without the wait. An unpinned request leaves only once every fabric
-        # is PACE past its latest request, so apart from a reroute this
-        # process cannot have filled the window that refused it.
+        # instead, without the wait. Unpinned attempts also reserve room in
+        # every fabric's window until their answers identify where they landed.
         if POOL.known.keys() <= tried and not POOL.discovering():
             await asyncio.sleep(RETRY_DELAY)
         result = await _fetch_on_turn(fetcher, url, tried)
@@ -202,7 +224,9 @@ async def _fetch_on_turn(fetcher: Fetcher, url: str, tried: set[str]) -> FetchRe
     # An explicit Cookie header replaces the jar's cookies for this request.
     # httpx sends the jar's cookies on a redirect hop instead.
     headers = HEADERS | {"cookie": f"lidc={POOL.known[fabric]}" if fabric else "lidc="}
-    sent = monotonic()
+    sent = POOL.history[fabric][-1]
+    if (started := _REQUEST_STARTED.get()) is not None and not started.done():
+        started.set_result(None)
     result = await fetcher.fetch(url, headers=headers)
     POOL.learn(fabric, result, sent)
     # An unpinned or rerouted attempt reveals the fabric that refused it only

@@ -20,9 +20,8 @@ from jobrake.sites.linkedin import client
 
 @pytest.fixture
 def unlimited(monkeypatch):
-    """Age every fabric and every turn, so no request waits."""
-    # Each read of the clock moves it PACE, so no fabric or turn is too recent to send on.
-    monkeypatch.setattr(client, "monotonic", itertools.count(0.0, client.PACE).__next__)
+    """Expire every fabric's window, so no request waits."""
+    monkeypatch.setattr(client, "monotonic", itertools.count(0.0, client.RETRY_DELAY).__next__)
 
 
 def linkedin_card(job_id, title="Economist", company="Acme"):
@@ -150,15 +149,46 @@ def test_pacing_pins_each_request_to_a_fabric_in_turn(unlimited):
     assert cookies[4:] == ['lidc="prod-b"', 'lidc="prod-a"', 'lidc="prod-c"', 'lidc="prod-b"']
 
 
-def test_turns_open_a_pace_apart_unpinned_and_shared_once_pinned(monkeypatch):
+def test_pacing_allows_a_burst_then_waits_for_window_capacity(monkeypatch):
     monkeypatch.setattr(client, "monotonic", lambda: 0.0)
     pool = client.Fabrics()
     pool.known = {}  # discovery: every request goes out unpinned
     assert pool.pick(set()) == (None, 0.0)
-    assert pool.pick(set()) == (None, client.PACE)
-    pool = client.Fabrics()  # three fabrics known: they share the pace
-    assert pool.pick(set()) == ("prod-lor1", 0.0)
-    assert pool.pick(set()) == ("prod-ltx1", pytest.approx(client.PACE / 3))
+    assert pool.pick(set()) == (None, 2.32)
+    pool = client.Fabrics()
+    assert sorted(pool.pick(set()) for _ in range(15)) == sorted(
+        [("prod-lor1", 0.0), ("prod-ltx1", 0.0), ("prod-lva1", 0.0)] * 5
+    )
+    assert pool.pick(set()) == ("prod-lor1", 11.6)
+
+
+def test_pacing_charges_unanswered_and_rerouted_requests_to_possible_fabrics(monkeypatch):
+    monkeypatch.setattr(client, "monotonic", itertools.count(0.0, 0.001).__next__)
+    client.POOL.known = {}
+    assert asyncio.run(paced(Routing(["prod-a"]))) == []
+    assert client.POOL.history.get(None) == []
+
+    now = [0.0]
+    monkeypatch.setattr(client, "monotonic", lambda: now[0])
+    pool = client.Fabrics()
+    pool.known = {name: f'"{name}"' for name in ("prod-a", "prod-b")}
+    assert pool.pick(set()) == (None, 0.0)
+    pool.unpinned = client.DISCOVERY
+    now[0] = 2.5
+    assert (
+        sorted(pool.pick(set()) for _ in range(8)) == [("prod-a", 0.0)] * 4 + [("prod-b", 0.0)] * 4
+    )
+    assert pool.pick(set()) == ("prod-a", 9.1)
+
+    result = FetchResult(url="stub", status=200, headers={"x-li-fabric": "prod-a"})
+    pool.learn(None, result, 0.0)
+    assert pool.pick(set()) == ("prod-b", 0.0)  # its reserved slot is free again
+    assert pool.pick(set()) == ("prod-a", 9.1)
+
+    pool.learn("prod-b", result, 2.5)
+    pool.unpinned = client.DISCOVERY
+    now[0] = 11.6
+    assert pool.pick(set()) == ("prod-a", 2.5)  # the reroute filled its window
 
 
 def test_pacing_drops_a_pin_whose_request_lands_elsewhere(unlimited, monkeypatch):
@@ -202,10 +232,10 @@ def test_a_concurrent_request_waits_for_the_next_turn(monkeypatch):
 
     asyncio.run(two_callers())
     # The first caller's unpinned request takes the turn and finds prod-c. It
-    # may land on any fabric, so the second waits a full PACE and then chooses
+    # may land on any fabric, so the second waits for discovery's spacing, then chooses
     # among three.
     assert [h["cookie"] for h in fetcher.headers] == ["lidc=", 'lidc="prod-a"']
-    assert sleeps == [client.PACE]
+    assert sleeps == [2.32]
 
 
 class QueuedOnOneFabric:
@@ -214,6 +244,7 @@ class QueuedOnOneFabric:
     def __init__(self, monkeypatch):
         monkeypatch.setattr(client, "DISCOVERY", 0)  # no unpinned requests to find more fabrics
         client.POOL.known = {"prod-a": '"prod-a"'}
+        client.POOL.history = {"prod-a": [0.0] * 4}
         self.now = 0.0
         self.parked: list[asyncio.Future[None]] = []  # sleepers, woken only by wake_all
         self.sends: list[float] = []
@@ -248,16 +279,16 @@ def test_waiters_on_a_fabric_stay_paced_after_an_event_loop_stall(monkeypatch):
 
     async def run():
         requests = [queue.request() for _ in range(7)]
-        await queue.yield_(0)  # one sends at once, six wait
-        queue.now = 10 * client.PACE  # a stall: every wait ran out while the loop was blocked
+        await queue.yield_(0)  # one fills the window, six wait
+        queue.now = 10 * client.WINDOW  # every wait ran out while the loop was blocked
         while queue.parked:
             await queue.wake_all()
-            queue.now += client.PACE
+            queue.now += client.WINDOW
         await asyncio.gather(*requests)
 
     asyncio.run(run())
     assert len(queue.sends) == 7
-    assert all(b - a >= client.PACE for a, b in itertools.pairwise(queue.sends))
+    assert all(b >= a + 11.6 for a, b in zip(queue.sends, queue.sends[5:], strict=False))
 
 
 def test_waiters_take_a_new_turn_when_discovery_starts(monkeypatch):
@@ -269,14 +300,13 @@ def test_waiters_take_a_new_turn_when_discovery_starts(monkeypatch):
         # With one fabric known and requests to spare, discovery starts.
         monkeypatch.setattr(client, "DISCOVERY", 12)
         while queue.parked:
-            queue.now += client.PACE
+            queue.now += 2.5
             await queue.wake_all()
         await asyncio.gather(*requests)
 
     asyncio.run(run())
     assert len(queue.sends) == 4
-    # each send has a turn of its own
-    assert all(b - a >= client.PACE for a, b in itertools.pairwise(queue.sends))
+    assert all(b - a >= 2.5 for a, b in itertools.pairwise(queue.sends))
 
 
 def test_an_unpinned_request_waits_until_every_fabric_is_paced(monkeypatch):
@@ -290,13 +320,14 @@ def test_an_unpinned_request_waits_until_every_fabric_is_paced(monkeypatch):
     monkeypatch.setattr(client, "monotonic", lambda: now[0])
     monkeypatch.setattr(client.asyncio, "sleep", sleep)
     # A reroute left one fabric known, so discovery runs. prod-b took a
-    # request 0.5 s ago, and the unpinned request might land there.
+    # full window 0.5 s ago, and the unpinned request might land there.
     client.POOL.known = {"prod-a": '"prod-a"'}
     client.POOL.sent = {"prod-a": 0.0, "prod-b": 1.0}
+    client.POOL.history = {"prod-b": [1.0] * 5}
     fetcher = StubFetcher({"linkedin.com": ok("[]")})
     asyncio.run(paced(fetcher))
     assert [h["cookie"] for h in fetcher.headers] == ["lidc="]
-    assert sleeps == [pytest.approx(client.PACE - 0.5)]
+    assert sleeps == [11.1]
 
 
 def test_a_retry_skips_the_fabric_that_refused_an_unpinned_attempt(unlimited):
@@ -327,13 +358,13 @@ def test_a_canceled_wait_leaves_the_fabric_free(monkeypatch):
         for request in requests:
             request.cancel()
         await asyncio.gather(*requests, return_exceptions=True)
-        queue.now = client.PACE
+        queue.now = client.WINDOW
         late = queue.request()
         await queue.yield_(0)
         return late.done()
 
-    assert asyncio.run(run())  # the next request sends PACE after the last real send
-    assert queue.sends == [0.0, client.PACE]
+    assert asyncio.run(run())  # canceled waiters spent no capacity in the next window
+    assert queue.sends == [0.0, 11.6]
 
 
 def test_pacing_retries_a_refusal_on_an_untried_fabric(unlimited, monkeypatch):
@@ -445,7 +476,7 @@ def test_concurrent_retries_try_each_fabric_once_and_keep_each_fabric_paced(monk
     assert len(target) == 1 + client.RETRIES
     assert sorted(target[:3]) == list(fabrics)  # all three before any again
     for fabric, times in sends.items():
-        assert all(b - a >= client.PACE for a, b in itertools.pairwise(times)), fabric
+        assert all(b >= a + 11.6 for a, b in zip(times, times[5:], strict=False)), fabric
 
 
 def test_linkedin_keeps_collected_jobs_after_a_later_page_failure(unlimited):
@@ -1014,20 +1045,107 @@ def test_postings_have_three_outcomes(unlimited, monkeypatch):
     assert sum(1 for u in fetcher.requests if "gone-at" in u) == 1  # so is the alias
 
 
+def test_postings_overlap_page_reads_and_keep_reference_order(monkeypatch, caplog):
+    references = [f"https://nl.linkedin.com/jobs/view/role-{n}" for n in range(111, 159)]
+    clock, real_sleep = 0.0, asyncio.sleep
+    entered = asyncio.Event()
+    sends = []
+
+    async def sleep(seconds):
+        nonlocal clock
+        clock += seconds
+        await real_sleep(0)
+
+    monkeypatch.setattr(client, "monotonic", lambda: clock)
+    monkeypatch.setattr(asyncio, "sleep", sleep)
+
+    class Overlapping(StubFetcher):
+        active = 0
+        peak = 0
+
+        async def fetch(self, url, *, headers=None, json=None, follow_redirects=True):
+            sends.append(clock)
+            self.active += 1
+            self.peak = max(self.peak, self.active)
+            try:
+                if len(sends) == 48:
+                    entered.set()
+                await entered.wait()
+                if url == references[0]:
+                    await real_sleep(0)
+                return await super().fetch(
+                    url, headers=headers, json=json, follow_redirects=follow_redirects
+                )
+            finally:
+                self.active -= 1
+
+    fetcher = Overlapping({"linkedin.com": ok(job_page())})
+
+    with caplog.at_level(logging.INFO, logger="jobrake.sites.linkedin"):
+        got = asyncio.run(asyncio.wait_for(linkedin.postings(fetcher, references), timeout=1))
+    assert fetcher.peak == 48
+    assert sends == pytest.approx([0.0] * 15 + [11.6] * 15 + [23.2] * 15 + [34.8] * 3)
+    assert fetcher.requests.index(references[1]) < fetcher.requests.index(references[0])
+    assert list(got) == references
+    assert all(fetched(got, ref)["applicants"] == 200 for ref in references)
+    progress = [record.progress for record in caplog.records if hasattr(record, "progress")]
+    assert progress == [(n, 48) for n in range(49)]
+    assert asyncio.run(linkedin.postings(StubFetcher({}), references)) == got
+
+
+def test_a_persistent_429_cancels_unfinished_reads_and_keeps_completed_pages(
+    unlimited, monkeypatch
+):
+    monkeypatch.setattr(client, "RETRY_DELAY", 0)
+    references = [f"https://nl.linkedin.com/jobs/view/role-{n}" for n in range(111, 135)]
+    cancelled = []
+
+    class Refusing(StubFetcher):
+        async def fetch(self, url, *, headers=None, json=None, follow_redirects=True):
+            if url == references[0]:
+                return await super().fetch(
+                    url, headers=headers, json=json, follow_redirects=follow_redirects
+                )
+            if url == references[1]:
+                await asyncio.sleep(0)
+                self.requests.append(url)
+                return rate_limited()
+            self.requests.append(url)
+            try:
+                await asyncio.Future()
+            except asyncio.CancelledError:
+                cancelled.append(url)
+                raise
+
+    fetcher = Refusing({"linkedin.com": ok(job_page())})
+
+    async def run():
+        got = await linkedin.postings(fetcher, references)
+        assert cancelled  # readers finish before the caller can close its transport
+        return got
+
+    got = asyncio.run(run())
+    assert list(got) == references[:1]
+    assert set(fetcher.requests) <= set(references[:13])
+    assert set(cancelled) == set(fetcher.requests) - set(references[:2])
+    assert fetcher.requests.count(references[1]) == 1 + client.RETRIES
+    assert asyncio.run(linkedin.postings(StubFetcher({}), references[:1])) == got
+
+
 def test_postings_stop_when_the_429_retries_also_fail(unlimited, caplog, monkeypatch):
     monkeypatch.setattr(client, "RETRY_DELAY", 0)
     fetcher = StubFetcher({"linkedin.com": rate_limited()})
     with caplog.at_level(logging.WARNING, logger="jobrake.sites.linkedin"):
-        got = asyncio.run(linkedin.postings(fetcher, [CANONICAL, OTHER]))
+        got = asyncio.run(linkedin.postings(fetcher, [CANONICAL]))
     assert got == {}  # nothing fetched, everything retryable later
-    assert len(fetcher.requests) == 1 + client.RETRIES  # one posting's tries; the rest spared
+    assert len(fetcher.requests) == 1 + client.RETRIES
     assert "rate limiting" in caplog.text
 
-    # a persistently limited fragment stops too, sparing the postings after it
+    # A persistently limited fragment fails the whole posting too.
     fetcher = StubFetcher(
         {"economist-at-acme-111": ok(blockless_page()), "jobPosting/111": rate_limited()}
     )
-    assert asyncio.run(linkedin.postings(fetcher, [CANONICAL, OTHER])) == {}
+    assert asyncio.run(linkedin.postings(fetcher, [CANONICAL])) == {}
     fragment = f"{FRAGMENT}/111?_l=en_US"
     assert fetcher.requests == [CANONICAL] + [fragment] * (1 + client.RETRIES)
 
@@ -1117,6 +1235,42 @@ def test_an_interrupted_fetch_keeps_paid_results(unlimited):
         asyncio.run(linkedin.postings(fetcher, [CANONICAL, OTHER]))
     got = asyncio.run(linkedin.postings(StubFetcher({}), [CANONICAL]))
     assert fetched(got, CANONICAL)["applicants"] == 200
+
+
+@pytest.mark.parametrize("cancel", [False, True])
+def test_interrupted_postings_finish_their_readers_before_returning(unlimited, cancel):
+    entered = asyncio.Event()
+    started, cancelled = [], []
+    references = [CANONICAL] + [
+        f"https://nl.linkedin.com/jobs/view/role-{n}" for n in range(112, 135)
+    ]
+
+    class Interrupted(StubFetcher):
+        async def fetch(self, url, *, headers=None, json=None, follow_redirects=True):
+            if url == CANONICAL:
+                await entered.wait()
+                if not cancel:
+                    raise RuntimeError("interrupted")
+                await asyncio.Future()
+            started.append(url)
+            if len(started) == 11:
+                entered.set()
+            try:
+                await asyncio.Future()
+            finally:
+                cancelled.append(url)
+
+    async def run():
+        task = asyncio.create_task(linkedin.postings(Interrupted({}), references))
+        await entered.wait()
+        if cancel:
+            task.cancel()
+        with pytest.raises(asyncio.CancelledError if cancel else RuntimeError):
+            await task
+        assert started == references[1:12]
+        assert set(cancelled) == set(started)
+
+    asyncio.run(asyncio.wait_for(run(), timeout=1))
 
 
 def test_a_broken_cache_still_fetches_and_warns_once(unlimited, tmp_path, monkeypatch, caplog):
@@ -1213,9 +1367,10 @@ def test_postings_stop_looking_up_ids_once_rate_limited(unlimited, monkeypatch, 
     monkeypatch.setattr(client, "RETRY_DELAY", 0)
     fetcher = StubFetcher({"jobPosting": rate_limited()})
     with caplog.at_level(logging.WARNING, logger="jobrake.sites.linkedin"):
-        assert asyncio.run(linkedin.postings(fetcher, ["111", "222", "333"])) == {}
-    # the retries inside paced_fetch, then give up
-    assert fetcher.requests == [f"{FRAGMENT}/111?_l=en_US"] * (1 + client.RETRIES)
+        assert asyncio.run(linkedin.postings(fetcher, [str(n) for n in range(111, 135)])) == {}
+    # Readers already in flight can retry; the remaining IDs never start.
+    assert fetcher.requests.count(f"{FRAGMENT}/111?_l=en_US") == 1 + client.RETRIES
+    assert set(fetcher.requests) <= {f"{FRAGMENT}/{n}?_l=en_US" for n in range(111, 123)}
     assert "rate limiting" in caplog.text
 
 

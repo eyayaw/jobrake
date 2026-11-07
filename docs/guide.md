@@ -705,7 +705,8 @@ jobrake indeed search -q "data scientist" -c us -n 2 \
 
 `scrape()` creates and closes an HTTP client when `fetcher` is omitted.
 Library calls log under the `jobrake` logger, and your application sets its level and handlers.
-While jobrake fetches postings one at a time, for LinkedIn pages or Workday and SmartRecruiters details, it logs one INFO record per posting whose `progress` attribute holds `(done, total)`.
+When fetching LinkedIn pages or Workday or SmartRecruiters details, jobrake logs INFO records whose `progress` attribute holds `(done, total)`.
+LinkedIn reads several pages concurrently, counts cached pages at the start, and advances progress as each read finishes.
 The CLI draws its progress line from these records, and a handler of your own can do the same:
 
 ```python
@@ -845,14 +846,15 @@ The order can also change between two runs of the same search.
 To collect only new postings, repeat the search with `--max-age-hours` covering the time since the last run.
 
 LinkedIn limits guest traffic per IP and per data center, and pins a client to one data center with a cookie.
-jobrake spreads its requests over the three data centers that answered in our tests and sends about one request per second.
-If LinkedIn stops routing requests to a data center that jobrake names, jobrake looks for another with requests 2.5 seconds apart.
-Within one process, jobrake keeps each data center under the limit we measured, unless LinkedIn moves a request to another data center, which can cost one retry.
+jobrake spreads its requests over the three data centers that answered in our tests, allowing short bursts at a measured sustained pace of about 1.3 requests per second.
+If LinkedIn stops routing requests to a data center that jobrake names, jobrake looks for another at a slower pace.
+Within one process, jobrake paces requests for each data center it names.
+A request that LinkedIn reroutes to another data center can exceed that data center's measured limit.
 Each process paces only its own requests, so concurrent runs on the same IP can reach the limit sooner.
 LinkedIn requests carry only the data-center cookie, so a custom fetcher's own cookies reach LinkedIn only when it redirects a request.
 
 LinkedIn refuses some requests whatever the pace, up to a quarter of them in our tests.
-jobrake retries a 429 up to three times, first on the other data centers and then after a 12-second wait.
+jobrake retries a 429 up to three times, first on the other data centers and then after waiting for a rate-limit window.
 If the 429 remains, the search raises `Stopped` with what it has collected so far.
 A `--details` search that could not fetch every posting's details raises `Stopped` too, holding every posting it found.
 
