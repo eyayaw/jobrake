@@ -23,7 +23,7 @@ jobrake indeed search -q "data scientist" -c nl -l Amsterdam -n 2
 jobrake linkedin search -q "data scientist" -l "Amsterdam, North Holland, Netherlands" -n 2
 ```
 
-Both commands ask for two recent postings near Amsterdam, Netherlands, but each names that place its own way.
+Both commands ask for two postings near Amsterdam, Netherlands, but each names that place its own way.
 Indeed searches one country edition at a time, so `--country` is required, and `--location` narrows that edition to a city or area within it.
 LinkedIn has no editions: pass the place as text to `--location`, or its ID to `--geoid`, and leave `--country` out.
 
@@ -68,8 +68,8 @@ other indexed content, so `data OR research` may return jobs with neither word i
 You may be tempted to try `description:<term>`, but it does not reliably restrict
 results to descriptions. `AND`, `OR`, and `NOT` act as Indeed search hints on their own.
 Their results can differ from Boolean union, intersection, and exclusion.
-Importantly, we do not advise mixing geography and posting age with search queries
-(e.g., `"data science jobs in England last 24 hours"`), rather use their own arguments.
+Use the location and posting-age options to restrict geography and age.
+Keep those restrictions out of query text such as `"data science jobs in England last 24 hours"`.
 
 #### LinkedIn query syntax
 
@@ -294,7 +294,7 @@ such as `EN` and `NL`. Indeed's [language-code reference](https://docs.indeed.co
 ISO 639-1. Search results also carry the legacy codes `iw` for Hebrew and `in` for Indonesian, which jobrake preserves.
 An Indeed search rejects a malformed value before any request, though a well-formed code can still match nothing.
 
-LinkedIn does not have language support.
+jobrake's LinkedIn search has no language filter.
 
 ### Job attributes
 
@@ -826,7 +826,6 @@ One search reaches at most 1,000 results, and jobrake warns when that cap cuts a
 
 Indeed returns jobs newest first by the date the posting reached Indeed, the same date `--max-age-hours` filters on.
 A reposted job counts as new, so a 24-hour window can include postings published weeks earlier.
-Repeating a search returns the same jobs in the same order.
 
 Pages follow one another without delay, and each request gets a single attempt.
 jobrake skips a posting it cannot read and leaves out a field it cannot read.

@@ -1,4 +1,4 @@
-"""Query each site once, in sequence, with ``uv run scripts/smoke.py``."""
+"""Search Indeed and LinkedIn in sequence with ``uv run scripts/smoke.py``."""
 
 import asyncio
 from typing import Any
@@ -18,7 +18,7 @@ def column(value: str | None, width: int) -> str:
 
 
 async def main() -> None:
-    """Run one small search per site and print representative fields."""
+    """Print a count and sample fields from each configured search."""
     for site, place in PLACES.items():
         try:
             jobs = await scrape(site, query="economist", results=10, max_age_hours=168, **place)

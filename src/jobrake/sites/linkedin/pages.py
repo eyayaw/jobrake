@@ -135,7 +135,6 @@ def _company(soup: BeautifulSoup) -> dict[str, Any]:
     """Extract company URL and logo fields from topcard markup."""
     link = soup.select_one("a.topcard__org-name-link")
     logo = soup.select_one("img.artdeco-entity-image")
-    # Drop tracking params
     return {
         "company_url": str(link["href"]).partition("?")[0] if link and link.get("href") else None,
         "company_logo": logo.get("data-delayed-url") if logo else None,
@@ -208,8 +207,6 @@ def _parse_posting(soup: BeautifulSoup) -> tuple[dict[str, Any], bool]:
         places = [Place(name=label)]
     # JobDict counts whole months.
     months = _number_value(_obj(posting.get("experienceRequirements")).get("monthsOfExperience"))
-    # Normalize each schema.org union before adding it to the result. Omit
-    # structured values in an unsupported shape.
     from_block = {
         "title": _text_value(posting.get("title")),
         "company": _text_value(org.get("name")),
@@ -229,10 +226,8 @@ def _parse_posting(soup: BeautifulSoup) -> tuple[dict[str, Any], bool]:
             _obj(posting.get("educationRequirements")).get("credentialCategory")
         ),
     }
-    # The markup is the only source of apply_type and applicants, and the
-    # only source of anything on a block-less page.
-    # These selectors depend on LinkedIn's page structure and are the first
-    # parsing points to break when it changes.
+    # Only markup supplies apply_type and applicants, or any field when the
+    # page lacks schema.org data.
     from_markup = {
         "title": _tag_text(soup, ".topcard__title"),
         "company": _tag_text(soup, "a.topcard__org-name-link"),
@@ -243,7 +238,6 @@ def _parse_posting(soup: BeautifulSoup) -> tuple[dict[str, Any], bool]:
         "apply_type": _apply_type(soup),
         "applicants": _applicants(soup),
     }
-    # The block wins wherever both speak.
     fields = {
         name: value
         for source in (from_markup, from_block)
@@ -293,7 +287,6 @@ def _fragment_url(html: str, posting_id: str) -> str | None:
             posting_id,
         )
         return None
-    # Drop tracking params
     url = str(link["href"]).partition("?")[0]
     if not _posting_url(url, posting_id, (_PAGE_PATH,)):
         logger.warning(

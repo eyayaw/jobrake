@@ -86,10 +86,9 @@ _LIDC = re.compile(r'lidc=("[^"]*")')
 
 
 class Fabrics:
-    """The fabrics seen by this process and the lidc cookie that pins each."""
+    """Known fabrics, their pinning cookies, and this process's request windows."""
 
     def __init__(self) -> None:
-        """Start from the fabrics in FABRICS."""
         self.known: dict[str, str] = dict(FABRICS)
         self.unpinned = 0
         self.sent: dict[str, float] = {}  # monotonic time of each fabric's latest send
@@ -99,7 +98,6 @@ class Fabrics:
         self.next_turn = -inf
 
     def discovering(self) -> bool:
-        """Whether this pool still looks for fabrics with unpinned requests."""
         return not self.known or (len(self.known) < FABRICS_WANTED and self.unpinned < DISCOVERY)
 
     def pick(self, tried: set[str]) -> tuple[str | None, float]:

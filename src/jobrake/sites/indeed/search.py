@@ -309,7 +309,7 @@ async def search(
     Whitespace around the key and the codes is removed.
     ``remote=True`` adds Indeed's Remote attribute, ``"DSQF7"``, to those codes.
     ``language`` takes Indeed's two-letter code in either case, such as ``"en"``, including the legacy codes ``"iw"`` and ``"in"``.
-    A filter stays out of the search at its default and as ``[]``. The filters that remain combine on every page.
+    The supplied filters combine on every page.
     Age uses Indeed's ``dateOnIndeed`` field, which can differ from the publication timestamp returned as ``posted_at``.
     The caller owns ``fetcher``.
 
