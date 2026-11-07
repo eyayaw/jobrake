@@ -6,7 +6,7 @@ import re
 from contextvars import ContextVar
 from math import inf
 from time import monotonic
-from urllib.parse import urlsplit
+from urllib.parse import urljoin, urlsplit
 
 from jobrake.fetchkit import Fetcher, FetchResult
 
@@ -71,6 +71,9 @@ DISCOVERY = 12  # unpinned requests to spend looking for them
 # pace, and every such refusal passed on a retry. A request is therefore
 # retried this many times before its 429 counts as persistent.
 RETRIES = 3
+
+# Match HTTPX's default: https://www.python-httpx.org/api/#asyncclient (checked 2026-11-07).
+_MAX_REDIRECTS = 20
 
 # LinkedIn's guest 429 responses carry no Retry-After header. A 429 from a
 # full window clears once the window's oldest request ages out, so a retry
@@ -185,13 +188,37 @@ POOL = Fabrics()
 
 async def paced_fetch(fetcher: Fetcher, url: str) -> FetchResult:
     """
-    Fetch ``url`` through ``fetcher`` at the fabric pace and retry a 429 up to ``RETRIES`` times.
+    Fetch ``url`` with paced redirect hops and up to ``RETRIES`` retries for each hop's 429.
 
-    The request carries an lidc Cookie header in place of the fetcher's own
-    cookies, except on a redirect hop. A 429 that survives every retry is
-    returned for the caller to decide whether the larger operation should
-    stop. The transport stays open.
+    Each request carries a lidc Cookie header in place of the fetcher's own
+    cookies. Only HTTPS LinkedIn redirects are followed. A persistent 429 is
+    returned to the caller. The transport stays open.
     """
+    for hop in range(_MAX_REDIRECTS + 1):
+        result = await _fetch_with_retries(fetcher, url)
+        # GET redirects: https://www.rfc-editor.org/rfc/rfc9110#section-15.4 (checked 2026-11-07).
+        if result.error or result.status not in {301, 302, 303, 307, 308}:
+            return result
+        if not (location := result.headers.get("location")):
+            return result
+        if hop == _MAX_REDIRECTS:
+            result.error = f"LinkedIn exceeded {_MAX_REDIRECTS} redirects"
+            return result
+        try:
+            target = urljoin(result.url, location)
+            parts = urlsplit(target)
+            if parts.scheme != "https" or not (
+                parts.hostname == "linkedin.com" or (parts.hostname or "").endswith(".linkedin.com")
+            ):
+                raise ValueError("expected an HTTPS LinkedIn URL")
+        except ValueError as error:
+            result.error = f"invalid LinkedIn redirect: {error}"
+            return result
+        url = target
+    return result
+
+
+async def _fetch_with_retries(fetcher: Fetcher, url: str) -> FetchResult:
     tried: set[str] = set()
     result = await _fetch_on_turn(fetcher, url, tried)
     for _ in range(RETRIES):
@@ -222,12 +249,11 @@ async def _fetch_on_turn(fetcher: Fetcher, url: str, tried: set[str]) -> FetchRe
         # discovery, then leave one turn at a time: the first to ask takes it.
         await asyncio.sleep(wait)
     # An explicit Cookie header replaces the jar's cookies for this request.
-    # httpx sends the jar's cookies on a redirect hop instead.
     headers = HEADERS | {"cookie": f"lidc={POOL.known[fabric]}" if fabric else "lidc="}
     sent = POOL.history[fabric][-1]
     if (started := _REQUEST_STARTED.get()) is not None and not started.done():
         started.set_result(None)
-    result = await fetcher.fetch(url, headers=headers)
+    result = await fetcher.fetch(url, headers=headers, follow_redirects=False)
     POOL.learn(fabric, result, sent)
     # An unpinned or rerouted attempt reveals the fabric that refused it only
     # in its answer, so a retry learns to skip that fabric here.

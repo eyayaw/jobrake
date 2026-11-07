@@ -779,7 +779,7 @@ nl, us = asyncio.run(main())
 ```
 
 To use another HTTP client or a browser, implement the `Fetcher` protocol from `jobrake.fetchkit`: an async `fetch(url, *, headers=None, json=None, follow_redirects=True)` that sends a POST when `json` is given, and an async `close()`.
-With `follow_redirects=False`, return the first response, including its `Location` header.
+With `follow_redirects=False`, return the first response, including its `Location` header. LinkedIn uses this to pace each redirect hop.
 `fetch` returns a `FetchResult` and reports a failed request in its `error`. A status of 400 or more sets `error` on its own.
 An exception your own `Fetcher` raises propagates out of `scrape()`.
 
@@ -851,7 +851,7 @@ If LinkedIn stops routing requests to a data center that jobrake names, jobrake 
 Within one process, jobrake paces requests for each data center it names.
 A request that LinkedIn reroutes to another data center can exceed that data center's measured limit.
 Each process paces only its own requests, so concurrent runs on the same IP can reach the limit sooner.
-LinkedIn requests carry only the data-center cookie, so a custom fetcher's own cookies reach LinkedIn only when it redirects a request.
+LinkedIn requests, including redirect hops, carry only the data-center cookie.
 
 LinkedIn refuses some requests whatever the pace, up to a quarter of them in our tests.
 jobrake retries a 429 up to three times, first on the other data centers and then after waiting for a rate-limit window.

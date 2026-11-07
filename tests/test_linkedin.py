@@ -8,11 +8,12 @@ import json
 import logging
 from urllib.parse import parse_qs, urlsplit
 
+import httpx
 import pytest
 from fakes import PagedFetcher, StubFetcher, network_down, not_found, ok, rate_limited
 
 from jobrake import Stopped, cache
-from jobrake.fetchkit import FetchResult
+from jobrake.fetchkit import FetchResult, HttpxFetcher
 from jobrake.models import IDENTITY_FIELDS, SUMMARY_FIELDS, JobDict
 from jobrake.sites import linkedin
 from jobrake.sites.linkedin import client
@@ -147,6 +148,157 @@ def test_pacing_pins_each_request_to_a_fabric_in_turn(unlimited):
     # recently used first: prod-a answered the third request, after prod-b.
     assert cookies[:4] == ["lidc="] * 4
     assert cookies[4:] == ['lidc="prod-b"', 'lidc="prod-a"', 'lidc="prod-c"', 'lidc="prod-b"']
+
+
+def test_redirect_hops_keep_their_pin_and_share_the_request_budget(monkeypatch):
+    now = 0.0
+    sends = []
+    sleeps = []
+
+    async def sleep(seconds):
+        nonlocal now
+        now += seconds
+        sleeps.append(seconds)
+
+    monkeypatch.setattr(client, "monotonic", lambda: now)
+    monkeypatch.setattr(client.asyncio, "sleep", sleep)
+
+    def respond(request):
+        sends.append((now, request.headers.get("cookie")))
+        if len(sends) == 16:
+            return httpx.Response(200, text="[]")
+        return httpx.Response(302, headers={"location": f"/hop/{len(sends)}"})
+
+    async def run():
+        async with HttpxFetcher(
+            headers={"cookie": "session=private"}, transport=httpx.MockTransport(respond)
+        ) as fetcher:
+            return await paced(fetcher)
+
+    assert asyncio.run(run()) == []
+    cookies = ['lidc="b=OGST02"', 'lidc="b=TGST02"', 'lidc="b=VGST02"']
+    assert [stamp for stamp, _ in sends] == [0.0] * 15 + [11.6]
+    assert sorted(cookie for _, cookie in sends[:15]) == sorted(cookies * 5)
+    assert sends[-1][1] in cookies
+    assert sleeps == [11.6]
+
+
+def test_redirects_resolve_locations_learn_cookies_and_retry_only_the_current_hop(unlimited):
+    sends = []
+    responses = iter(
+        [
+            httpx.Response(
+                301,
+                headers={
+                    "location": "/one",
+                    "x-li-fabric": "prod-lor1",
+                    "set-cookie": 'lidc="b=Olearned"',
+                },
+            ),
+            httpx.Response(302, headers={"location": "//nl.linkedin.com/two"}),
+            httpx.Response(303, headers={"location": "https://de.linkedin.com/three"}),
+            httpx.Response(307, headers={"location": "../four"}),
+            httpx.Response(308, headers={"location": "/five"}),
+            httpx.Response(429),
+            httpx.Response(200, text="[]"),
+        ]
+    )
+
+    def respond(request):
+        sends.append((str(request.url), request.headers["cookie"]))
+        return next(responses)
+
+    async def run():
+        async with HttpxFetcher(transport=httpx.MockTransport(respond)) as fetcher:
+            return await paced(fetcher)
+
+    assert asyncio.run(run()) == []
+    assert sends == [
+        (
+            "https://www.linkedin.com/jobs-guest/api/typeaheadHits?query=x&typeaheadType=COMPANY",
+            'lidc="b=OGST02"',
+        ),
+        ("https://www.linkedin.com/one", 'lidc="b=TGST02"'),
+        ("https://nl.linkedin.com/two", 'lidc="b=VGST02"'),
+        ("https://de.linkedin.com/three", 'lidc="b=Olearned"'),
+        ("https://de.linkedin.com/four", 'lidc="b=TGST02"'),
+        ("https://de.linkedin.com/five", 'lidc="b=VGST02"'),
+        ("https://de.linkedin.com/five", 'lidc="b=Olearned"'),
+    ]
+
+
+@pytest.mark.parametrize("finishes", [True, False])
+def test_redirect_limit_allows_twenty_hops_and_stops_a_loop(unlimited, finishes):
+    requests = []
+
+    def respond(request):
+        requests.append(str(request.url))
+        if finishes and len(requests) == 21:
+            return httpx.Response(200, text="[]")
+        return httpx.Response(302, headers={"location": "/loop"})
+
+    async def run():
+        async with HttpxFetcher(transport=httpx.MockTransport(respond)) as fetcher:
+            return await paced(fetcher)
+
+    if finishes:
+        assert asyncio.run(run()) == []
+    else:
+        with pytest.raises(Stopped, match="exceeded 20 redirects") as stop:
+            asyncio.run(run())
+        assert stop.value.partial == []
+    assert len(requests) == 21
+
+
+def test_invalid_redirects_fail_before_another_request(unlimited):
+    async def run():
+        for location in (
+            "http://www.linkedin.com/page",
+            "https://linkedin.com.evil.test/page",
+            "https://[bad",
+        ):
+            fetcher = StubFetcher(
+                {
+                    "linkedin.com": FetchResult(
+                        "https://www.linkedin.com/start", 302, headers={"location": location}
+                    )
+                }
+            )
+            with pytest.raises(Stopped, match="invalid LinkedIn redirect") as stop:
+                await paced(fetcher)
+            assert stop.value.partial == []
+            assert len(fetcher.requests) == 1
+
+    asyncio.run(run())
+
+
+def test_redirect_wait_can_be_cancelled_without_sending_another_request(monkeypatch):
+    requests = []
+
+    async def run():
+        waiting = asyncio.Event()
+
+        async def sleep(seconds):
+            assert seconds == 11.6
+            waiting.set()
+            await asyncio.Future()
+
+        def respond(request):
+            requests.append(str(request.url))
+            return httpx.Response(302, headers={"location": "/loop"})
+
+        monkeypatch.setattr(client, "monotonic", lambda: 0.0)
+        monkeypatch.setattr(client.asyncio, "sleep", sleep)
+        async with HttpxFetcher(transport=httpx.MockTransport(respond)) as fetcher:
+            task = asyncio.create_task(paced(fetcher))
+            await waiting.wait()
+            task.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await task
+            assert len(requests) == 15
+            assert not [task for task in asyncio.all_tasks() if task is not asyncio.current_task()]
+
+    asyncio.run(run())
 
 
 def test_pacing_allows_a_burst_then_waits_for_window_capacity(monkeypatch):
