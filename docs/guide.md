@@ -394,6 +394,7 @@ A posting placed in a whole country, such as "United States" or "Netherlands", c
 
 jobrake follows a title-slug URL's canonical metadata to preserve those fields.
 Other references need a lookup to find the canonical URL. Cached postings need no request.
+Concurrent calls sharing a fetcher reuse the same in-flight posting read.
 
 Library callers use the `postings` function of `jobrake.sites.linkedin`, `jobrake.sites.workday`, or `jobrake.sites.smartrecruiters`.
 

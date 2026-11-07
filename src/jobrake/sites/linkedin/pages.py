@@ -491,26 +491,65 @@ def _job(posting_id: str, known: dict[str, Any], fields: dict[str, Any]) -> JobD
     return make_job(**(known | page | kept | {"site": "linkedin", "id": posting_id}))
 
 
-async def _read_page(
-    fetcher: Fetcher, posting_id: str, known: dict[str, Any], *, url: str | None = None
-) -> dict[str, JobDict | None]:
+_IN_FLIGHT: dict[
+    tuple[asyncio.AbstractEventLoop, int, str],
+    tuple[asyncio.Task[dict[str, Any] | None], set[object]],
+] = {}
+
+
+async def _cache_page(
+    fetcher: Fetcher, posting_id: str, url: str | None, *, candidate: bool
+) -> dict[str, Any] | None:
     try:
-        fields = await _fetch_posting(
-            fetcher,
-            posting_id,
-            url or known.get("url"),
-            candidate=urlsplit(url or "").hostname in _WWW_HOSTS,
-        )
+        fields = await _fetch_posting(fetcher, posting_id, url, candidate=candidate)
     except _Skip as skip:
         if str(skip):
             logger.warning("skipping posting %s: %s. A rerun retries it", posting_id, skip)
+        raise
+    if fields is not None:
+        # Cache page fields so concurrent searches retain their own card values.
+        cache.CACHE.put([_job(posting_id, {}, fields)])
+    return fields
+
+
+async def _read_page(
+    fetcher: Fetcher, posting_id: str, known: dict[str, Any], *, url: str | None = None
+) -> dict[str, JobDict | None]:
+    key = (asyncio.get_running_loop(), id(fetcher), posting_id)
+    if key not in _IN_FLIGHT:
+        # Another caller may have filled a miss while this dispatcher waited.
+        if cached := cache.CACHE.get("linkedin", [posting_id]):
+            return {posting_id: _job(posting_id, known, dict(cached[posting_id]))}
+        task = asyncio.create_task(
+            _cache_page(
+                fetcher,
+                posting_id,
+                url or known.get("url"),
+                candidate=urlsplit(url or "").hostname in _WWW_HOSTS,
+            )
+        )
+        _IN_FLIGHT[key] = (task, set())
+    else:
+        started = _REQUEST_STARTED.get()
+        if started is not None and not started.done():
+            started.set_result(None)
+    task, waiters = _IN_FLIGHT[key]
+    waiter = asyncio.current_task()
+    waiters.add(waiter)
+    try:
+        fields = await asyncio.shield(task)
+    except _Skip as skip:
         if skip.stop:
             raise
         return {}
+    finally:
+        waiters.remove(waiter)
+        if not waiters:
+            del _IN_FLIGHT[key]
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
     if fields is None:
         return {posting_id: None}
-    # Store the page without its card, whichever search found it first.
-    cache.CACHE.put([_job(posting_id, {}, fields)])
     return {posting_id: _job(posting_id, known, fields)}
 
 
@@ -529,9 +568,10 @@ async def fetch_pages(
     a guest-fragment request locates the canonical page. A page without
     schema.org data needs that fragment for additional fields; the lookup's
     response is reused when available.
-    Concurrent readers leave request pacing to ``paced_fetch``. A persistent
-    429 cancels unfinished reads and keeps cached and completed results.
-    INFO records report progress and the count of pages read.
+    Concurrent readers sharing a fetcher and event loop reuse in-flight pages
+    and leave request pacing to ``paced_fetch``. A persistent 429 stops this
+    call and keeps cached and completed results. Reads needed by another
+    caller continue. INFO records report progress and the count of pages read.
 
     Returns:
         A ``JobDict`` per fetched posting and ``None`` per posting LinkedIn
@@ -562,6 +602,13 @@ async def fetch_pages(
     tasks: set[asyncio.Task[None]] = set()
     try:
         for posting_id, known in wanted.items():
+            # A shared fetch can fail before its shielded readers resume.
+            finished = set().union(
+                *(waiters for shared, waiters in _IN_FLIGHT.values() if shared.done())
+            )
+            finished.update(task for task in tasks if task.done())
+            await asyncio.gather(*tasks.intersection(finished))
+            tasks.difference_update(finished)
             if posting_id in cached:
                 continue
             started = asyncio.get_running_loop().create_future()
