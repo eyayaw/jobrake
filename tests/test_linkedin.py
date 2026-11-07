@@ -11,6 +11,8 @@ from urllib.parse import parse_qs, urlsplit
 import httpx
 import pytest
 from fakes import PagedFetcher, StubFetcher, network_down, not_found, ok, rate_limited
+from hypothesis import given
+from hypothesis import strategies as st
 
 from jobrake import Stopped, cache
 from jobrake.fetchkit import FetchResult, HttpxFetcher
@@ -291,8 +293,11 @@ def test_redirect_wait_can_be_cancelled_without_sending_another_request(monkeypa
         monkeypatch.setattr(client.asyncio, "sleep", sleep)
         async with HttpxFetcher(transport=httpx.MockTransport(respond)) as fetcher:
             task = asyncio.create_task(paced(fetcher))
-            await waiting.wait()
-            task.cancel()
+            try:
+                await asyncio.wait_for(waiting.wait(), timeout=1)
+            finally:
+                task.cancel()
+                await asyncio.gather(task, return_exceptions=True)
             with pytest.raises(asyncio.CancelledError):
                 await task
             assert len(requests) == 15
@@ -1284,6 +1289,72 @@ def test_a_persistent_429_cancels_unfinished_reads_and_keeps_completed_pages(
     assert asyncio.run(linkedin.postings(StubFetcher({}), references[:1])) == got
 
 
+@pytest.mark.parametrize("gone", [False, True])
+def test_a_429_stop_collects_a_shared_result_before_its_reader_resumes(
+    unlimited, monkeypatch, gone
+):
+    monkeypatch.setattr(client, "RETRY_DELAY", 0)
+    released = asyncio.Event()
+    entered = asyncio.Event()
+    attempts = 0
+
+    class Refusing(StubFetcher):
+        async def fetch(self, url, *, headers=None, json=None, follow_redirects=True):
+            nonlocal attempts
+            if url == CANONICAL:
+                attempts += 1
+                await entered.wait()
+                if attempts == 4:
+                    loop = asyncio.get_running_loop()
+                    loop.call_soon(lambda: loop.call_soon(released.set))
+                return rate_limited()
+            entered.set()
+            await released.wait()
+            return await super().fetch(
+                url, headers=headers, json=json, follow_redirects=follow_redirects
+            )
+
+    fetcher = Refusing({OTHER: not_found() if gone else ok(job_page(title="Completed"))})
+    got = asyncio.run(asyncio.wait_for(linkedin.postings(fetcher, [CANONICAL, OTHER]), timeout=1))
+    assert list(got) == [OTHER]
+    if gone:
+        assert got[OTHER] is None
+    else:
+        assert fetched(got, OTHER)["title"] == "Completed"
+
+
+def test_a_429_stop_propagates_a_completed_fetcher_exception_after_cleanup(unlimited, monkeypatch):
+    monkeypatch.setattr(client, "RETRY_DELAY", 0)
+    entered, released, cancelled = asyncio.Event(), asyncio.Event(), asyncio.Event()
+    blocked = "https://nl.linkedin.com/jobs/view/blocked-333"
+    attempts = 0
+
+    class Refusing(StubFetcher):
+        async def fetch(self, url, *, headers=None, json=None, follow_redirects=True):
+            nonlocal attempts
+            if url == CANONICAL:
+                await entered.wait()
+                attempts += 1
+                if attempts == 4:
+                    released.set()
+                return rate_limited()
+            if url == OTHER:
+                await released.wait()
+                raise RuntimeError("fetcher failed")
+            entered.set()
+            try:
+                await asyncio.Future()
+            finally:
+                cancelled.set()
+
+    async def run():
+        with pytest.raises(RuntimeError, match="fetcher failed"):
+            await linkedin.postings(Refusing({}), [CANONICAL, OTHER, blocked])
+        assert cancelled.is_set()
+
+    asyncio.run(asyncio.wait_for(run(), timeout=1))
+
+
 def test_postings_stop_when_the_429_retries_also_fail(unlimited, caplog, monkeypatch):
     monkeypatch.setattr(client, "RETRY_DELAY", 0)
     fetcher = StubFetcher({"linkedin.com": rate_limited()})
@@ -1327,6 +1398,43 @@ def test_postings_contain_a_malformed_block_per_posting(unlimited):
     assert fetched(got, CANONICAL)["employment_type"] == "full_time"
     assert "description" not in fetched(got, CANONICAL)
     assert fetched(got, OTHER)["description"] == "Great & big role"  # fetching went on
+
+
+@given(
+    origin=st.sampled_from(["canonical", "fragment", "response"]),
+    malformed=st.sampled_from(["https://[bad", "https://linkedin.com\uff0fjobs/view/role-111"]),
+)
+def test_malformed_response_urls_do_not_abort_other_postings(origin, malformed):
+    class Malformed(StubFetcher):
+        async def fetch(self, url, *, headers=None, json=None, follow_redirects=True):
+            result = await super().fetch(
+                url, headers=headers, json=json, follow_redirects=follow_redirects
+            )
+            if "111" in url and origin == "response":
+                result.url = malformed
+            return result
+
+    body = job_page() + f'<link rel="canonical" href="{malformed}">'
+    first = "111" if origin == "fragment" else CANONICAL
+    fetcher = Malformed(
+        {
+            CANONICAL: ok(body if origin == "canonical" else job_page()),
+            "jobPosting/111": ok(f'<a class="topcard__link" href="{malformed}"></a>'),
+            OTHER: ok(job_page(title="Healthy")),
+        }
+    )
+    isolated = cache.Cache(":memory:")
+    try:
+        with pytest.MonkeyPatch.context() as patch:
+            patch.setattr(cache, "CACHE", isolated)
+            patch.setattr(client, "POOL", client.Fabrics())
+            patch.setattr(client, "monotonic", itertools.count(0.0, 100.0).__next__)
+            got = asyncio.run(linkedin.postings(fetcher, [first, OTHER]))
+        assert list(got) == [OTHER]
+        assert fetched(got, OTHER)["title"] == "Healthy"
+        assert OTHER in fetcher.requests
+    finally:
+        isolated.close()
 
 
 @pytest.mark.parametrize("suffix", ["/", "?trk=public_jobs", "/?trk=public_jobs", "#apply"])
@@ -1630,6 +1738,19 @@ def test_postings_resolve_a_failed_candidate_with_the_guest_fragment(unlimited, 
     assert [record for record in caplog.records if record.levelno >= logging.WARNING] == []
 
 
+def test_a_failed_page_does_not_repeat_the_guest_lookup_it_already_used(unlimited):
+    www = "https://www.linkedin.com/jobs/view/economist-at-acme-111"
+    fetcher = StubFetcher(
+        {
+            www: ok("<html>Sign in</html>"),
+            "jobPosting/111": ok(en_fragment()),
+            CANONICAL: ok("<html>Sign in</html>"),
+        }
+    )
+    assert asyncio.run(linkedin.postings(fetcher, [www])) == {}
+    assert fetcher.requests == [www, f"{FRAGMENT}/111?_l=en_US", CANONICAL]
+
+
 @pytest.mark.parametrize("canonical", [None, OTHER])
 def test_postings_resolve_a_page_without_its_own_canonical_metadata(unlimited, canonical):
     www = "https://www.linkedin.com/jobs/view/economist-at-acme-111"
@@ -1676,7 +1797,8 @@ def test_an_expired_page_cannot_replace_fields_from_its_surviving_fragment(unlim
     assert fetcher.requests == [f"{FRAGMENT}/111?_l=en_US", CANONICAL]
 
 
-def test_postings_reuse_a_response_already_redirected_to_its_canonical_url(unlimited):
+@pytest.mark.parametrize("metadata", [False, True])
+def test_postings_reuse_a_response_already_redirected_to_its_canonical_url(unlimited, metadata):
     www = "https://www.linkedin.com/jobs/view/economist-at-acme-111"
 
     class Redirected(StubFetcher):
@@ -1687,8 +1809,9 @@ def test_postings_reuse_a_response_already_redirected_to_its_canonical_url(unlim
             result.url = CANONICAL
             return result
 
+    link = f'<link rel="canonical" href="{CANONICAL}">' if metadata else ""
     fetcher = Redirected(
-        {www: ok(f'<link rel="canonical" href="{CANONICAL}">' + job_page(title="Economist"))}
+        {www: ok(link + job_page(title="Economist")), "jobPosting/111": not_found()}
     )
     job = fetched(asyncio.run(linkedin.postings(fetcher, [www])), www)
     assert (job["url"], job["title"]) == (CANONICAL, "Economist")

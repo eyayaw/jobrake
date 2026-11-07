@@ -263,7 +263,10 @@ _REFERENCE_PATHS = (_PAGE_PATH, f"{urlsplit(FRAGMENT_URL).path}/")
 
 def _posting_url(url: str, posting_id: str, paths: tuple[str, ...]) -> bool:
     """Check that a URL is one of LinkedIn's addresses for one posting."""
-    parts = urlsplit(url)
+    try:
+        parts = urlsplit(url)
+    except ValueError:
+        return False
     return (
         parts.scheme in ("http", "https")
         and f".{parts.hostname}".endswith(".linkedin.com")
@@ -332,35 +335,41 @@ async def _request(fetcher: Fetcher, url: str) -> FetchResult | None:
 
 async def _page(
     fetcher: Fetcher, posting_id: str, url: str, *, candidate: bool = False
-) -> tuple[str, BeautifulSoup | None] | None:
-    """Follow one same-posting canonical link; discard a redirect to a different resource."""
+) -> tuple[str, dict[str, Any] | None, bool] | None:
+    """
+    Follow one canonical link and parse its fields.
+
+    Return None for a gone posting, or missing fields for an unrelated redirect.
+    An empty field mapping means the posting page yielded no usable data.
+    """
     for _ in range(2):
         result = await _request(fetcher, url)
         if result is None:
             return None
         if not _posting_url(result.url, posting_id, (_PAGE_PATH,)):
-            return url, None
+            return url, None, False
         url = _canonical(result.url)
         soup = BeautifulSoup(result.text, "html.parser")
         # Measured 2026-11-07: www pages name the posting country's canonical
         # URL here even when they omit its schema.org fields.
         link = soup.select_one('link[rel="canonical"][href]')
         if link is not None:
-            canonical = _canonical(str(link["href"]))
+            canonical = str(link["href"])
             if not _posting_url(canonical, posting_id, (_PAGE_PATH,)):
                 raise _Skip
+            canonical = _canonical(canonical)
             if canonical != url:
                 url, candidate = canonical, False
                 continue
-        elif candidate:
+        elif candidate and urlsplit(url).hostname in _WWW_HOSTS:
             raise _Skip
-        return url, soup
+        return url, *_parse_posting(soup)
     raise _Skip
 
 
 async def _resolve_page(
     fetcher: Fetcher, posting_id: str, url: str | None, *, candidate: bool = False
-) -> tuple[str, BeautifulSoup | None, FetchResult | None] | None:
+) -> tuple[str, dict[str, Any] | None, bool, FetchResult | None] | None:
     """Find the canonical page and retain any guest fragment fetched to locate it."""
     fragment_url = f"{FRAGMENT_URL}/{posting_id}?_l=en_US"
     fragment = None
@@ -371,7 +380,7 @@ async def _resolve_page(
             if skip.stop:
                 raise
         else:
-            if page is not None and page[1] is not None:
+            if page is not None and page[1]:
                 return *page, None
         url = None
     if url is None:
@@ -391,15 +400,14 @@ async def _fetch_posting(
     page = await _resolve_page(fetcher, posting_id, url, candidate=candidate)
     if page is None:
         return None
-    url, soup, fragment = page
-    fields, structured = _parse_posting(soup) if soup is not None else ({}, False)
-    if soup is None:
+    url, fields, structured, fragment = page
+    redirected = fields is None
+    if redirected:
+        fields = {}
         logger.warning(
             "posting %s redirected away from its page; using only its guest fragment", posting_id
         )
     elif not fields:
-        if candidate:
-            return await _fetch_posting(fetcher, posting_id, None)
         logger.warning(
             "skipping posting %s. Its page yielded no fields, so it may be a signup "
             "wall or changed markup. A rerun retries it",
@@ -418,7 +426,7 @@ async def _fetch_posting(
                 posting_id,
             )
             raise _Skip
-        if soup is None and _fragment_url(fragment.text, posting_id) is None:
+        if redirected and _fragment_url(fragment.text, posting_id) is None:
             raise _Skip
         fields = _parse_posting(BeautifulSoup(fragment.text, "html.parser"))[0] | fields
         if not fields:
@@ -486,49 +494,66 @@ def _job(posting_id: str, known: dict[str, Any], fields: dict[str, Any]) -> JobD
 
 _IN_FLIGHT: dict[
     tuple[asyncio.AbstractEventLoop, int, str],
-    tuple[asyncio.Task[dict[str, Any] | None], set[object]],
+    tuple[asyncio.Task[dict[str, Any] | None], dict[object, set[object]]],
 ] = {}
 
 
 async def _cache_page(
-    fetcher: Fetcher, posting_id: str, url: str | None, *, candidate: bool
+    fetcher: Fetcher,
+    posting_id: str,
+    url: str | None,
+    waiters: dict[object, set[object]],
+    *,
+    candidate: bool,
 ) -> dict[str, Any] | None:
     try:
         fields = await _fetch_posting(fetcher, posting_id, url, candidate=candidate)
+        if fields is not None:
+            # Cache page fields so concurrent searches retain their own card values.
+            cache.CACHE.put([_job(posting_id, {}, fields)])
+        return fields
     except _Skip as skip:
         if str(skip):
             logger.warning("skipping posting %s: %s. A rerun retries it", posting_id, skip)
         raise
-    if fields is not None:
-        # Cache page fields so concurrent searches retain their own card values.
-        cache.CACHE.put([_job(posting_id, {}, fields)])
-    return fields
+    finally:
+        # Notify dispatchers before shielded readers resume, so posting admission
+        # does not depend on callback ordering.
+        for waiter, completed in waiters.items():
+            completed.add(waiter)
 
 
 async def _read_page(
-    fetcher: Fetcher, posting_id: str, known: dict[str, Any], *, url: str | None = None
+    fetcher: Fetcher,
+    posting_id: str,
+    known: dict[str, Any],
+    completed: set[object],
+    *,
+    url: str | None = None,
 ) -> dict[str, JobDict | None]:
     key = (asyncio.get_running_loop(), id(fetcher), posting_id)
     if key not in _IN_FLIGHT:
         # Another caller may have filled a miss while this dispatcher waited.
         if cached := cache.CACHE.get("linkedin", [posting_id]):
             return {posting_id: _job(posting_id, known, dict(cached[posting_id]))}
+        waiters: dict[object, set[object]] = {}
         task = asyncio.create_task(
             _cache_page(
                 fetcher,
                 posting_id,
                 url or known.get("url"),
+                waiters,
                 candidate=urlsplit(url or "").hostname in _WWW_HOSTS,
             )
         )
-        _IN_FLIGHT[key] = (task, set())
+        _IN_FLIGHT[key] = (task, waiters)
     else:
         started = _REQUEST_STARTED.get()
         if started is not None and not started.done():
             started.set_result(None)
     task, waiters = _IN_FLIGHT[key]
     waiter = asyncio.current_task()
-    waiters.add(waiter)
+    waiters[waiter] = completed
     try:
         fields = await asyncio.shield(task)
     except _Skip as skip:
@@ -536,7 +561,7 @@ async def _read_page(
             raise
         return {}
     finally:
-        waiters.remove(waiter)
+        del waiters[waiter]
         if not waiters:
             del _IN_FLIGHT[key]
             task.cancel()
@@ -544,6 +569,22 @@ async def _read_page(
     if fields is None:
         return {posting_id: None}
     return {posting_id: _job(posting_id, known, fields)}
+
+
+async def _finish_reads(tasks: set[asyncio.Task[None]], completed: set[object]) -> None:
+    # A shared task may finish before its shielded readers resume. Collect
+    # those results before cancelling readers whose shared tasks are unfinished.
+    error = None
+    while finished := tasks.intersection(completed):
+        for result in await asyncio.gather(*finished, return_exceptions=True):
+            if isinstance(result, Exception) and not isinstance(result, _Skip):
+                error = result
+        tasks.difference_update(finished)
+    for task in tasks:
+        task.cancel()
+    await asyncio.gather(*tasks, return_exceptions=True)
+    if error is not None:
+        raise error
 
 
 async def fetch_pages(
@@ -583,47 +624,52 @@ async def fetch_pages(
     stopped = False
     done = len(cached)
     logger.info("linkedin pages %d/%d", done, total, extra={"progress": (done, total)})
+    completed: set[object] = set()
 
     async def read_page(posting_id: str, known: dict[str, Any]) -> None:
         nonlocal done
-        found.update(
-            await _read_page(fetcher, posting_id, known, url=urls.get(posting_id) if urls else None)
-        )
+        try:
+            found.update(
+                await _read_page(
+                    fetcher,
+                    posting_id,
+                    known,
+                    completed,
+                    url=urls.get(posting_id) if urls else None,
+                )
+            )
+        finally:
+            completed.add(asyncio.current_task())
         done += 1
         logger.info("linkedin pages %d/%d", done, total, extra={"progress": (done, total)})
 
     tasks: set[asyncio.Task[None]] = set()
     try:
         for posting_id, known in wanted.items():
-            # A shared fetch can fail before its shielded readers resume.
-            finished = set().union(
-                *(waiters for shared, waiters in _IN_FLIGHT.values() if shared.done())
-            )
-            finished.update(task for task in tasks if task.done())
-            await asyncio.gather(*tasks.intersection(finished))
-            tasks.difference_update(finished)
+            while finished := tasks.intersection(completed):
+                await asyncio.gather(*finished)
+                completed.difference_update(finished)
+                tasks.difference_update(finished)
             if posting_id in cached:
                 continue
             started = asyncio.get_running_loop().create_future()
             token = _REQUEST_STARTED.set(started)
             try:
-                task = asyncio.create_task(read_page(posting_id, known))
+                tasks.add(task := asyncio.create_task(read_page(posting_id, known)))
             finally:
                 _REQUEST_STARTED.reset(token)
-            tasks.add(task)
             while not started.done() and not task.done():
                 finished, _ = await asyncio.wait(
                     tasks | {started}, return_when=asyncio.FIRST_COMPLETED
                 )
                 await asyncio.gather(*tasks.intersection(finished))
+                completed.difference_update(finished)
                 tasks.difference_update(finished)
         await asyncio.gather(*tasks)
     except _Skip:
         stopped = True
     finally:
-        for task in tasks:
-            task.cancel()
-        await asyncio.gather(*tasks, return_exceptions=True)
+        await _finish_reads(tasks, completed)
     if stopped:
         logger.warning(
             "linkedin is rate limiting this IP, so reading pages stopped at %d of %d. "
