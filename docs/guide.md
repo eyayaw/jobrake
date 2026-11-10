@@ -367,7 +367,7 @@ Employment type is still available as a posting detail with `--details`.
 
 Indeed returns the details it has with the search itself, so an Indeed search needs nothing further.
 LinkedIn's guest search returns summary cards only. Add `--details | -d` (`details=True`) to fetch each posting page and fill in the rest.
-That costs one paced request per uncached posting, and sometimes a second.
+That costs one paced request for most uncached postings and up to three for the rest.
 Workday and SmartRecruiters searches also return cards without descriptions, and `--details` fetches each posting with one more request, as [Workday fields](#workday-fields) and [SmartRecruiters fields](#smartrecruiters-fields) describe.
 See [request limits](#request-limits-and-partial-results) for pacing and retries, and [cache settings](#cache-location-and-lifetimes) for reuse.
 
@@ -845,7 +845,7 @@ The order can also change between two runs of the same search.
 To collect only new postings, repeat the search with `--max-age-hours` covering the time since the last run.
 
 LinkedIn limits guest traffic per IP and per data center, and pins a client to one data center with a cookie.
-jobrake spreads its requests over the three data centers that answered in our tests, allowing short bursts at a measured sustained pace of about 1.3 requests per second.
+jobrake spreads its requests over the three data centers that answered in our tests, allowing short bursts at a sustained pace of about 1.3 requests per second.
 If LinkedIn stops routing requests to a data center that jobrake names, jobrake looks for another at a slower pace.
 Within one process, jobrake paces requests for each data center it names.
 A request that LinkedIn reroutes to another data center can exceed that data center's measured limit.
