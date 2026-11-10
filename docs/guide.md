@@ -23,7 +23,7 @@ jobrake indeed search -q "data scientist" -c nl -l Amsterdam -n 2
 jobrake linkedin search -q "data scientist" -l "Amsterdam, North Holland, Netherlands" -n 2
 ```
 
-Both commands ask for two recent postings near Amsterdam, Netherlands, but each names that place its own way.
+Both commands ask for two postings near Amsterdam, Netherlands, but each names that place its own way.
 Indeed searches one country edition at a time, so `--country` is required, and `--location` narrows that edition to a city or area within it.
 LinkedIn has no editions: pass the place as text to `--location`, or its ID to `--geoid`, and leave `--country` out.
 
@@ -68,8 +68,8 @@ other indexed content, so `data OR research` may return jobs with neither word i
 You may be tempted to try `description:<term>`, but it does not reliably restrict
 results to descriptions. `AND`, `OR`, and `NOT` act as Indeed search hints on their own.
 Their results can differ from Boolean union, intersection, and exclusion.
-Importantly, we do not advise mixing geography and posting age with search queries
-(e.g., `"data science jobs in England last 24 hours"`), rather use their own arguments.
+Use the location and posting-age options to restrict geography and age.
+Keep those restrictions out of query text such as `"data science jobs in England last 24 hours"`.
 
 #### LinkedIn query syntax
 
@@ -294,7 +294,7 @@ such as `EN` and `NL`. Indeed's [language-code reference](https://docs.indeed.co
 ISO 639-1. Search results also carry the legacy codes `iw` for Hebrew and `in` for Indonesian, which jobrake preserves.
 An Indeed search rejects a malformed value before any request, though a well-formed code can still match nothing.
 
-LinkedIn does not have language support.
+jobrake's LinkedIn search has no language filter.
 
 ### Job attributes
 
@@ -367,7 +367,7 @@ Employment type is still available as a posting detail with `--details`.
 
 Indeed returns the details it has with the search itself, so an Indeed search needs nothing further.
 LinkedIn's guest search returns summary cards only. Add `--details | -d` (`details=True`) to fetch each posting page and fill in the rest.
-That costs one paced request per uncached posting, and sometimes a second.
+That costs one paced request for most uncached postings and up to three for the rest.
 Workday and SmartRecruiters searches also return cards without descriptions, and `--details` fetches each posting with one more request, as [Workday fields](#workday-fields) and [SmartRecruiters fields](#smartrecruiters-fields) describe.
 See [request limits](#request-limits-and-partial-results) for pacing and retries, and [cache settings](#cache-location-and-lifetimes) for reuse.
 
@@ -388,12 +388,12 @@ The command accepts the same `--output | -o` and `--format | -f` options as a se
 A posting that is gone or unreachable is reported on stderr and left out. When one was unreachable, the command writes the others and exits nonzero.
 A LinkedIn reference is a numeric ID or a posting URL, including the link in a LinkedIn job alert email and a search page address with `currentJobId=`. A Workday or SmartRecruiters reference is a search result's `url`, and SmartRecruiters also takes the posting's address with its title slug. Any other reference is an error, and nothing is fetched.
 
-LinkedIn serves a posting's dates, coordinates, and requirements only at its canonical URL: the title slug on the host of the posting's country.
+In our measurements, LinkedIn served a posting's dates, coordinates, and requirements only at its canonical URL: the title slug on the host of the posting's country.
 That host is `www.linkedin.com` for the United States and a country subdomain, such as `nl.linkedin.com`, elsewhere.
 A posting placed in a whole country, such as "United States" or "Netherlands", comes without those fields at any address.
 
-jobrake fetches a country-subdomain URL with a slug as given. Any other reference costs one lookup first to find the canonical URL.
-A cached posting holds its URL, so it costs no request.
+jobrake follows a title-slug URL's canonical metadata to preserve those fields.
+Other references need a lookup to find the canonical URL. Cached postings need no request.
 
 Library callers use the `postings` function of `jobrake.sites.linkedin`, `jobrake.sites.workday`, or `jobrake.sites.smartrecruiters`.
 
@@ -705,7 +705,8 @@ jobrake indeed search -q "data scientist" -c us -n 2 \
 
 `scrape()` creates and closes an HTTP client when `fetcher` is omitted.
 Library calls log under the `jobrake` logger, and your application sets its level and handlers.
-While jobrake fetches postings one at a time, for LinkedIn pages or Workday and SmartRecruiters details, it logs one INFO record per posting whose `progress` attribute holds `(done, total)`.
+When fetching LinkedIn pages or Workday or SmartRecruiters details, jobrake logs INFO records whose `progress` attribute holds `(done, total)`.
+LinkedIn reads several pages concurrently, counts cached pages at the start, and advances progress as each read finishes.
 The CLI draws its progress line from these records, and a handler of your own can do the same:
 
 ```python
@@ -777,7 +778,8 @@ async def main():
 nl, us = asyncio.run(main())
 ```
 
-To use another HTTP client or a browser, implement the `Fetcher` protocol from `jobrake.fetchkit`: an async `fetch(url, *, headers=None, json=None)` that sends a POST when `json` is given, and an async `close()`.
+To use another HTTP client or a browser, implement the `Fetcher` protocol from `jobrake.fetchkit`: an async `fetch(url, *, headers=None, json=None, follow_redirects=True)` that sends a POST when `json` is given, and an async `close()`.
+With `follow_redirects=False`, return the first response, including its `Location` header. LinkedIn uses this to pace each redirect hop.
 `fetch` returns a `FetchResult` and reports a failed request in its `error`. A status of 400 or more sets `error` on its own.
 An exception your own `Fetcher` raises propagates out of `scrape()`.
 
@@ -823,7 +825,6 @@ One search reaches at most 1,000 results, and jobrake warns when that cap cuts a
 
 Indeed returns jobs newest first by the date the posting reached Indeed, the same date `--max-age-hours` filters on.
 A reposted job counts as new, so a 24-hour window can include postings published weeks earlier.
-Repeating a search returns the same jobs in the same order.
 
 Pages follow one another without delay, and each request gets a single attempt.
 jobrake skips a posting it cannot read and leaves out a field it cannot read.
@@ -844,14 +845,15 @@ The order can also change between two runs of the same search.
 To collect only new postings, repeat the search with `--max-age-hours` covering the time since the last run.
 
 LinkedIn limits guest traffic per IP and per data center, and pins a client to one data center with a cookie.
-jobrake spreads its requests over the three data centers that answered in our tests and sends about one request per second.
-If LinkedIn stops routing requests to a data center that jobrake names, jobrake looks for another with requests 2.5 seconds apart.
-Within one process, jobrake keeps each data center under the limit we measured, unless LinkedIn moves a request to another data center, which can cost one retry.
+jobrake spreads its requests over the three data centers that answered in our tests, allowing short bursts at a sustained pace of about 1.3 requests per second.
+If LinkedIn stops routing requests to a data center that jobrake names, jobrake looks for another at a slower pace.
+Within one process, jobrake paces requests for each data center it names.
+A request that LinkedIn reroutes to another data center can exceed that data center's measured limit.
 Each process paces only its own requests, so concurrent runs on the same IP can reach the limit sooner.
-LinkedIn requests carry only the data-center cookie, so a custom fetcher's own cookies reach LinkedIn only when it redirects a request.
+LinkedIn requests, including redirect hops, carry only the data-center cookie.
 
 LinkedIn refuses some requests whatever the pace, up to a quarter of them in our tests.
-jobrake retries a 429 up to three times, first on the other data centers and then after a 12-second wait.
+jobrake retries a 429 up to three times, first on the other data centers and then after waiting for a rate-limit window.
 If the 429 remains, the search raises `Stopped` with what it has collected so far.
 A `--details` search that could not fetch every posting's details raises `Stopped` too, holding every posting it found.
 

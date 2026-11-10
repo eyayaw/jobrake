@@ -14,7 +14,7 @@ class StubFetcher:
         self.headers: list[dict[str, str]] = []
         self.bodies: list[Any] = []  # the JSON each request posted, or None
 
-    async def fetch(self, url, *, headers=None, json=None):
+    async def fetch(self, url, *, headers=None, json=None, follow_redirects=True):
         self.requests.append(url)
         self.headers.append(headers or {})
         self.bodies.append(json)
@@ -50,7 +50,7 @@ class PagedFetcher(StubFetcher):
         super().__init__({})
         self.pages = pages
 
-    async def fetch(self, url, *, headers=None, json=None):
-        await super().fetch(url, headers=headers, json=json)
+    async def fetch(self, url, *, headers=None, json=None, follow_redirects=True):
+        await super().fetch(url, headers=headers, json=json, follow_redirects=follow_redirects)
         page = self.pages[len(self.requests) - 1]
         return page if isinstance(page, FetchResult) else ok(page)

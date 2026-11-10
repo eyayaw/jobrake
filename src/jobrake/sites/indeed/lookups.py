@@ -1,4 +1,4 @@
-"""Look up Indeed locations, employer keys, and attribute codes by name."""
+"""Indeed location and company suggestions, and attribute codes from matching jobs."""
 
 import json
 from typing import Annotated, Any

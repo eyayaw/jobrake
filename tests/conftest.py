@@ -1,4 +1,4 @@
-"""Fixtures that isolate each test's cache and fabric pool, and a fake third site."""
+"""Fixtures for an isolated cache, a fresh fabric pool, and a fake site."""
 
 import fakesite
 import pytest
@@ -27,7 +27,7 @@ def fresh_fabrics(monkeypatch):
 
 @pytest.fixture
 def fake_site(monkeypatch):
-    """Register the fake job board in tests/fakesite.py as a third site."""
+    """Register tests/fakesite.py and clear its recorded calls."""
     monkeypatch.setitem(sites.SITES, "fakesite", fakesite)
     monkeypatch.setattr(fakesite, "calls", [])
     return fakesite

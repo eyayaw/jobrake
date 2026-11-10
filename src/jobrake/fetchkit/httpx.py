@@ -20,7 +20,7 @@ _HEADERS = {
 
 
 class HttpxFetcher:
-    """A pooled httpx transport that follows redirects and returns every httpx exception as ``FetchResult.error``."""
+    """A pooled httpx transport that reports request exceptions in ``FetchResult.error``."""
 
     def __init__(
         self,
@@ -45,7 +45,6 @@ class HttpxFetcher:
         self._client = httpx.AsyncClient(
             timeout=timeout,
             headers=_HEADERS | (headers or {}),
-            follow_redirects=True,
             transport=transport,
         )
 
@@ -55,13 +54,22 @@ class HttpxFetcher:
         *,
         headers: dict[str, str] | None = None,
         json: dict[str, Any] | None = None,
+        follow_redirects: bool = True,
     ) -> FetchResult:
-        """GET ``url``, or POST ``json`` to it when given. Cancellation propagates."""
+        """
+        GET ``url``, or POST ``json`` to it when given. Cancellation propagates.
+
+        With ``follow_redirects=False``, return the first response, including its Location header.
+        """
         try:
             if json is None:
-                response = await self._client.get(url, headers=headers)
+                response = await self._client.get(
+                    url, headers=headers, follow_redirects=follow_redirects
+                )
             else:
-                response = await self._client.post(url, json=json, headers=headers)
+                response = await self._client.post(
+                    url, json=json, headers=headers, follow_redirects=follow_redirects
+                )
         except Exception as error:  # noqa: BLE001  the Fetcher contract reports failures in the result
             logger.debug("fetch error for %s: %r", url, error)
             return FetchResult(url, error=f"{type(error).__name__}: {error}")

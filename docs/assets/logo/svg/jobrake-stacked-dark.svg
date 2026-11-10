@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 240" role="img" aria-labelledby="logo-title logo-desc">
   <title id="logo-title">jobrake</title>
   <desc id="logo-desc">A rake with seven curved tines above the lowercase jobrake wordmark.</desc>
-  <metadata>{"typeface": "Monaspace Krypton", "style": "Semibold", "weight": 600, "tracking_em": -0.02, "rake_scale_relative_to_reference": 1.15, "font_sha256": "e7a8cc9bf7cfd961341e4182d71f0ce185615f075c884ed107bb0dbd760a920c"}</metadata>
+  <metadata>{"typeface": "Monaspace Krypton", "style": "Semibold", "weight": 600, "tracking_em": -0.02, "font_sha256": "e7a8cc9bf7cfd961341e4182d71f0ce185615f075c884ed107bb0dbd760a920c"}</metadata>
   <g id="rake" fill="none" stroke="#71CD96" stroke-linecap="round" stroke-linejoin="round" transform="translate(60.887495 -33.134131) scale(0.2672181818181818)">
     <path id="handle" stroke-width="36" d="M448 441.6 603 270" />
     <path id="crossbar" stroke-width="24" d="M286 411 610 472.2" />
