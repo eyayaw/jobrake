@@ -1251,10 +1251,13 @@ def test_a_persistent_429_cancels_unfinished_reads_and_keeps_completed_pages(
                 return rate_limited()
             self.requests.append(url)
             try:
-                await asyncio.Future()
+                # The refusals take far fewer turns, so a read the stop never cancels fails here.
+                for _ in range(1000):
+                    await asyncio.sleep(0)
             except asyncio.CancelledError:
                 cancelled.append(url)
                 raise
+            raise AssertionError(f"{url} was still being read after the 429 stop")
 
     fetcher = Refusing({"linkedin.com": ok(job_page())})
 
@@ -1265,9 +1268,9 @@ def test_a_persistent_429_cancels_unfinished_reads_and_keeps_completed_pages(
 
     got = asyncio.run(run())
     assert list(got) == references[:1]
-    assert set(fetcher.requests) <= set(references[:13])
-    assert set(cancelled) == set(fetcher.requests) - set(references[:2])
-    assert fetcher.requests.count(references[1]) == 1 + client.RETRIES
+    assert set(fetcher.requests) == set(references[:7])
+    assert set(cancelled) == set(references[2:7])
+    assert fetcher.requests.count(references[1]) == 4
     assert asyncio.run(linkedin.postings(StubFetcher({}), references[:1])) == got
 
 
@@ -1584,9 +1587,9 @@ def test_postings_stop_looking_up_ids_once_rate_limited(unlimited, monkeypatch, 
     fetcher = StubFetcher({"jobPosting": rate_limited()})
     with caplog.at_level(logging.WARNING, logger="jobrake.sites.linkedin"):
         assert asyncio.run(linkedin.postings(fetcher, [str(n) for n in range(111, 135)])) == {}
-    # Readers already in flight can retry; the remaining IDs never start.
-    assert fetcher.requests.count(f"{FRAGMENT}/111?_l=en_US") == 1 + client.RETRIES
-    assert set(fetcher.requests) <= {f"{FRAGMENT}/{n}?_l=en_US" for n in range(111, 123)}
+    # The six lookups in progress can retry; the remaining IDs never start.
+    assert fetcher.requests.count(f"{FRAGMENT}/111?_l=en_US") == 4
+    assert set(fetcher.requests) <= {f"{FRAGMENT}/{n}?_l=en_US" for n in range(111, 117)}
     assert "rate limiting" in caplog.text
 
 
