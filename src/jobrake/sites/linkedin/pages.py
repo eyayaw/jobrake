@@ -306,7 +306,9 @@ class _Skip(Exception):
     """
     A posting failed, so it gets no result and a rerun retries it.
 
-    ``stop`` marks a persistent 429, which ends the fetch.
+    ``stop`` marks a persistent 429, which ends the fetch. Otherwise the message
+    is the reason ``_read`` logs, and an empty message means the raiser already
+    logged it.
     """
 
     def __init__(self, message: str = "", *, stop: bool = False) -> None:
@@ -356,15 +358,21 @@ async def _page(
         if link is not None:
             canonical = str(link["href"])
             if not _posting_url(canonical, posting_id, (_PAGE_PATH,)):
-                raise _Skip
+                raise _Skip(
+                    f"its page names {canonical} as canonical, which is not that posting's "
+                    "page, so LinkedIn may have replaced the posting or changed its markup"
+                )
             canonical = _canonical(canonical)
             if canonical != url:
                 url, candidate = canonical, False
                 continue
         elif candidate and urlsplit(url).hostname in _WWW_HOSTS:
-            raise _Skip
+            raise _Skip(f"its page at {url} names no canonical address")
         return url, *_parse_posting(soup)
-    raise _Skip
+    raise _Skip(
+        f"its canonical page names another canonical address, {url}, so LinkedIn's pages "
+        "for it may point at each other"
+    )
 
 
 async def _resolve_page(

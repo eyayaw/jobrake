@@ -1660,6 +1660,15 @@ def test_postings_follow_a_foreign_www_pages_canonical_link(unlimited):
     assert asyncio.run(linkedin.postings(StubFetcher({}), [www])) == got
 
 
+def test_a_page_whose_canonical_link_names_another_posting_is_skipped_with_the_reason(
+    unlimited, caplog
+):
+    fetcher = StubFetcher({CANONICAL: ok(f'<link rel="canonical" href="{OTHER}">' + job_page())})
+    with caplog.at_level(logging.WARNING, logger="jobrake.sites.linkedin"):
+        assert asyncio.run(linkedin.postings(fetcher, [CANONICAL])) == {}
+    assert f"skipping posting 111: its page names {OTHER} as canonical" in caplog.text
+
+
 @pytest.mark.parametrize(
     "candidate",
     [
