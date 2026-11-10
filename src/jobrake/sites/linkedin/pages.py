@@ -339,7 +339,7 @@ async def _page(
     fetcher: Fetcher, posting_id: str, url: str, *, candidate: bool = False
 ) -> tuple[str, dict[str, Any] | None, bool] | None:
     """
-    Follow one canonical link and parse its fields.
+    Read a posting page, following its canonical link to another host once, and parse its fields.
 
     Return None for a gone posting, or missing fields for an unrelated redirect.
     An empty field mapping means the posting page yielded no usable data.
@@ -362,9 +362,10 @@ async def _page(
                     f"its page names {canonical} as canonical, which is not that posting's "
                     "page, so LinkedIn may have replaced the posting or changed its markup"
                 )
-            canonical = _canonical(canonical)
-            if canonical != url:
-                url, candidate = canonical, False
+            # A link on the response's own host names this page, though perhaps
+            # spelled differently, such as a raw "ö" against "%C3%B6".
+            if urlsplit(canonical).hostname != urlsplit(url).hostname:
+                url, candidate = _canonical(canonical), False
                 continue
         elif candidate and urlsplit(url).hostname in _WWW_HOSTS:
             raise _Skip(f"its page at {url} names no canonical address")

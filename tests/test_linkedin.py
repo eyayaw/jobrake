@@ -1660,6 +1660,15 @@ def test_postings_follow_a_foreign_www_pages_canonical_link(unlimited):
     assert asyncio.run(linkedin.postings(StubFetcher({}), [www])) == got
 
 
+def test_a_canonical_link_on_the_pages_own_host_costs_no_second_request(unlimited):
+    encoded = "https://de.linkedin.com/jobs/view/%C3%B6konom-at-acme-111"
+    link = '<link rel="canonical" href="https://de.linkedin.com/jobs/view/ökonom-at-acme-111">'
+    fetcher = StubFetcher({"-111": ok(link + job_page(title="Economist"))})
+    job = fetched(asyncio.run(linkedin.postings(fetcher, [encoded])), encoded)
+    assert (job["url"], job["title"]) == (encoded, "Economist")
+    assert fetcher.requests == [encoded]
+
+
 def test_a_page_whose_canonical_link_names_another_posting_is_skipped_with_the_reason(
     unlimited, caplog
 ):
