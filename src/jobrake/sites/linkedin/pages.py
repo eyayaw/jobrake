@@ -586,22 +586,20 @@ async def fetch_pages(
             done += 1
             logger.info("linkedin pages %d/%d", done, total, extra={"progress": (done, total)})
 
-    workers = [asyncio.create_task(work()) for _ in range(_WORKERS)]
     stopped = False
     try:
-        await asyncio.gather(*workers)
-    except _Skip:
+        # The group cancels the other workers on the first error and awaits them all,
+        # through a repeated cancellation, so none outlives the caller's transport.
+        async with asyncio.TaskGroup() as group:
+            for _ in range(_WORKERS):
+                group.create_task(work())
+    except ExceptionGroup as errors:
+        # A fetcher's own exception leaves as itself and outranks a persistent 429.
+        for error in errors.exceptions:
+            if not isinstance(error, _Skip):
+                raise error from None
         stopped = True
-    finally:
-        # Cancelled workers are awaited, so none outlives the caller's transport.
-        for worker in workers:
-            worker.cancel()
-        outcomes = await asyncio.gather(*workers, return_exceptions=True)
     if stopped:
-        # A fetcher error raised alongside the persistent 429 outranks it.
-        for outcome in outcomes:
-            if isinstance(outcome, Exception) and not isinstance(outcome, _Skip):
-                raise outcome
         logger.warning(
             "linkedin is rate limiting this IP, so reading pages stopped at %d of %d. "
             "Wait a while, then rerun to fill in the rest",

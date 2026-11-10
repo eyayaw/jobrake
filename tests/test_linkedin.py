@@ -1469,12 +1469,18 @@ def test_interrupted_postings_finish_their_readers_before_returning(unlimited, c
             try:
                 await asyncio.Future()
             finally:
+                # A transport can take loop turns to unwind, as when it closes a connection.
+                for _ in range(3):
+                    await asyncio.sleep(0)
                 cancelled.append(url)
 
     async def run():
         task = asyncio.create_task(linkedin.postings(Interrupted({}), references))
         await entered.wait()
         if cancel:
+            # The second cancellation arrives while the call awaits its cancelled readers.
+            task.cancel()
+            await asyncio.sleep(0)
             task.cancel()
         with pytest.raises(asyncio.CancelledError if cancel else RuntimeError):
             await task
