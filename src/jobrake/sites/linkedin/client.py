@@ -3,7 +3,6 @@
 import asyncio
 import logging
 import re
-from contextvars import ContextVar
 from math import inf
 from time import monotonic
 from urllib.parse import urljoin, urlsplit
@@ -11,11 +10,6 @@ from urllib.parse import urljoin, urlsplit
 from jobrake.fetchkit import Fetcher, FetchResult
 
 logger = logging.getLogger(__name__)
-
-# The page dispatcher can start another read as soon as a request is admitted.
-_REQUEST_STARTED: ContextVar[asyncio.Future[None] | None] = ContextVar(
-    "linkedin_request_started", default=None
-)
 
 BASE_URL = "https://www.linkedin.com"
 SEARCH_URL = f"{BASE_URL}/jobs-guest/jobs/api/seeMoreJobPostings/search"
@@ -59,9 +53,11 @@ HEADERS = {
 # cookies, their pins drop the same way.
 # pick records sends in a sliding window, allowing a short batch to finish
 # without waiting between requests while keeping the sustained rate bounded.
-# A request that LinkedIn reroutes to another fabric lands there out of turn
-# and can put one request too many in that fabric's window. The pool
-# coordinates this process only; LinkedIn counts every process on the IP.
+# A request that LinkedIn reroutes to another fabric lands there out of turn.
+# Requests overlap, so several can be in flight to a fabric when its pin
+# drops, and the fabric that answers them then takes that many beyond its
+# window. The pool coordinates this process only; LinkedIn counts every
+# process on the IP.
 FABRICS = {"prod-lor1": '"b=OGST02"', "prod-ltx1": '"b=TGST02"', "prod-lva1": '"b=VGST02"'}
 WINDOW = 11.6  # seconds per fabric window, with 0.1 s beyond the measured limit
 REQUESTS = 5  # requests per fabric window
@@ -249,8 +245,6 @@ async def _fetch_on_turn(fetcher: Fetcher, url: str, tried: set[str]) -> FetchRe
     # An explicit Cookie header replaces the jar's cookies for this request.
     headers = HEADERS | {"cookie": f"lidc={POOL.known[fabric]}" if fabric else "lidc="}
     sent = POOL.history[fabric][-1]
-    if (started := _REQUEST_STARTED.get()) is not None and not started.done():
-        started.set_result(None)
     result = await fetcher.fetch(url, headers=headers, follow_redirects=False)
     POOL.learn(fabric, result, sent)
     # An unpinned or rerouted attempt reveals the fabric that refused it only

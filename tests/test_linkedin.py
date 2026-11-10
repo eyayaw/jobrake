@@ -1202,51 +1202,33 @@ def test_postings_have_three_outcomes(unlimited, monkeypatch):
     assert sum(1 for u in fetcher.requests if "gone-at" in u) == 1  # so is the alias
 
 
-def test_postings_overlap_page_reads_and_keep_reference_order(monkeypatch, caplog):
-    references = [f"https://nl.linkedin.com/jobs/view/role-{n}" for n in range(111, 159)]
-    clock, real_sleep = 0.0, asyncio.sleep
-    entered = asyncio.Event()
-    sends = []
-
-    async def sleep(seconds):
-        nonlocal clock
-        clock += seconds
-        await real_sleep(0)
-
-    monkeypatch.setattr(client, "monotonic", lambda: clock)
-    monkeypatch.setattr(asyncio, "sleep", sleep)
+def test_postings_overlap_page_reads_and_keep_reference_order(unlimited, caplog):
+    references = [f"https://nl.linkedin.com/jobs/view/role-{n}" for n in range(111, 119)]
 
     class Overlapping(StubFetcher):
         active = 0
         peak = 0
 
         async def fetch(self, url, *, headers=None, json=None, follow_redirects=True):
-            sends.append(clock)
             self.active += 1
             self.peak = max(self.peak, self.active)
-            try:
-                if len(sends) == 48:
-                    entered.set()
-                await entered.wait()
-                if url == references[0]:
-                    await real_sleep(0)
-                return await super().fetch(
-                    url, headers=headers, json=json, follow_redirects=follow_redirects
-                )
-            finally:
-                self.active -= 1
+            # Every read yields so that each worker starts one, and the first posting ends last.
+            for _ in range(10 if url == references[0] else 1):
+                await asyncio.sleep(0)
+            self.active -= 1
+            return await super().fetch(
+                url, headers=headers, json=json, follow_redirects=follow_redirects
+            )
 
     fetcher = Overlapping({"linkedin.com": ok(job_page())})
-
     with caplog.at_level(logging.INFO, logger="jobrake.sites.linkedin"):
-        got = asyncio.run(asyncio.wait_for(linkedin.postings(fetcher, references), timeout=1))
-    assert fetcher.peak == 48
-    assert sends == pytest.approx([0.0] * 15 + [11.6] * 15 + [23.2] * 15 + [34.8] * 3)
-    assert fetcher.requests.index(references[1]) < fetcher.requests.index(references[0])
+        got = asyncio.run(linkedin.postings(fetcher, references))
+    assert fetcher.peak == 6
+    assert fetcher.requests[-1] == references[0]
     assert list(got) == references
     assert all(fetched(got, ref)["applicants"] == 200 for ref in references)
     progress = [record.progress for record in caplog.records if hasattr(record, "progress")]
-    assert progress == [(n, 48) for n in range(49)]
+    assert progress == [(n, 8) for n in range(9)]
     assert asyncio.run(linkedin.postings(StubFetcher({}), references)) == got
 
 
@@ -1287,40 +1269,6 @@ def test_a_persistent_429_cancels_unfinished_reads_and_keeps_completed_pages(
     assert set(cancelled) == set(fetcher.requests) - set(references[:2])
     assert fetcher.requests.count(references[1]) == 1 + client.RETRIES
     assert asyncio.run(linkedin.postings(StubFetcher({}), references[:1])) == got
-
-
-@pytest.mark.parametrize("gone", [False, True])
-def test_a_429_stop_collects_a_shared_result_before_its_reader_resumes(
-    unlimited, monkeypatch, gone
-):
-    monkeypatch.setattr(client, "RETRY_DELAY", 0)
-    released = asyncio.Event()
-    entered = asyncio.Event()
-    attempts = 0
-
-    class Refusing(StubFetcher):
-        async def fetch(self, url, *, headers=None, json=None, follow_redirects=True):
-            nonlocal attempts
-            if url == CANONICAL:
-                attempts += 1
-                await entered.wait()
-                if attempts == 4:
-                    loop = asyncio.get_running_loop()
-                    loop.call_soon(lambda: loop.call_soon(released.set))
-                return rate_limited()
-            entered.set()
-            await released.wait()
-            return await super().fetch(
-                url, headers=headers, json=json, follow_redirects=follow_redirects
-            )
-
-    fetcher = Refusing({OTHER: not_found() if gone else ok(job_page(title="Completed"))})
-    got = asyncio.run(asyncio.wait_for(linkedin.postings(fetcher, [CANONICAL, OTHER]), timeout=1))
-    assert list(got) == [OTHER]
-    if gone:
-        assert got[OTHER] is None
-    else:
-        assert fetched(got, OTHER)["title"] == "Completed"
 
 
 def test_a_429_stop_propagates_a_completed_fetcher_exception_after_cleanup(unlimited, monkeypatch):
@@ -1513,7 +1461,7 @@ def test_interrupted_postings_finish_their_readers_before_returning(unlimited, c
                     raise RuntimeError("interrupted")
                 await asyncio.Future()
             started.append(url)
-            if len(started) == 11:
+            if len(started) == 5:
                 entered.set()
             try:
                 await asyncio.Future()
@@ -1527,7 +1475,7 @@ def test_interrupted_postings_finish_their_readers_before_returning(unlimited, c
             task.cancel()
         with pytest.raises(asyncio.CancelledError if cancel else RuntimeError):
             await task
-        assert started == references[1:12]
+        assert started == references[1:6]
         assert set(cancelled) == set(started)
 
     asyncio.run(asyncio.wait_for(run(), timeout=1))
@@ -1816,127 +1764,3 @@ def test_postings_reuse_a_response_already_redirected_to_its_canonical_url(unlim
     job = fetched(asyncio.run(linkedin.postings(fetcher, [www])), www)
     assert (job["url"], job["title"]) == (CANONICAL, "Economist")
     assert fetcher.requests == [www]
-
-
-@pytest.mark.parametrize("same_fetcher", [False, True])
-def test_concurrent_postings_share_reads_only_with_the_same_fetcher(unlimited, same_fetcher):
-    entered, release = asyncio.Event(), asyncio.Event()
-
-    class Waiting(StubFetcher):
-        async def fetch(self, url, *, headers=None, json=None, follow_redirects=True):
-            self.requests.append(url)
-            entered.set()
-            await release.wait()
-            return FetchResult(url, 200, job_page(title="Economist"))
-
-    fetchers = [Waiting({}) for _ in range(1 if same_fetcher else 2)]
-
-    async def run():
-        tasks = [asyncio.create_task(linkedin.postings(f, [CANONICAL])) for f in fetchers]
-        await entered.wait()
-        if same_fetcher:
-            tasks.extend(
-                asyncio.create_task(linkedin.postings(fetchers[0], [CANONICAL])) for _ in range(9)
-            )
-        for _ in range(3):
-            await asyncio.sleep(0)
-        release.set()
-        results = await asyncio.gather(*tasks)
-        assert all(result == results[0] for result in results)
-        assert fetched(results[0], CANONICAL)["title"] == "Economist"
-        assert await linkedin.postings(StubFetcher({}), [CANONICAL]) == results[0]
-
-    asyncio.run(asyncio.wait_for(run(), timeout=1))
-    assert sum(len(f.requests) for f in fetchers) == (1 if same_fetcher else 2)
-
-
-def test_overlapping_searches_keep_each_callers_card(unlimited):
-    entered, release = asyncio.Event(), asyncio.Event()
-
-    class Cards(StubFetcher):
-        async def fetch(self, url, *, headers=None, json=None, follow_redirects=True):
-            if "seeMoreJobPostings" in url:
-                query = parse_qs(urlsplit(url).query)["keywords"][0]
-                date = "2026-11-01" if query == "A" else "2026-11-02"
-                text = (
-                    linkedin_card(f"{query}-111")
-                    .replace("Seattle, WA", query)
-                    .replace("2026-08-01", date)
-                )
-            else:
-                self.requests.append(url)
-                entered.set()
-                await release.wait()
-                text = job_page()
-            return FetchResult(url, 200, text)
-
-    fetcher = Cards({})
-
-    async def run():
-        tasks = [
-            asyncio.create_task(
-                linkedin.search(fetcher, query=query, location="Earth", results=1, details=True)
-            )
-            for query in ("A", "B")
-        ]
-        await entered.wait()
-        for _ in range(10):
-            await asyncio.sleep(0)
-        release.set()
-        first, second = await asyncio.gather(*tasks)
-        assert [first[0]["date"], second[0]["date"]] == ["2026-11-01", "2026-11-02"]
-        assert [first[0]["locations"], second[0]["locations"]] == [
-            [{"name": "A", "country_code": "NL", "latitude": 52.37}],
-            [{"name": "B", "country_code": "NL", "latitude": 52.37}],
-        ]
-        assert [first[0]["url"], second[0]["url"]] == [
-            "https://www.linkedin.com/jobs/view/A-111",
-            "https://www.linkedin.com/jobs/view/B-111",
-        ]
-
-    asyncio.run(asyncio.wait_for(run(), timeout=1))
-    assert len(fetcher.requests) == 1
-
-
-@pytest.mark.parametrize("cancel_all", [False, True])
-def test_a_shared_posting_read_is_cancelled_only_after_its_last_waiter(unlimited, cancel_all):
-    entered, release = asyncio.Event(), asyncio.Event()
-    cancelled = []
-
-    class Waiting(StubFetcher):
-        async def fetch(self, url, *, headers=None, json=None, follow_redirects=True):
-            self.requests.append(url)
-            entered.set()
-            try:
-                await release.wait()
-            except asyncio.CancelledError:
-                cancelled.append(url)
-                raise
-            return FetchResult(url, 200, job_page(title="Economist"))
-
-    fetcher = Waiting({})
-
-    async def run():
-        first = asyncio.create_task(linkedin.postings(fetcher, [CANONICAL]))
-        await entered.wait()
-        second = asyncio.create_task(linkedin.postings(fetcher, [CANONICAL]))
-        for _ in range(3):
-            await asyncio.sleep(0)
-        first.cancel()
-        with pytest.raises(asyncio.CancelledError):
-            await first
-        assert cancelled == []
-        if cancel_all:
-            second.cancel()
-            with pytest.raises(asyncio.CancelledError):
-                await second
-            assert cancelled == [CANONICAL]
-            assert cache.CACHE.get("linkedin", ["111"]) == {}
-        else:
-            release.set()
-            job = fetched(await second, CANONICAL)
-            assert job["title"] == "Economist"
-            assert cancelled == []
-
-    asyncio.run(asyncio.wait_for(run(), timeout=1))
-    assert fetcher.requests == [CANONICAL]

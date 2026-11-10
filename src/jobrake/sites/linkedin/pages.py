@@ -17,7 +17,7 @@ from jobrake.fetchkit import Fetcher, FetchResult
 from jobrake.models import JobDict, Place, employment_type, make_job, make_places
 from jobrake.utils import checked, finite, html_text
 
-from .client import _REQUEST_STARTED, FRAGMENT_URL, job_id, numeric, paced_fetch
+from .client import FABRICS_WANTED, FRAGMENT_URL, job_id, numeric, paced_fetch
 
 logger = logging.getLogger(__name__)
 
@@ -492,99 +492,40 @@ def _job(posting_id: str, known: dict[str, Any], fields: dict[str, Any]) -> JobD
     return make_job(**(known | page | kept | {"site": "linkedin", "id": posting_id}))
 
 
-_IN_FLIGHT: dict[
-    tuple[asyncio.AbstractEventLoop, int, str],
-    tuple[asyncio.Task[dict[str, Any] | None], dict[object, set[object]]],
-] = {}
-
-
-async def _cache_page(
-    fetcher: Fetcher,
-    posting_id: str,
-    url: str | None,
-    waiters: dict[object, set[object]],
-    *,
-    candidate: bool,
-) -> dict[str, Any] | None:
-    try:
-        fields = await _fetch_posting(fetcher, posting_id, url, candidate=candidate)
-        if fields is not None:
-            # Cache page fields so concurrent searches retain their own card values.
-            cache.CACHE.put([_job(posting_id, {}, fields)])
-        return fields
-    except _Skip as skip:
-        if str(skip):
-            logger.warning("skipping posting %s: %s. A rerun retries it", posting_id, skip)
-        raise
-    finally:
-        # Notify dispatchers before shielded readers resume, so posting admission
-        # does not depend on callback ordering.
-        for waiter, completed in waiters.items():
-            completed.add(waiter)
-
-
-async def _read_page(
-    fetcher: Fetcher,
-    posting_id: str,
-    known: dict[str, Any],
-    completed: set[object],
-    *,
-    url: str | None = None,
+async def _read(
+    fetcher: Fetcher, posting_id: str, known: dict[str, Any], url: str | None
 ) -> dict[str, JobDict | None]:
-    key = (asyncio.get_running_loop(), id(fetcher), posting_id)
-    if key not in _IN_FLIGHT:
-        # Another caller may have filled a miss while this dispatcher waited.
-        if cached := cache.CACHE.get("linkedin", [posting_id]):
-            return {posting_id: _job(posting_id, known, dict(cached[posting_id]))}
-        waiters: dict[object, set[object]] = {}
-        task = asyncio.create_task(
-            _cache_page(
-                fetcher,
-                posting_id,
-                url or known.get("url"),
-                waiters,
-                candidate=urlsplit(url or "").hostname in _WWW_HOSTS,
-            )
-        )
-        _IN_FLIGHT[key] = (task, waiters)
-    else:
-        started = _REQUEST_STARTED.get()
-        if started is not None and not started.done():
-            started.set_result(None)
-    task, waiters = _IN_FLIGHT[key]
-    waiter = asyncio.current_task()
-    waiters[waiter] = completed
+    """
+    Read one posting and cache its page fields, mapping it to its record or to ``None`` if gone.
+
+    A failed posting yields ``{}`` and a warning. A persistent 429 propagates
+    as ``_Skip`` with ``stop`` set.
+    """
     try:
-        fields = await asyncio.shield(task)
+        fields = await _fetch_posting(
+            fetcher,
+            posting_id,
+            url or known.get("url"),
+            candidate=urlsplit(url or "").hostname in _WWW_HOSTS,
+        )
     except _Skip as skip:
         if skip.stop:
             raise
+        if str(skip):
+            logger.warning("skipping posting %s: %s. A rerun retries it", posting_id, skip)
         return {}
-    finally:
-        del waiters[waiter]
-        if not waiters:
-            del _IN_FLIGHT[key]
-            task.cancel()
-            await asyncio.gather(task, return_exceptions=True)
     if fields is None:
         return {posting_id: None}
+    # Cache page fields only, so a later caller's record keeps its own card values.
+    cache.CACHE.put([_job(posting_id, {}, fields)])
     return {posting_id: _job(posting_id, known, fields)}
 
 
-async def _finish_reads(tasks: set[asyncio.Task[None]], completed: set[object]) -> None:
-    # A shared task may finish before its shielded readers resume. Collect
-    # those results before cancelling readers whose shared tasks are unfinished.
-    error = None
-    while finished := tasks.intersection(completed):
-        for result in await asyncio.gather(*finished, return_exceptions=True):
-            if isinstance(result, Exception) and not isinstance(result, _Skip):
-                error = result
-        tasks.difference_update(finished)
-    for task in tasks:
-        task.cancel()
-    await asyncio.gather(*tasks, return_exceptions=True)
-    if error is not None:
-        raise error
+# Two workers per fabric. Measured live on 2026-11-09, six workers held the
+# pacer's sustained rate and three did not, because a worker waits out its own
+# retries and second requests. The count also bounds the requests sent after a
+# persistent 429 before the call stops.
+_WORKERS = 2 * FABRICS_WANTED
 
 
 async def fetch_pages(
@@ -602,10 +543,10 @@ async def fetch_pages(
     a guest-fragment request locates the canonical page. A page without
     schema.org data needs that fragment for additional fields; the lookup's
     response is reused when available.
-    Concurrent readers sharing a fetcher and event loop reuse in-flight pages
-    and leave request pacing to ``paced_fetch``. A persistent 429 stops this
-    call and keeps cached and completed results. Reads needed by another
-    caller continue. INFO records report progress and the count of pages read.
+    A fixed pool of workers, two per fabric, takes the postings in order and
+    leaves request pacing to ``paced_fetch``. A persistent 429 stops this
+    call, cancels the reads in progress, and keeps cached and completed
+    results. INFO records report progress and the count of pages read.
 
     Returns:
         A ``JobDict`` per fetched posting and ``None`` per posting LinkedIn
@@ -621,56 +562,34 @@ async def fetch_pages(
         posting_id: _job(posting_id, wanted[posting_id], dict(job))
         for posting_id, job in cached.items()
     }
-    stopped = False
     done = len(cached)
     logger.info("linkedin pages %d/%d", done, total, extra={"progress": (done, total)})
-    completed: set[object] = set()
+    # Every worker takes from one iterator, so each posting is read once.
+    pending = iter([item for item in wanted.items() if item[0] not in cached])
 
-    async def read_page(posting_id: str, known: dict[str, Any]) -> None:
+    async def work() -> None:
         nonlocal done
-        try:
-            found.update(
-                await _read_page(
-                    fetcher,
-                    posting_id,
-                    known,
-                    completed,
-                    url=urls.get(posting_id) if urls else None,
-                )
-            )
-        finally:
-            completed.add(asyncio.current_task())
-        done += 1
-        logger.info("linkedin pages %d/%d", done, total, extra={"progress": (done, total)})
+        for posting_id, known in pending:
+            found.update(await _read(fetcher, posting_id, known, (urls or {}).get(posting_id)))
+            done += 1
+            logger.info("linkedin pages %d/%d", done, total, extra={"progress": (done, total)})
 
-    tasks: set[asyncio.Task[None]] = set()
+    workers = [asyncio.create_task(work()) for _ in range(_WORKERS)]
+    stopped = False
     try:
-        for posting_id, known in wanted.items():
-            while finished := tasks.intersection(completed):
-                await asyncio.gather(*finished)
-                completed.difference_update(finished)
-                tasks.difference_update(finished)
-            if posting_id in cached:
-                continue
-            started = asyncio.get_running_loop().create_future()
-            token = _REQUEST_STARTED.set(started)
-            try:
-                tasks.add(task := asyncio.create_task(read_page(posting_id, known)))
-            finally:
-                _REQUEST_STARTED.reset(token)
-            while not started.done() and not task.done():
-                finished, _ = await asyncio.wait(
-                    tasks | {started}, return_when=asyncio.FIRST_COMPLETED
-                )
-                await asyncio.gather(*tasks.intersection(finished))
-                completed.difference_update(finished)
-                tasks.difference_update(finished)
-        await asyncio.gather(*tasks)
+        await asyncio.gather(*workers)
     except _Skip:
         stopped = True
     finally:
-        await _finish_reads(tasks, completed)
+        # Cancelled workers are awaited, so none outlives the caller's transport.
+        for worker in workers:
+            worker.cancel()
+        outcomes = await asyncio.gather(*workers, return_exceptions=True)
     if stopped:
+        # A fetcher error raised alongside the persistent 429 outranks it.
+        for outcome in outcomes:
+            if isinstance(outcome, Exception) and not isinstance(outcome, _Skip):
+                raise outcome
         logger.warning(
             "linkedin is rate limiting this IP, so reading pages stopped at %d of %d. "
             "Wait a while, then rerun to fill in the rest",
