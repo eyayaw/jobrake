@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.24.0](https://github.com/eyayaw/jobrake/releases/tag/v0.24.0) - 2026-11-10
+
+### Changed
+
+- **Breaking:** `Fetcher.fetch()` takes `follow_redirects`, which defaults to `True`. A custom fetcher must accept it and, when it is `False`, return the first response with its `Location` header. LinkedIn requests pass `False`.
+- jobrake reads up to six LinkedIn posting pages at a time, so a slow response or a retry wait does not delay the next page, and sends requests in short bursts within each data center's limit.
+- `jobrake linkedin postings` and `linkedin.postings()` read a `www.linkedin.com` title-slug URL as given and follow its page's canonical link to the posting country's host, which saves the lookup request for a US posting.
+- A LinkedIn posting whose page names a canonical address that is not a page of that posting is skipped with a warning, where jobrake returned the page's fields.
+
+### Fixed
+
+- A LinkedIn posting renamed since its URL was recorded keeps its dates, coordinates, and requirements. jobrake follows the canonical link on the page at the old title slug, which LinkedIn served without those fields in our test.
+- A malformed link in one LinkedIn posting's guest fragment skips that posting with a warning, where it aborted the whole `postings` call.
+- A LinkedIn posting whose page redirects to a search page takes its fields from its guest fragment alone, where it took some from the search page. When the fragment has no fields, the posting is skipped with a warning.
+- jobrake follows a LinkedIn redirect itself, to HTTPS LinkedIn addresses only, and paces and pins each hop like any other request, where the HTTP client followed it outside the request limit and without the cookie that pins the request to a data center.
+
 ## [0.23.0](https://github.com/eyayaw/jobrake/releases/tag/v0.23.0) - 2026-10-30
 
 This release lets a caller fill Workday and SmartRecruiters search results in the same run or a later one, as LinkedIn's already could. Indeed takes ISO country codes, and `description` drops text that inline styles and invisible characters hide.
