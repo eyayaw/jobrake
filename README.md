@@ -131,15 +131,15 @@ jobs = asyncio.run(main())
 
 | Site | Search | Posting details |
 | --- | --- | --- |
-| `ashby` | Public Job Posting API, one employer's board | Included in search results |
-| `econjobmarket` | Public ad feed, every open ad | Included in search results |
-| `greenhouse` | Public Job Board API, one employer's board | Included in search results |
-| `indeed` | Mobile-app GraphQL API | Included in search results |
-| `lever` | Public Postings API, one employer's board | Included in search results |
-| `linkedin` | Login-free guest API | Optional, paced, and cached |
-| `smartrecruiters` | Public Posting API, one employer's board | Optional, one request per posting |
-| `workable` | Public widget API, one employer's board | Included in search results |
-| `workday` | Career site JSON API, one employer's career site | Optional, one request per posting |
+| <a href="https://www.ashbyhq.com"><img src="https://www.ashbyhq.com/favicon.png" alt="" height="16"> `ashby`</a> | Public Job Posting API, one employer's board | Included in search results |
+| <a href="https://econjobmarket.org"><img src="https://econjobmarket.org/images/ejm_logo.png" alt="" height="16"> `econjobmarket`</a> | Public ad feed, every open ad | Included in search results |
+| <a href="https://www.greenhouse.com"><img src="https://cdn.simpleicons.org/greenhouse" alt="" height="16"> `greenhouse`</a> | Public Job Board API, one employer's board | Included in search results |
+| <a href="https://www.indeed.com"><picture><source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/eyayaw/jobrake/refs/heads/main/docs/assets/sites/indeed-light.svg"><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/eyayaw/jobrake/refs/heads/main/docs/assets/sites/indeed-dark.svg"><img src="https://raw.githubusercontent.com/eyayaw/jobrake/refs/heads/main/docs/assets/sites/indeed-light.svg" alt="" height="16"></picture> `indeed`</a> | Mobile-app GraphQL API | Included in search results |
+| <a href="https://www.lever.co"><img src="https://www.lever.co/images/favicon-lever.png" alt="" height="16"> `lever`</a> | Public Postings API, one employer's board | Included in search results |
+| <a href="https://www.linkedin.com/jobs"><picture><source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/eyayaw/jobrake/refs/heads/main/docs/assets/sites/linkedin-light.svg"><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/eyayaw/jobrake/refs/heads/main/docs/assets/sites/linkedin-dark.svg"><img src="https://raw.githubusercontent.com/eyayaw/jobrake/refs/heads/main/docs/assets/sites/linkedin-light.svg" alt="" height="16"></picture> `linkedin`</a> | Login-free guest API | Optional, paced, and cached |
+| <a href="https://www.smartrecruiters.com"><img src="https://www.smartrecruiters.com/wp-content/uploads/cropped-web-app-manifest-192x192-1-192x192.png" alt="" height="16"> `smartrecruiters`</a> | Public Posting API, one employer's board | Optional, one request per posting |
+| <a href="https://www.workable.com"><img src="https://www.workable.com/static/apple-touch-icon.png" alt="" height="16"> `workable`</a> | Public widget API, one employer's board | Included in search results |
+| <a href="https://www.workday.com"><img src="https://www.workday.com/favicon.ico" alt="" height="16"> `workday`</a> | Career site JSON API, one employer's career site | Optional, one request per posting |
 
 The sites that read one employer's board require `board`, the employer's board token, or for Workday the career site URL. Indeed requires `country`. LinkedIn accepts either `location` or a geoId.
 See the [guide](https://github.com/eyayaw/jobrake/blob/main/docs/guide.md) for search queries, geography, filters, pagination, rate limits, retries, and detail fetching.
