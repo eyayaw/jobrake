@@ -18,8 +18,9 @@ systems, and it depends on `httpx` and `bs4`.
   parses results. LinkedIn's and Indeed's `client.py` hold their URLs,
   headers, and pacing, and their `lookups.py` hold the lookups. The other
   sites need no headers or pacing and have no `client.py`. LinkedIn's
-  `pages.py` fetches posting pages for `postings` and `details=True`, and
-  Indeed's `countries.py` maps ISO country codes to editions.
+  `pages.py` reads posting pages for `postings` and `details=True` with a
+  fixed pool of workers, and Indeed's `countries.py` maps ISO country codes
+  to editions.
 - `sites/responses.py`: the response reading the JSON sites share, for one
   request or each page. `read_json` raises `Stopped` for an unknown board, a
   failed request, or an unreadable response, `json_list` checks the posting
@@ -106,7 +107,11 @@ the CLI, and the contract test in `tests/test_scrape.py` need no edit.
 - The transport is the caller's. Code takes a `Fetcher` and leaves it open,
   and the caller that created it closes it. LinkedIn requests go through
   `paced_fetch`, which pins requests to LinkedIn's data centers in turn,
-  paces them once per process, and retries a 429 up to three times.
+  paces them once per process, and retries a 429 up to three times. It
+  follows redirects itself, to HTTPS LinkedIn addresses only, and paces each
+  hop, so a caller's `Fetcher` must honor `follow_redirects=False`. Two
+  workers per data center read posting pages, and concurrent calls each read
+  their own.
 - The cache is transparent. It stores the whole `JobDict` of each fetched
   LinkedIn posting, rows carry no version, and each row read passes through
   `make_job`, so a row whose keys no longer fit `JobDict` or `Place` is a
