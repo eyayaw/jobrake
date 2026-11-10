@@ -1639,17 +1639,23 @@ def test_postings_fetch_a_us_posting_on_www(unlimited, caplog, by_id):
     assert caplog.records == []
 
 
-def test_postings_follow_a_foreign_www_pages_canonical_link(unlimited):
-    www = "https://www.linkedin.com/jobs/view/economist-at-acme-111"
+@pytest.mark.parametrize(
+    "address",
+    [
+        "https://www.linkedin.com/jobs/view/economist-at-acme-111",  # a foreign posting on www
+        "https://nl.linkedin.com/jobs/view/analyst-at-acme-111",  # a renamed posting's old slug
+    ],
+)
+def test_postings_follow_a_pages_canonical_link_to_another_address(unlimited, address):
     fetcher = StubFetcher(
         {
-            www: ok(f'<link rel="canonical" href="{CANONICAL}">' + en_fragment(url=www)),
+            address: ok(f'<link rel="canonical" href="{CANONICAL}">' + en_fragment(url=address)),
             CANONICAL: ok(job_page(title="Economist")),
         }
     )
-    got = asyncio.run(linkedin.postings(fetcher, [www]))
-    job = fetched(got, www)
-    assert fetcher.requests == [www, CANONICAL]
+    got = asyncio.run(linkedin.postings(fetcher, [address]))
+    job = fetched(got, address)
+    assert fetcher.requests == [address, CANONICAL]
     assert (job["url"], job["title"], job["description"]) == (
         CANONICAL,
         "Economist",
@@ -1657,10 +1663,10 @@ def test_postings_follow_a_foreign_www_pages_canonical_link(unlimited):
     )
     assert job["posted_at"] == "2026-08-05T08:04:27.000Z"
     assert job["locations"] == [{"name": "NL", "country_code": "NL", "latitude": 52.37}]
-    assert asyncio.run(linkedin.postings(StubFetcher({}), [www])) == got
+    assert asyncio.run(linkedin.postings(StubFetcher({}), [address])) == got
 
 
-def test_a_canonical_link_on_the_pages_own_host_costs_no_second_request(unlimited):
+def test_a_canonical_link_spelling_the_pages_address_another_way_costs_no_second_request(unlimited):
     encoded = "https://de.linkedin.com/jobs/view/%C3%B6konom-at-acme-111"
     link = '<link rel="canonical" href="https://de.linkedin.com/jobs/view/ökonom-at-acme-111">'
     fetcher = StubFetcher({"-111": ok(link + job_page(title="Economist"))})
