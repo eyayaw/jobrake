@@ -63,10 +63,11 @@ WINDOW = 11.6  # seconds per fabric window, with 0.1 s beyond the measured limit
 REQUESTS = 5  # requests per fabric window
 FABRICS_WANTED = len(FABRICS)  # distinct fabrics to look for before every request is pinned
 DISCOVERY = 12  # unpinned requests to spend looking for them
-# In our runs, LinkedIn refused up to a quarter of requests however slow the
-# pace, and every such refusal passed on a retry. A request is therefore
-# retried this many times before its 429 counts as persistent.
-RETRIES = 3
+# LinkedIn refuses some requests however slow the pace, and in our runs it
+# refused a retry about as often as a first attempt (measured 2026-11-11). Each
+# retry therefore cuts the odds of a persistent 429, which ends a search or a
+# detail fetch. A retry waits RETRY_DELAY only after every fabric refused it.
+RETRIES = 5
 
 # Match HTTPX's default: https://www.python-httpx.org/api/#asyncclient (checked 2026-11-07).
 _MAX_REDIRECTS = 20
@@ -89,6 +90,8 @@ class Fabrics:
         self.unpinned = 0
         self.sent: dict[str, float] = {}  # monotonic time of each fabric's latest send
         # None holds unanswered unpinned sends, charged against every fabric.
+        # A refused send keeps its slot, because LinkedIn appears to count refused
+        # requests against the window (measured 2026-11-11).
         self.history: dict[str | None, list[float]] = {}
         # Discovery stays spaced because its routing is unknown until the answer.
         self.next_turn = -inf

@@ -109,7 +109,7 @@ the CLI, and the contract test in `tests/test_scrape.py` need no edit.
 - The transport is the caller's. Code takes a `Fetcher` and leaves it open,
   and the caller that created it closes it. LinkedIn requests go through
   `paced_fetch`, which pins requests to LinkedIn's data centers in turn,
-  paces them once per process, and retries a 429 up to three times. It
+  paces them once per process, and retries a 429 up to five times. It
   follows redirects itself, to HTTPS LinkedIn addresses only, and paces each
   hop, so a caller's `Fetcher` must honor `follow_redirects=False`. Two
   workers per data center read posting pages, and concurrent calls each read

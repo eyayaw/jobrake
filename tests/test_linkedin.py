@@ -560,8 +560,8 @@ def test_pacing_retries_a_refusal_on_an_untried_fabric(unlimited, monkeypatch):
     fetcher.answering = False
     with pytest.raises(Stopped):
         asyncio.run(paced(fetcher))
-    assert [h["cookie"][6:-1] for h in fetcher.headers] == ["prod-a", "prod-b"] * 2
-    assert sleeps == [client.RETRY_DELAY] * 2
+    assert [h["cookie"][6:-1] for h in fetcher.headers] == ["prod-a", "prod-b"] * 3
+    assert sleeps == [client.RETRY_DELAY] * 4
 
     # With no other fabric known, every retry waits for the window.
     sleeps.clear()
@@ -1273,7 +1273,7 @@ def test_a_persistent_429_cancels_unfinished_reads_and_keeps_completed_pages(
     assert list(got) == references[:1]
     assert set(fetcher.requests) == set(references[:7])
     assert set(cancelled) == set(references[2:7])
-    assert fetcher.requests.count(references[1]) == 4
+    assert fetcher.requests.count(references[1]) == 6
     assert asyncio.run(linkedin.postings(StubFetcher({}), references[:1])) == got
 
 
@@ -1597,7 +1597,7 @@ def test_postings_stop_looking_up_ids_once_rate_limited(unlimited, monkeypatch, 
     with caplog.at_level(logging.WARNING, logger="jobrake.sites.linkedin"):
         assert asyncio.run(linkedin.postings(fetcher, [str(n) for n in range(111, 135)])) == {}
     # The six lookups in progress can retry; the remaining IDs never start.
-    assert fetcher.requests.count(f"{FRAGMENT}/111?_l=en_US") == 4
+    assert fetcher.requests.count(f"{FRAGMENT}/111?_l=en_US") == 6
     assert set(fetcher.requests) <= {f"{FRAGMENT}/{n}?_l=en_US" for n in range(111, 117)}
     assert "rate limiting" in caplog.text
 

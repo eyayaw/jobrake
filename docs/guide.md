@@ -854,7 +854,7 @@ Each process paces only its own requests, so concurrent runs on the same IP can 
 LinkedIn requests, including redirect hops, carry only the data-center cookie.
 
 LinkedIn refuses some requests whatever the pace, up to a quarter of them in our tests.
-jobrake retries a 429 up to three times, first on the other data centers and then after waiting for a rate-limit window.
+jobrake retries a 429 up to five times, first on the other data centers and then after waiting for a rate-limit window.
 If the 429 remains, the search raises `Stopped` with what it has collected so far.
 A `--details` search that could not fetch every posting's details raises `Stopped` too, holding every posting it found.
 
