@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.25.0](https://github.com/eyayaw/jobrake/releases/tag/v0.25.0) - 2026-11-11
+
+### Added
+
+- LinkedIn, Indeed, Workday, and SmartRecruiters searches report progress after each page, so the CLI draws its progress line while a search runs.
+
+### Changed
+
+- The CLI's progress line shows its record's message, such as `workday search 20/60`, in place of a bar, so the line tells a search from a details fetch.
+- LinkedIn's posting-page progress records say `linkedin details`, as Workday's and SmartRecruiters' do, where they said `linkedin pages`.
+- jobrake retries a LinkedIn 429 up to five times, where it retried up to three, so a chance run of refusals rarely ends a search or its detail fetch.
+
 ## [0.24.0](https://github.com/eyayaw/jobrake/releases/tag/v0.24.0) - 2026-11-10
 
 ### Changed
