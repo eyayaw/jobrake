@@ -62,7 +62,7 @@ def test_linkedin_parses_cards_and_dedups_by_posting_id(unlimited):
     assert set(jobs[0]) == {*IDENTITY_FIELDS, *SUMMARY_FIELDS}
 
 
-def test_pagination_advances_by_raw_page_size(unlimited):
+def test_pagination_advances_by_raw_page_size_and_counts_each_page(unlimited, caplog):
     fetcher = PagedFetcher(
         [
             linkedin_card("111") + linkedin_card("222"),
@@ -70,11 +70,14 @@ def test_pagination_advances_by_raw_page_size(unlimited):
             linkedin_card("444"),
         ]
     )
-    jobs = asyncio.run(linkedin.search(fetcher, query="x", location="Seattle", results=4))
+    with caplog.at_level(logging.INFO, logger="jobrake.sites.linkedin"):
+        jobs = asyncio.run(linkedin.search(fetcher, query="x", location="Seattle", results=4))
 
     assert [job["id"] for job in jobs] == ["111", "222", "333", "444"]
     assert all("keywords=x" in url for url in fetcher.requests)
     assert "start=4" in fetcher.requests[2]
+    progress = [record.progress for record in caplog.records if hasattr(record, "progress")]
+    assert progress == [(2, 4), (3, 4), (4, 4)]
 
 
 def test_pagination_survives_a_duplicate_only_page(unlimited):

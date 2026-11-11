@@ -15,7 +15,7 @@ lazy from bs4 import BeautifulSoup
 from jobrake import cache
 from jobrake.fetchkit import Fetcher, FetchResult
 from jobrake.models import JobDict, Place, employment_type, make_job, make_places
-from jobrake.utils import checked, finite, html_text
+from jobrake.utils import checked, finite, html_text, report_progress
 
 from .client import FABRICS_WANTED, FRAGMENT_URL, job_id, numeric, paced_fetch
 
@@ -575,7 +575,7 @@ async def fetch_pages(
         for posting_id, job in cached.items()
     }
     done = len(cached)
-    logger.info("linkedin pages %d/%d", done, total, extra={"progress": (done, total)})
+    report_progress(logger, "linkedin pages", done, total)
     # Every worker takes from one iterator, so each posting is read once.
     pending = iter([item for item in wanted.items() if item[0] not in cached])
 
@@ -584,7 +584,7 @@ async def fetch_pages(
         for posting_id, known in pending:
             found.update(await _read(fetcher, posting_id, known, (urls or {}).get(posting_id)))
             done += 1
-            logger.info("linkedin pages %d/%d", done, total, extra={"progress": (done, total)})
+            report_progress(logger, "linkedin pages", done, total)
 
     stopped = False
     try:

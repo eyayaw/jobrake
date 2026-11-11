@@ -5,6 +5,7 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from jobrake.models import JobDict, Stopped, make_job
+from jobrake.utils import report_progress
 
 logger = logging.getLogger(__name__)
 
@@ -27,14 +28,7 @@ def _merge(card: JobDict, fields: dict[str, Any]) -> JobDict:
 async def _read_each(site: str, cards: list[JobDict], read: Reader) -> list[dict[str, Any] | None]:
     fields = []
     for position, card in enumerate(cards, start=1):
-        # The CLI renders progress-flagged records as one self-updating stderr line.
-        logger.info(
-            "%s details %d/%d",
-            site,
-            position,
-            len(cards),
-            extra={"progress": (position, len(cards))},
-        )
+        report_progress(logger, f"{site} details", position, len(cards))
         fields.append(await read(card))
     return fields
 

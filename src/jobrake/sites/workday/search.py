@@ -13,7 +13,7 @@ from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, Stopped, employment_type, make_job
 from jobrake.sites.postings import fetch_postings, fill_details
 from jobrake.sites.responses import json_page, parse_postings, read_json
-from jobrake.utils import as_dict, as_str, checked, html_text
+from jobrake.utils import as_dict, as_str, checked, html_text, report_progress
 
 logger = logging.getLogger(__name__)
 
@@ -167,6 +167,7 @@ async def _collect_cards(
             if job["id"] not in seen:
                 seen.add(job["id"])
                 jobs.append(job)
+        report_progress(logger, "workday search", len(jobs), min(results, total))
     return jobs, total is not None and offset >= total >= MAX_TOTAL
 
 

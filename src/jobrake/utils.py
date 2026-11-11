@@ -199,6 +199,13 @@ def checked[**P, R](function: Callable[P, Awaitable[R]]) -> Callable[P, Awaitabl
     return wrapper
 
 
+def report_progress(logger: logging.Logger, label: str, done: int, total: int) -> None:
+    """Log ``label done/total`` as an INFO progress record, with ``done`` capped at ``total``."""
+    # A search page can carry cards past the result limit.
+    done = min(done, total)
+    logger.info("%s %d/%d", label, done, total, extra={"progress": (done, total)})
+
+
 def finite(value: object) -> float | None:
     """Return a JSON number that fits a record field, or None for anything else."""
     # json.loads admits NaN and the infinities, which strict JSON output

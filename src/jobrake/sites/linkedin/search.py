@@ -9,7 +9,7 @@ lazy from bs4 import BeautifulSoup
 
 from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, Stopped, make_job
-from jobrake.utils import checked
+from jobrake.utils import checked, report_progress
 
 from .client import SEARCH_URL, job_id, numeric, paced_fetch
 from .pages import fetch_pages
@@ -95,6 +95,7 @@ async def _collect_pages(
             if job["id"] not in seen:
                 seen.add(job["id"])
                 jobs.append(job)
+        report_progress(logger, "linkedin search", len(jobs), min(results, MAX_START))
         # Offsets can overlap, and some cards cannot be parsed. Only a page
         # without cards marks the end. Advance by the server's own card count.
         start += raw

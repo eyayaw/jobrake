@@ -705,7 +705,8 @@ jobrake indeed search -q "data scientist" -c us -n 2 \
 
 `scrape()` creates and closes an HTTP client when `fetcher` is omitted.
 Library calls log under the `jobrake` logger, and your application sets its level and handlers.
-When fetching LinkedIn pages or Workday or SmartRecruiters details, jobrake logs INFO records whose `progress` attribute holds `(done, total)`.
+jobrake logs INFO records whose `progress` attribute holds `(done, total)` while a LinkedIn, Indeed, Workday, or SmartRecruiters search reads its pages, and while LinkedIn, Workday, or SmartRecruiters fetches posting details.
+A search counts its postings toward `results`, or toward the site's own limit when that is smaller, and stops below `total` when the site runs out first.
 LinkedIn reads several pages concurrently, counts cached pages at the start, and advances progress as each read finishes.
 The CLI draws its progress line from these records, and a handler of your own can do the same:
 

@@ -8,7 +8,15 @@ from typing import Annotated, Any
 
 from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, Stopped, WorkplaceType, employment_type, make_job
-from jobrake.utils import as_dict, as_str, checked, epoch_ms_to_iso, finite, html_text
+from jobrake.utils import (
+    as_dict,
+    as_str,
+    checked,
+    epoch_ms_to_iso,
+    finite,
+    html_text,
+    report_progress,
+)
 
 from .client import API_HEADERS, API_URL
 from .countries import Country, indeed_domain
@@ -383,6 +391,7 @@ async def search(
                 continue
             seen.add(job["id"])
             jobs.append(job)
+        report_progress(logger, "indeed search", len(jobs), min(results, MAX_RESULTS))
         if not cursor or cursor in cursors:
             break
         cursors.add(cursor)
