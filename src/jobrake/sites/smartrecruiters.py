@@ -1,4 +1,4 @@
-"""SmartRecruiters Posting API requests and parsing."""
+"""Read an employer's SmartRecruiters job board through its public Posting API."""
 
 import functools
 import json
@@ -280,3 +280,6 @@ async def postings(
     return await fetch_postings(
         "smartrecruiters", references, _card, functools.partial(_posting_fields, fetcher)
     )
+
+
+__all__ = ["postings", "search"]

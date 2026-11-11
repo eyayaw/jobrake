@@ -1,7 +1,6 @@
 """Workday career site parsing and paging tests."""
 
 import asyncio
-import importlib
 import json
 from datetime import date
 
@@ -14,8 +13,6 @@ from jobrake.sites import workday
 
 BOARD = "https://nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite"
 API = "https://nvidia.wd5.myworkdayjobs.com/wday/cxs/nvidia/NVIDIAExternalCareerSite"
-# workday.search is the exported function, so import its module directly.
-SEARCH = importlib.import_module("jobrake.sites.workday.search")
 
 # Three cards, as served, from POST {API}/jobs on 2026-10-28: two from a search
 # without keywords and one from a search for part-time "engineer" postings.
@@ -61,7 +58,7 @@ def numbered(count, start=0):
 
 @pytest.fixture
 def today(monkeypatch):
-    monkeypatch.setattr(SEARCH, "_today", lambda: date(2026, 10, 28))
+    monkeypatch.setattr(workday, "_today", lambda: date(2026, 10, 28))
 
 
 def test_a_search_page_parses_into_records(today):
@@ -350,7 +347,7 @@ def test_paging_ends_at_results_or_the_first_total_and_stops_at_an_early_empty_p
     assert len(asyncio.run(workday.search(fetcher, board=BOARD, results=100))) == 25
     assert "at most" not in caplog.text
     # Later pages are reported to say total 0, so the first page's total stands.
-    monkeypatch.setattr(SEARCH, "MAX_TOTAL", 43)
+    monkeypatch.setattr(workday, "MAX_TOTAL", 43)
     pages = [page(numbered(20), total=43), page(numbered(20, 20), total=0)]
     fetcher = PagedFetcher([*pages, page(numbered(3, 40), total=0)])
     assert len(asyncio.run(workday.search(fetcher, board=BOARD, results=100))) == 43

@@ -1,4 +1,4 @@
-"""Ashby Job Posting API requests and parsing."""
+"""Read an employer's Ashby job board through its public Job Posting API."""
 
 import logging
 from gettext import ngettext
@@ -132,3 +132,6 @@ async def search(
         ngettext("%d posting", "%d postings", len(jobs)) % len(jobs),
     )
     return jobs
+
+
+__all__ = ["search"]

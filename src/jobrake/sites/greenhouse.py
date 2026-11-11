@@ -1,4 +1,4 @@
-"""Greenhouse Job Board API requests and parsing."""
+"""Read an employer's Greenhouse job board through its public Job Board API."""
 
 import logging
 from gettext import ngettext
@@ -90,3 +90,6 @@ async def search(
         ngettext("%d posting", "%d postings", len(jobs)) % len(jobs),
     )
     return jobs
+
+
+__all__ = ["search"]

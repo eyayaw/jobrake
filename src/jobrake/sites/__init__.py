@@ -17,7 +17,7 @@ from . import (
     workday,
 )
 
-# One entry per site. A site package exports search() and any of the lookups and postings().
+# One entry per site. A site exports search() and any of the lookups and postings().
 SITES: dict[str, ModuleType] = {
     "ashby": ashby,
     "econjobmarket": econjobmarket,

@@ -172,7 +172,7 @@ def checked[**P, R](function: Callable[P, Awaitable[R]]) -> Callable[P, Awaitabl
 
     The signature is read once, here, so a site function that breaks the
     rules of ``site_options`` fails when its module is imported. Error
-    messages name the site after the package below ``jobrake.sites``.
+    messages name the site after its module below ``jobrake.sites``.
 
     Raises:
         TypeError: At decoration, the signature breaks a rule of

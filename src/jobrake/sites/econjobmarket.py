@@ -1,4 +1,4 @@
-"""EconJobMarket ad feed requests and parsing."""
+"""Read every open ad on EconJobMarket, the job market site for economists."""
 
 import logging
 import re
@@ -96,3 +96,6 @@ async def search(fetcher: Fetcher) -> list[JobDict]:
         "econjobmarket has %s", ngettext("%d open ad", "%d open ads", len(jobs)) % len(jobs)
     )
     return jobs
+
+
+__all__ = ["search"]

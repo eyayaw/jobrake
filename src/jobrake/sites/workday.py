@@ -1,4 +1,4 @@
-"""Workday career site requests and parsing."""
+"""Search an employer's Workday career site through the JSON API behind it."""
 
 import functools
 import json
@@ -333,3 +333,6 @@ async def postings(
     return await fetch_postings(
         "workday", references, _card, functools.partial(_detail_fields, fetcher)
     )
+
+
+__all__ = ["postings", "search"]
