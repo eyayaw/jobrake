@@ -40,9 +40,9 @@ class _StatusHandler(logging.StreamHandler[TextIO]):
     Stderr handler with terse prefixes and a terminal progress line.
 
     A record logged with ``extra={"progress": (done, total)}`` rewrites the
-    current terminal line as a bar ending in its counter; ordinary records
-    erase that line first, so warnings landing mid-fetch stay legible. A
-    non-terminal stderr skips progress records and receives no control codes.
+    current terminal line with its message; ordinary records erase that line
+    first, so warnings landing mid-fetch stay legible. A non-terminal stderr
+    skips progress records and receives no control codes.
     """
 
     _showing_progress = False
@@ -67,11 +67,9 @@ class _StatusHandler(logging.StreamHandler[TextIO]):
             if not progress:
                 super().emit(record)
             elif self.stream.isatty():
-                done, total = progress
-                bar = "#" * round(20 * done / total)
                 # Flag first, so clear() erases even an interrupted write.
                 self._showing_progress = True
-                self.stream.write(f"[{bar:<20}] [{done}/{total}] ")
+                self.stream.write(record.getMessage())
                 self.flush()
         except Exception:  # noqa: BLE001  Handler.emit must not raise; handleError reports it
             self.handleError(record)

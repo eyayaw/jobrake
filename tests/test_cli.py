@@ -441,19 +441,18 @@ def test_status_handler_progress():
 
     stream = Tty()
     handler = cli._StatusHandler(stream)  # noqa: SLF001  the handler is the unit under test; the CLI only wires it
-    emit(handler, "details", progress=(1, 2))
+    emit(handler, "site details 1/2", progress=(1, 2))
     emit(handler, "failed", level=logging.ERROR, exc_info=(ValueError, ValueError("bad"), None))
-    emit(handler, "details", progress=(2, 2))
+    emit(handler, "site details 2/2", progress=(2, 2))
     handler.clear()
 
     out = stream.getvalue()
     # Each erase sequence replaces the preceding terminal frame.
     frames = out.split("\r\x1b[2K")
-    assert "#" in frames[0]  # a bar, not merely a counter
-    assert "1/2" in frames[0]
+    assert frames[0] == "site details 1/2"
     assert "ERROR failed" in frames[1]
     assert "ValueError: bad" in frames[1]
-    assert "2/2" in frames[1]
+    assert frames[1].endswith("\nsite details 2/2")
     assert frames[2] == ""  # clear() erased the last bar
     handler.clear()  # a second clear writes nothing
     assert stream.getvalue() == out
@@ -461,7 +460,7 @@ def test_status_handler_progress():
     # A non-terminal stream keeps ordinary records and drops progress.
     plain = io.StringIO()
     handler = cli._StatusHandler(plain)  # noqa: SLF001  the handler is the unit under test; the CLI only wires it
-    emit(handler, "details", progress=(1, 2))
+    emit(handler, "site details 1/2", progress=(1, 2))
     emit(handler, "finished")
     assert "1/2" not in plain.getvalue()
     assert "finished" in plain.getvalue()

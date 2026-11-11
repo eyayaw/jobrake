@@ -575,7 +575,7 @@ async def fetch_pages(
         for posting_id, job in cached.items()
     }
     done = len(cached)
-    report_progress(logger, "linkedin pages", done, total)
+    report_progress(logger, "linkedin details", done, total)
     # Every worker takes from one iterator, so each posting is read once.
     pending = iter([item for item in wanted.items() if item[0] not in cached])
 
@@ -584,7 +584,7 @@ async def fetch_pages(
         for posting_id, known in pending:
             found.update(await _read(fetcher, posting_id, known, (urls or {}).get(posting_id)))
             done += 1
-            report_progress(logger, "linkedin pages", done, total)
+            report_progress(logger, "linkedin details", done, total)
 
     stopped = False
     try:
