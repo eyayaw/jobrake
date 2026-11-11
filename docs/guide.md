@@ -779,7 +779,7 @@ async def main():
 nl, us = asyncio.run(main())
 ```
 
-To use another HTTP client or a browser, implement the `Fetcher` protocol from `jobrake.fetchkit`: an async `fetch(url, *, headers=None, json=None, follow_redirects=True)` that sends a POST when `json` is given, and an async `close()`.
+To use another HTTP client or a browser, implement the `Fetcher` protocol from `jobrake.fetchkit`: an async `fetch(url, *, headers=None, json=None, follow_redirects=True)` that sends a POST when `json` is given.
 With `follow_redirects=False`, return the first response, including its `Location` header. LinkedIn uses this to pace each redirect hop.
 `fetch` returns a `FetchResult` and reports a failed request in its `error`. A status of 400 or more sets `error` on its own.
 An exception your own `Fetcher` raises propagates out of `scrape()`.

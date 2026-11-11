@@ -24,9 +24,9 @@ def run_with(respond, url, **kwargs):
 
 def test_an_http_error_status_fails_the_result_and_keeps_the_body():
     result = FetchResult("https://example.test", 429, "body", {"Retry-After": "3"})
-    assert (result.ok, result.error, result.text) == (False, "HTTP 429", "body")
+    assert (result.error, result.text) == ("HTTP 429", "body")
     assert result.headers == {"retry-after": "3"}
-    assert FetchResult("https://example.test", 200, "body").ok
+    assert FetchResult("https://example.test", 200, "body").error is None
 
 
 def test_httpx_fetcher_gets_and_posts_json():
@@ -38,8 +38,8 @@ def test_httpx_fetcher_gets_and_posts_json():
 
     get = run_with(respond, "https://example.test/get")
     post = run_with(respond, "https://example.test/post", json={"q": "posted"})
-    assert (get.ok, get.status, get.text) == (True, 200, "got")
-    assert (post.ok, post.status, post.text) == (False, 503, "posted")
+    assert (get.error, get.status, get.text) == (None, 200, "got")
+    assert (post.error, post.status, post.text) == ("HTTP 503", 503, "posted")
 
 
 @pytest.mark.parametrize(("payload", "method"), [(None, "GET"), ({"q": "x"}, "POST")])
@@ -64,11 +64,11 @@ def test_redirect_following_can_be_disabled_for_one_request(payload, method):
     followed, first, again = asyncio.run(run())
     assert (followed.url, followed.text) == ("https://example.test/final", "arrived")
     assert (again.url, again.text) == ("https://example.test/final", "arrived")
-    assert (first.url, first.status, first.text, first.ok) == (
+    assert (first.url, first.status, first.text, first.error) == (
         "https://example.test/start",
         307,
         "redirect",
-        True,
+        None,
     )
     assert first.headers["location"] == "/final"
     assert requests == [
