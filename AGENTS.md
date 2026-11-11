@@ -32,8 +32,10 @@ systems, and it depends on `httpx` and `bs4`.
   `fetch_postings` serves `postings`, and each site supplies only the reader
   of one posting. A field the posting leaves empty keeps the card's value.
 - `utils.py`: `site_options`, which reads the `Annotated` arguments of a
-  site function, `checked`, which checks every call against them, and the
-  JSON value, text, number, and date helpers.
+  site function, `checked`, which checks every call against them,
+  `report_progress`, which each search's page loop and each posting loop
+  calls to log its progress record, and the JSON value, text, number, and
+  date helpers.
 - `models.py`: `JobDict`, its `Place`, `make_job`, `make_places`, and `Stopped`.
 - `fetchkit/`: the `Fetcher` protocol, `FetchResult`, and `HttpxFetcher`.
 - `cache.py`: one SQLite table of `JobDict` records keyed by site and ID, and
