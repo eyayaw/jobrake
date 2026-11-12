@@ -333,7 +333,7 @@ def test_paging_ends_at_results_or_the_first_total_and_stops_at_an_early_empty_p
     jobs = asyncio.run(workday.search(fetcher, board=BOARD, results=25))
     assert [job["id"] for job in jobs] == [f"nvidia:JR{n}" for n in range(25)]
     requested = [(body["offset"], body["limit"]) for body in fetcher.bodies]
-    assert requested == [(0, 20), (20, 5), (25, 1)]
+    assert requested == [(0, 20), (20, 20), (25, 20)]
     # An empty page before the reported total may have skipped postings.
     for pages, kept in (
         ([page(numbered(20), total=2000), page([], total=2000)], 20),

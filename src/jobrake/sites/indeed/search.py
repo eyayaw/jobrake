@@ -1,22 +1,16 @@
 """Indeed GraphQL query construction, parsing, and pagination."""
 
+import functools
 import json
 import logging
 import re
-from gettext import ngettext
+from collections.abc import AsyncGenerator, Callable
 from typing import Annotated, Any
 
 from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, Stopped, WorkplaceType, employment_type, make_job
-from jobrake.utils import (
-    as_dict,
-    as_str,
-    checked,
-    epoch_ms_to_iso,
-    finite,
-    html_text,
-    report_progress,
-)
+from jobrake.sites.responses import collect, json_list, parse_postings, read_json
+from jobrake.utils import as_dict, as_str, checked, epoch_ms_to_iso, finite, html_text
 
 from .client import API_HEADERS, API_URL
 from .countries import Country, indeed_domain
@@ -165,7 +159,7 @@ def _timestamp(job: dict[str, Any], field: str) -> str | None:
         return epoch_ms_to_iso(ms)
     except ValueError as e:
         # One posting's bad timestamp costs that field, not the page.
-        logger.warning("job %s: %s", job["key"], e)
+        logger.warning("job %s: %s", job.get("key"), e)
         return None
 
 
@@ -186,7 +180,7 @@ def _workplace_type(labels: list[str]) -> WorkplaceType | None:
 def _parse_job(job: dict[str, Any], base_url: str) -> JobDict:
     """Normalize one Indeed result into the shared job model."""
     # Indeed's job key becomes both the job ID and the URL's ``jk`` parameter.
-    key = (as_str(job["key"]) or "").strip()
+    key = (as_str(job.get("key")) or "").strip()
     loc = as_dict(job.get("location"))
     employer = as_dict(job.get("employer"))
     compensation = as_dict(job.get("compensation"))
@@ -260,25 +254,62 @@ def _parse_jobs(data: dict[str, Any], base_url: str) -> tuple[list[JobDict], str
         The raw count includes malformed results so pagination still advances.
 
     Raises:
+        Stopped: Indeed answered with a GraphQL error in place of the search data.
         KeyError: The response lacks required search data.
         TypeError: The response envelope has an unreadable shape.
     """
-    search = data["data"]["jobSearch"]
-    results = search["results"]
-    if not isinstance(results, list):
-        raise TypeError(f"results is a {type(results).__name__}, not a list")
-    jobs = []
-    for result in results:
-        try:
-            jobs.append(_parse_job(result["job"], base_url))
-        except (KeyError, TypeError, AttributeError) as error:
-            # Skip the malformed result and keep parsing its siblings.
-            logger.warning("skipping malformed indeed result: %r", error)
-    page_info = search.get("pageInfo")
+    try:
+        search = data["data"]["jobSearch"]
+        results = json_list(search, "results")
+    except KeyError, TypeError:
+        # A GraphQL error arrives as HTTP 200 with null data. Usable data
+        # alongside errors parses and is kept.
+        if message := _graphql_error_message(data):
+            raise Stopped(f"Indeed reported {message!r}") from None
+        raise
+    jobs = parse_postings(
+        results, lambda result: _parse_job(result.get("job"), base_url), site="indeed"
+    )
     # Missing or invalid pagination metadata ends the search after this page.
     # Keep the jobs already parsed from it.
-    cursor = page_info.get("nextCursor") if isinstance(page_info, dict) else None
-    return jobs, cursor if isinstance(cursor, str) else None, len(results)
+    cursor = as_str(as_dict(search.get("pageInfo")).get("nextCursor"))
+    return jobs, cursor, len(results)
+
+
+async def _pages(
+    fetcher: Fetcher, headers: dict[str, str], base_url: str, query: Callable[[str | None], str]
+) -> AsyncGenerator[tuple[list[JobDict], int]]:
+    """
+    Yield each page of a cursor chain until Indeed ends it, warning when it ends at ``MAX_RESULTS``.
+
+    ``query`` builds the GraphQL query for a cursor.
+
+    Raises:
+        Stopped: A request failed, or Indeed answered with an error or an unreadable response.
+    """
+    cursor: str | None = None
+    cursors: set[str] = set()
+    served = 0  # results Indeed has sent, malformed ones included
+    while True:
+        result = await fetcher.fetch(API_URL, headers=headers, json={"query": query(cursor)})
+        page, cursor, raw = read_json(
+            result, lambda payload: _parse_jobs(payload, base_url), site="indeed"
+        )
+        # A page without results ends the search. A page whose results all
+        # failed to parse costs only those results; its cursor still advances.
+        if not raw:
+            break
+        served += raw
+        yield page, MAX_RESULTS
+        if not cursor or cursor in cursors:
+            break
+        cursors.add(cursor)
+    if served >= MAX_RESULTS:
+        logger.warning(
+            "indeed serves at most %d results per search, fewer than requested. "
+            "Narrow the search to reach more of its inventory",
+            MAX_RESULTS,
+        )
 
 
 def _check_filters(company_ids: list[str] | None, language: str | None) -> None:
@@ -341,66 +372,15 @@ async def search(
     logger.info(
         "searching indeed for %r in %r", query, f"{location}, {country}" if location else country
     )
-
-    jobs: list[JobDict] = []
-    seen: set[str] = set()
-    cursors: set[str] = set()
-    cursor: str | None = None
-    served = 0  # results Indeed has sent, malformed ones included
-    while len(jobs) < results:
-        graphql = _build_query(
-            query,
-            location,
-            radius,
-            max_age_hours,
-            cursor,
-            company_ids=company_ids,
-            remote=remote,
-            language=language,
-            attributes=attributes,
-        )
-        result = await fetcher.fetch(API_URL, headers=headers, json={"query": graphql})
-        kept = ngettext("%d job", "%d jobs", len(jobs)) % len(jobs)
-        if result.error:
-            raise Stopped(
-                f"indeed search stopped: {result.error}. Kept the {kept} collected", partial=jobs
-            )
-        payload = None
-        try:
-            payload = json.loads(result.text)
-            page, cursor, raw = _parse_jobs(payload, base_url)
-        except (ValueError, KeyError, TypeError) as error:
-            # A GraphQL error arrives as HTTP 200 with null data. Usable data
-            # alongside errors parses above and is kept.
-            message = _graphql_error_message(payload)
-            cause = (
-                f"Indeed reported {message!r}"
-                if message
-                else f"indeed sent a response this version cannot read ({error!r}), likely an API change"
-            )
-            raise Stopped(
-                f"indeed search stopped: {cause}. Kept the {kept} collected", partial=jobs
-            ) from error
-        # A page without results ends the search. A page whose results all
-        # failed to parse costs only those results; its cursor still advances.
-        if not raw:
-            break
-        served += raw
-        for job in page:
-            if job["id"] in seen:
-                continue
-            seen.add(job["id"])
-            jobs.append(job)
-        report_progress(logger, "indeed search", len(jobs), min(results, MAX_RESULTS))
-        if not cursor or cursor in cursors:
-            break
-        cursors.add(cursor)
-    if len(jobs) < results and served >= MAX_RESULTS:
-        logger.warning(
-            "indeed serves at most %d results per search; returning %d of the %d jobs "
-            "requested. Narrow the search to reach more of its inventory",
-            MAX_RESULTS,
-            len(jobs),
-            results,
-        )
-    return jobs[:results]
+    build = functools.partial(
+        _build_query,
+        query,
+        location,
+        radius,
+        max_age_hours,
+        company_ids=company_ids,
+        remote=remote,
+        language=language,
+        attributes=attributes,
+    )
+    return await collect("indeed", _pages(fetcher, headers, base_url, build), results)

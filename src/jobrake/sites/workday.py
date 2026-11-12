@@ -4,6 +4,7 @@ import functools
 import json
 import logging
 import re
+from collections.abc import AsyncGenerator
 from datetime import UTC, date, datetime, timedelta
 from typing import Annotated, Any
 from urllib.parse import urlsplit
@@ -11,8 +12,8 @@ from urllib.parse import urlsplit
 from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, Stopped, employment_type, make_job
 from jobrake.sites.postings import fetch_postings, fill_details
-from jobrake.sites.responses import json_page, parse_postings, read_json
-from jobrake.utils import as_dict, as_str, checked, html_text, report_progress
+from jobrake.sites.responses import collect, json_page, parse_postings, read_json
+from jobrake.utils import as_dict, as_str, checked, html_text
 
 logger = logging.getLogger(__name__)
 
@@ -108,37 +109,24 @@ def _parse_card(card: dict[str, Any], site_url: str, tenant: str) -> JobDict:
     )
 
 
-async def _collect_cards(
-    fetcher: Fetcher,
-    *,
-    board: str,
-    api_url: str,
-    site_url: str,
-    tenant: str,
-    query: str,
-    results: int,
-) -> tuple[list[JobDict], bool]:
+async def _pages(
+    fetcher: Fetcher, board: str, query: str, limit: int
+) -> AsyncGenerator[tuple[list[JobDict], int]]:
     """
-    Return the unique cards, paging until ``results`` cards, the first page's total, or an empty page.
-
-    The flag tells whether the paging reached a total at ``MAX_TOTAL``, the
-    most Workday reports.
+    Yield each page's cards with the first page's total until the pages reach it, warning when it is ``MAX_TOTAL``.
 
     Raises:
-        Stopped: A page request failed, Workday has no such site, it sent
-            an unreadable response, or an empty page came before the first
-            page's total. ``partial`` holds the cards collected before it.
+        Stopped: A request failed, Workday has no such site, it sent an
+            unreadable response, or an empty page came before the total.
     """
-    jobs: list[JobDict] = []
-    seen: set[str] = set()
-    offset, total = 0, None
+    tenant, site_url, api_url, _ = _career_site(board)
     parse = functools.partial(_parse_card, site_url=site_url, tenant=tenant)
     unknown = (
         f"workday has no career site at {board!r}. Copy the URL of the employer's "
         f"job search page, such as {EXAMPLE_BOARD}"
     )
-    while len(jobs) < results and (total is None or offset < total):
-        limit = min(PAGE_SIZE, results - len(jobs))
+    offset, total = 0, None
+    while total is None or offset < total:
         body = {"appliedFacets": {}, "limit": limit, "offset": offset, "searchText": query}
         result = await fetcher.fetch(f"{api_url}/jobs", json=body)
         cards, page_total = read_json(
@@ -148,26 +136,25 @@ async def _collect_cards(
             board=site_url,
             # A site that served a page exists, so a later 404 is a failed request.
             unknown=unknown if total is None else None,
-            partial=jobs,
         )
         # Later pages are reported to say 0, so the first page's total stands.
         total = page_total if total is None else total
+        if not cards and offset < total:
+            raise Stopped(
+                f"workday site {site_url} reported {total} postings but sent an empty page "
+                f"after {offset}, so the result may be incomplete. Postings may have closed "
+                "during the search. A rerun reads the current list"
+            )
         if not cards:
-            if offset < total:
-                raise Stopped(
-                    f"workday site {site_url} reported {total} postings but sent an empty page "
-                    f"after {offset}, so the result may be incomplete. Postings may have closed "
-                    "during the search. A rerun reads the current list",
-                    partial=jobs,
-                )
             break
         offset += len(cards)
-        for job in parse_postings(cards, parse, site="workday"):
-            if job["id"] not in seen:
-                seen.add(job["id"])
-                jobs.append(job)
-        report_progress(logger, "workday search", len(jobs), min(results, total))
-    return jobs, total is not None and offset >= total >= MAX_TOTAL
+        yield parse_postings(cards, parse, site="workday"), total
+    if total >= MAX_TOTAL:
+        logger.warning(
+            "workday reports at most %d postings per search, fewer than requested. "
+            "Narrow the search with a query to reach the rest",
+            MAX_TOTAL,
+        )
 
 
 def _withdrawn(text: str) -> bool:
@@ -254,26 +241,10 @@ async def search(
             details fetched so far.
         ValueError: ``board`` is not a Workday career site URL.
     """
-    tenant, site_url, api_url, _ = _career_site(board)
-    logger.info("searching workday site %s for %r", site_url, query)
-    jobs, capped = await _collect_cards(
-        fetcher,
-        board=board,
-        api_url=api_url,
-        site_url=site_url,
-        tenant=tenant,
-        query=query,
-        results=results,
-    )
-    if capped and len(jobs) < results:
-        logger.warning(
-            "workday reports at most %d postings per search; returning %d of the %d "
-            "requested. Narrow the search with a query to reach the rest",
-            MAX_TOTAL,
-            len(jobs),
-            results,
-        )
-    jobs = jobs[:results]
+    # Reading the board here rejects a bad one before the first request.
+    logger.info("searching workday site %s for %r", _career_site(board)[1], query)
+    pages = _pages(fetcher, board, query, min(PAGE_SIZE, results))
+    jobs = await collect("workday", pages, results)
     if details:
         return await fill_details("workday", jobs, functools.partial(_detail_fields, fetcher))
     return jobs

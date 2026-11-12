@@ -8,7 +8,7 @@ from fakes import StubFetcher, network_down, not_found, ok
 from jobrake import Stopped
 from jobrake.models import make_job
 from jobrake.sites import SITES
-from jobrake.sites.responses import json_list, parse_postings, read_json
+from jobrake.sites.responses import collect, json_list, parse_postings, read_json
 
 UNKNOWN = "acme has no board 'x'"
 UNREADABLE = r"^acme sent a response this version cannot read \("
@@ -35,10 +35,14 @@ def test_a_failed_or_unreadable_response_stops_with_nothing(response, options, m
 
 def test_a_failed_page_keeps_and_counts_the_postings_before_it():
     collected = [make_job(site="acme", id="1", url="https://acme.test/1")]
-    for response in (network_down(), ok("not JSON")):
-        with pytest.raises(Stopped, match=r"\. Kept the 1 posting collected$") as stop:
-            read_json(response, json_list, site="acme", partial=collected)
-        assert stop.value.partial == collected
+
+    async def pages():
+        yield collected, 5
+        read_json(network_down(), json_list, site="acme")
+
+    with pytest.raises(Stopped, match=r"reset\. Kept the 1 posting collected$") as stop:
+        asyncio.run(collect("acme", pages(), results=5))
+    assert stop.value.partial == collected
 
 
 def test_a_malformed_posting_costs_only_itself(caplog):

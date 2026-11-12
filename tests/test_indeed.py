@@ -264,7 +264,7 @@ def test_indeed_graphql_error_reports_the_indeed_message():
     }
     pages = [indeed_payload(["a"], cursor="next"), rejected]
     fetcher = PagedFetcher([json.dumps(page) for page in pages])
-    with pytest.raises(Stopped, match=r"BAD_USER_INPUT.*Kept the 1 job collected") as stop:
+    with pytest.raises(Stopped, match=r"BAD_USER_INPUT.*Kept the 1 posting collected") as stop:
         asyncio.run(indeed.search(fetcher, query="x", country="us", results=10))
     assert [job["id"] for job in stop.value.partial] == ["a"]  # earlier pages survive
 

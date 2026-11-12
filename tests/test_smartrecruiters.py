@@ -169,8 +169,8 @@ def test_paging_stops_at_results_and_at_the_last_page():
     assert [job["id"] for job in jobs] == [str(n) for n in range(150)]
     assert fetcher.requests == [
         f"{URL}?limit=100&offset=0",
-        f"{URL}?limit=50&offset=100",
-        f"{URL}?limit=1&offset=150",
+        f"{URL}?limit=100&offset=100",
+        f"{URL}?limit=100&offset=150",
     ]
     fetcher = StubFetcher(
         {"offset=0": page(cards(100), 150), "offset=100": page(cards(50, 100), 150)}
