@@ -718,7 +718,7 @@ async def main():
         return stop.partial  # the jobs collected before it
 ```
 
-The CLI writes those jobs and exits 1. Reaching a site's own result cap is not a failure. jobrake warns on stderr and returns what the site served.
+The CLI writes those jobs and exits 1. When there are none it writes nothing, so empty output such as `[]` always comes from a search that completed. Reaching a site's own result cap is not a failure. jobrake warns on stderr and returns what the site served.
 On Indeed, EconJobMarket, and the employer boards, jobrake skips a posting it cannot read and leaves out a field it cannot read.
 
 ### Ashby, EconJobMarket, Greenhouse, Lever, and Workable requests

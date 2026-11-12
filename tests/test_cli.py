@@ -247,6 +247,10 @@ def test_a_stopped_search_writes_what_it_collected_and_fails(run_cli, stub_searc
     assert json.loads(capsys.readouterr().out) == JOBS[:1]
     assert "indeed request failed: HTTP 429" in caplog.text
 
+    stub_search("indeed", Stopped("indeed request failed: HTTP 429"))
+    assert run_cli() == 1
+    assert capsys.readouterr().out == ""
+
 
 def test_format_selects_stdout_and_overrides_output_extension(run_cli, capsys, tmp_path):
     run_cli("--format", "jsonl")

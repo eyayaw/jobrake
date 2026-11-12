@@ -325,6 +325,9 @@ def main() -> int | None:
         return status or _write_hits(args.command, next(iter(options.values())), found)
     if args.command == "postings":
         found, status = _fetched(args, found)
+    if status and not found:
+        # An empty document would pass for a search that completed and found nothing.
+        return status
     return _write_jobs(args, found, fmt) or status
 
 
