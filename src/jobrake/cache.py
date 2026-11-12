@@ -113,8 +113,6 @@ class Cache:
             conn.close()
 
     def _give_up(self, error: Exception) -> None:
-        if self._broken:
-            return
         self._broken = True
         with contextlib.suppress(sqlite3.Error):
             self.close()

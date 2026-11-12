@@ -33,17 +33,15 @@ def _parse_posting(posting: dict[str, Any], company: str | None) -> JobDict:
     listed = [as_dict(place) for place in (places if isinstance(places, list) else [])]
     # Each place is named with Workable's own text, whose country is a name
     # such as France, so a country without its code keeps the place.
-    locations = make_places(
-        [
-            {
-                "name": ", ".join(filter(None, _texts(place, ("city", "region", "country")))),
-                "city": place.get("city"),
-                "region": place.get("region"),
-                "country_code": place.get("countryCode"),
-            }
-            for place in listed
-        ]
-    )
+    locations = [
+        {
+            "name": ", ".join(filter(None, _texts(place, ("city", "region", "country")))),
+            "city": place.get("city"),
+            "region": place.get("region"),
+            "country_code": place.get("countryCode"),
+        }
+        for place in listed
+    ]
     top = _texts(posting, ("city", "state", "country"))
     # On the board we measured, the top-level fields repeated the first place
     # and added none.

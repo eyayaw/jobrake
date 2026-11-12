@@ -15,13 +15,7 @@ API_URL = "https://api.ashbyhq.com/posting-api/job-board"
 
 # The Ashby pay intervals that match a JobDict period. Another interval
 # leaves the period out and keeps the amounts.
-_PERIODS = {
-    "1 HOUR": "HOUR",
-    "1 DAY": "DAY",
-    "1 WEEK": "WEEK",
-    "1 MONTH": "MONTH",
-    "1 YEAR": "YEAR",
-}
+_PERIODS = {f"1 {unit}": unit for unit in ("HOUR", "DAY", "WEEK", "MONTH", "YEAR")}
 
 
 def _salary(compensation: dict[str, Any]) -> dict[str, Any]:
