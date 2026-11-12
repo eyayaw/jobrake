@@ -135,17 +135,10 @@ def test_a_registered_site_needs_no_change_to_scrape(fake_site):
     assert len(fake_site.calls) == 1
 
 
-class Recording(StubFetcher):
-    closed = 0
-
-    async def close(self):
-        self.closed += 1
-
-
 def test_scrape_closes_only_the_fetcher_it_created(fake_site, monkeypatch):
-    given = Recording({})
+    given = StubFetcher({})
     asyncio.run(scrape("fakesite", query="x", fetcher=given))
-    created = Recording({})
+    created = StubFetcher({})
     monkeypatch.setattr(sites, "HttpxFetcher", lambda: created)
     asyncio.run(scrape("fakesite", query="x"))
     assert (given.closed, created.closed) == (0, 1)
@@ -155,7 +148,7 @@ def test_scrape_closes_its_fetcher_after_a_search_failure(fake_site, monkeypatch
     async def failing(fetcher, *, query: Annotated[str, "job title or keywords"]):
         raise RuntimeError("interrupted")
 
-    created = Recording({})
+    created = StubFetcher({})
     monkeypatch.setattr(sites, "HttpxFetcher", lambda: created)
     monkeypatch.setattr(fake_site, "search", failing)
     with pytest.raises(RuntimeError):

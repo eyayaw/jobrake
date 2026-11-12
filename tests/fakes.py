@@ -6,13 +6,14 @@ from jobrake.fetchkit import FetchResult
 
 
 class StubFetcher:
-    """Serve canned FetchResults by URL substring and record every request."""
+    """Serve canned FetchResults by URL substring, record every request, and count each close."""
 
     def __init__(self, responses: dict[str, FetchResult]):
         self.responses = responses
         self.requests: list[str] = []
         self.headers: list[dict[str, str]] = []
         self.bodies: list[Any] = []  # the JSON each request posted, or None
+        self.closed = 0  # exits of its context manager, as HttpxFetcher closes
 
     async def fetch(self, url, *, headers=None, json=None, follow_redirects=True):
         self.requests.append(url)
@@ -23,8 +24,11 @@ class StubFetcher:
                 return FetchResult(url, result.status, result.text, result.headers, result.error)
         return FetchResult(url, error="no stub")
 
-    async def close(self):
-        pass
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *_):
+        self.closed += 1
 
 
 def ok(text: str) -> FetchResult:

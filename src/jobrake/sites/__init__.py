@@ -52,11 +52,8 @@ async def scrape(site: str, *, fetcher: Fetcher | None = None, **options: object
     search = SITES[site].search
     if fetcher is not None:
         return await search(fetcher, **options)
-    fetcher = HttpxFetcher()
-    try:
-        return await search(fetcher, **options)
-    finally:
-        await fetcher.close()
+    async with HttpxFetcher() as own:
+        return await search(own, **options)
 
 
 __all__ = ["SITES", "scrape"]
