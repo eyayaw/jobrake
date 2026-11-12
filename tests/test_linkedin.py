@@ -1042,7 +1042,7 @@ def test_a_posting_page_drops_nonfinite_numbers(unlimited):
     assert not {"latitude", "longitude", "salary_min", "experience_months"} & set(job)
     assert job["salary_max"] == 135000
     # a markup salary with enough digits converts to infinity, and comma-only
-    # bounds match the salary pattern but hold no number: neither yields a field
+    # bounds hold no number: neither yields a field
     huge = "9" * 400
     assert parse(f'<div class="compensation__salary">USD {huge}/yr - USD {huge}/yr</div>') is None
     assert parse('<div class="compensation__salary">USD ,/yr - USD ,/yr</div>') is None
