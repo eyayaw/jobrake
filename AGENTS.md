@@ -127,7 +127,9 @@ the CLI, and the contract test in `tests/test_scrape.py` need no edit.
   sends logs to stderr and data to stdout. It exits 2 for a bad argument, and
   1 when a search or lookup raises `Stopped`, a named posting could not be
   fetched, or the output cannot be written. A stopped search and a postings
-  fetch with a failed reference still write what they got.
+  fetch with a failed reference still write the postings they got. With none
+  they write nothing, so an empty document comes only from a command that
+  completed.
 
 ## Style
 
