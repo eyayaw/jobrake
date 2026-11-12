@@ -93,7 +93,7 @@ def test_company_lookup_distinguishes_no_matches_from_failure():
     assert asyncio.run(indeed.companies(fetcher, "ABN", country="nl")) == []
     for response in (ok("[{}]"), ok("{}"), ok("not JSON"), rate_limited()):
         fetcher = StubFetcher({"suggestions/company": response})
-        with pytest.raises(Stopped, match="company"):
+        with pytest.raises(Stopped, match="indeed "):
             asyncio.run(indeed.companies(fetcher, "ABN", country="nl"))
 
 
@@ -554,9 +554,9 @@ def test_attribute_lookup_distinguishes_empty_results_from_failure():
         if found:
             assert asyncio.run(indeed.attributes(fetcher, "data", country="us")) == []
         else:
-            with pytest.raises(Stopped, match="attributes"):
+            with pytest.raises(Stopped, match="cannot read"):
                 asyncio.run(indeed.attributes(fetcher, "data", country="us"))
     for response in (ok("not json"), rate_limited()):
         fetcher = StubFetcher({"apis.indeed.com": response})
-        with pytest.raises(Stopped, match="attribute"):
+        with pytest.raises(Stopped, match="indeed "):
             asyncio.run(indeed.attributes(fetcher, "data", country="us"))

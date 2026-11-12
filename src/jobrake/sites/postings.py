@@ -9,9 +9,9 @@ from jobrake.utils import report_progress
 
 logger = logging.getLogger(__name__)
 
-# A site's reader of one card's posting: the fields the posting adds, {} when
-# the site reports the posting gone, or None when the request failed or the
-# response is unreadable, which the reader logs.
+# A site's reader of one card's posting: the fields the posting adds, or None
+# when the site reports the posting gone. It raises Stopped for a failed
+# request or an unreadable response.
 type Reader = Callable[[JobDict], Awaitable[dict[str, Any] | None]]
 
 
@@ -25,12 +25,18 @@ def _merge(card: JobDict, fields: dict[str, Any]) -> JobDict:
     return make_job(**(card | kept))
 
 
-async def _read_each(site: str, cards: list[JobDict], read: Reader) -> list[dict[str, Any] | None]:
-    fields = []
+async def _read_each(
+    site: str, cards: list[JobDict], read: Reader
+) -> dict[str, dict[str, Any] | None]:
+    """Map each card's ID to what ``read`` returns for it, logging and leaving out a failed read."""
+    found = {}
     for position, card in enumerate(cards, start=1):
         report_progress(logger, f"{site} details", position, len(cards))
-        fields.append(await read(card))
-    return fields
+        try:
+            found[card["id"]] = await read(card)
+        except Stopped as stopped:
+            logger.warning("skipping posting %s: %s. A rerun retries it", card["url"], stopped)
+    return found
 
 
 async def fill_details(site: str, cards: list[JobDict], read: Reader) -> list[JobDict]:
@@ -43,9 +49,9 @@ async def fill_details(site: str, cards: list[JobDict], read: Reader) -> list[Jo
         Stopped: A posting's fields could not be read. ``partial`` holds every
             card, filled where its read succeeded.
     """
-    fields = await _read_each(site, cards, read)
-    filled = [_merge(card, found or {}) for card, found in zip(cards, fields, strict=True)]
-    if missing := fields.count(None):
+    found = await _read_each(site, cards, read)
+    filled = [_merge(card, found.get(card["id"]) or {}) for card in cards]
+    if missing := len(cards) - len(found):
         raise Stopped(
             f"{site} could not fetch the details of {missing} of {len(cards)} postings. "
             "A rerun retries them",
@@ -69,11 +75,14 @@ async def fetch_postings(
         ValueError: ``card`` rejected a reference.
     """
     cards = {reference: card(reference) for reference in references}
-    unique = list({found["id"]: found for found in cards.values()}.values())
-    fields = await _read_each(site, unique, read)
+    unique = {named["id"]: named for named in cards.values()}
+    found = await _read_each(site, list(unique.values()), read)
     records = {
-        posting["id"]: _merge(posting, found) if found else None
-        for posting, found in zip(unique, fields, strict=True)
-        if found is not None
+        posting: None if fields is None else _merge(unique[posting], fields)
+        for posting, fields in found.items()
     }
-    return {reference: records[c["id"]] for reference, c in cards.items() if c["id"] in records}
+    return {
+        reference: records[named["id"]]
+        for reference, named in cards.items()
+        if named["id"] in records
+    }

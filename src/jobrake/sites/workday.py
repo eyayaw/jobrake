@@ -181,54 +181,49 @@ def _withdrawn(text: str) -> bool:
         return False
 
 
-async def _detail_fields(fetcher: Fetcher, card: JobDict) -> dict[str, Any] | None:
+def _parse_details(payload: dict[str, Any], card: JobDict) -> dict[str, Any]:
     """
-    Fetch the detail fields of a card's posting, or ``{}`` when Workday reports it gone or withdrawn.
+    Return the detail fields of a card's posting from its ``jobPostingInfo``.
 
     A posting with a start date takes its ``date`` from it, because the
     card's date counts from today in UTC and can be a day past Workday's own.
-    Returns None when the request failed or the response is unreadable, which it logs.
     """
-    posting = card["url"]
-    _, _, api_url, path = _career_site(posting)
+    info = payload["jobPostingInfo"]
+    country = as_dict(as_dict(info.get("jobRequisitionLocation")).get("country"))
+    primary = (as_str(info.get("location")) or "").strip()
+    others = info.get("additionalLocations")
+    # The requisition's country is the primary location's. Without one, the card's place leads.
+    locations = [
+        *(
+            [{"name": primary, "country_code": country.get("alpha2Code")}]
+            if primary
+            else card["locations"]
+        ),
+        *({"name": name} for name in (others if isinstance(others, list) else [])),
+    ]
+    start = as_str(info.get("startDate"))
+    return {
+        "title": as_str(info.get("title")),
+        "description": html_text(as_str(info.get("jobDescription")) or ""),
+        "date": start,
+        "posted_at": start,
+        "employment_type": employment_type(as_str(info.get("timeType"))),
+        "locations": locations,
+    }
+
+
+async def _detail_fields(fetcher: Fetcher, card: JobDict) -> dict[str, Any] | None:
+    """
+    Fetch the detail fields of a card's posting, or None when Workday reports it gone or withdrawn.
+
+    Raises:
+        Stopped: The request failed, or the response is unreadable.
+    """
+    _, _, api_url, path = _career_site(card["url"])
     result = await fetcher.fetch(api_url + path)
     if result.status == 404 or (result.status == 403 and _withdrawn(result.text)):
-        return {}
-    if result.error:
-        logger.warning("skipping the details of %s: %s. A rerun retries it", posting, result.error)
         return None
-    # ValueError covers JSONDecodeError and an integer longer than Python reads.
-    try:
-        info = json.loads(result.text)["jobPostingInfo"]
-        country = as_dict(as_dict(info.get("jobRequisitionLocation")).get("country"))
-        primary = (as_str(info.get("location")) or "").strip()
-        others = info.get("additionalLocations")
-        # The requisition's country is the primary location's. Without one, the card's place leads.
-        locations = [
-            *(
-                [{"name": primary, "country_code": country.get("alpha2Code")}]
-                if primary
-                else card["locations"]
-            ),
-            *({"name": name} for name in (others if isinstance(others, list) else [])),
-        ]
-        start = as_str(info.get("startDate"))
-        return {
-            "title": as_str(info.get("title")),
-            "description": html_text(as_str(info.get("jobDescription")) or ""),
-            "date": start,
-            "posted_at": start,
-            "employment_type": employment_type(as_str(info.get("timeType"))),
-            "locations": locations,
-        }
-    except (ValueError, KeyError, TypeError, AttributeError) as error:
-        logger.warning(
-            "skipping the details of %s: workday sent a response this version cannot read "
-            "(%r), likely an API change. Check for a newer jobrake",
-            posting,
-            error,
-        )
-        return None
+    return read_json(result, functools.partial(_parse_details, card=card), site="workday")
 
 
 @checked

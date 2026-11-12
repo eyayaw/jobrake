@@ -1,4 +1,4 @@
-"""Reading a site's JSON response into postings, and the ``Stopped`` each failure raises."""
+"""Reading a site's JSON response, and the ``Stopped`` each failure raises."""
 
 import json
 import logging
@@ -23,28 +23,28 @@ def read_json[T](
     """
     Return what ``unpack`` takes from the JSON body of a site's response.
 
-    ``unpack`` raises ``KeyError`` or ``TypeError`` for a body without what
-    the site needs. ``board`` names the board in the message of a failed
-    request. ``unknown`` is the message for a 404, which without it counts
-    as a failed request. ``partial`` holds the postings of the pages before
-    this one, which a failure keeps.
+    ``unpack`` raises ``KeyError``, ``TypeError``, or ``AttributeError`` for a
+    body without what the site needs. ``board`` names the board in the message
+    of a failed request. ``unknown`` is the message for a 404, which without
+    it counts as a failed request. ``partial`` holds the postings of the pages
+    before this one, which a failure keeps.
 
     Raises:
         Stopped: The site answered 404 and ``unknown`` is given, the request
             failed, or the body is unreadable.
     """
-    partial = [] if partial is None else partial
+    partial = partial or []
     if result.status == 404 and unknown:
         raise Stopped(unknown, partial=partial)
     count = ngettext("%d posting", "%d postings", len(partial)) % len(partial)
     kept = f". Kept the {count} collected" if partial else ""
     if result.error:
-        where = f" of board {board!r}" if board else ""
-        raise Stopped(f"{site} search{where} stopped: {result.error}{kept}", partial=partial)
+        where = f" for board {board!r}" if board else ""
+        raise Stopped(f"{site} request{where} failed: {result.error}{kept}", partial=partial)
     # ValueError covers JSONDecodeError and an integer longer than Python reads.
     try:
         return unpack(json.loads(result.text))
-    except (ValueError, KeyError, TypeError) as error:
+    except (ValueError, KeyError, TypeError, AttributeError) as error:
         raise Stopped(
             f"{site} sent a response this version cannot read ({error!r}), "
             f"likely an API change{kept}",

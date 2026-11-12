@@ -1,7 +1,6 @@
 """Read an employer's SmartRecruiters job board through its public Posting API."""
 
 import functools
-import json
 import logging
 import re
 from datetime import UTC, datetime, timedelta
@@ -93,39 +92,31 @@ def _description(posting: dict[str, Any]) -> str:
     return html_text("".join(parts))
 
 
+def _parse_posting(posting: dict[str, Any]) -> dict[str, Any] | None:
+    """Return a posting's card fields with its ad as ``description``, or None for one marked inactive."""
+    if posting.get("active") is False:
+        return None
+    return {**_parse_card(posting), "description": _description(posting)}
+
+
 async def _posting_fields(fetcher: Fetcher, card: JobDict) -> dict[str, Any] | None:
     """
-    Fetch the posting behind a card, or ``{}`` when SmartRecruiters reports it gone.
+    Fetch the posting behind a card, or None when SmartRecruiters reports it gone.
 
-    The posting holds the card's fields, and ``description`` joins its ad.
     SmartRecruiters reports a posting gone with a 404, or by marking a posting
     it still serves inactive. A 400 stays a failure: it answers a malformed
     request, and an ID that belongs to another board.
-    Returns None when the request failed or the response is unreadable, which it logs.
+
+    Raises:
+        Stopped: The request failed, or the response is unreadable.
     """
     company, posting_id = urlsplit(card["url"]).path.strip("/").split("/")
     result = await fetcher.fetch(
         f"{API_URL}/{quote(company, safe='')}/postings/{quote(posting_id, safe='')}"
     )
     if result.status == 404:
-        return {}
-    if result.error:
-        logger.warning("skipping posting %s: %s. A rerun retries it", card["url"], result.error)
         return None
-    # ValueError covers JSONDecodeError and an integer longer than Python reads.
-    try:
-        posting = json.loads(result.text)
-        if posting.get("active") is False:
-            return {}
-        return {**_parse_card(posting), "description": _description(posting)}
-    except (ValueError, KeyError, TypeError, AttributeError) as error:
-        logger.warning(
-            "skipping posting %s: smartrecruiters sent a response this version cannot read "
-            "(%r), likely an API change. Check for a newer jobrake",
-            card["url"],
-            error,
-        )
-        return None
+    return read_json(result, _parse_posting, site="smartrecruiters")
 
 
 def _filters(query: str, max_age_hours: int | None, *, remote: bool) -> dict[str, str]:

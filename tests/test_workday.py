@@ -223,7 +223,7 @@ def test_details_fill_each_card_and_stop_when_one_fails(today, caplog):
         "nvidia:JR1",
     ]
     assert stop.value.partial[:2] == [FILLED, two_places]
-    assert caplog.text.count("skipping the details of") == 2
+    assert caplog.text.count("skipping posting") == 2
 
 
 def test_postings_fetch_each_posting_once_and_key_it_by_reference(caplog):
@@ -253,7 +253,7 @@ def test_postings_fetch_each_posting_once_and_key_it_by_reference(caplog):
         f"{API}/job/US-CA-Santa-Clara/Networking-Architect_JR1996377",
         *(f"{API}/job/Remote/Engineer_JR{n}" for n in range(4)),
     ]
-    assert "skipping the details of" in caplog.text
+    assert "skipping posting" in caplog.text
 
 
 @pytest.mark.parametrize(
@@ -306,7 +306,7 @@ def test_only_a_404_on_the_first_page_means_an_unknown_site():
         asyncio.run(workday.search(StubFetcher({"/jobs": not_found()}), board=board))
     assert stop.value.partial == []
     fetcher = PagedFetcher([page(numbered(20), total=40), not_found()])
-    with pytest.raises(Stopped, match=r"stopped: HTTP 404\. Kept the 20 postings") as stop:
+    with pytest.raises(Stopped, match=r"failed: HTTP 404\. Kept the 20 postings") as stop:
         asyncio.run(workday.search(fetcher, board=BOARD, results=40))
     assert len(stop.value.partial) == 20
 

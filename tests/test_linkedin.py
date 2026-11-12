@@ -720,7 +720,7 @@ def test_companies_lists_usable_candidates_in_linkedin_order(unlimited):
 def test_company_lookup_distinguishes_no_matches_from_failure(unlimited, response, expected):
     fetcher = StubFetcher({"typeaheadHits": response})
     if expected is None:
-        with pytest.raises(Stopped, match="company"):
+        with pytest.raises(Stopped, match="linkedin "):
             asyncio.run(linkedin.companies(fetcher, "Acme"))
     else:
         assert asyncio.run(linkedin.companies(fetcher, "Acme")) == expected
