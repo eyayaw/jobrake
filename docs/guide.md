@@ -87,7 +87,7 @@ A code with no Indeed edition is an error that lists the codes Indeed serves.
 
 `jobrake indeed places <name> --country <code>` prints the edition's location
 suggestions as JSON, best match first. Each `id` can be passed directly
-to `--location`. For library calls use `jobrake.sites.indeed.places`.
+to `--location`.
 
 #### LinkedIn locations
 
@@ -131,13 +131,19 @@ jobrake linkedin search -q "data scientist" -l "Birmingham, England, United King
 jobrake linkedin search -q "data scientist" -g 100356971
 ```
 
-Library callers use `jobrake.sites.linkedin.places`.
-
 ### Lookup commands
 
 The `places`, `companies`, and `attributes` commands print JSON lists of `{"id", "name"}` entries, and their
 library functions return the same lists. Each `id` is the value a search takes. An empty list means the lookup
 found no matches. A failed request or unreadable response raises `Stopped` in a library call. The CLI exits nonzero on failure.
+
+| Command                                       | Library function                                               |
+| --------------------------------------------- | -------------------------------------------------------------- |
+| `jobrake indeed places <name> -c <code>`      | `jobrake.sites.indeed.places(fetcher, name, country=...)`      |
+| `jobrake indeed companies <name> -c <code>`   | `jobrake.sites.indeed.companies(fetcher, name, country=...)`   |
+| `jobrake indeed attributes <query> -c <code>` | `jobrake.sites.indeed.attributes(fetcher, query, country=...)` |
+| `jobrake linkedin places <name>`              | `jobrake.sites.linkedin.places(fetcher, name)`                 |
+| `jobrake linkedin companies <name>`           | `jobrake.sites.linkedin.companies(fetcher, name)`              |
 
 ## Narrow the results
 
@@ -194,7 +200,6 @@ jobrake indeed companies "Booking" -c nl
 Each JSON entry pairs an employer key in `id` with a company name in `name`.
 Results follow Indeed's suggestion order and may include related companies.
 Choose the employer whose jobs you want.
-Library callers use `jobrake.sites.indeed.companies(fetcher, name, country=...)`.
 
 Use the selected key to restrict job results to that employer:
 
@@ -204,7 +209,6 @@ jobrake indeed search -c nl --company-ids 8e8f030e53ea29e4
 ```
 
 This key selects _Booking.com_. Without `-q`, the search covers its postings without keywords.
-For a library search, pass `company_ids=["8e8f030e53ea29e4"]` to `scrape()`.
 
 > [!TIP]
 > Leave out `-q` to search without keywords, works for both Indeed and LinkedIn.
@@ -233,34 +237,6 @@ jobrake linkedin companies "Booking"
   {
     "id": "17896204",
     "name": "Booking Experts B.V."
-  },
-  {
-    "id": "92790319",
-    "name": "Booking Express"
-  },
-  {
-    "id": "5268984",
-    "name": "bookingkit"
-  },
-  {
-    "id": "7795107",
-    "name": "BookingJini"
-  },
-  {
-    "id": "99898831",
-    "name": "BooKing"
-  },
-  {
-    "id": "34581028",
-    "name": "Booking Shake"
-  },
-  {
-    "id": "6793622",
-    "name": "Booking Health GmbH"
-  },
-  {
-    "id": "109254975",
-    "name": "Booking Hub"
   }
 ]
 ```
@@ -268,7 +244,6 @@ jobrake linkedin companies "Booking"
 The command lists suggested companies as JSON, with `id` and `name` for each entry.
 LinkedIn determines the order. Subsidiaries and regional branches can have separate IDs, so choose
 the intended employer or try a more specific name.
-Library callers use `jobrake.sites.linkedin.companies(fetcher, name)`.
 
 Pass an employer's numeric (a string of digits `0-9`) ID to `--company-ids` to find
 job postings at that company. Unlike with Indeed, here we can provide several employers.
@@ -278,8 +253,7 @@ jobrake linkedin search -l "Netherlands" -q "data scientist" --company-ids 11348
 jobrake linkedin search -l "Netherlands" --company-ids 11348 215713
 ```
 
-These IDs select _Booking.com_ and _ING Nederland_. For a library search, pass
-`company_ids=["11348", "215713"]` to `scrape()`.
+These IDs select _Booking.com_ and _ING Nederland_.
 
 ### Job posting language
 
@@ -317,7 +291,7 @@ jobrake indeed attributes -c us "data scientist" \
 Each run samples the postings afresh, so a code can be missing from one lookup and present in the next.
 Try the lookup again, or a related query, when a code you expect does not appear.
 Labels can differ by country edition. A label can also belong to several codes, and the lookup keeps each code separately.
-jobrake reads the codes live from Indeed. Library callers use `jobrake.sites.indeed.attributes(fetcher, query, country=...)`.
+jobrake reads the codes live from Indeed.
 
 Once you find the codes you want, then use those codes to filter jobs:
 
@@ -331,8 +305,6 @@ because codes intersect: every returned posting carries every code you list. To 
 run separate searches and combine the results. A posting can hold codes that look mutually exclusive,
 so a Full-time match may carry Part-time as well when the employer offers either arrangement.
 The filter has no way to exclude a code.
-
-For a library search, pass the codes as a list of strings, such as `attributes=["CF3CP", "6QC5F"]`.
 
 ### Remote jobs
 
@@ -368,7 +340,11 @@ Employment type is still available as a posting detail with `--details`.
 Indeed returns the details it has with the search itself, so an Indeed search needs nothing further.
 LinkedIn's guest search returns summary cards only. Add `--details | -d` (`details=True`) to fetch each posting page and fill in the rest.
 That costs one paced request for most uncached postings and up to three for the rest.
-Workday and SmartRecruiters searches also return cards without descriptions, and `--details` fetches each posting with one more request, as [Workday fields](#workday-fields) and [SmartRecruiters fields](#smartrecruiters-fields) describe.
+In our measurements, a LinkedIn posting placed in a whole country, such as "United States" or "Netherlands", comes without its dates, coordinates, and requirements.
+Workday and SmartRecruiters searches also return cards without descriptions, and `--details` fetches each posting with one more request, one after another, as [Workday fields](#workday-fields) and [SmartRecruiters fields](#smartrecruiters-fields) describe.
+On these two sites, a posting removed or withdrawn since the search keeps its search result.
+A posting SmartRecruiters reports missing or marks inactive counts as gone, and jobrake reads a Workday 403 that names error `S22` as withdrawn, a rule from career-ops' liveness checks that we have not observed ourselves.
+A posting whose details cannot be fetched also keeps its search result, and once the rest are fetched the search raises `Stopped` with every posting in `partial`. A rerun retries them.
 See [request limits](#request-limits-and-partial-results) for pacing and retries, and [cache settings](#cache-location-and-lifetimes) for reuse.
 
 ### Fetch known postings
@@ -388,14 +364,9 @@ The command accepts the same `--output | -o` and `--format | -f` options as a se
 A posting that is gone or unreachable is reported on stderr and left out. When one was unreachable, the command writes the others and exits nonzero.
 A LinkedIn reference is a numeric ID or a posting URL, including the link in a LinkedIn job alert email and a search page address with `currentJobId=`. A Workday or SmartRecruiters reference is a search result's `url`, and SmartRecruiters also takes the posting's address with its title slug. Any other reference is an error, and nothing is fetched.
 
-In our measurements, LinkedIn served a posting's dates, coordinates, and requirements only at its canonical URL: the title slug on the host of the posting's country.
-That host is `www.linkedin.com` for the United States and a country subdomain, such as `nl.linkedin.com`, elsewhere.
-A posting placed in a whole country, such as "United States" or "Netherlands", comes without those fields at any address.
-
-jobrake follows a title-slug URL's canonical metadata to preserve those fields.
-Other references need a lookup to find the canonical URL. Cached postings need no request.
-
-Library callers use the `postings` function of `jobrake.sites.linkedin`, `jobrake.sites.workday`, or `jobrake.sites.smartrecruiters`.
+Library callers use the `postings` function of `jobrake.sites.linkedin`, `jobrake.sites.workday`, or `jobrake.sites.smartrecruiters`, which never raises `Stopped`.
+It maps each ID or URL to its whole job, or to `None` when the site reports the posting gone.
+A reference whose request failed, or whose response jobrake cannot read, is absent from the result, and calling the function again retries it.
 
 ### Fetch selected results
 
@@ -423,9 +394,6 @@ async def main():
 
 postings = asyncio.run(main())
 ```
-
-`postings()` maps each ID or URL to its whole job, or to `None` when LinkedIn reports the posting gone.
-A reference whose request failed is absent from the result, and calling the function again retries it.
 
 ## Employer boards
 
@@ -726,58 +694,8 @@ logger.setLevel(logging.INFO)
 logger.addHandler(Progress())
 ```
 
-```python
-import asyncio
-
-from jobrake import scrape
-
-
-async def main():
-    jobs = await scrape(
-        "indeed",
-        query="economist",
-        country="us",
-        results=2,
-    )
-    for job in jobs:
-        print(job["title"], job["url"])
-
-
-asyncio.run(main())
-```
-
 A fetcher you supply is yours to close.
-Use its context manager when several searches should share one connection pool:
-
-```python
-import asyncio
-
-from jobrake import HttpxFetcher, scrape
-
-
-async def main():
-    query = "economist"
-    site = "indeed"
-    async with HttpxFetcher(timeout=30) as fetcher:
-        nl = await scrape(
-            site,
-            query=query,
-            location="Amsterdam",
-            country="nl",
-            fetcher=fetcher,
-        )
-        us = await scrape(
-            site,
-            query=query,
-            location="New York",
-            country="us",
-            fetcher=fetcher,
-        )
-    return nl, us
-
-
-nl, us = asyncio.run(main())
-```
+Use its context manager when several calls should share one connection pool, as the example under [Fetch selected results](#fetch-selected-results) does.
 
 To use another HTTP client or a browser, implement the `Fetcher` protocol from `jobrake.fetchkit`: an async `fetch(url, *, headers=None, json=None, follow_redirects=True)` that sends a POST when `json` is given.
 With `follow_redirects=False`, return the first response, including its `Location` header. LinkedIn uses this to pace each redirect hop.
@@ -801,24 +719,13 @@ async def main():
 ```
 
 The CLI writes those jobs and exits 1. Reaching a site's own result cap is not a failure. jobrake warns on stderr and returns what the site served.
+On Indeed, EconJobMarket, and the employer boards, jobrake skips a posting it cannot read and leaves out a field it cannot read.
 
-### Ashby requests
+### Ashby, EconJobMarket, Greenhouse, Lever, and Workable requests
 
-A board search is one request, which returns the whole board, descriptions and salaries included. It gets a single attempt and no pacing.
-A failed request raises `Stopped` with an empty `partial`, and the CLI exits 1.
-jobrake skips a posting it cannot read and leaves out a field it cannot read.
-
-### EconJobMarket requests
-
-A search is one request, which returns every open ad. It gets a single attempt and no pacing.
-A failed request raises `Stopped` with an empty `partial`, and the CLI exits 1.
-jobrake skips an ad it cannot read and leaves out a field it cannot read.
-
-### Greenhouse requests
-
-A board search is one request, which returns the whole board. It gets a single attempt and no pacing.
-A failed request raises `Stopped` with an empty `partial`, and the CLI exits 1.
-jobrake skips a posting it cannot read and leaves out a field it cannot read.
+An Ashby, Greenhouse, Lever, or Workable board search is one request, which returns the whole board, and an EconJobMarket search is one request, which returns every open ad.
+A board on Lever's EU host takes a second request, and a failure on Lever's global host other than "not found" stops the search without asking the EU host.
+Each request gets a single attempt and no pacing. A failed request raises `Stopped` with an empty `partial`.
 
 ### Indeed requests
 
@@ -828,33 +735,21 @@ Indeed returns jobs newest first by the date the posting reached Indeed, the sam
 A reposted job counts as new, so a 24-hour window can include postings published weeks earlier.
 
 Pages follow one another without delay, and each request gets a single attempt.
-jobrake skips a posting it cannot read and leaves out a field it cannot read.
-
-### Lever requests
-
-A board search is one request, which returns the whole board, or two when the board lives on Lever's EU host. Each gets a single attempt and no pacing.
-A failed request raises `Stopped` with an empty `partial`, and the CLI exits 1. A failure on the global host other than "not found" stops the search without asking the EU host.
-jobrake skips a posting it cannot read and leaves out a field it cannot read.
 
 ### LinkedIn requests
 
-The guest search returns about 10 cards per page and stops at offset 1,000, so one search returns roughly 1,000 postings at most.
+The guest search stops at offset 1,000, so one search returns roughly 1,000 postings at most.
 jobrake warns when that limit cuts a search short.
 
 jobrake asks LinkedIn for the newest postings first, but the guest endpoint ignores the request and ranks by relevance.
 The order can also change between two runs of the same search.
 To collect only new postings, repeat the search with `--max-age-hours` covering the time since the last run.
 
-LinkedIn limits guest traffic per IP and per data center, and pins a client to one data center with a cookie.
-jobrake spreads its requests over the three data centers that answered in our tests, allowing short bursts at a sustained pace of about 1.3 requests per second.
-If LinkedIn stops routing requests to a data center that jobrake names, jobrake looks for another at a slower pace.
-Within one process, jobrake paces requests for each data center it names.
-A request that LinkedIn reroutes to another data center can exceed that data center's measured limit.
+LinkedIn limits guest traffic per IP, and jobrake allows short bursts at a sustained pace of about 1.3 requests per second.
 Each process paces only its own requests, so concurrent runs on the same IP can reach the limit sooner.
-LinkedIn requests, including redirect hops, carry only the data-center cookie.
 
 LinkedIn refuses some requests whatever the pace, up to a quarter of them in our tests.
-jobrake retries a 429 up to five times, first on the other data centers and then after waiting for a rate-limit window.
+jobrake retries a 429 up to five times.
 If the 429 remains, the search raises `Stopped` with what it has collected so far.
 A `--details` search that could not fetch every posting's details raises `Stopped` too, holding every posting it found.
 
@@ -862,29 +757,15 @@ On a data center IP, such as a VPS, LinkedIn refuses posting pages with [HTTP 99
 
 ### SmartRecruiters requests
 
-A search reads the board in pages of up to 100 postings, which follow one another without pacing, and each request gets a single attempt.
+A search pages through the board one request after another, without pacing, and each request gets a single attempt.
 It stops at `--results`, at the board's last matching posting, or at an empty page.
-A failed request raises `Stopped` with the postings of the pages before it, and the CLI exits 1. So does an empty page that comes before the number of matches SmartRecruiters reported, because postings may have closed during the search and a rerun may find more.
-`--details` and `postings` add one request per posting, one after another, and handle a failed request as on Workday.
-A posting SmartRecruiters reports missing or marks inactive counts as gone.
-jobrake skips a posting it cannot read and leaves out a field it cannot read.
-
-### Workable requests
-
-A board search is one request, which returns the whole board. It gets a single attempt and no pacing.
-A failed request raises `Stopped` with an empty `partial`, and the CLI exits 1.
-jobrake skips a posting it cannot read and leaves out a field it cannot read.
+A failed request raises `Stopped` with the postings of the pages before it. So does an empty page that comes before the number of matches SmartRecruiters reported, because postings may have closed during the search and a rerun may find more.
 
 ### Workday requests
 
 A search pages through the results one request after another, without pacing, and each request gets a single attempt.
 Workday reports at most 2,000 postings per search, and jobrake warns when that cap cuts a search short. Narrow the search with `--query` to reach the rest.
-A failed request raises `Stopped` with the postings collected before it, and the CLI exits 1. So does an empty page that comes before the number of postings Workday reported, because postings may have closed during the search and a rerun may find more.
-`--details` adds one request per posting, also one after another. A posting removed or withdrawn since the search keeps its search result.
-jobrake reads a 403 that names error `S22` as withdrawn, a rule from career-ops' liveness checks that we have not observed ourselves.
-A posting whose details cannot be fetched also keeps its search result, and once the rest are fetched the search raises `Stopped` with every posting in `partial`. A rerun retries them.
-`postings` also sends one request per posting, but never raises `Stopped`. It leaves out a posting whose request failed or whose response it cannot read.
-jobrake skips a posting it cannot read and leaves out a field it cannot read.
+A failed request raises `Stopped` with the postings collected before it. So does an empty page that comes before the number of postings Workday reported, because postings may have closed during the search and a rerun may find more.
 
 ## Cache location and lifetimes
 
