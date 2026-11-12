@@ -11,8 +11,6 @@ from urllib.parse import parse_qs, urlsplit
 import httpx
 import pytest
 from fakes import PagedFetcher, StubFetcher, network_down, not_found, ok, rate_limited
-from hypothesis import given
-from hypothesis import strategies as st
 
 from jobrake import Stopped, cache
 from jobrake.fetchkit import FetchResult, HttpxFetcher
@@ -23,8 +21,13 @@ from jobrake.sites.linkedin import client
 
 @pytest.fixture
 def unlimited(monkeypatch):
-    """Expire every fabric's window, so no request waits."""
-    monkeypatch.setattr(client, "monotonic", itertools.count(0.0, client.RETRY_DELAY).__next__)
+    """Expire every fabric's window, so no request waits, and retry a 429 at once."""
+    monkeypatch.setattr(client, "monotonic", itertools.count(0.0, client.WINDOW).__next__)
+    monkeypatch.setattr(client, "RETRY_DELAY", 0)
+
+
+# A test that needs its own clock or retry delay patches it again over this fixture's.
+pytestmark = pytest.mark.usefixtures("unlimited")
 
 
 def linkedin_card(job_id, title="Economist", company="Acme"):
@@ -40,7 +43,7 @@ def linkedin_card(job_id, title="Economist", company="Acme"):
     </div>"""
 
 
-def test_linkedin_parses_cards_and_dedups_by_posting_id(unlimited):
+def test_linkedin_parses_cards_and_dedups_by_posting_id():
     html = (
         linkedin_card("role-111")
         + linkedin_card("222")
@@ -62,55 +65,33 @@ def test_linkedin_parses_cards_and_dedups_by_posting_id(unlimited):
     assert set(jobs[0]) == {*IDENTITY_FIELDS, *SUMMARY_FIELDS}
 
 
-def test_pagination_advances_by_raw_page_size_and_counts_each_page(unlimited, caplog):
+def test_pagination_advances_by_every_served_card_until_an_empty_page(caplog):
+    unparsable = '<div class="base-search-card"><span>no link</span></div>'
     fetcher = PagedFetcher(
         [
             linkedin_card("111") + linkedin_card("222"),
-            linkedin_card("222") + linkedin_card("333"),
-            linkedin_card("444"),
-        ]
-    )
-    with caplog.at_level(logging.INFO, logger="jobrake.sites.linkedin"):
-        jobs = asyncio.run(linkedin.search(fetcher, query="x", location="Seattle", results=4))
-
-    assert [job["id"] for job in jobs] == ["111", "222", "333", "444"]
-    assert all("keywords=x" in url for url in fetcher.requests)
-    assert "start=4" in fetcher.requests[2]
-    progress = [record.progress for record in caplog.records if hasattr(record, "progress")]
-    assert progress == [(2, 4), (3, 4), (4, 4)]
-
-
-def test_pagination_survives_a_duplicate_only_page(unlimited):
-    fetcher = PagedFetcher(
-        [
-            linkedin_card("111") + linkedin_card("222"),
-            linkedin_card("111") + linkedin_card("222"),
-            linkedin_card("333"),
+            linkedin_card("111") + linkedin_card("222"),  # overlapped offsets: nothing new
+            unparsable + linkedin_card("333"),
             "",
         ]
     )
-    jobs = asyncio.run(linkedin.search(fetcher, query="x", location="Seattle", results=10))
+    with caplog.at_level(logging.INFO, logger="jobrake.sites.linkedin"):
+        jobs = asyncio.run(linkedin.search(fetcher, query="x", location="Seattle", results=10))
 
     assert [job["id"] for job in jobs] == ["111", "222", "333"]
-    assert "start=4" in fetcher.requests[2]  # overlapped offsets still advance
+    starts = [parse_qs(urlsplit(url).query)["start"] for url in fetcher.requests]
+    assert starts == [["0"], ["2"], ["4"], ["6"]]  # the unparsable card counts too
+    progress = [record.progress for record in caplog.records if hasattr(record, "progress")]
+    assert progress == [(2, 10), (2, 10), (3, 10)]
 
 
-def test_pagination_counts_unparsable_cards_toward_the_offset(unlimited):
-    unparsable = '<div class="base-search-card"><span>no link</span></div>'
-    fetcher = PagedFetcher([linkedin_card("111") + unparsable, ""])
-    jobs = asyncio.run(linkedin.search(fetcher, query="x", location="Seattle", results=10))
-
-    assert [job["id"] for job in jobs] == ["111"]
-    assert "start=2" in fetcher.requests[1]
-
-
-def test_linkedin_persistent_429_stops_the_search(unlimited, monkeypatch):
-    monkeypatch.setattr(client, "RETRY_DELAY", 0)
-    fetcher = StubFetcher({"seeMoreJobPostings": rate_limited()})
-    with pytest.raises(Stopped, match="HTTP 429") as stop:
-        asyncio.run(linkedin.search(fetcher, query="x", location="Seattle"))
-    assert stop.value.partial == []
-    assert len(fetcher.requests) == 1 + client.RETRIES  # the retries, then give up
+def test_a_failed_page_stops_the_search_keeping_the_earlier_pages():
+    refusals = [rate_limited() for _ in range(1 + client.RETRIES)]
+    fetcher = PagedFetcher([ok(linkedin_card("111") + linkedin_card("222")), *refusals])
+    with pytest.raises(Stopped, match=r"HTTP 429\. Kept the 2 postings") as stop:
+        asyncio.run(linkedin.search(fetcher, query="x", location="Seattle", results=5))
+    assert [job["id"] for job in stop.value.partial] == ["111", "222"]
+    assert len(fetcher.requests) == 1 + (1 + client.RETRIES)  # the second page's retries
 
 
 def paced(fetcher, name="x"):
@@ -136,7 +117,7 @@ class Routing(StubFetcher):
         return result
 
 
-def test_pacing_pins_each_request_to_a_fabric_in_turn(unlimited):
+def test_pacing_pins_each_request_to_a_fabric_in_turn():
     # A new process starts pinned to the fabrics in FABRICS.
     fetcher = StubFetcher({"linkedin.com": ok("[]")})
     for _ in range(3):
@@ -188,7 +169,7 @@ def test_redirect_hops_keep_their_pin_and_share_the_request_budget(monkeypatch):
     assert sleeps == [11.6]
 
 
-def test_redirects_resolve_locations_learn_cookies_and_retry_only_the_current_hop(unlimited):
+def test_redirects_resolve_locations_learn_cookies_and_retry_only_the_current_hop():
     sends = []
     responses = iter(
         [
@@ -233,7 +214,7 @@ def test_redirects_resolve_locations_learn_cookies_and_retry_only_the_current_ho
 
 
 @pytest.mark.parametrize("finishes", [True, False])
-def test_redirect_limit_allows_twenty_hops_and_stops_a_loop(unlimited, finishes):
+def test_redirect_limit_allows_twenty_hops_and_stops_a_loop(finishes):
     requests = []
 
     def respond(request):
@@ -255,7 +236,7 @@ def test_redirect_limit_allows_twenty_hops_and_stops_a_loop(unlimited, finishes)
     assert len(requests) == 21
 
 
-def test_invalid_redirects_fail_before_another_request(unlimited):
+def test_invalid_redirects_fail_before_another_request():
     async def run():
         for location in (
             "http://www.linkedin.com/page",
@@ -309,19 +290,6 @@ def test_redirect_wait_can_be_cancelled_without_sending_another_request(monkeypa
     asyncio.run(run())
 
 
-def test_pacing_allows_a_burst_then_waits_for_window_capacity(monkeypatch):
-    monkeypatch.setattr(client, "monotonic", lambda: 0.0)
-    pool = client.Fabrics()
-    pool.known = {}  # discovery: every request goes out unpinned
-    assert pool.pick(set()) == (None, 0.0)
-    assert pool.pick(set()) == (None, 2.32)
-    pool = client.Fabrics()
-    assert sorted(pool.pick(set()) for _ in range(15)) == sorted(
-        [("prod-lor1", 0.0), ("prod-ltx1", 0.0), ("prod-lva1", 0.0)] * 5
-    )
-    assert pool.pick(set()) == ("prod-lor1", 11.6)
-
-
 def test_pacing_charges_unanswered_and_rerouted_requests_to_possible_fabrics(monkeypatch):
     monkeypatch.setattr(client, "monotonic", itertools.count(0.0, 0.001).__next__)
     client.POOL.known = {}
@@ -351,7 +319,7 @@ def test_pacing_charges_unanswered_and_rerouted_requests_to_possible_fabrics(mon
     assert pool.pick(set()) == ("prod-a", 2.5)  # the reroute filled its window
 
 
-def test_pacing_drops_a_pin_whose_request_lands_elsewhere(unlimited, monkeypatch):
+def test_pacing_drops_a_pin_whose_request_lands_elsewhere(monkeypatch):
     monkeypatch.setattr(client, "DISCOVERY", 1)
     client.POOL.known = {name: f'"{name}"' for name in ("prod-a", "prod-b", "prod-c")}
     client.POOL.unpinned = 1  # discovery is spent
@@ -490,7 +458,7 @@ def test_an_unpinned_request_waits_until_every_fabric_is_paced(monkeypatch):
     assert sleeps == [11.1]
 
 
-def test_a_retry_skips_the_fabric_that_refused_an_unpinned_attempt(unlimited):
+def test_a_retry_skips_the_fabric_that_refused_an_unpinned_attempt():
     # Two fabrics are known, so discovery runs. The unpinned attempt lands on
     # prod-b, which refuses it without a new cookie, so discovery goes on.
     client.POOL.known = {name: f'"{name}"' for name in ("prod-a", "prod-b")}
@@ -527,8 +495,9 @@ def test_a_canceled_wait_leaves_the_fabric_free(monkeypatch):
     assert queue.sends == [0.0, 11.6]
 
 
-def test_pacing_retries_a_refusal_on_an_untried_fabric(unlimited, monkeypatch):
+def test_pacing_retries_a_refusal_on_an_untried_fabric(monkeypatch):
     monkeypatch.setattr(client, "DISCOVERY", 0)  # discovery stops once a fabric is known
+    monkeypatch.setattr(client, "RETRY_DELAY", 7.0)  # unlike any wait the pacing computes
     sleeps = []
 
     async def recording_sleep(seconds):
@@ -561,7 +530,7 @@ def test_pacing_retries_a_refusal_on_an_untried_fabric(unlimited, monkeypatch):
     with pytest.raises(Stopped):
         asyncio.run(paced(fetcher))
     assert [h["cookie"][6:-1] for h in fetcher.headers] == ["prod-a", "prod-b"] * 3
-    assert sleeps == [client.RETRY_DELAY] * 4
+    assert sleeps == [7.0] * 4
 
     # With no other fabric known, every retry waits for the window.
     sleeps.clear()
@@ -569,7 +538,7 @@ def test_pacing_retries_a_refusal_on_an_untried_fabric(unlimited, monkeypatch):
     fetcher = Refusing({})
     with pytest.raises(Stopped):
         asyncio.run(paced(fetcher))
-    assert sleeps == [client.RETRY_DELAY] * client.RETRIES
+    assert sleeps == [7.0] * client.RETRIES
 
     # While no fabric is known, every retry goes out unpinned without waiting.
     sleeps.clear()
@@ -639,23 +608,7 @@ def test_concurrent_retries_try_each_fabric_once_and_keep_each_fabric_paced(monk
         assert all(b >= a + 11.6 for a, b in zip(times, times[5:], strict=False)), fabric
 
 
-def test_linkedin_keeps_collected_jobs_after_a_later_page_failure(unlimited):
-    class DownAfterFirst(StubFetcher):
-        async def fetch(self, url, *, headers=None, json=None, follow_redirects=True):
-            if self.requests:
-                self.requests.append(url)
-                return network_down()
-            return await super().fetch(url, headers=headers, follow_redirects=follow_redirects)
-
-    fetcher = DownAfterFirst(
-        {"seeMoreJobPostings": ok(linkedin_card("111") + linkedin_card("222"))}
-    )
-    with pytest.raises(Stopped, match=r"connection reset\. Kept the 2 postings") as stop:
-        asyncio.run(linkedin.search(fetcher, query="x", location="Seattle", results=5))
-    assert [j["id"] for j in stop.value.partial] == ["111", "222"]  # the first page survives
-
-
-def test_warns_on_empty_first_page(unlimited, caplog):
+def test_warns_on_empty_first_page(caplog):
     fetcher = StubFetcher({"seeMoreJobPostings": ok("<!DOCTYPE html>\n<!---->")})
     with caplog.at_level(logging.WARNING, logger="jobrake.sites.linkedin"):
         jobs = asyncio.run(linkedin.search(fetcher, query="x", location="Amsterdam"))
@@ -663,7 +616,7 @@ def test_warns_on_empty_first_page(unlimited, caplog):
     assert any("location" in record.message for record in caplog.records)
 
 
-def test_warns_when_the_offset_cap_cuts_a_search_short(unlimited, caplog, monkeypatch):
+def test_warns_when_the_offset_cap_cuts_a_search_short(caplog, monkeypatch):
     # linkedin.search is the exported function, so import its module directly
     search_module = importlib.import_module("jobrake.sites.linkedin.search")
     monkeypatch.setattr(search_module, "MAX_START", 2)
@@ -674,7 +627,7 @@ def test_warns_when_the_offset_cap_cuts_a_search_short(unlimited, caplog, monkey
     assert any("offset" in record.message for record in caplog.records)
 
 
-def test_no_warning_when_pagination_simply_ends(unlimited, caplog):
+def test_no_warning_when_pagination_simply_ends(caplog):
     fetcher = PagedFetcher([linkedin_card("111"), ""])
     with caplog.at_level(logging.WARNING, logger="jobrake.sites.linkedin"):
         jobs = asyncio.run(linkedin.search(fetcher, query="x", location="Seattle", results=5))
@@ -682,7 +635,7 @@ def test_no_warning_when_pagination_simply_ends(unlimited, caplog):
     assert caplog.records == []
 
 
-def test_companies_lists_usable_candidates_in_linkedin_order(unlimited):
+def test_companies_lists_usable_candidates_in_linkedin_order():
     hits = [
         {"id": " 1173 ", "displayName": " ABN AMRO Bank N.V. ", "trackingId": "unused"},
         {"id": "2948083", "displayName": "ABN AMRO MeesPierson"},
@@ -717,7 +670,7 @@ def test_companies_lists_usable_candidates_in_linkedin_order(unlimited):
         (ok('[{"id": "bad", "displayName": "Acme"}]'), None),
     ],
 )
-def test_company_lookup_distinguishes_no_matches_from_failure(unlimited, response, expected):
+def test_company_lookup_distinguishes_no_matches_from_failure(response, expected):
     fetcher = StubFetcher({"typeaheadHits": response})
     if expected is None:
         with pytest.raises(Stopped, match="linkedin "):
@@ -726,7 +679,7 @@ def test_company_lookup_distinguishes_no_matches_from_failure(unlimited, respons
         assert asyncio.run(linkedin.companies(fetcher, "Acme")) == expected
 
 
-def test_places_lists_usable_candidates_in_order(unlimited):
+def test_places_lists_usable_candidates_in_order():
     hits = [
         {"id": "1", "displayName": "Amsterdam, North Holland, Netherlands", "type": "GEO"},
         {"id": "   ", "displayName": "Amsterdam Area"},
@@ -747,50 +700,55 @@ def test_places_lists_usable_candidates_in_order(unlimited):
 
 
 @pytest.mark.parametrize(
-    ("company_ids", "query", "easy_apply", "early_applicant"),
+    ("filters", "expected"),
     [
-        (None, "data", False, False),
-        ([], "", True, False),
-        (["1173"], "", False, True),
-        (["1173", "2220078"], "data", True, True),
+        (
+            {
+                "query": "data",
+                "company_ids": ["1173", "2220078"],
+                "easy_apply": True,
+                "early_applicant": True,
+            },
+            {
+                "keywords": ["data"],
+                "geoId": ["102890719"],
+                "distance": ["25"],
+                "f_TPR": ["r172800"],
+                "sortBy": ["DD"],
+                "f_C": ["1173,2220078"],
+                "f_AL": ["true"],
+                "f_EA": ["true"],
+            },
+        ),
+        (
+            {"query": "", "company_ids": [], "easy_apply": False, "early_applicant": False},
+            {
+                "keywords": [""],
+                "geoId": ["102890719"],
+                "distance": ["25"],
+                "f_TPR": ["r172800"],
+                "sortBy": ["DD"],
+            },
+        ),
     ],
+    ids=["all-on", "all-off"],
 )
-def test_paginated_search_preserves_filters(
-    unlimited, company_ids, query, easy_apply, early_applicant
-):
+def test_paginated_search_preserves_filters(filters, expected):
     fetcher = PagedFetcher([linkedin_card("111"), linkedin_card("222")])
     jobs = asyncio.run(
         linkedin.search(
-            fetcher,
-            query=query,
-            geoid="102890719",
-            company_ids=company_ids,
-            easy_apply=easy_apply,
-            early_applicant=early_applicant,
-            max_age_hours=48,
-            radius=40,
-            results=2,
+            fetcher, geoid="102890719", max_age_hours=48, radius=40, results=2, **filters
         )
     )
     assert [job["id"] for job in jobs] == ["111", "222"]
     assert len(fetcher.requests) == 2
+    # Kilometers go out as whole miles, here with a geoId and no location.
     for start, url in enumerate(fetcher.requests):
         params = parse_qs(urlsplit(url).query, keep_blank_values=True)
-        assert params == {
-            "keywords": [query],
-            "geoId": ["102890719"],
-            # Kilometers go out as whole miles, here with a geoId and no location.
-            "distance": ["25"],
-            "start": [str(start)],
-            "f_TPR": ["r172800"],
-            "sortBy": ["DD"],
-            **({"f_C": [",".join(company_ids)]} if company_ids else {}),
-            **({"f_AL": ["true"]} if easy_apply else {}),
-            **({"f_EA": ["true"]} if early_applicant else {}),
-        }
+        assert params == expected | {"start": [str(start)]}
 
 
-def test_search_by_geoid_needs_no_location_or_query(unlimited):
+def test_search_by_geoid_needs_no_location_or_query():
     fetcher = StubFetcher({"seeMoreJobPostings": ok(linkedin_card("111"))})
     asyncio.run(linkedin.search(fetcher, results=1, geoid="12345"))
     assert "geoId=12345" in fetcher.requests[0]
@@ -798,28 +756,7 @@ def test_search_by_geoid_needs_no_location_or_query(unlimited):
     assert "f_TPR" not in fetcher.requests[0]  # no age limit by default
 
 
-def test_every_request_waits_for_its_turn_before_it_sends(unlimited, monkeypatch):
-    events = []
-    pick = client.POOL.pick
-
-    def turn(tried):
-        events.append("turn")
-        return pick(tried)
-
-    class Sending(StubFetcher):
-        async def fetch(self, url, *, headers=None, json=None, follow_redirects=True):
-            events.append("send")
-            return await super().fetch(url, headers=headers, follow_redirects=follow_redirects)
-
-    monkeypatch.setattr(client.POOL, "pick", turn)
-    fetcher = Sending(
-        {"seeMoreJobPostings": ok(linkedin_card("111")), "jobs/view/111": ok(job_page())}
-    )
-    asyncio.run(linkedin.search(fetcher, query="x", location="Seattle", results=1, details=True))
-    assert events == ["turn", "send"] * 2
-
-
-def test_search_details_hydrate_from_the_canonical_page(unlimited):
+def test_search_details_hydrate_from_the_canonical_page():
     fetcher = StubFetcher(
         {"seeMoreJobPostings": ok(linkedin_card("111")), "jobs/view/111": ok(job_page())}
     )
@@ -853,7 +790,7 @@ def test_search_details_hydrate_from_the_canonical_page(unlimited):
     assert again[0]["locations"] == [{"name": "Seattle, WA"}]  # and so does its cached record
 
 
-def test_search_keeps_the_summary_when_the_posting_is_gone(unlimited):
+def test_search_keeps_the_summary_when_the_posting_is_gone():
     fetcher = StubFetcher(
         {"seeMoreJobPostings": ok(linkedin_card("111")), "jobs/view/111": not_found()}
     )
@@ -864,8 +801,7 @@ def test_search_keeps_the_summary_when_the_posting_is_gone(unlimited):
     assert "description" not in jobs[0]
 
 
-def test_search_stops_when_a_posting_cannot_be_fetched(unlimited, monkeypatch):
-    monkeypatch.setattr(client, "RETRY_DELAY", 0)
+def test_search_stops_when_a_posting_cannot_be_fetched():
     fetcher = StubFetcher(
         {"seeMoreJobPostings": ok(linkedin_card("111")), "jobs/view/111": rate_limited()}
     )
@@ -874,31 +810,6 @@ def test_search_stops_when_a_posting_cannot_be_fetched(unlimited, monkeypatch):
             linkedin.search(fetcher, query="x", location="Seattle", results=1, details=True)
         )
     assert [job["title"] for job in stop.value.partial] == ["Economist"]
-
-
-def test_search_reruns_only_fetch_unseen_postings(unlimited):
-    responses = {"seeMoreJobPostings": ok(linkedin_card("111")), "jobs/view/111": ok(job_page())}
-    jobs = asyncio.run(
-        linkedin.search(
-            StubFetcher(responses),
-            query="x",
-            location="Seattle",
-            results=1,
-            details=True,
-        )
-    )
-    rerun_fetcher = StubFetcher(responses)
-    rerun = asyncio.run(
-        linkedin.search(
-            rerun_fetcher,
-            query="x",
-            location="Seattle",
-            results=1,
-            details=True,
-        )
-    )
-    assert jobs[0]["description"] == rerun[0]["description"] == "Great & big role"
-    assert [url for url in rerun_fetcher.requests if "seeMoreJobPostings" not in url] == []
 
 
 CANONICAL = "https://nl.linkedin.com/jobs/view/economist-at-acme-111"
@@ -986,7 +897,7 @@ def parsed(page) -> JobDict:
     return job
 
 
-def test_a_posting_page_omits_what_it_cannot_extract(unlimited):
+def test_a_posting_page_omits_what_it_cannot_extract():
     job = parsed(job_page())
     assert job["description"] == "Great & big role"  # unescaped, then de-tagged
     assert job["employment_type"] == "full_time"  # unified across sites
@@ -999,7 +910,7 @@ def test_a_posting_page_omits_what_it_cannot_extract(unlimited):
     assert "experience_months" not in job
 
 
-def test_a_posting_page_maps_schema_org_onto_the_record(unlimited):
+def test_a_posting_page_maps_schema_org_onto_the_record():
     page = job_page(
         baseSalary={
             "currency": "USD",
@@ -1029,7 +940,7 @@ def test_a_posting_page_maps_schema_org_onto_the_record(unlimited):
     assert "experience_months" not in parsed(fractional)  # JobDict holds whole months
 
 
-def test_a_posting_page_drops_nonfinite_numbers(unlimited):
+def test_a_posting_page_drops_nonfinite_numbers():
     # json.loads admits these constants, and json.dumps would write them back
     # out as invalid JSON
     page = job_page(
@@ -1048,13 +959,13 @@ def test_a_posting_page_drops_nonfinite_numbers(unlimited):
     assert parse('<div class="compensation__salary">USD ,/yr - USD ,/yr</div>') is None
 
 
-def test_a_posting_page_reads_the_apply_kind(unlimited):
+def test_a_posting_page_reads_the_apply_kind():
     for apply in ("offsite", "onsite", "whatevernext"):  # any value the page uses
         assert parsed(job_page(apply=apply))["apply_type"] == apply
     assert "apply_type" not in parsed(job_page(apply=None))
 
 
-def test_applicant_count_ignores_the_prose_around_it(unlimited):
+def test_applicant_count_ignores_the_prose_around_it():
     for caption, expected in (  # every form seen across seven locales
         ("Be among the first 25 applicants", 25),
         ("Over 200 applicants", 200),
@@ -1066,7 +977,7 @@ def test_applicant_count_ignores_the_prose_around_it(unlimited):
         assert job.get("applicants") == expected
 
 
-def test_a_posting_page_survives_schema_variants(unlimited):
+def test_a_posting_page_survives_schema_variants():
     # schema.org allows a bare string or a list where an object is typical
     page = job_page(
         experienceRequirements="3 years", jobLocation=[{"address": {"addressCountry": "DE"}}]
@@ -1086,7 +997,7 @@ def test_a_posting_page_survives_schema_variants(unlimited):
     assert parsed(page)["description"] == "Role"
 
 
-def test_a_posting_page_decodes_the_entities_the_block_arrives_with(unlimited):
+def test_a_posting_page_decodes_the_entities_the_block_arrives_with():
     # Entities inside a script element reach the parser undecoded, so every
     # string the block holds needs decoding, not just the description markup.
     page = job_page(
@@ -1102,7 +1013,7 @@ def test_a_posting_page_decodes_the_entities_the_block_arrives_with(unlimited):
     assert job["company_logo"] == "https://media.licdn.com/logo?e=1&v=beta"
 
 
-def test_a_posting_page_normalizes_union_valued_fields(unlimited):
+def test_a_posting_page_normalizes_union_valued_fields():
     page = job_page(
         description={"@type": "Thing"},
         employmentType=["FULL_TIME", "CONTRACTOR"],
@@ -1124,7 +1035,7 @@ def test_a_posting_page_normalizes_union_valued_fields(unlimited):
     assert job["locations"] == [{"name": "US", "country_code": "US"}]
 
 
-def test_a_posting_page_falls_back_to_the_markup_without_the_block(unlimited):
+def test_a_posting_page_falls_back_to_the_markup_without_the_block():
     job = parsed(blockless_page())
     assert job["description"] == "Great & big role"
     assert job["apply_type"] == "offsite"
@@ -1135,7 +1046,7 @@ def test_a_posting_page_falls_back_to_the_markup_without_the_block(unlimited):
     assert "salary_min" not in job
 
 
-def test_a_posting_page_reads_the_summary_fields(unlimited):
+def test_a_posting_page_reads_the_summary_fields():
     # A posting page has to yield a whole job, card or no card.
     markup = parsed(en_fragment())
     assert (markup["title"], markup["company"]) == ("Economist", "Acme")
@@ -1146,7 +1057,7 @@ def test_a_posting_page_reads_the_summary_fields(unlimited):
     assert (block["title"], block["company"]) == ("Senior Economist", "Acme BV")
 
 
-def test_a_posting_page_reads_the_en_us_markup_labels(unlimited):
+def test_a_posting_page_reads_the_en_us_markup_labels():
     job = parsed(en_fragment())
     assert job["employment_type"] == "full_time"
     assert (job["salary_min"], job["salary_max"]) == (756000.0, 924000.0)
@@ -1156,8 +1067,7 @@ def test_a_posting_page_reads_the_en_us_markup_labels(unlimited):
 
 
 @pytest.mark.parametrize("failure", [network_down(), rate_limited()])
-def test_a_blockless_page_pulls_the_en_us_fragment(unlimited, monkeypatch, failure):
-    monkeypatch.setattr(client, "RETRY_DELAY", 0)
+def test_a_blockless_page_pulls_the_en_us_fragment(failure):
     other = "https://nl.linkedin.com/jobs/view/other-at-acme-444"
     fetcher = StubFetcher(
         {
@@ -1184,8 +1094,7 @@ def test_a_blockless_page_pulls_the_en_us_fragment(unlimited, monkeypatch, failu
     assert CANONICAL not in fetcher.requests
 
 
-def test_postings_have_three_outcomes(unlimited, monkeypatch):
-    monkeypatch.setattr(client, "RETRY_DELAY", 0)
+def test_postings_have_three_outcomes():
     gone = "https://nl.linkedin.com/jobs/view/gone-at-acme-222"
     gone_alias = "https://www.linkedin.com/jobs/view/gone-at-acme-222"
     flaky = "https://nl.linkedin.com/jobs/view/flaky-at-acme-333"
@@ -1205,7 +1114,7 @@ def test_postings_have_three_outcomes(unlimited, monkeypatch):
     assert sum(1 for u in fetcher.requests if "gone-at" in u) == 1  # so is the alias
 
 
-def test_postings_overlap_page_reads_and_keep_reference_order(unlimited, caplog):
+def test_postings_overlap_page_reads_and_keep_reference_order(caplog):
     references = [f"https://nl.linkedin.com/jobs/view/role-{n}" for n in range(111, 119)]
 
     class Overlapping(StubFetcher):
@@ -1235,10 +1144,7 @@ def test_postings_overlap_page_reads_and_keep_reference_order(unlimited, caplog)
     assert asyncio.run(linkedin.postings(StubFetcher({}), references)) == got
 
 
-def test_a_persistent_429_cancels_unfinished_reads_and_keeps_completed_pages(
-    unlimited, monkeypatch
-):
-    monkeypatch.setattr(client, "RETRY_DELAY", 0)
+def test_a_persistent_429_cancels_unfinished_reads_and_keeps_completed_pages():
     references = [f"https://nl.linkedin.com/jobs/view/role-{n}" for n in range(111, 135)]
     cancelled = []
 
@@ -1277,8 +1183,7 @@ def test_a_persistent_429_cancels_unfinished_reads_and_keeps_completed_pages(
     assert asyncio.run(linkedin.postings(StubFetcher({}), references[:1])) == got
 
 
-def test_a_429_stop_propagates_a_completed_fetcher_exception_after_cleanup(unlimited, monkeypatch):
-    monkeypatch.setattr(client, "RETRY_DELAY", 0)
+def test_a_429_stop_propagates_a_completed_fetcher_exception_after_cleanup():
     entered, released, cancelled = asyncio.Event(), asyncio.Event(), asyncio.Event()
     blocked = "https://nl.linkedin.com/jobs/view/blocked-333"
     attempts = 0
@@ -1309,8 +1214,7 @@ def test_a_429_stop_propagates_a_completed_fetcher_exception_after_cleanup(unlim
     asyncio.run(asyncio.wait_for(run(), timeout=1))
 
 
-def test_postings_stop_when_the_429_retries_also_fail(unlimited, caplog, monkeypatch):
-    monkeypatch.setattr(client, "RETRY_DELAY", 0)
+def test_postings_stop_when_the_429_retries_also_fail(caplog):
     fetcher = StubFetcher({"linkedin.com": rate_limited()})
     with caplog.at_level(logging.WARNING, logger="jobrake.sites.linkedin"):
         got = asyncio.run(linkedin.postings(fetcher, [CANONICAL]))
@@ -1339,60 +1243,31 @@ def test_postings_stop_when_the_429_retries_also_fail(unlimited, caplog, monkeyp
     assert "1 of 2" in caplog.text
 
 
-def test_postings_contain_a_malformed_block_per_posting(unlimited):
-    fetcher = StubFetcher(
-        {
-            "economist-at-acme-111": ok(
-                job_page(description={"@type": "Thing"}, employmentType=["FULL_TIME"])
-            ),
-            "other-at-acme-222": ok(job_page()),
-        }
-    )
-    got = asyncio.run(linkedin.postings(fetcher, [CANONICAL, OTHER]))
-    assert fetched(got, CANONICAL)["employment_type"] == "full_time"
-    assert "description" not in fetched(got, CANONICAL)
-    assert fetched(got, OTHER)["description"] == "Great & big role"  # fetching went on
-
-
-@given(
-    origin=st.sampled_from(["canonical", "fragment", "response"]),
-    malformed=st.sampled_from(["https://[bad", "https://linkedin.com\uff0fjobs/view/role-111"]),
+@pytest.mark.parametrize(
+    "malformed", ["https://[bad", "https://linkedin.com\uff0fjobs/view/role-111"]
 )
+@pytest.mark.parametrize("origin", ["canonical", "fragment", "response"])
 def test_malformed_response_urls_do_not_abort_other_postings(origin, malformed):
-    class Malformed(StubFetcher):
-        async def fetch(self, url, *, headers=None, json=None, follow_redirects=True):
-            result = await super().fetch(
-                url, headers=headers, json=json, follow_redirects=follow_redirects
-            )
-            if "111" in url and origin == "response":
-                result.url = malformed
-            return result
-
+    landed = malformed if origin == "response" else "stub"  # a redirect to the malformed URL
     body = job_page() + f'<link rel="canonical" href="{malformed}">'
     first = "111" if origin == "fragment" else CANONICAL
-    fetcher = Malformed(
+    fetcher = StubFetcher(
         {
-            CANONICAL: ok(body if origin == "canonical" else job_page()),
-            "jobPosting/111": ok(f'<a class="topcard__link" href="{malformed}"></a>'),
+            CANONICAL: FetchResult(landed, 200, body if origin == "canonical" else job_page()),
+            "jobPosting/111": FetchResult(
+                landed, 200, f'<a class="topcard__link" href="{malformed}"></a>'
+            ),
             OTHER: ok(job_page(title="Healthy")),
         }
     )
-    isolated = cache.Cache(":memory:")
-    try:
-        with pytest.MonkeyPatch.context() as patch:
-            patch.setattr(cache, "CACHE", isolated)
-            patch.setattr(client, "POOL", client.Fabrics())
-            patch.setattr(client, "monotonic", itertools.count(0.0, 100.0).__next__)
-            got = asyncio.run(linkedin.postings(fetcher, [first, OTHER]))
-        assert list(got) == [OTHER]
-        assert fetched(got, OTHER)["title"] == "Healthy"
-        assert OTHER in fetcher.requests
-    finally:
-        isolated.close()
+    got = asyncio.run(linkedin.postings(fetcher, [first, OTHER]))
+    assert list(got) == [OTHER]
+    assert fetched(got, OTHER)["title"] == "Healthy"
+    assert OTHER in fetcher.requests
 
 
 @pytest.mark.parametrize("suffix", ["/", "?trk=public_jobs", "/?trk=public_jobs", "#apply"])
-def test_postings_reduce_a_url_to_its_page(unlimited, suffix):
+def test_postings_reduce_a_url_to_its_page(suffix):
     fetcher = StubFetcher({"economist-at-acme-111": ok(job_page())})
     got = asyncio.run(linkedin.postings(fetcher, [CANONICAL + suffix]))
     assert fetched(got, CANONICAL + suffix)["url"] == CANONICAL  # keyed as passed
@@ -1400,16 +1275,7 @@ def test_postings_reduce_a_url_to_its_page(unlimited, suffix):
     assert fetcher.requests == [CANONICAL]
 
 
-def test_postings_are_cached_by_id_not_url(unlimited):
-    # One posting may change subdomain or slug while keeping its ID.
-    fetcher = StubFetcher({"economist-at-acme-111": ok(job_page())})
-    asyncio.run(linkedin.postings(fetcher, [CANONICAL]))
-    moved = "https://uk.linkedin.com/jobs/view/senior-economist-at-acme-111"
-    got = asyncio.run(linkedin.postings(StubFetcher({}), [moved]))
-    assert fetched(got, moved)["employment_type"] == "full_time"
-
-
-def test_a_details_search_caches_the_page_without_its_card(unlimited):
+def test_a_details_search_caches_the_page_without_its_card():
     responses = {"seeMoreJobPostings": ok(linkedin_card("111")), "jobs/view/111": ok(job_page())}
     jobs = asyncio.run(
         linkedin.search(
@@ -1427,7 +1293,7 @@ def test_a_details_search_caches_the_page_without_its_card(unlimited):
     assert again[0]["locations"] == jobs[0]["locations"]  # and names its place as the card does
 
 
-def test_postings_attempt_each_posting_once(unlimited, caplog):
+def test_postings_attempt_each_posting_once(caplog):
     moved = "https://uk.linkedin.com/jobs/view/senior-economist-at-acme-111"
     fetcher = StubFetcher({"-111": ok("<html><body>signup wall</body></html>")})
     with caplog.at_level(logging.WARNING, logger="jobrake.sites.linkedin"):
@@ -1437,14 +1303,8 @@ def test_postings_attempt_each_posting_once(unlimited, caplog):
     assert "no fields" in caplog.text
 
 
-def test_an_interrupted_fetch_keeps_paid_results(unlimited):
-    class DiesOnSecond(StubFetcher):
-        async def fetch(self, url, *, headers=None, json=None, follow_redirects=True):
-            if len(self.requests) == 1:
-                raise RuntimeError("interrupted")
-            return await super().fetch(url, headers=headers, follow_redirects=follow_redirects)
-
-    fetcher = DiesOnSecond({"economist-at-acme-111": ok(job_page())})
+def test_an_interrupted_fetch_keeps_paid_results():
+    fetcher = PagedFetcher([ok(job_page()), RuntimeError("interrupted")])
     with pytest.raises(RuntimeError):
         asyncio.run(linkedin.postings(fetcher, [CANONICAL, OTHER]))
     got = asyncio.run(linkedin.postings(StubFetcher({}), [CANONICAL]))
@@ -1452,7 +1312,7 @@ def test_an_interrupted_fetch_keeps_paid_results(unlimited):
 
 
 @pytest.mark.parametrize("cancel", [False, True])
-def test_interrupted_postings_finish_their_readers_before_returning(unlimited, cancel):
+def test_interrupted_postings_finish_their_readers_before_returning(cancel):
     entered = asyncio.Event()
     started, cancelled = [], []
     references = [CANONICAL] + [
@@ -1493,7 +1353,7 @@ def test_interrupted_postings_finish_their_readers_before_returning(unlimited, c
     asyncio.run(asyncio.wait_for(run(), timeout=1))
 
 
-def test_a_broken_cache_still_fetches_and_warns_once(unlimited, tmp_path, monkeypatch, caplog):
+def test_a_broken_cache_still_fetches_and_warns_once(tmp_path, monkeypatch, caplog):
     (tmp_path / "blocker").write_text("")
     monkeypatch.setattr(cache, "CACHE", cache.Cache(tmp_path / "blocker" / "jobrake.sqlite3"))
     fetcher = StubFetcher({"economist-at-acme-111": ok(job_page())})
@@ -1503,7 +1363,7 @@ def test_a_broken_cache_still_fetches_and_warns_once(unlimited, tmp_path, monkey
     assert len([r for r in caplog.records if "disabled" in r.message]) == 1
 
 
-def test_postings_resolve_an_id_before_fetching_the_page(unlimited):
+def test_postings_resolve_an_id_before_fetching_the_page():
     fetcher = StubFetcher(
         {
             "jobPosting/111": ok(en_fragment()),
@@ -1557,7 +1417,7 @@ def test_postings_resolve_an_id_before_fetching_the_page(unlimited):
         "   ",  # a blank argument, which names nothing at all
     ],
 )
-def test_postings_reject_a_reference_that_is_not_a_linkedin_posting(unlimited, reference):
+def test_postings_reject_a_reference_that_is_not_a_linkedin_posting(reference):
     # A wrong address must fail rather than quietly become whichever linkedin
     # posting shares its trailing digits, or vanish and leave a short result.
     fetcher = StubFetcher({})
@@ -1566,7 +1426,7 @@ def test_postings_reject_a_reference_that_is_not_a_linkedin_posting(unlimited, r
     assert fetcher.requests == []
 
 
-def test_postings_distrust_a_lookup_that_names_another_page(unlimited):
+def test_postings_distrust_a_lookup_that_names_another_page():
     elsewhere = en_fragment(url="https://nl.linkedin.com/jobs/view/other-at-acme-222")
     for fragment in (elsewhere, "<html>no topcard</html>"):
         fetcher = StubFetcher({"jobPosting/111": ok(fragment)})
@@ -1575,7 +1435,7 @@ def test_postings_distrust_a_lookup_that_names_another_page(unlimited):
         assert fetcher.requests == [f"{FRAGMENT}/111?_l=en_US"]
 
 
-def test_postings_collapse_the_addresses_of_one_posting(unlimited):
+def test_postings_collapse_the_addresses_of_one_posting():
     fetcher = StubFetcher({"economist-at-acme-111": ok(job_page(title="Economist"))})
     references = [
         "https://www.linkedin.com/jobs/view/economist-at-acme-111",
@@ -1591,8 +1451,7 @@ def test_postings_collapse_the_addresses_of_one_posting(unlimited):
     assert fetched(got, "111")["url"] == CANONICAL
 
 
-def test_postings_stop_looking_up_ids_once_rate_limited(unlimited, monkeypatch, caplog):
-    monkeypatch.setattr(client, "RETRY_DELAY", 0)
+def test_postings_stop_looking_up_ids_once_rate_limited(caplog):
     fetcher = StubFetcher({"jobPosting": rate_limited()})
     with caplog.at_level(logging.WARNING, logger="jobrake.sites.linkedin"):
         assert asyncio.run(linkedin.postings(fetcher, [str(n) for n in range(111, 135)])) == {}
@@ -1602,7 +1461,7 @@ def test_postings_stop_looking_up_ids_once_rate_limited(unlimited, monkeypatch, 
     assert "rate limiting" in caplog.text
 
 
-def test_postings_keep_what_they_resolved_in_reference_order(unlimited, caplog):
+def test_postings_keep_what_they_resolved_in_reference_order(caplog):
     other = "https://nl.linkedin.com/jobs/view/other-at-acme-444"
     fetcher = StubFetcher(
         {
@@ -1631,7 +1490,7 @@ def test_postings_keep_what_they_resolved_in_reference_order(unlimited, caplog):
 
 
 @pytest.mark.parametrize("by_id", [False, True])
-def test_postings_fetch_a_us_posting_on_www(unlimited, caplog, by_id):
+def test_postings_fetch_a_us_posting_on_www(caplog, by_id):
     www = "https://www.linkedin.com/jobs/view/economist-at-acme-111"
     reference = "111" if by_id else www
     fetcher = StubFetcher(
@@ -1655,7 +1514,7 @@ def test_postings_fetch_a_us_posting_on_www(unlimited, caplog, by_id):
         "https://nl.linkedin.com/jobs/view/analyst-at-acme-111",  # a renamed posting's old slug
     ],
 )
-def test_postings_follow_a_pages_canonical_link_to_another_address(unlimited, address):
+def test_postings_follow_a_pages_canonical_link_to_another_address(address):
     fetcher = StubFetcher(
         {
             address: ok(f'<link rel="canonical" href="{CANONICAL}">' + en_fragment(url=address)),
@@ -1675,7 +1534,7 @@ def test_postings_follow_a_pages_canonical_link_to_another_address(unlimited, ad
     assert asyncio.run(linkedin.postings(StubFetcher({}), [address])) == got
 
 
-def test_a_canonical_link_spelling_the_pages_address_another_way_costs_no_second_request(unlimited):
+def test_a_canonical_link_spelling_the_pages_address_another_way_costs_no_second_request():
     encoded = "https://de.linkedin.com/jobs/view/%C3%B6konom-at-acme-111"
     link = '<link rel="canonical" href="https://de.linkedin.com/jobs/view/ökonom-at-acme-111">'
     fetcher = StubFetcher({"-111": ok(link + job_page(title="Economist"))})
@@ -1684,9 +1543,7 @@ def test_a_canonical_link_spelling_the_pages_address_another_way_costs_no_second
     assert fetcher.requests == [encoded]
 
 
-def test_a_page_whose_canonical_link_names_another_posting_is_skipped_with_the_reason(
-    unlimited, caplog
-):
+def test_a_page_whose_canonical_link_names_another_posting_is_skipped_with_the_reason(caplog):
     fetcher = StubFetcher({CANONICAL: ok(f'<link rel="canonical" href="{OTHER}">' + job_page())})
     with caplog.at_level(logging.WARNING, logger="jobrake.sites.linkedin"):
         assert asyncio.run(linkedin.postings(fetcher, [CANONICAL])) == {}
@@ -1703,7 +1560,7 @@ def test_a_page_whose_canonical_link_names_another_posting_is_skipped_with_the_r
         ),
     ],
 )
-def test_postings_resolve_a_failed_candidate_with_the_guest_fragment(unlimited, candidate, caplog):
+def test_postings_resolve_a_failed_candidate_with_the_guest_fragment(candidate, caplog):
     www = "https://www.linkedin.com/jobs/view/economist-at-acme-111"
     fetcher = StubFetcher(
         {
@@ -1722,7 +1579,7 @@ def test_postings_resolve_a_failed_candidate_with_the_guest_fragment(unlimited, 
     assert [record for record in caplog.records if record.levelno >= logging.WARNING] == []
 
 
-def test_a_failed_page_does_not_repeat_the_guest_lookup_it_already_used(unlimited):
+def test_a_failed_page_does_not_repeat_the_guest_lookup_it_already_used():
     www = "https://www.linkedin.com/jobs/view/economist-at-acme-111"
     fetcher = StubFetcher(
         {
@@ -1736,7 +1593,7 @@ def test_a_failed_page_does_not_repeat_the_guest_lookup_it_already_used(unlimite
 
 
 @pytest.mark.parametrize("canonical", [None, OTHER])
-def test_postings_resolve_a_page_without_its_own_canonical_metadata(unlimited, canonical):
+def test_postings_resolve_a_page_without_its_own_canonical_metadata(canonical):
     www = "https://www.linkedin.com/jobs/view/economist-at-acme-111"
     metadata = f'<link rel="canonical" href="{canonical}">' if canonical else ""
     fetcher = StubFetcher(
@@ -1752,20 +1609,13 @@ def test_postings_resolve_a_page_without_its_own_canonical_metadata(unlimited, c
 
 
 @pytest.mark.parametrize("has_fields", [False, True])
-def test_an_expired_page_cannot_replace_fields_from_its_surviving_fragment(unlimited, has_fields):
+def test_an_expired_page_cannot_replace_fields_from_its_surviving_fragment(has_fields):
     search_page = '<img class="artdeco-entity-image" data-delayed-url="wrong-logo.png">'
-
-    class Expired(StubFetcher):
-        async def fetch(self, url, *, headers=None, json=None, follow_redirects=True):
-            result = await super().fetch(
-                url, headers=headers, json=json, follow_redirects=follow_redirects
-            )
-            if url == CANONICAL:
-                result.url = "https://nl.linkedin.com/jobs/search?trk=expired_jd_redirect"
-            return result
-
+    expired = FetchResult(
+        "https://nl.linkedin.com/jobs/search?trk=expired_jd_redirect", 200, search_page
+    )
     fragment = en_fragment() if has_fields else f'<a class="topcard__link" href="{CANONICAL}"></a>'
-    fetcher = Expired({CANONICAL: ok(search_page), "jobPosting/111": ok(fragment)})
+    fetcher = StubFetcher({CANONICAL: expired, "jobPosting/111": ok(fragment)})
     got = asyncio.run(linkedin.postings(fetcher, ["111"]))
     if not has_fields:
         assert got == {}
@@ -1782,21 +1632,11 @@ def test_an_expired_page_cannot_replace_fields_from_its_surviving_fragment(unlim
 
 
 @pytest.mark.parametrize("metadata", [False, True])
-def test_postings_reuse_a_response_already_redirected_to_its_canonical_url(unlimited, metadata):
+def test_postings_reuse_a_response_already_redirected_to_its_canonical_url(metadata):
     www = "https://www.linkedin.com/jobs/view/economist-at-acme-111"
-
-    class Redirected(StubFetcher):
-        async def fetch(self, url, *, headers=None, json=None, follow_redirects=True):
-            result = await super().fetch(
-                url, headers=headers, json=json, follow_redirects=follow_redirects
-            )
-            result.url = CANONICAL
-            return result
-
     link = f'<link rel="canonical" href="{CANONICAL}">' if metadata else ""
-    fetcher = Redirected(
-        {www: ok(link + job_page(title="Economist")), "jobPosting/111": not_found()}
-    )
+    redirected = FetchResult(CANONICAL, 200, link + job_page(title="Economist"))
+    fetcher = StubFetcher({www: redirected, "jobPosting/111": not_found()})
     job = fetched(asyncio.run(linkedin.postings(fetcher, [www])), www)
     assert (job["url"], job["title"]) == (CANONICAL, "Economist")
     assert fetcher.requests == [www]

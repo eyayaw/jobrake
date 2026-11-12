@@ -9,7 +9,7 @@ from jobrake.sites import greenhouse
 
 # Two postings from boards-api.greenhouse.io/v1/boards/airbnb/jobs?content=true,
 # fetched 2026-10-28, trimmed to the fields jobrake reads plus updated_at and
-# internal_job_id, with each description cut to a block or two.
+# internal_job_id, with each description cut to a block or two of one short sentence.
 POSTINGS = [
     {
         "id": 8285171,
@@ -24,10 +24,8 @@ POSTINGS = [
         "updated_at": "2026-10-16T02:02:58-04:00",
         "application_deadline": "2026-11-01T23:45:00-05:00",
         "content": "&lt;p&gt;&lt;strong&gt;The Community You Will Join:&lt;/strong&gt;&lt;/p&gt;\n"
-        "&lt;p&gt;Airbnb is seeking MBA students to join the Finance organization as "
-        "Strategic Finance &amp;amp; Analytics Interns for our &lt;strong&gt;2027 Summer "
-        "Intern&lt;/strong&gt; &lt;strong&gt;Program&lt;/strong&gt; from "
-        "&lt;strong&gt;May 24, 2027 - August 13, 2027&lt;/strong&gt;.&lt;/p&gt;",
+        "&lt;p&gt;Airbnb seeks &lt;strong&gt;Finance &amp;amp; Analytics&lt;/strong&gt; "
+        "interns.&lt;/p&gt;",
     },
     {
         "id": 8264827,
@@ -63,9 +61,7 @@ def test_a_board_parses_into_records():
             "company": "Airbnb",
             "locations": [{"name": "United States"}],
             "date": "2026-10-15",
-            "description": "The Community You Will Join:\nAirbnb is seeking MBA students to "
-            "join the Finance organization as Strategic Finance & Analytics Interns for our "
-            "2027 Summer Intern Program from May 24, 2027 - August 13, 2027.",
+            "description": "The Community You Will Join:\nAirbnb seeks Finance & Analytics interns.",
             "language": "en",
             "department": "Intern",
             "posted_at": "2026-10-15T11:14:03-04:00",

@@ -14,7 +14,7 @@ EU = "https://api.eu.lever.co/v0/postings"
 
 # Two postings from api.lever.co/v0/postings/palantir?mode=json, fetched
 # 2026-10-28, trimmed to the fields jobrake reads plus opening, with each HTML
-# field and list cut to a block or two. The second posting's workplaceType is
+# field and list cut to a block or two of one short sentence. The second posting's workplaceType is
 # changed from hybrid to remote to cover a second workplace type, New York is
 # added to its allLocations to cover a second place, and the first posting
 # gains categories.department, which Lever documents and palantir leaves out.
@@ -38,20 +38,14 @@ POSTINGS = [
         "</span></strong></div>",
         "description": '<div><strong><span style="font-size: 18px;">A World-Changing Company'
         "</span></strong></div>\n<div>&nbsp;</div>\n"
-        "<div>Palantir builds the world’s leading "  # noqa: RUF001  the posting's own apostrophe
-        "software for data-driven decisions and operations.</div>",
+        "<div>Palantir builds software.</div>",
         "lists": [
             {
                 "text": "What We Value",
-                "content": "\n<li>Ability to adjust quickly, anticipate needs, and implement "
-                "autonomously, with strong attention to detail.</li>\n<li>High level of "
-                "integrity, confidentiality, and discretion in both internal and external "
-                "interactions.</li>\n",
+                "content": "\n<li>Adjust quickly.</li>\n<li>Keep confidences.</li>\n",
             }
         ],
-        "additional": "<div>Palantir is particularly interested in applicants who have a "
-        "current right to work in Singapore, and we encourage Singapore citizens to "
-        "apply.</div><div><br></div>",
+        "additional": "<div>Singapore citizens are encouraged to apply.</div><div><br></div>",
     },
     {
         "id": "a237973c-cb29-41fe-9c80-416e6f42e087",
@@ -74,12 +68,10 @@ POSTINGS = [
         "lists": [
             {
                 "text": "What We Value",
-                "content": "\n<li>You move fast and close loops — you don't let things "
-                "fall through the cracks.</li>\n",
+                "content": "\n<li>You close loops.</li>\n",
             }
         ],
-        "additional": "<h3><strong>Salary</strong></h3>\n<div>The estimated salary range "
-        "for this position is estimated to be $60,000 - $97,000/year.</div>",
+        "additional": "<h3><strong>Salary</strong></h3>\n<div>The salary is $60,000 - $97,000/year.</div>",
     },
 ]
 
@@ -95,14 +87,8 @@ def test_a_board_parses_into_records():
             "company": None,
             "locations": [{"name": "Singapore, Singapore", "country_code": "SG"}],
             "date": "2026-08-11",
-            "description": "A World-Changing Company\n"
-            "Palantir builds the world’s leading "  # noqa: RUF001  the posting's own apostrophe
-            "software for data-driven decisions and operations.\nWhat We Value\nAbility to "
-            "adjust quickly, anticipate needs, and implement autonomously, with strong "
-            "attention to detail.\nHigh level of integrity, confidentiality, and discretion "
-            "in both internal and external interactions.\nPalantir is particularly interested "
-            "in applicants who have a current right to work in Singapore, and we encourage "
-            "Singapore citizens to apply.",
+            "description": "A World-Changing Company\nPalantir builds software.\nWhat We Value\n"
+            "Adjust quickly.\nKeep confidences.\nSingapore citizens are encouraged to apply.",
             "employment_type": "full_time",
             "department": "Operations",
             "workplace_type": "hybrid",
@@ -121,9 +107,8 @@ def test_a_board_parses_into_records():
                 {"name": "New York, NY"},
             ],
             "date": "2026-06-18",
-            "description": "A World-Changing Company\nWhat We Value\nYou move fast and close "
-            "loops — you don't let things fall through the cracks.\nSalary\nThe estimated "
-            "salary range for this position is estimated to be $60,000 - $97,000/year.",
+            "description": "A World-Changing Company\nWhat We Value\nYou close loops.\nSalary\n"
+            "The salary is $60,000 - $97,000/year.",
             "employment_type": "full_time",
             "workplace_type": "remote",
             "posted_at": "2026-06-18T08:34:20.468000+00:00",

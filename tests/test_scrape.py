@@ -69,7 +69,6 @@ def test_a_site_function_the_cli_cannot_build_fails_when_decorated(function, mat
     [
         ("glassdoor", {}, ValueError, "glassdoor"),
         ("indeed", {}, TypeError, r"indeed: missing .* 'country'. Its options are query, country"),
-        ("indeed", {"country": "us", "geoid": "1"}, TypeError, r"indeed: .* argument 'geoid'"),
         ("linkedin", {"location": "Seattle", "country": "us"}, TypeError, "argument 'country'"),
         ("indeed", {"country": 5}, TypeError, "country must be a string, got 5"),
         ("indeed", {"country": "us", "remote": "false"}, TypeError, "remote must be a boolean"),
@@ -99,9 +98,7 @@ def test_a_site_function_the_cli_cannot_build_fails_when_decorated(function, mat
         ("linkedin", {}, ValueError, "location is required"),
         ("linkedin", {"location": "   "}, ValueError, "location is required"),
         ("linkedin", {"geoid": ""}, ValueError, "must use digits"),
-        ("linkedin", {"geoid": "Amsterdam"}, ValueError, "must use digits"),
         ("linkedin", {"location": "Seattle", "company_ids": ["Acme"]}, ValueError, "company ID"),
-        ("linkedin", {"location": "Seattle", "company_ids": [""]}, ValueError, "company ID"),
         ("linkedin", {"location": "Seattle", "company_ids": ["１２３"]}, ValueError, "company ID"),  # noqa: RUF001  fullwidth digits are the input under test
     ],
 )

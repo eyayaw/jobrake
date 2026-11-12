@@ -102,13 +102,12 @@ def test_a_search_page_parses_into_records(today):
 
 # GET {API}/job/US-CA-Santa-Clara/Networking-Architect_JR1996377 on 2026-10-28,
 # trimmed to jobPostingInfo and hiringOrganization, with the description cut
-# to its first two paragraphs.
+# to two short paragraphs.
 DETAIL = {
     "jobPostingInfo": {
         "id": "9683fb87cfe610016c0dba112fad0000",
         "title": "Networking Architect",
-        "jobDescription": "<p>NVIDIA Networking has been a leader in high performance "
-        "networking infrastructure for many years.</p><p>What you’ll be doing:</p>",  # noqa: RUF001  the posting's own apostrophe
+        "jobDescription": "<p>NVIDIA Networking leads.</p><p>What you will do:</p>",
         "location": "US, CA, Santa Clara",
         "postedOn": "Posted Today",
         "startDate": "2026-10-27",
@@ -138,8 +137,7 @@ FILLED = {
     "company": None,
     "locations": [{"name": "US, CA, Santa Clara", "country_code": "US"}],
     "date": "2026-10-27",  # the start date, a day before the card's "Posted Today"
-    "description": "NVIDIA Networking has been a leader in high performance networking "
-    "infrastructure for many years.\nWhat you’ll be doing:",  # noqa: RUF001  the posting's own apostrophe
+    "description": "NVIDIA Networking leads.\nWhat you will do:",
     "employment_type": "full_time",
     "posted_at": "2026-10-27",
 }

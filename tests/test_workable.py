@@ -9,7 +9,7 @@ from jobrake.sites import workable
 
 # Two postings from apply.workable.com/api/v1/widget/accounts/huggingface?details=true,
 # fetched 2026-10-28, trimmed to the fields jobrake reads and a few it drops,
-# with each description cut to a block or two. The second posting's
+# with each description cut to a block or two of one short sentence. The second posting's
 # telecommuting is changed to false to cover an onsite posting.
 POSTINGS = [
     {
@@ -35,8 +35,7 @@ POSTINGS = [
                 "hidden": True,
             }
         ],
-        "description": "<p>At Hugging Face, we're on a journey to democratize good AI. "
-        "Our open-source libraries have more than 600k+ stars on Github.</p><p></p>"
+        "description": "<p>Hugging Face democratizes good AI.</p><p></p>"
         "<p><strong>About the Role</strong></p>",
     },
     {
@@ -62,8 +61,7 @@ POSTINGS = [
                 "hidden": False,
             }
         ],
-        "description": "<p>If you don't see the perfect job position, just apply to this one!"
-        "<br></p><p></p><p><strong>Requirements</strong></p>",
+        "description": "<p>Apply to this one!<br></p><p></p><p><strong>Requirements</strong></p>",
     },
 ]
 
@@ -92,8 +90,7 @@ def test_a_board_parses_into_records():
             "company": "Hugging Face",
             "locations": [PARIS],
             "date": "2026-09-02",
-            "description": "At Hugging Face, we're on a journey to democratize good AI. "
-            "Our open-source libraries have more than 600k+ stars on Github.\nAbout the Role",
+            "description": "Hugging Face democratizes good AI.\nAbout the Role",
             "employment_type": "full_time",
             "department": "Science",
             "workplace_type": "remote",
@@ -109,8 +106,7 @@ def test_a_board_parses_into_records():
             "company": "Hugging Face",
             "locations": [{"name": "United States", "country_code": "US"}],
             "date": "2024-10-17",
-            "description": "If you don't see the perfect job position, just apply to this "
-            "one!\nRequirements",
+            "description": "Apply to this one!\nRequirements",
             "employment_type": "full_time",
             "department": "Wild Card",
             "posted_at": "2024-10-17",
