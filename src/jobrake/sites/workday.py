@@ -5,7 +5,6 @@ import json
 import logging
 import re
 from datetime import UTC, date, datetime, timedelta
-from gettext import ngettext
 from typing import Annotated, Any
 from urllib.parse import urlsplit
 
@@ -275,10 +274,6 @@ async def search(
             results,
         )
     jobs = jobs[:results]
-    logger.info(
-        "workday search finished with %s",
-        ngettext("%d posting", "%d postings", len(jobs)) % len(jobs),
-    )
     if details:
         return await fill_details("workday", jobs, functools.partial(_detail_fields, fetcher))
     return jobs

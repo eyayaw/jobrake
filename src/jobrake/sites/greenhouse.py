@@ -1,7 +1,6 @@
 """Read an employer's Greenhouse job board through its public Job Board API."""
 
 import logging
-from gettext import ngettext
 from html import unescape
 from typing import Annotated, Any
 from urllib.parse import quote
@@ -83,13 +82,7 @@ async def search(
         unknown=f"greenhouse has no board {token!r}. Pass the token that ends the employer's "
         "board URL, boards.greenhouse.io/<token> or job-boards.greenhouse.io/<token>",
     )
-    jobs = parse_postings(postings, _parse_posting, site="greenhouse")
-    logger.info(
-        "greenhouse board %r has %s",
-        token,
-        ngettext("%d posting", "%d postings", len(jobs)) % len(jobs),
-    )
-    return jobs
+    return parse_postings(postings, _parse_posting, site="greenhouse")
 
 
 __all__ = ["search"]

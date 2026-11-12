@@ -1,7 +1,6 @@
 """Read an employer's Workable job board through its public widget API."""
 
 import logging
-from gettext import ngettext
 from typing import Annotated, Any
 from urllib.parse import quote
 
@@ -118,15 +117,9 @@ async def search(
         unknown=f"workable has no board {token!r}. Pass the token that follows the host in the "
         "employer's careers page URL, apply.workable.com/<token>",
     )
-    jobs = _one_per_shortcode(
+    return _one_per_shortcode(
         parse_postings(postings, lambda posting: _parse_posting(posting, company), site="workable")
     )
-    logger.info(
-        "workable board %r has %s",
-        token,
-        ngettext("%d posting", "%d postings", len(jobs)) % len(jobs),
-    )
-    return jobs
 
 
 __all__ = ["search"]

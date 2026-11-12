@@ -294,6 +294,7 @@ def _write_jobs(args: argparse.Namespace, jobs: list[JobDict], fmt: str) -> int 
         ``1`` when stdout closes early or the file cannot be written. ``None`` otherwise.
     """
     if args.output is None:
+        logger.info("found %d jobs", len(jobs))
         return _write_stdout(RENDERERS[fmt](jobs))
     if not jobs:
         logger.warning("no jobs found; leaving %s untouched", args.output)

@@ -403,8 +403,4 @@ async def search(
             len(jobs),
             results,
         )
-    jobs = jobs[:results]
-    logger.info(
-        "indeed search finished with %s", ngettext("%d job", "%d jobs", len(jobs)) % len(jobs)
-    )
-    return jobs
+    return jobs[:results]

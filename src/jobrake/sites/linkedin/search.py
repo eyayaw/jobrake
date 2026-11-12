@@ -186,10 +186,6 @@ async def search(
             results,
         )
     jobs = jobs[:results]
-    logger.info(
-        "linkedin search finished with %s",
-        ngettext("%d posting", "%d postings", len(jobs)) % len(jobs),
-    )
     if details:
         found = await fetch_pages(fetcher, {job["id"]: dict(job) for job in jobs})
         # A posting that is gone, or failed, keeps its card.

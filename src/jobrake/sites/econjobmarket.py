@@ -2,7 +2,6 @@
 
 import logging
 import re
-from gettext import ngettext
 from typing import Any
 
 from jobrake.fetchkit import Fetcher
@@ -91,11 +90,7 @@ async def search(fetcher: Fetcher) -> list[JobDict]:
     logger.info("reading the econjobmarket ad feed")
     result = await fetcher.fetch(API_URL)
     ads = read_json(result, json_list, site="econjobmarket")
-    jobs = parse_postings(ads, _parse_ad, site="econjobmarket")
-    logger.info(
-        "econjobmarket has %s", ngettext("%d open ad", "%d open ads", len(jobs)) % len(jobs)
-    )
-    return jobs
+    return parse_postings(ads, _parse_ad, site="econjobmarket")
 
 
 __all__ = ["search"]

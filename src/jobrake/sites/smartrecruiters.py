@@ -4,7 +4,6 @@ import functools
 import logging
 import re
 from datetime import UTC, datetime, timedelta
-from gettext import ngettext
 from html import escape
 from typing import Annotated, Any
 from urllib.parse import quote, urlencode, urlsplit
@@ -211,12 +210,6 @@ async def search(
             "for an unknown board, so check the identifier that follows "
             "jobs.smartrecruiters.com/ in the board's URL",
             token,
-        )
-    else:
-        logger.info(
-            "smartrecruiters board %r returned %s",
-            token,
-            ngettext("%d posting", "%d postings", len(jobs)) % len(jobs),
         )
     if details:
         return await fill_details(

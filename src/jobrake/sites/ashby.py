@@ -1,7 +1,6 @@
 """Read an employer's Ashby job board through its public Job Posting API."""
 
 import logging
-from gettext import ngettext
 from typing import Annotated, Any
 from urllib.parse import quote
 
@@ -125,13 +124,7 @@ async def search(
         unknown=f"ashby has no board {token!r}. Pass the token that ends the employer's "
         "board URL, jobs.ashbyhq.com/<token>",
     )
-    jobs = parse_postings(postings, _parse_posting, site="ashby")
-    logger.info(
-        "ashby board %r has %s",
-        token,
-        ngettext("%d posting", "%d postings", len(jobs)) % len(jobs),
-    )
-    return jobs
+    return parse_postings(postings, _parse_posting, site="ashby")
 
 
 __all__ = ["search"]
