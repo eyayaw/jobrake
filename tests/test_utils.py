@@ -79,17 +79,18 @@ def test_html_text_drops_invisible_characters_and_keeps_joiners(text, inserts):
     assert html_text(spliced) == " ".join(text.split())
 
 
-def test_epoch_ms_to_iso():
+def test_epoch_ms_to_iso_drops_with_a_warning_what_cannot_be_milliseconds(caplog):
     assert epoch_ms_to_iso(1717200000000) == "2024-06-01T00:00:00+00:00"
-
-
-def test_epoch_ms_to_iso_rejects_what_cannot_be_milliseconds():
-    with pytest.raises(ValueError, match="not epoch milliseconds"):
-        epoch_ms_to_iso("not a timestamp")
-    with pytest.raises(ValueError, match="looks like epoch seconds"):
-        epoch_ms_to_iso(1717200000)  # seconds: reads as 1970-01-20
-    with pytest.raises(ValueError, match="not epoch milliseconds"):
-        epoch_ms_to_iso(1e18)  # past what datetime can represent
+    assert epoch_ms_to_iso(None) is None
+    assert caplog.text == ""
+    for value, message in (
+        ("not a timestamp", "not epoch milliseconds"),
+        (1717200000, "looks like epoch seconds"),  # seconds: reads as 1970-01-20
+        (1e18, "not epoch milliseconds"),  # past what datetime can represent
+    ):
+        caplog.clear()
+        assert epoch_ms_to_iso(value) is None
+        assert message in caplog.text
 
 
 def test_iso_date_takes_dates_and_timestamps():

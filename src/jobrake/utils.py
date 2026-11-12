@@ -246,21 +246,27 @@ def iso_date(value: str | None) -> str | None:
         return value[:10]
 
 
-def epoch_ms_to_iso(ms: float | str) -> str:
+def epoch_ms_to_iso(ms: object) -> str | None:
     """
-    Convert epoch milliseconds to an ISO 8601 UTC timestamp.
+    Convert a site's epoch milliseconds to an ISO 8601 UTC timestamp.
 
-    Values resolving before the year 2000 are treated as likely epoch seconds.
-
-    Raises:
-        ValueError: The value is invalid, out of range, or likely expressed in seconds.
+    ``None`` returns ``None``. A value that is no number, is out of range, or
+    resolves before the year 2000, as epoch seconds do, logs a warning and
+    returns ``None``, so it costs only its field.
     """
+    if ms is None:
+        return None
+    number = finite(ms)
     try:
-        stamp = datetime.fromtimestamp(float(ms) / 1000.0, tz=UTC)
-    except (TypeError, ValueError, OSError, OverflowError) as e:
-        raise ValueError(f"not epoch milliseconds: {ms!r}") from e
+        stamp = datetime.fromtimestamp(number / 1000.0, tz=UTC) if number is not None else None
+    except ValueError, OSError, OverflowError:
+        stamp = None
+    if stamp is None:
+        logger.warning("not epoch milliseconds: %r", ms)
+        return None
     if stamp.year < 2000:
-        raise ValueError(
-            f"{ms!r} resolves before 2000, so it looks like epoch seconds rather than milliseconds"
+        logger.warning(
+            "%r resolves before 2000, so it looks like epoch seconds rather than milliseconds", ms
         )
+        return None
     return stamp.isoformat()

@@ -8,7 +8,7 @@ from urllib.parse import quote
 from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, employment_type, make_job, workplace_type
 from jobrake.sites.responses import json_list, parse_postings, read_json
-from jobrake.utils import as_dict, as_str, checked, epoch_ms_to_iso, finite, html_text
+from jobrake.utils import as_dict, as_str, checked, epoch_ms_to_iso, html_text
 
 logger = logging.getLogger(__name__)
 
@@ -28,17 +28,6 @@ def _description(posting: dict[str, Any]) -> str:
     parts += [as_str(posting.get(name)) or "" for name in ("salaryDescription", "additional")]
     # A section may be plain text, so a block of its own keeps it off its neighbor's line.
     return html_text("".join(f"<div>{part}</div>" for part in parts if part))
-
-
-def _posted_at(posting: dict[str, Any]) -> str | None:
-    if (ms := finite(posting.get("createdAt"))) is None:
-        return None
-    try:
-        return epoch_ms_to_iso(ms)
-    except ValueError as error:
-        # One posting's bad timestamp costs that field, not the posting.
-        logger.warning("lever posting %s: %s", posting.get("id"), error)
-        return None
 
 
 def _parse_posting(posting: dict[str, Any]) -> JobDict:
@@ -73,7 +62,7 @@ def _parse_posting(posting: dict[str, Any]) -> JobDict:
         team=as_str(categories.get("team")),
         # Lever's unspecified is no workplace type.
         workplace_type=workplace_type(as_str(posting.get("workplaceType"))),
-        posted_at=_posted_at(posting),
+        posted_at=epoch_ms_to_iso(posting.get("createdAt")),
         apply_url=as_str(posting.get("applyUrl")),
     )
 

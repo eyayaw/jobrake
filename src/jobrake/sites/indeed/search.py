@@ -151,18 +151,6 @@ def _scrub_css(text: str) -> str:
     return "\n".join(line for line in lines if line)
 
 
-def _timestamp(job: dict[str, Any], field: str) -> str | None:
-    """Read an epoch-millisecond field, logging and dropping invalid values."""
-    if (ms := job.get(field)) is None:
-        return None
-    try:
-        return epoch_ms_to_iso(ms)
-    except ValueError as e:
-        # One posting's bad timestamp costs that field, not the page.
-        logger.warning("job %s: %s", job.get("key"), e)
-        return None
-
-
 def _workplace_type(labels: list[str]) -> WorkplaceType | None:
     """
     Read the workplace from Indeed's Remote and Hybrid work tags.
@@ -217,8 +205,8 @@ def _parse_job(job: dict[str, Any], base_url: str) -> JobDict:
         description=_scrub_css(
             html_text(as_str(as_dict(job.get("description")).get("html")) or "")
         ),
-        posted_at=_timestamp(job, "datePublished"),
-        expires_at=_timestamp(job, "expirationDate"),
+        posted_at=epoch_ms_to_iso(job.get("datePublished")),
+        expires_at=epoch_ms_to_iso(job.get("expirationDate")),
         company_url=base_url + company_page if company_page else None,
         company_logo=as_str(images.get("squareLogoUrl")),
         employment_type=next(
