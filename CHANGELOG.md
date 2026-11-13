@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.26.0](https://github.com/eyayaw/jobrake/releases/tag/v0.26.0) - 2026-11-13
+
+This release routes every site through one response reader and one page loop, and makes `fetchkit` and seven of the nine sites single modules. In our live comparison on 2026-11-12, every posting that both this release and 0.25.0 returned was equal, on all nine sites.
+
+### Changed
+
+- **Breaking:** `FetchResult.ok` is removed. Test `error is None` in its place.
+- **Breaking:** `jobrake.fetchkit` is one module, so `jobrake.fetchkit.httpx` and `jobrake.fetchkit.types` are gone. Import `Fetcher`, `FetchResult`, and `HttpxFetcher` from `jobrake.fetchkit`.
+- **Breaking:** Ashby, EconJobMarket, Greenhouse, Lever, SmartRecruiters, Workable, and Workday are each one module, so `jobrake.sites.<site>.search` is the search function and no longer a module. Import a site's other names from `jobrake.sites.<site>`.
+- **Breaking:** The CLI writes nothing when a search stops, or a posting fetch fails, with no posting collected. It wrote an empty document, `[]` as JSON or the header row as CSV, which read as a search that found nothing. It still logs the error and exits 1.
+- A custom `Fetcher` needs only `fetch()`, because jobrake closes only an `HttpxFetcher` it created itself.
+- A failed request reads `<site> request failed: <error>`, with the board named when the search has one, in the message of a search, a posting fetch, and a lookup, where each had its own wording. A lookup's message no longer names the text looked up.
+- The CLI logs `found N jobs` before it writes results to stdout, and the sites no longer log their own count.
+- SmartRecruiters and Workday searches ask for the same number of cards on every page, a full page or `results` when that is fewer, where the last pages asked only for the cards still missing.
+- The warning for a site's result cap no longer counts the postings returned.
+- `Stopped` takes `partial` as an optional argument, `[]` by default.
+- `docs/reference.md` holds the returned fields, each site's fields, and each site's request behavior, which `docs/guide.md` held. It adds fields sections for LinkedIn and Indeed.
+
 ## [0.25.0](https://github.com/eyayaw/jobrake/releases/tag/v0.25.0) - 2026-11-11
 
 ### Added
