@@ -84,7 +84,7 @@ the CLI, and the contract test in `tests/test_scrape.py` need no edit.
   one place only when its response says so. Where one source's fields
   override another's, an empty `locations` overrides nothing.
 - `site_data` holds fields only one site carries, under that site's own
-  names, as JSON values. Each site's fields section in the guide lists its
+  names, as JSON values. Each site's fields section in the reference lists its
   keys, and a key moves into `JobDict` once a second site shares its
   meaning.
 - A site owns its options. `search` declares only the options its server
@@ -151,8 +151,9 @@ the CLI, and the contract test in `tests/test_scrape.py` need no edit.
   posting states". "Hydrate" stays in code docstrings, and the README says "fetch" or "fill".
 - The tagline is one image with no feature list: "The job boards shed new
   postings every day. Bring a rake."
-- Keep the README as a short landing page. Put detailed usage, output, and
-  site-specific behavior in `docs/guide.md`.
+- Keep the README as a short landing page. Put detailed usage and output in
+  `docs/guide.md`, and each site's fields and request behavior in
+  `docs/reference.md`.
 - Keep CLI help terse. It comes from the `Annotated` help of each option and
   the first docstring line of each site and site function. Caveats
   and site quirks go in the guide.
@@ -165,7 +166,7 @@ the CLI, and the contract test in `tests/test_scrape.py` need no edit.
   they share, so shared code stays shared.
 - Live requests to LinkedIn or Indeed spend the rate budget of my IP. Ask
   before sending any, and keep them few and paced. The test suite is offline.
-- State site behavior that we measured as measured, and say in the guide
+- State site behavior that we measured as measured, and say in the docs
   when it is unreliable.
 
 ## Verify
