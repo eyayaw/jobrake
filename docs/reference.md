@@ -36,6 +36,33 @@ jobrake prefers the date a search result states and falls back to the calendar p
 
 ## Fields by site
 
+### LinkedIn fields
+
+A LinkedIn search result carries `title`, `company`, `locations`, and `date`, and no details.
+`--details | -d` fetches each posting page and adds `description` and, when the page has them, `posted_at`, `expires_at`, `employment_type`, `education`, `experience_months`, `apply_type`, `applicants`, `company_url`, `company_logo`, `salary_min`, `salary_max`, `salary_currency`, and `salary_period`.
+[`jobrake linkedin postings`](guide.md#fetch-known-postings) builds the same record from an ID or a URL in a later run.
+
+- `id` is LinkedIn's numeric posting ID, and `url` is the posting page the search result links to, without its query string.
+- `locations` holds one place, named as the search result shows it. With `--details`, a place carries the `city`, `region`, `country_code`, `latitude`, and `longitude` the page gives, and a posting the page places in several locations lists each.
+- `apply_type` is `onsite` for LinkedIn's own application form and `offsite` for the employer's.
+- `applicants` is the count the page shows. LinkedIn shows a count above 200 as "Over 200", so `applicants` stops at 200.
+- `experience_months` and `education` are the experience, in whole months, and the credential the posting asks for.
+- The salary fields hold the posting's salary range when the page gives one.
+- A posting placed in a whole country comes with fewer details, as [Fetch posting details](guide.md#fetch-posting-details) says.
+
+### Indeed fields
+
+An Indeed record carries `title`, `company`, `locations`, `date`, and `description`, and, when Indeed supplies them, the details `posted_at`, `expires_at`, `language`, `employment_type`, `workplace_type`, `apply_url`, `company_url`, `company_logo`, `salary_min`, `salary_max`, `salary_currency`, and `salary_period`.
+A search returns them all, so Indeed takes no `--details`.
+
+- `id` is Indeed's job key, and `url` opens the posting on the country edition searched.
+- `locations` holds one place with the `city`, `region`, `country_code`, `latitude`, and `longitude` Indeed gives, named from those parts.
+- `posted_at` is the time the posting was published, and `date` is its calendar date. `--max-age-hours` filters on another date, as the note under [Search for jobs](guide.md#search-for-jobs) says.
+- `employment_type` comes from the posting's attribute labels, as a slug such as `full_time`.
+- `workplace_type` follows Indeed's Remote and Hybrid work tags, as [Remote jobs](guide.md#remote-jobs) describes.
+- The salary fields hold the range Indeed gives with its currency and period. A posting with one figure carries it as both bounds.
+- `apply_url` is the application link Indeed gives, and `company_url` is the employer's page on Indeed.
+
 ### Greenhouse fields
 
 A Greenhouse record carries `title`, `locations`, and `description`.
