@@ -71,13 +71,13 @@ def _parse_posting(posting: dict[str, Any]) -> JobDict:
 async def search(
     fetcher: Fetcher,
     *,
-    board: Annotated[str, "board token from the employer's board URL, e.g., palantir"],
+    board: Annotated[str, "board token from the employer's board URL, e.g., spotify"],
 ) -> list[JobDict]:
     """
     List every published posting on one employer's Lever board.
 
     ``board`` is the token that ends the board's address, as in
-    ``jobs.lever.co/palantir``. One request returns the whole board,
+    ``jobs.lever.co/spotify``. One request returns the whole board,
     descriptions included, in Lever's order. A board the global host does not
     know is requested once more from the EU host. Neither request is paced or
     retried. A malformed posting costs only that posting. The caller owns

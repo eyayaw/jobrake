@@ -22,7 +22,7 @@ PAGE_SIZE = 20
 # Workday reports at most this many postings for one search, however many the site lists.
 MAX_TOTAL = 2000
 
-EXAMPLE_BOARD = "https://nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite"
+EXAMPLE_BOARD = "https://zillow.wd5.myworkdayjobs.com/Zillow_Group_External"
 _HOST = re.compile(r"[a-z0-9-]+\.wd\d+\.myworkdayjobs\.com")
 _LOCALE = re.compile(r"[a-z]{2}-[A-Z]{2}")
 _POSTED = re.compile(r"Posted (?:Today|(Yesterday)|(\d{1,4}) Days Ago)")
@@ -85,7 +85,7 @@ def _parse_card(card: dict[str, Any], site_url: str, tenant: str) -> JobDict:
     Build a record from one entry of a search page's ``jobPostings`` list.
 
     The ID joins the tenant and the requisition ID that ends ``externalPath``,
-    as in ``nvidia:JR1996377``, because requisition IDs are unique only
+    as in ``zillow:P751481-1``, because requisition IDs are unique only
     within a tenant.
 
     Raises:
@@ -228,7 +228,7 @@ async def search(
     Search one employer's Workday career site.
 
     ``board`` is the address of the site's job search page as a visitor
-    copies it, such as ``https://nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite``.
+    copies it, such as ``https://zillow.wd5.myworkdayjobs.com/Zillow_Group_External``.
     ``query=""`` lists every posting. Results keep Workday's order and stop
     at ``results``. Workday reports at most ``MAX_TOTAL`` postings per
     search, and a search that reaches that cap short of ``results`` warns.
@@ -270,7 +270,7 @@ def _card(reference: str) -> JobDict:
     if match is None:
         raise ValueError(
             f"{reference!r} is not a Workday posting URL. Pass a record's url, such as "
-            f"{EXAMPLE_BOARD}/job/US-CA-Santa-Clara/Networking-Architect_JR1996377"
+            f"{EXAMPLE_BOARD}/job/Remote-USA/Applied-Scientist_P751481-1"
         ) from None
     return make_job(site="workday", id=f"{tenant}:{match.group(1)}", url=site_url + path)
 

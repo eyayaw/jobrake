@@ -90,13 +90,13 @@ def _parse_posting(posting: dict[str, Any]) -> JobDict:
 async def search(
     fetcher: Fetcher,
     *,
-    board: Annotated[str, "board token from the employer's board URL, e.g., ramp"],
+    board: Annotated[str, "board token from the employer's board URL, e.g., openai"],
 ) -> list[JobDict]:
     """
     List every published posting on one employer's Ashby board.
 
     ``board`` is the token that ends the board's address, as in
-    ``jobs.ashbyhq.com/ramp``. One request returns the whole board,
+    ``jobs.ashbyhq.com/openai``. One request returns the whole board,
     descriptions and compensation included, in Ashby's order. The result
     includes postings the employer marked unlisted, which Ashby serves for
     direct links. The request is neither paced nor retried. A malformed

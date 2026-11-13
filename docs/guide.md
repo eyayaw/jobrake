@@ -354,7 +354,7 @@ Fetch postings you already know on LinkedIn, Workday, or SmartRecruiters without
 ```sh
 jobrake linkedin postings 4449382178
 jobrake linkedin postings https://nl.linkedin.com/jobs/view/data-scientist-at-acme-4449382178
-jobrake workday postings https://nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite/job/US-CA-Santa-Clara/Networking-Architect_JR1996377
+jobrake workday postings https://zillow.wd5.myworkdayjobs.com/Zillow_Group_External/job/Remote-USA/Applied-Scientist_P751481-1
 jobrake smartrecruiters postings https://jobs.smartrecruiters.com/BoschGroup/744000158197889
 ```
 
@@ -403,9 +403,9 @@ An Ashby, Greenhouse, Lever, or Workable search returns every posting on the boa
 
 ```sh
 jobrake greenhouse search -b airbnb
-jobrake greenhouse search -b gitlab -o gitlab.jsonl
-jobrake ashby search -b ramp -o ramp.csv
-jobrake lever search -b palantir
+jobrake greenhouse search -b anthropic -o anthropic.jsonl
+jobrake ashby search -b openai -o openai.csv
+jobrake lever search -b spotify
 jobrake workable search -b huggingface
 ```
 
@@ -426,9 +426,9 @@ SmartRecruiters and Workday search on the server, as [Search a board](#search-a-
 
 The board token is the last part of the board's address:
 
-- Greenhouse: `airbnb` in `boards.greenhouse.io/airbnb`, or `gitlab` in `job-boards.greenhouse.io/gitlab`.
-- Ashby: `ramp` in `jobs.ashbyhq.com/ramp`.
-- Lever: `palantir` in `jobs.lever.co/palantir`. A board on Lever's EU host, `jobs.eu.lever.co/<token>`, works the same way.
+- Greenhouse: `airbnb` in `boards.greenhouse.io/airbnb`, or `anthropic` in `job-boards.greenhouse.io/anthropic`.
+- Ashby: `openai` in `jobs.ashbyhq.com/openai`.
+- Lever: `spotify` in `jobs.lever.co/spotify`. A board on Lever's EU host, `jobs.eu.lever.co/<token>`, works the same way.
 - Workable: `huggingface` in `apply.workable.com/huggingface`.
 - SmartRecruiters: `BoschGroup` in `jobs.smartrecruiters.com/BoschGroup`. In our tests, capitals did not matter.
 
@@ -436,7 +436,7 @@ A token the site does not know stops the search with an error that says so, exce
 SmartRecruiters answers a token it does not know as it answers a board with no postings, so jobrake cannot tell the two apart.
 Either way the search returns no postings and logs that the token may be misspelled. Check the token against the board's address before you conclude that the employer has no openings.
 
-Workday has no board token. Pass the address of the employer's job search page instead, copied from the browser, such as `https://nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite`.
+Workday has no board token. Pass the address of the employer's job search page instead, copied from the browser, such as `https://zillow.wd5.myworkdayjobs.com/Zillow_Group_External`.
 The address has the form `https://<tenant>.wd<n>.myworkdayjobs.com/<site>`, with or without a language part such as `en-US` before the site name. A posting's address on the same site works too.
 Addresses on `myworkdaysite.com` are not supported. An address jobrake cannot read stops before any request with an error that shows the expected form, and a site name Workday does not know stops the search with an error that says so.
 
@@ -463,8 +463,8 @@ jobs = asyncio.run(scrape("smartrecruiters", board="BoschGroup", query="engineer
 A Workday search applies a query on the server:
 
 ```sh
-jobrake workday search -b https://nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite -q architect
-jobrake workday search -b https://nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite -n 100 -d -o nvidia.jsonl
+jobrake workday search -b https://zillow.wd5.myworkdayjobs.com/Zillow_Group_External -q analyst
+jobrake workday search -b https://zillow.wd5.myworkdayjobs.com/Zillow_Group_External -n 100 -d -o zillow.jsonl
 ```
 
 ```python
@@ -472,8 +472,8 @@ import asyncio
 
 from jobrake import scrape
 
-board = "https://nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite"
-jobs = asyncio.run(scrape("workday", board=board, query="architect", details=True))
+board = "https://zillow.wd5.myworkdayjobs.com/Zillow_Group_External"
+jobs = asyncio.run(scrape("workday", board=board, query="analyst", details=True))
 ```
 
 `--query | -q` is Workday's keyword search, and `--results | -n` caps the postings returned, 20 by default.
@@ -549,11 +549,11 @@ A Workday search result carries `title`, `locations`, and `date`, but no descrip
 `--details | -d` fetches each posting and adds `description`, `posted_at`, and `employment_type`, and gives the primary place its `country_code`.
 [`jobrake workday postings`](#fetch-known-postings) builds the same record from a search result's `url` in a later run.
 
-- `company` is always `None`. Workday names only the employer's legal entity, such as `2100 NVIDIA USA`.
+- `company` is always `None`. Workday names only the employer's legal entity, such as `ZINC Zillow, Inc.`.
 - `locations` is empty for a posting with several locations, because a search result shows only their count, such as `2 Locations`. With `--details`, it holds the primary location and then the others, by name.
 - Without `--details`, `date` comes from Workday's label: "Posted Today", "Posted Yesterday", or "Posted 3 Days Ago", counted back from today in UTC. Workday counts from its own day, so this `date` can be a day late. On one posting we fetched at 02:22 UTC, Workday said "Posted Today" and the posting's start date was the previous day. Workday stops counting at "Posted 30+ Days Ago", so an older posting has no `date`.
 - `posted_at` is a calendar date, Workday's start date for the posting. With `--details`, `date` is `posted_at`.
-- `id` joins the employer's Workday name and the requisition ID, as in `nvidia:JR1996377`.
+- `id` joins the employer's Workday name and the requisition ID, as in `zillow:P751481-1`.
 
 A Workday record has no salary, workplace type, or application link.
 
