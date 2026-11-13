@@ -105,7 +105,7 @@ jobrake econjobmarket search -o ejm.csv
 
 The CLI writes JSON to stdout by default.
 `--format | -f` selects JSON, JSONL, or CSV, and `--output | -o` writes to a file.
-See the [guide](https://github.com/eyayaw/jobrake/blob/main/docs/guide.md#read-and-save-results) for file formats, returned fields, custom fetchers, and piping.
+See the [guide](https://github.com/eyayaw/jobrake/blob/main/docs/guide.md#read-and-save-results) for file formats, custom fetchers, and piping, and the [reference](https://github.com/eyayaw/jobrake/blob/main/docs/reference.md) for returned fields.
 
 ### As a library
 
@@ -142,7 +142,7 @@ jobs = asyncio.run(main())
 | <a href="https://www.workday.com"><img src="https://www.workday.com/favicon.ico" alt="" height="16"> `workday`</a> | Career site JSON API, one employer's career site | Optional, one request per posting |
 
 The sites that read one employer's board require `board`, the employer's board token, or for Workday the career site URL. Indeed requires `country`. LinkedIn accepts either `location` or a geoId.
-See the [guide](https://github.com/eyayaw/jobrake/blob/main/docs/guide.md) for search queries, geography, filters, pagination, rate limits, retries, and detail fetching.
+See the [guide](https://github.com/eyayaw/jobrake/blob/main/docs/guide.md) for search queries, geography, filters, and detail fetching, and the [reference](https://github.com/eyayaw/jobrake/blob/main/docs/reference.md#requests-by-site) for pagination, rate limits, and retries.
 
 > [!WARNING]
 > LinkedIn answers posting pages with [HTTP 999](https://http.dev/999) from data center IPs, such as a Hetzner VPS.
