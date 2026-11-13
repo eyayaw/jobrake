@@ -58,7 +58,11 @@ def fetchers(monkeypatch):
 
 @pytest.fixture
 def stub_search(monkeypatch, fetchers):
-    """Replace a site's search, keeping its signature, with one that records its options and returns or raises ``result``."""
+    """
+    Replace a site's search with a stub that keeps its signature and records its options.
+
+    The stub returns ``result``, or raises it when it is an exception.
+    """
     calls = []
 
     def stub(site, result):

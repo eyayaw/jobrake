@@ -207,7 +207,7 @@ def _run(
         What the function returned and ``None``, or the ``partial`` of a stopped one and ``1``.
     """
 
-    async def call() -> Any:  # noqa: ANN401  a search's postings, the postings fetched, or a lookup's candidates
+    async def call() -> Any:  # noqa: ANN401  the return type differs by command
         async with HttpxFetcher() as fetcher:
             return await function(fetcher, **options)
 
@@ -216,7 +216,7 @@ def _run(
     except ValueError as error:
         parser.error(str(error))
     except Stopped as stop:
-        logger.error("%s", stop)  # noqa: TRY400  the message says what failed; a traceback adds nothing
+        logger.error("%s", stop)  # noqa: TRY400  the message says what failed
         return stop.partial, 1
 
 
@@ -231,7 +231,7 @@ def _fetched(
     args: argparse.Namespace, found: dict[str, JobDict | None]
 ) -> tuple[list[JobDict], int | None]:
     """
-    Return one record per posting that ``postings`` fetched, in reference order, and 1 when a reference failed.
+    Return one record per posting fetched, in reference order, and 1 when a reference failed.
 
     A reference to a posting the site reports gone logs a warning. A failed
     reference has no key in ``found``, and the site has reported why.
@@ -288,7 +288,9 @@ def _write_jobs(args: argparse.Namespace, jobs: list[JobDict], fmt: str) -> int 
         with args.output.open("x", encoding="utf-8") as output:
             output.write(RENDERERS[fmt](jobs))
     except OSError as error:
-        logger.error("could not write %s: %s", args.output, error)  # noqa: TRY400  the user needs the message, not a traceback
+        logger.error(  # noqa: TRY400  the message says what failed
+            "could not write %s: %s", args.output, error
+        )
         return 1
     logger.info("wrote %d jobs to %s", len(jobs), args.output)
     return None
@@ -299,7 +301,9 @@ def main() -> int | None:
     Run a search, posting fetch, or lookup.
 
     Returns:
-        ``1`` when a search or lookup stops on a failed request, a named posting could not be fetched, stdout closes early, or the output file cannot be written. Normal completion returns ``None``.
+        ``1`` when a search or lookup stops on a failed request, a named posting
+        could not be fetched, stdout closes early, or the output file cannot be
+        written. Normal completion returns ``None``.
     """
     parser = _build_parser()
     args = parser.parse_args()

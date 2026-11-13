@@ -113,7 +113,10 @@ async def _pages(
     fetcher: Fetcher, board: str, query: str, limit: int
 ) -> AsyncGenerator[tuple[list[JobDict], int]]:
     """
-    Yield each page's cards with the first page's total until the pages reach it, warning when it is ``MAX_TOTAL``.
+    Yield each page's cards with the first page's total until the pages reach it.
+
+    Reading every page of a total of ``MAX_TOTAL`` logs a warning, because
+    Workday reports no more than that for one search.
 
     Raises:
         Stopped: A request failed, Workday has no such site, it sent an

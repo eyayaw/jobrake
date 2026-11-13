@@ -93,7 +93,7 @@ def _description(posting: dict[str, Any]) -> str:
 
 
 def _parse_posting(posting: dict[str, Any]) -> dict[str, Any] | None:
-    """Return a posting's card fields with its ad as ``description``, or None for one marked inactive."""
+    """Return a posting's card fields with its ad as ``description``, or None if it is inactive."""
     if posting.get("active") is False:
         return None
     return {**_parse_card(posting), "description": _description(posting)}
