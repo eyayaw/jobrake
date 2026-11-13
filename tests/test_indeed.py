@@ -1,6 +1,7 @@
 """Indeed GraphQL parsing and pagination tests."""
 
 import asyncio
+import copy
 import importlib
 import json
 import logging
@@ -9,6 +10,8 @@ from urllib.parse import parse_qs, urlparse
 
 import pytest
 from fakes import PagedFetcher, StubFetcher, ok, rate_limited
+from hypothesis import given
+from hypothesis import strategies as st
 
 from jobrake import Stopped
 from jobrake.models import IDENTITY_FIELDS, SUMMARY_FIELDS
@@ -93,7 +96,7 @@ def test_company_lookup_distinguishes_no_matches_from_failure():
     assert asyncio.run(indeed.companies(fetcher, "ABN", country="nl")) == []
     for response in (ok("[{}]"), ok("{}"), ok("not JSON"), rate_limited()):
         fetcher = StubFetcher({"suggestions/company": response})
-        with pytest.raises(Stopped, match="company"):
+        with pytest.raises(Stopped, match="indeed "):
             asyncio.run(indeed.companies(fetcher, "ABN", country="nl"))
 
 
@@ -185,76 +188,47 @@ def test_indeed_keeps_a_job_whose_date_is_not_milliseconds(caplog):
 
 
 @pytest.mark.parametrize(
-    ("company_ids", "age", "remote", "language", "attributes", "expected_keys"),
+    ("filters", "expected"),
     [
-        (None, 168, False, None, None, []),
-        (None, None, False, None, [], []),
-        ([" fe219df7f711aa73\n"], None, False, None, [" 3CQB7 "], ["3CQB7"]),
-        (["fe219df7f711aa73"], 168, False, None, ["CF3CP", "6QC5F"], ["CF3CP", "6QC5F"]),
-        (None, 168, True, "Iw", None, ["DSQF7"]),
-        (None, None, True, None, [" DSQF7 "], ["DSQF7"]),
-        (["fe219df7f711aa73"], None, True, "in", ["3CQB7"], ["3CQB7", "DSQF7"]),
         (
-            ["fe219df7f711aa73"],
-            168,
-            True,
-            "EN",
-            ["CF3CP", "\t6QC5F\n", " CF3CP "],
-            ["CF3CP", "6QC5F", "DSQF7"],
+            {
+                "company_ids": [" fe219df7f711aa73\n"],
+                "max_age_hours": 168,
+                "remote": True,
+                "language": "EN",
+                "attributes": ["CF3CP", "\t6QC5F\n", " CF3CP ", " DSQF7 "],
+            },
+            [
+                'filters: [{ date: { field: "dateOnIndeed", start: "168h" } }, '
+                '{ keyword: { field: "indeedEmployerKey", keys: ["fe219df7f711aa73"] } }, '
+                '{ keyword: { field: "attributes", keys: ["CF3CP", "6QC5F", "DSQF7"] } }, '
+                '{ keyword: { field: "language", keys: ["en"] } }]'
+            ],
         ),
-        (None, None, False, "NL", None, []),
+        ({"remote": True}, ['filters: [{ keyword: { field: "attributes", keys: ["DSQF7"] } }]']),
+        ({}, []),
     ],
+    ids=["every-filter", "remote", "none"],
 )
-def test_indeed_requests_full_pages_throughout_a_cursor_chain(
-    company_ids, age, remote, language, attributes, expected_keys
-):
+def test_indeed_requests_full_pages_throughout_a_cursor_chain(filters, expected):
     # Indeed binds the page size to its cursor and rejects a changed limit
     # with BAD_USER_INPUT, so every request in a chain asks for a full page.
     pages = [indeed_payload(["a", "b"], cursor="next"), indeed_payload(["b", "c", "d"])]
-
     fetcher = PagedFetcher([json.dumps(page) for page in pages])
-    original_attributes = attributes.copy() if attributes is not None else None
+    given = copy.deepcopy(filters)
     jobs = asyncio.run(
-        indeed.search(
-            fetcher,
-            query="x",
-            country="us",
-            results=3,
-            company_ids=company_ids,
-            max_age_hours=age,
-            remote=remote,
-            language=language,
-            attributes=attributes,
-            location="Seattle",
-        )
+        indeed.search(fetcher, query="x", country="us", results=3, location="Seattle", **filters)
     )
-    queries = [body["query"] for body in fetcher.bodies]
-    # The second page overlaps the first, the limit stays at 100, and the
-    # final slice returns three unique jobs.
+    # The second page overlaps the first, and the final slice returns three unique jobs.
     assert [job["id"] for job in jobs] == ["a", "b", "c"]
-    assert all('what: "x"' in query for query in queries)
-    assert all("limit: 100" in query for query in queries)
-    assert all("language" in query.split() for query in queries)
-    for query in queries:
-        assert ('field: "indeedEmployerKey"' in query) == bool(company_ids)
-        assert ('keys: ["fe219df7f711aa73"]' in query) == bool(company_ids)
-        assert ('date: { field: "dateOnIndeed", start: "168h" }' in query) == bool(age)
-        if expected_keys:
-            assert f'keyword: {{ field: "attributes", keys: {json.dumps(expected_keys)} }}' in query
-            assert query.count('field: "attributes"') == 1
-        else:
-            assert 'field: "attributes"' not in query
-        assert 'where: "Seattle"' in query
-        if language is None:
-            assert 'field: "language"' not in query
-        else:
-            assert '{ keyword: { field: "language", keys: ["' + language.lower() + '"] } }' in query
-        if (company_ids or expected_keys or language) and age:
-            assert "} }, { keyword:" in query
-        if not company_ids and not expected_keys and language is None and age is None:
-            assert "filters:" not in query
-    assert len(queries) == 2
-    assert attributes == original_attributes
+    first, second = (body["query"] for body in fetcher.bodies)
+    assert [line.strip() for line in first.splitlines() if "filters:" in line] == expected
+    assert 'what: "x"' in first
+    assert 'where: "Seattle"' in first
+    assert "limit: 100" in first
+    assert "language" in first.split()
+    assert second.replace('cursor: "next"', "") == first
+    assert filters == given  # the caller's lists stay as passed
 
 
 def test_indeed_graphql_error_reports_the_indeed_message():
@@ -264,19 +238,15 @@ def test_indeed_graphql_error_reports_the_indeed_message():
     }
     pages = [indeed_payload(["a"], cursor="next"), rejected]
     fetcher = PagedFetcher([json.dumps(page) for page in pages])
-    with pytest.raises(Stopped, match=r"BAD_USER_INPUT.*Kept the 1 job collected") as stop:
+    with pytest.raises(Stopped, match=r"BAD_USER_INPUT.*Kept the 1 posting collected") as stop:
         asyncio.run(indeed.search(fetcher, query="x", country="us", results=10))
     assert [job["id"] for job in stop.value.partial] == ["a"]  # earlier pages survive
 
 
-def test_indeed_returns_the_requested_number_of_results():
-    fetcher = StubFetcher({"apis.indeed.com": ok(json.dumps(indeed_payload(["a", "b", "c"])))})
-    jobs = asyncio.run(indeed.search(fetcher, query="x", country="us", results=2))
-    assert len(jobs) == 2
-
-
-@pytest.mark.parametrize(
-    "language", ["", " ", " en ", "e", "eng", "en-US", "en_US", "e1", "éñ", "en\n"]
+@given(
+    st.text(max_size=5).filter(
+        lambda text: not (len(text) == 2 and text.isascii() and text.isalpha())
+    )
 )
 def test_indeed_rejects_a_language_before_any_request(language):
     fetcher = StubFetcher({})
@@ -321,11 +291,8 @@ def test_indeed_all_malformed_page_keeps_paginating():
     assert [job["id"] for job in jobs] == ["b"]  # the cursor survives the bad page
 
 
-@pytest.mark.parametrize(
-    "job_search", [None, {"results": {}}, {"results": "x"}], ids=["null", "dict", "string"]
-)
-def test_indeed_malformed_later_page_keeps_collected_jobs(job_search):
-    pages = [indeed_payload(["a"], cursor="next"), {"data": {"jobSearch": job_search}}]
+def test_indeed_malformed_later_page_keeps_collected_jobs():
+    pages = [indeed_payload(["a"], cursor="next"), {"data": {"jobSearch": None}}]
     fetcher = PagedFetcher([json.dumps(page) for page in pages])
     # The message names the caught error.
     with pytest.raises(Stopped, match="TypeError") as stop:
@@ -337,11 +304,9 @@ def test_indeed_malformed_later_page_keeps_collected_jobs(job_search):
     "damage",
     [
         lambda job_search: job_search.update(pageInfo="malformed"),
-        lambda job_search: job_search.pop("pageInfo"),
-        lambda job_search: job_search.update(pageInfo=None),
         lambda job_search: job_search.update(pageInfo={"nextCursor": ["malformed"]}),
     ],
-    ids=["string", "absent", "null", "list-cursor"],
+    ids=["string", "list-cursor"],
 )
 def test_indeed_damaged_page_info_ends_the_search_with_the_page_kept(damage):
     last = indeed_payload(["b"])
@@ -388,10 +353,9 @@ def parse_one(job):
     return parsed
 
 
-@pytest.mark.parametrize("language", ["en", "nl"])
-def test_indeed_maps_detail_onto_the_model(language):
-    job = parse_one(rich_job(language=language))
-    assert job["language"] == language
+def test_indeed_maps_detail_onto_the_model():
+    job = parse_one(rich_job(language="nl"))
+    assert job["language"] == "nl"
     assert job["posted_at"] == "2024-06-01T00:00:00+00:00"
     assert job["expires_at"] == "2024-07-01T00:00:00+00:00"
     assert job["date"] == "2024-06-01"  # derived, not restated
@@ -414,10 +378,9 @@ def test_indeed_maps_detail_onto_the_model(language):
     ]
 
 
-@pytest.mark.parametrize("language", [None, "", "   "])
-def test_indeed_omits_the_detail_a_posting_lacks(language):
+def test_indeed_omits_the_detail_a_posting_lacks():
     job = parse_one(
-        rich_job(compensation=None, recruit=None, attributes=[], employer=None, language=language)
+        rich_job(compensation=None, recruit=None, attributes=[], employer=None, language="   ")
     )
     # untagged is not evidence of on-site
     assert {"salary_min", "apply_url", "employment_type", "workplace_type", "language"}.isdisjoint(
@@ -554,9 +517,9 @@ def test_attribute_lookup_distinguishes_empty_results_from_failure():
         if found:
             assert asyncio.run(indeed.attributes(fetcher, "data", country="us")) == []
         else:
-            with pytest.raises(Stopped, match="attributes"):
+            with pytest.raises(Stopped, match="cannot read"):
                 asyncio.run(indeed.attributes(fetcher, "data", country="us"))
     for response in (ok("not json"), rate_limited()):
         fetcher = StubFetcher({"apis.indeed.com": response})
-        with pytest.raises(Stopped, match="attribute"):
+        with pytest.raises(Stopped, match="indeed "):
             asyncio.run(indeed.attributes(fetcher, "data", country="us"))

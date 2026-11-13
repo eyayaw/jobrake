@@ -1,31 +1,30 @@
 """Look up LinkedIn place and company IDs by name through the guest typeahead."""
 
-import json
-from typing import Annotated
+from typing import Annotated, Any
 from urllib.parse import urlencode
 
 from jobrake.fetchkit import Fetcher
-from jobrake.models import Stopped
-from jobrake.utils import checked
+from jobrake.sites.responses import json_list, read_json
+from jobrake.utils import as_dict, as_str, checked
 
 from . import client
 
 
-def _candidate(hit: object) -> dict[str, str] | None:
-    """Read one typeahead hit, which ``search`` can use only with a numeric ID and a name."""
-    if not isinstance(hit, dict):
-        return None
-    hit_id, display = hit.get("id"), hit.get("displayName")
-    if not (isinstance(hit_id, str) and isinstance(display, str)):
-        return None
-    hit_id, display = hit_id.strip(), display.strip()
-    if not (client.numeric(hit_id) and display):
-        return None
-    return {"id": hit_id, "name": display}
+def _candidates(hits: Any) -> list[dict[str, str]]:  # noqa: ANN401  any decoded JSON, which json_list checks
+    """
+    Read the typeahead hits that ``search`` can use, those with a numeric ID and a name.
 
-
-# Each typeahead kind with its noun for messages.
-_KINDS = {"GEO": "place", "COMPANY": "company"}
+    Raises:
+        TypeError: The response is not a list, or it has hits and none is usable.
+    """
+    candidates = []
+    for hit in map(as_dict, json_list(hits)):
+        hit_id, name = ((as_str(hit.get(key)) or "").strip() for key in ("id", "displayName"))
+        if client.numeric(hit_id) and name:
+            candidates.append({"id": hit_id, "name": name})
+    if hits and not candidates:
+        raise TypeError("no hit has a numeric id and a displayName")
+    return candidates
 
 
 async def _typeahead(fetcher: Fetcher, kind: str, name: str) -> list[dict[str, str]]:
@@ -35,25 +34,9 @@ async def _typeahead(fetcher: Fetcher, kind: str, name: str) -> list[dict[str, s
     Raises:
         Stopped: The request failed, or the response held no readable hit.
     """
-    noun = _KINDS[kind]
-    name = name.strip()
-    query = urlencode({"query": name, "typeaheadType": kind})
+    query = urlencode({"query": name.strip(), "typeaheadType": kind})
     result = await client.paced_fetch(fetcher, f"{client.TYPEAHEAD_URL}?{query}")
-    if result.error:
-        raise Stopped(
-            f"{noun} lookup for {name!r} failed: {result.error}. Try again later", partial=[]
-        )
-    try:
-        hits = json.loads(result.text)
-    except ValueError:
-        hits = None
-    candidates = [c for hit in hits if (c := _candidate(hit))] if isinstance(hits, list) else []
-    if not isinstance(hits, list) or (hits and not candidates):
-        raise Stopped(
-            f"could not read LinkedIn's {noun} suggestions for {name!r}. Try again later",
-            partial=[],
-        )
-    return candidates
+    return read_json(result, _candidates, site="linkedin")
 
 
 @checked

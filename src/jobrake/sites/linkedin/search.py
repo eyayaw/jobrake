@@ -1,7 +1,7 @@
 """LinkedIn guest-search parsing and pagination."""
 
 import logging
-from gettext import ngettext
+from collections.abc import AsyncGenerator
 from typing import Annotated
 from urllib.parse import urlencode
 
@@ -9,7 +9,8 @@ lazy from bs4 import BeautifulSoup
 
 from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, Stopped, make_job
-from jobrake.utils import checked, report_progress
+from jobrake.sites.responses import collect
+from jobrake.utils import checked
 
 from .client import SEARCH_URL, job_id, numeric, paced_fetch
 from .pages import fetch_pages
@@ -55,51 +56,45 @@ def _parse_page(html: str) -> tuple[list[JobDict], int]:
     return jobs, len(cards)
 
 
-async def _collect_pages(
-    fetcher: Fetcher, params: dict[str, object], results: int, *, location: str | None
-) -> tuple[list[JobDict], int]:
+async def _pages(
+    fetcher: Fetcher, params: dict[str, object]
+) -> AsyncGenerator[tuple[list[JobDict], int]]:
     """
-    Return the unique cards and the next offset, paging until ``results`` cards, an empty page, or ``MAX_START``.
+    Yield each page's cards until an empty page, or until ``MAX_START``, which warns.
 
     Raises:
-        Stopped: A page request failed. ``partial`` holds the cards collected before it.
+        Stopped: A page request failed after its retries.
     """
-    jobs: list[JobDict] = []
-    seen: set[str] = set()
     start = 0
-    while len(jobs) < results and start < MAX_START:
+    while start < MAX_START:
         page = {k: v for k, v in (params | {"start": start}).items() if v is not None}
         result = await paced_fetch(fetcher, f"{SEARCH_URL}?{urlencode(page)}")
         if result.error:
-            collected = ngettext("%d posting", "%d postings", len(jobs)) % len(jobs)
-            raise Stopped(
-                f"linkedin search stopped: {result.error}. Kept the {collected} collected",
-                partial=jobs,
-            )
+            raise Stopped(f"linkedin request failed: {result.error}")
         cards, raw = _parse_page(result.text)
+        if not raw and start == 0 and params["geoId"]:
+            logger.warning("linkedin returned no postings for geoId=%s", params["geoId"])
+        elif not raw and start == 0:
+            # An unresolvable location and a genuine no-results page both return an
+            # empty 200. The guest geocoder often needs a region and country. "Berlin"
+            # works, while bare "Amsterdam" does not.
+            logger.warning(
+                "linkedin returned no postings for location=%r. "
+                "A location without its region and country may not resolve; try "
+                "'Amsterdam, North Holland, Netherlands'",
+                params["location"],
+            )
         if not raw:
-            if start == 0 and params["geoId"]:
-                logger.warning("linkedin returned no postings for geoId=%s", params["geoId"])
-            elif start == 0:
-                # An unresolvable location and a genuine no-results page both return an
-                # empty 200. The guest geocoder often needs a region and country. "Berlin"
-                # works, while bare "Amsterdam" does not.
-                logger.warning(
-                    "linkedin returned no postings for location=%r. "
-                    "A location without its region and country may not resolve; try "
-                    "'Amsterdam, North Holland, Netherlands'",
-                    location,
-                )
-            break
-        for job in cards:
-            if job["id"] not in seen:
-                seen.add(job["id"])
-                jobs.append(job)
-        report_progress(logger, "linkedin search", len(jobs), min(results, MAX_START))
+            return
+        yield cards, MAX_START
         # Offsets can overlap, and some cards cannot be parsed. Only a page
         # without cards marks the end. Advance by the server's own card count.
         start += raw
-    return jobs, start
+    logger.warning(
+        "linkedin's guest search serves nothing past offset %d, fewer postings than requested. "
+        "Narrow the search to reach more of its inventory",
+        MAX_START,
+    )
 
 
 @checked
@@ -175,21 +170,7 @@ async def search(
         "f_AL": "true" if easy_apply else None,
         "f_EA": "true" if early_applicant else None,
     }
-    jobs, start = await _collect_pages(fetcher, params, results, location=location)
-    if len(jobs) < results and start >= MAX_START:
-        logger.warning(
-            "linkedin's guest search serves nothing past offset %d; returning "
-            "%d of the %d postings requested. Narrow the search to reach more of "
-            "its inventory",
-            MAX_START,
-            len(jobs),
-            results,
-        )
-    jobs = jobs[:results]
-    logger.info(
-        "linkedin search finished with %s",
-        ngettext("%d posting", "%d postings", len(jobs)) % len(jobs),
-    )
+    jobs = await collect("linkedin", _pages(fetcher, params), results)
     if details:
         found = await fetch_pages(fetcher, {job["id"]: dict(job) for job in jobs})
         # A posting that is gone, or failed, keeps its card.

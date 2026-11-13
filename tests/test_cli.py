@@ -1,10 +1,12 @@
 """CLI commands built from the sites, their exit codes, and output to stdout and files."""
 
 import csv
+import functools
 import io
 import json
 import logging
 import os
+import shlex
 import sys
 import types
 from pathlib import Path
@@ -12,8 +14,9 @@ from pathlib import Path
 import pytest
 from fakes import StubFetcher
 
-from jobrake import Stopped, cli, sites
+from jobrake import Stopped, cli
 from jobrake.models import JOB_FIELDS, make_job
+from jobrake.sites import SITES
 
 JOBS = [
     make_job(
@@ -40,13 +43,46 @@ JOBS = [
 
 
 @pytest.fixture
-def run_cli(monkeypatch):
-    """Run ``cli.main()`` with a stubbed scrape returning ``JOBS``."""
+def fetchers(monkeypatch):
+    """Replace the CLI's own HttpxFetcher with a stub that records each one it creates."""
+    created = []
 
-    async def fake_scrape(*args, **kwargs):
-        return JOBS
+    class StubHttpx(StubFetcher):
+        def __init__(self):
+            super().__init__({})
+            created.append(self)
 
-    monkeypatch.setattr(cli, "scrape", fake_scrape)
+    monkeypatch.setattr(cli, "HttpxFetcher", StubHttpx)
+    return created
+
+
+@pytest.fixture
+def stub_search(monkeypatch, fetchers):
+    """
+    Replace a site's search with a stub that keeps its signature and records its options.
+
+    The stub returns ``result``, or raises it when it is an exception.
+    """
+    calls = []
+
+    def stub(site, result):
+        @functools.wraps(SITES[site].search)
+        async def search(fetcher, **options):
+            calls.append((site, options))
+            if isinstance(result, Exception):
+                raise result
+            return result
+
+        monkeypatch.setattr(SITES[site], "search", search)
+        return calls
+
+    return stub
+
+
+@pytest.fixture
+def run_cli(monkeypatch, stub_search):
+    """Run ``cli.main()`` with an Indeed search that returns ``JOBS``."""
+    stub_search("indeed", JOBS)
 
     def run(*argv):
         monkeypatch.setattr(
@@ -63,20 +99,7 @@ def test_a_registered_site_gets_every_command_without_a_cli_change(
     # The site's signatures alone give its search, lookup, and posting commands.
     # A submodule the site does not export, such as companies.py, adds none.
     monkeypatch.setattr(fake_site, "companies", types.ModuleType("companies"), raising=False)
-    search = [
-        "fakesite",
-        "search",
-        "-q",
-        "x",
-        "--board",
-        "acme",
-        "--tags",
-        "a",
-        "b",
-        "--remote",
-        "-n",
-        "2",
-    ]
+    search = shlex.split("fakesite search -q x --board acme --tags a b --remote -n 2")
     monkeypatch.setattr(sys, "argv", ["jobrake", *search])
     assert cli.main() is None
     assert [job["id"] for job in json.loads(capsys.readouterr().out)] == ["0", "1"]
@@ -91,23 +114,6 @@ def test_a_registered_site_gets_every_command_without_a_cli_change(
         {"name": "Utrecht", "region": "NL"},
         {"references": ["7"]},
     ]
-
-
-@pytest.fixture
-def fetchers(monkeypatch):
-    """Replace the CLI's own HttpxFetcher with a stub that records each one it creates."""
-    created = []
-
-    class StubHttpx:
-        def __init__(self):
-            self.closed = False
-            created.append(self)
-
-        async def close(self):
-            self.closed = True
-
-    monkeypatch.setattr(cli, "HttpxFetcher", StubHttpx)
-    return created
 
 
 @pytest.mark.parametrize(
@@ -126,7 +132,7 @@ def test_a_lookup_prints_its_candidates_or_fails(
     printed = capsys.readouterr().out
     assert (json.loads(printed) if printed else None) == out  # a failure prints nothing
     assert err in caplog.text
-    assert [fetcher.closed for fetcher in fetchers] == [True]
+    assert [fetcher.closed for fetcher in fetchers] == [1]
     monkeypatch.setattr(sys, "argv", ["jobrake", "fakesite", "places", " "])
     with pytest.raises(SystemExit) as error:
         cli.main()
@@ -152,89 +158,23 @@ def test_postings_command_writes_what_it_fetched_and_fails_on_a_failed_reference
     assert all(fetcher.closed for fetcher in fetchers)
 
 
-def test_site_commands_dispatch_their_options(monkeypatch):
-    calls = []
-
-    async def record(site, **kwargs):
-        calls.append((site, kwargs))
-        return []
-
-    monkeypatch.setattr(cli, "scrape", record)
+def test_site_commands_dispatch_their_options(monkeypatch, stub_search):
+    stub_search("indeed", [])
+    calls = stub_search("linkedin", [])
+    # Together the lines use every short flag the two sites declare.
     for argv in (
-        [
-            "indeed",
-            "search",
-            "--query",
-            "x",
-            "--country",
-            "us",
-            "--location",
-            "Seattle",
-            "--radius",
-            "0",
-        ],
-        [
-            "indeed",
-            "search",
-            "-q",
-            "x",
-            "-c",
-            "us",
-            "-l",
-            "Seattle",
-            "-r",
-            "0",
-            "-n",
-            "3",
-            "-a",
-            "48",
-        ],
-        ["indeed", "search", "-q", "x", "-c", "us", "--company-ids", "fe21", "--remote"],
-        [
-            "indeed",
-            "search",
-            "-q",
-            "x",
-            "-c",
-            "us",
-            "--language",
-            "EN",
-            "--attributes",
-            "3CQB7",
-            "6QC5F",
-        ],
-        ["linkedin", "search", "-q", "x", "-l", "Seattle", "-d", "--easy-apply"],
-        [
-            "linkedin",
-            "search",
-            "-q",
-            "",
-            "-g",
-            "12345",
-            "--company-ids",
-            "1173",
-            "--company-ids",
-            "2220078",
-        ],
-        [
-            "linkedin",
-            "search",
-            "-q",
-            "x",
-            "-l",
-            "Seattle",
-            "--early-applicant",
-            "--max-age-hours",
-            "24",
-        ],
+        "indeed search -q x -c us -l Seattle -r 0 -n 3 -a 48 --remote --language EN"
+        " --attributes 3CQB7 6QC5F",
+        "indeed search --query x --country us --company-ids fe21",
+        'linkedin search -q "" -g 12345 --company-ids 1173 --company-ids 2220078 -d --easy-apply',
+        "linkedin search -q x -l Seattle --early-applicant --max-age-hours 24",
     ):
-        monkeypatch.setattr(sys, "argv", ["jobrake", *argv])
+        monkeypatch.setattr(sys, "argv", ["jobrake", *shlex.split(argv)])
         cli.main()
 
     # Each site receives the options given on its command line, and its search
     # supplies the rest.
     assert calls == [
-        ("indeed", {"query": "x", "country": "us", "location": "Seattle", "radius": 0}),
         (
             "indeed",
             {
@@ -244,23 +184,22 @@ def test_site_commands_dispatch_their_options(monkeypatch):
                 "radius": 0,
                 "results": 3,
                 "max_age_hours": 48,
+                "remote": True,
+                "language": "EN",
+                "attributes": ["3CQB7", "6QC5F"],
             },
         ),
-        ("indeed", {"query": "x", "country": "us", "company_ids": ["fe21"], "remote": True}),
-        (
-            "indeed",
-            {"query": "x", "country": "us", "language": "EN", "attributes": ["3CQB7", "6QC5F"]},
-        ),
+        ("indeed", {"query": "x", "country": "us", "company_ids": ["fe21"]}),
         (
             "linkedin",
             {
-                "query": "x",
-                "location": "Seattle",
+                "query": "",
+                "geoid": "12345",
+                "company_ids": ["1173", "2220078"],
                 "details": True,
                 "easy_apply": True,
             },
         ),
-        ("linkedin", {"query": "", "geoid": "12345", "company_ids": ["1173", "2220078"]}),
         (
             "linkedin",
             {"query": "x", "location": "Seattle", "early_applicant": True, "max_age_hours": 24},
@@ -268,11 +207,9 @@ def test_site_commands_dispatch_their_options(monkeypatch):
     ]
 
 
-def test_invalid_site_arguments_fail_before_scraping(monkeypatch):
-    async def must_not_run(*args, **kwargs):
-        raise AssertionError("scrape ran with invalid CLI arguments")
-
-    monkeypatch.setattr(cli, "scrape", must_not_run)
+def test_invalid_site_arguments_fail_before_scraping(monkeypatch, stub_search):
+    for site in ("indeed", "linkedin"):
+        stub_search(site, AssertionError("search ran with invalid CLI arguments"))
     for argv in (
         ["indeed", "search", "-q", "x"],
         ["indeed", "search", "-q", "x", "-c", "us", "--easy-apply"],
@@ -283,8 +220,9 @@ def test_invalid_site_arguments_fail_before_scraping(monkeypatch):
         ["linkedin", "search", "-q", "x", "-l", "Seattle", "--country", "usa"],
     ):
         monkeypatch.setattr(sys, "argv", ["jobrake", *argv])
-        with pytest.raises(SystemExit):
+        with pytest.raises(SystemExit) as error:
             cli.main()
+        assert error.value.code == 2
 
 
 @pytest.mark.parametrize(
@@ -298,7 +236,7 @@ def test_a_search_the_library_rejects_is_a_cli_error_before_any_request(
     monkeypatch, capsys, argv, message
 ):
     fetcher = StubFetcher({})
-    monkeypatch.setattr(sites, "HttpxFetcher", lambda: fetcher)
+    monkeypatch.setattr(cli, "HttpxFetcher", lambda: fetcher)
     monkeypatch.setattr(sys, "argv", ["jobrake", *argv])
     with pytest.raises(SystemExit) as error:
         cli.main()
@@ -307,19 +245,15 @@ def test_a_search_the_library_rejects_is_a_cli_error_before_any_request(
     assert fetcher.requests == []
 
 
-def test_default_output_is_json_on_stdout(run_cli, capsys):
-    run_cli()
-    assert json.loads(capsys.readouterr().out) == JOBS
-
-
-def test_a_stopped_search_writes_what_it_collected_and_fails(run_cli, monkeypatch, capsys, caplog):
-    async def stopped(*args, **kwargs):
-        raise Stopped("indeed search stopped: HTTP 429", partial=JOBS[:1])
-
-    monkeypatch.setattr(cli, "scrape", stopped)
+def test_a_stopped_search_writes_what_it_collected_and_fails(run_cli, stub_search, capsys, caplog):
+    stub_search("indeed", Stopped("indeed request failed: HTTP 429", partial=JOBS[:1]))
     assert run_cli() == 1
     assert json.loads(capsys.readouterr().out) == JOBS[:1]
-    assert "indeed search stopped: HTTP 429" in caplog.text
+    assert "indeed request failed: HTTP 429" in caplog.text
+
+    stub_search("indeed", Stopped("indeed request failed: HTTP 429"))
+    assert run_cli() == 1
+    assert capsys.readouterr().out == ""
 
 
 def test_format_selects_stdout_and_overrides_output_extension(run_cli, capsys, tmp_path):
@@ -334,8 +268,9 @@ def test_output_csv_roundtrips_hostile_fields(run_cli, tmp_path, capsys):
     out = tmp_path / "jobs.csv"
     run_cli("-o", str(out))
     with out.open(newline="", encoding="utf-8") as f:
-        rows = list(csv.DictReader(f))
-    assert rows[0].keys() == set(JOB_FIELDS)
+        reader = csv.DictReader(f)
+        rows = list(reader)
+    assert reader.fieldnames == list(JOB_FIELDS)
     # Unavailable summaries and absent details read back as empty cells, the
     # places as their names, and the site's own fields as JSON.
     nested = [
@@ -354,25 +289,23 @@ def test_output_csv_roundtrips_hostile_fields(run_cli, tmp_path, capsys):
     assert capsys.readouterr().out == ""  # File output leaves stdout silent.
 
 
-def test_output_jsonl_one_object_per_line(run_cli, tmp_path):
-    out = tmp_path / "jobs.JSONL"  # the extension picks the format whatever its case
+@pytest.mark.parametrize(
+    ("name", "read"),
+    [
+        ("jobs.json", json.loads),
+        # The extension picks the format whatever its case. A leaked raw newline
+        # in a description would break the per-line parse.
+        ("jobs.JSONL", lambda text: [json.loads(line) for line in text.splitlines()]),
+    ],
+)
+def test_output_file_takes_the_format_its_extension_names(run_cli, tmp_path, name, read):
+    out = tmp_path / name
     run_cli("-o", str(out))
-    lines = out.read_text(encoding="utf-8").splitlines()
-    # A leaked raw newline in a description would break the per-line parse.
-    assert [json.loads(line) for line in lines] == JOBS
+    assert read(out.read_text(encoding="utf-8")) == JOBS
 
 
-def test_output_json_writes_file(run_cli, tmp_path):
-    out = tmp_path / "jobs.json"
-    run_cli("-o", str(out))
-    assert json.loads(out.read_text(encoding="utf-8")) == JOBS
-
-
-def test_no_jobs_does_not_create_output(run_cli, monkeypatch, tmp_path):
-    async def no_jobs(*args, **kwargs):
-        return []
-
-    monkeypatch.setattr(cli, "scrape", no_jobs)
+def test_no_jobs_does_not_create_output(run_cli, stub_search, tmp_path):
+    stub_search("indeed", [])
     out = tmp_path / "jobs.json"
     run_cli("-o", str(out))
     assert not out.exists()
@@ -393,11 +326,8 @@ def test_closed_pipe_ends_quietly(run_cli, fake_site, monkeypatch):
         assert cli.main() == 1
 
 
-def test_invalid_output_fails_before_scraping(run_cli, monkeypatch, tmp_path, capsys):
-    async def must_not_run(*args, **kwargs):
-        raise AssertionError("scrape ran despite a bad --output")
-
-    monkeypatch.setattr(cli, "scrape", must_not_run)
+def test_invalid_output_fails_before_scraping(run_cli, stub_search, tmp_path, capsys):
+    stub_search("indeed", AssertionError("search ran despite a bad --output"))
     with pytest.raises(SystemExit):
         run_cli("-o", str(tmp_path / "jobs.xlsx"))
     with pytest.raises(SystemExit):

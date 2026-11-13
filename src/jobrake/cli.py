@@ -14,7 +14,7 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any, Never, TextIO, override
 
-from jobrake import __version__, scrape
+from jobrake import __version__
 
 from .fetchkit import HttpxFetcher
 from .io import RENDERERS
@@ -145,21 +145,6 @@ def _add_arguments(parser: argparse.ArgumentParser, function: Callable[..., obje
         parser.add_argument(*flags, dest=name, required=required, **settings)
 
 
-def _add_output_args(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument(
-        "--output",
-        "-o",
-        type=Path,
-        help="write results to a new file instead of stdout",
-    )
-    parser.add_argument(
-        "--format",
-        "-f",
-        choices=list(RENDERERS),
-        help="output format. Defaults to the --output extension or JSON for stdout",
-    )
-
-
 def _build_parser() -> _ArgumentParser:
     parser = _ArgumentParser(
         prog="jobrake", description="Find and fetch job postings", allow_abbrev=False
@@ -175,8 +160,17 @@ def _build_parser() -> _ArgumentParser:
             function = getattr(module, name)
             command = _add_parser(commands.add_parser, name, function)
             _add_arguments(command, function)
-            if name in _WRITES_POSTINGS:
-                _add_output_args(command)
+            if name not in _WRITES_POSTINGS:
+                continue
+            command.add_argument(
+                "--output", "-o", type=Path, help="write results to a new file instead of stdout"
+            )
+            command.add_argument(
+                "--format",
+                "-f",
+                choices=list(RENDERERS),
+                help="output format. Defaults to the --output extension or JSON for stdout",
+            )
     return parser
 
 
@@ -203,61 +197,52 @@ def _write_stdout(text: str) -> int | None:
     return None
 
 
-async def _with_own_fetcher[T](
-    function: Callable[..., Awaitable[T]], *args: object, **options: object
-) -> T:
-    """Call a site function with an ``HttpxFetcher`` that it closes afterward."""
-    fetcher = HttpxFetcher()
+def _run(
+    parser: _ArgumentParser, function: Callable[..., Awaitable[Any]], options: dict[str, Any]
+) -> tuple[Any, int | None]:
+    """
+    Call a site function with an ``HttpxFetcher`` of its own, closed afterward.
+
+    Returns:
+        What the function returned and ``None``, or the ``partial`` of a stopped one and ``1``.
+    """
+
+    async def call() -> Any:  # noqa: ANN401  the return type differs by command
+        async with HttpxFetcher() as fetcher:
+            return await function(fetcher, **options)
+
     try:
-        return await function(fetcher, *args, **options)
-    finally:
-        await fetcher.close()
-
-
-def _call_args(
-    args: argparse.Namespace, function: Callable[..., object]
-) -> tuple[Any, dict[str, Any]]:
-    """Return the positional argument and the options the command line gave a site function."""
-    (positional, _), *options = site_options(function).items()
-    names = {name for name, _ in options}
-    return vars(args)[positional], {k: v for k, v in vars(args).items() if k in names}
-
-
-def _lookup(parser: _ArgumentParser, args: argparse.Namespace) -> int | None:
-    """Print a lookup's candidates as JSON, or return 1 after a failed request."""
-    lookup = getattr(SITES[args.site], args.command)
-    text, options = _call_args(args, lookup)
-    try:
-        hits = asyncio.run(_with_own_fetcher(lookup, text, **options))
-    except ValueError as e:
-        parser.error(str(e))
+        return asyncio.run(call()), None
+    except ValueError as error:
+        parser.error(str(error))
     except Stopped as stop:
-        logger.error("%s", stop)  # noqa: TRY400  the message says what failed; a traceback adds nothing
-        return 1
+        logger.error("%s", stop)  # noqa: TRY400  the message says what failed
+        return stop.partial, 1
+
+
+def _write_hits(command: str, text: str, hits: list[dict[str, str]]) -> int | None:
+    """Print a lookup's candidates as JSON, warning when there are none."""
     if not hits:
-        logger.warning(
-            "no %s found for %r. Check the spelling or try another query", args.command, text
-        )
+        logger.warning("no %s found for %r. Check the spelling or try another query", command, text)
     return _write_stdout(json.dumps(hits, indent=2, ensure_ascii=False) + "\n")
 
 
-def _fetch_postings(args: argparse.Namespace) -> tuple[list[JobDict], bool]:
+def _fetched(
+    args: argparse.Namespace, found: dict[str, JobDict | None]
+) -> tuple[list[JobDict], int | None]:
     """
-    Fetch the named postings, one record per posting in reference order, and whether a reference failed.
+    Return one record per posting fetched, in reference order, and 1 when a reference failed.
 
     A reference to a posting the site reports gone logs a warning. A failed
-    reference has no key in the result of ``postings``, and the site has
-    reported why.
+    reference has no key in ``found``, and the site has reported why.
     """
-    fetch = SITES[args.site].postings
-    references, options = _call_args(args, fetch)
-    found = asyncio.run(_with_own_fetcher(fetch, references, **options))
     for reference, job in found.items():
         if job is None:
             logger.warning("%s is no longer on %s", reference, args.site)
     jobs = (job for job in found.values() if job is not None)
-    failed = any(reference not in found for reference in references)
-    return list({(job["site"], job["id"]): job for job in jobs}.values()), failed
+    # Like a stopped search, a fetch with a failed reference writes what it got and exits 1.
+    status = 1 if any(reference not in found for reference in args.references) else None
+    return list({(job["site"], job["id"]): job for job in jobs}.values()), status
 
 
 def _settle_output(parser: _ArgumentParser, args: argparse.Namespace) -> str:
@@ -294,6 +279,7 @@ def _write_jobs(args: argparse.Namespace, jobs: list[JobDict], fmt: str) -> int 
         ``1`` when stdout closes early or the file cannot be written. ``None`` otherwise.
     """
     if args.output is None:
+        logger.info("found %d jobs", len(jobs))
         return _write_stdout(RENDERERS[fmt](jobs))
     if not jobs:
         logger.warning("no jobs found; leaving %s untouched", args.output)
@@ -302,7 +288,9 @@ def _write_jobs(args: argparse.Namespace, jobs: list[JobDict], fmt: str) -> int 
         with args.output.open("x", encoding="utf-8") as output:
             output.write(RENDERERS[fmt](jobs))
     except OSError as error:
-        logger.error("could not write %s: %s", args.output, error)  # noqa: TRY400  the user needs the message, not a traceback
+        logger.error(  # noqa: TRY400  the message says what failed
+            "could not write %s: %s", args.output, error
+        )
         return 1
     logger.info("wrote %d jobs to %s", len(jobs), args.output)
     return None
@@ -313,7 +301,9 @@ def main() -> int | None:
     Run a search, posting fetch, or lookup.
 
     Returns:
-        ``1`` when a search or lookup stops on a failed request, a named posting could not be fetched, stdout closes early, or the output file cannot be written. Normal completion returns ``None``.
+        ``1`` when a search or lookup stops on a failed request, a named posting
+        could not be fetched, stdout closes early, or the output file cannot be
+        written. Normal completion returns ``None``.
     """
     parser = _build_parser()
     args = parser.parse_args()
@@ -323,29 +313,26 @@ def main() -> int | None:
     handler = _StatusHandler()
     logging.basicConfig(level=logging.WARNING, handlers=[handler])
     logging.getLogger("jobrake").setLevel(logging.INFO)
-    if args.command not in _WRITES_POSTINGS:
-        return _lookup(parser, args)
-    # Settle the output before the fetch spends any requests.
-    fmt = _settle_output(parser, args)
-    status = None
+    function = getattr(SITES[args.site], args.command)
+    # In signature order, so the text a lookup takes comes first.
+    options = {name: vars(args)[name] for name in site_options(function) if name in vars(args)}
+    # A lookup prints its candidates and has no output to settle. A search and a
+    # posting fetch settle theirs before spending any requests.
+    fmt = _settle_output(parser, args) if args.command in _WRITES_POSTINGS else None
     try:
-        if args.command == "postings":
-            jobs, failed = _fetch_postings(args)
-            # Like a stopped search, a fetch with a failed reference writes what it got and exits 1.
-            status = 1 if failed else None
-        else:
-            search = site_options(SITES[args.site].search)
-            options = {k: v for k, v in vars(args).items() if k in search}
-            jobs = asyncio.run(scrape(args.site, **options))
-    except ValueError as e:
-        parser.error(str(e))
-    except Stopped as stop:
-        logger.error("%s", stop)  # noqa: TRY400  the message says what failed; a traceback adds nothing
-        jobs, status = stop.partial, 1
+        found, status = _run(parser, function, options)
     finally:
         # An exceptional exit would otherwise start its traceback beside the progress line.
         handler.clear()
-    return _write_jobs(args, jobs, fmt) or status
+    if fmt is None:
+        # A stopped lookup prints nothing.
+        return status or _write_hits(args.command, next(iter(options.values())), found)
+    if args.command == "postings":
+        found, status = _fetched(args, found)
+    if status and not found:
+        # An empty document would pass for a search that completed and found nothing.
+        return status
+    return _write_jobs(args, found, fmt) or status
 
 
 if __name__ == "__main__":

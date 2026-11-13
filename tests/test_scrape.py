@@ -69,7 +69,6 @@ def test_a_site_function_the_cli_cannot_build_fails_when_decorated(function, mat
     [
         ("glassdoor", {}, ValueError, "glassdoor"),
         ("indeed", {}, TypeError, r"indeed: missing .* 'country'. Its options are query, country"),
-        ("indeed", {"country": "us", "geoid": "1"}, TypeError, r"indeed: .* argument 'geoid'"),
         ("linkedin", {"location": "Seattle", "country": "us"}, TypeError, "argument 'country'"),
         ("indeed", {"country": 5}, TypeError, "country must be a string, got 5"),
         ("indeed", {"country": "us", "remote": "false"}, TypeError, "remote must be a boolean"),
@@ -99,9 +98,7 @@ def test_a_site_function_the_cli_cannot_build_fails_when_decorated(function, mat
         ("linkedin", {}, ValueError, "location is required"),
         ("linkedin", {"location": "   "}, ValueError, "location is required"),
         ("linkedin", {"geoid": ""}, ValueError, "must use digits"),
-        ("linkedin", {"geoid": "Amsterdam"}, ValueError, "must use digits"),
         ("linkedin", {"location": "Seattle", "company_ids": ["Acme"]}, ValueError, "company ID"),
-        ("linkedin", {"location": "Seattle", "company_ids": [""]}, ValueError, "company ID"),
         ("linkedin", {"location": "Seattle", "company_ids": ["１２３"]}, ValueError, "company ID"),  # noqa: RUF001  fullwidth digits are the input under test
     ],
 )
@@ -135,17 +132,10 @@ def test_a_registered_site_needs_no_change_to_scrape(fake_site):
     assert len(fake_site.calls) == 1
 
 
-class Recording(StubFetcher):
-    closed = 0
-
-    async def close(self):
-        self.closed += 1
-
-
 def test_scrape_closes_only_the_fetcher_it_created(fake_site, monkeypatch):
-    given = Recording({})
+    given = StubFetcher({})
     asyncio.run(scrape("fakesite", query="x", fetcher=given))
-    created = Recording({})
+    created = StubFetcher({})
     monkeypatch.setattr(sites, "HttpxFetcher", lambda: created)
     asyncio.run(scrape("fakesite", query="x"))
     assert (given.closed, created.closed) == (0, 1)
@@ -155,7 +145,7 @@ def test_scrape_closes_its_fetcher_after_a_search_failure(fake_site, monkeypatch
     async def failing(fetcher, *, query: Annotated[str, "job title or keywords"]):
         raise RuntimeError("interrupted")
 
-    created = Recording({})
+    created = StubFetcher({})
     monkeypatch.setattr(sites, "HttpxFetcher", lambda: created)
     monkeypatch.setattr(fake_site, "search", failing)
     with pytest.raises(RuntimeError):

@@ -5,8 +5,8 @@ from typing import Annotated, Any
 from urllib.parse import urlencode
 
 from jobrake.fetchkit import Fetcher
-from jobrake.models import Stopped
-from jobrake.utils import checked
+from jobrake.sites.responses import json_list, read_json
+from jobrake.utils import as_dict, as_str, checked
 
 from .client import API_HEADERS, API_URL, AUTOCOMPLETE_HEADERS, AUTOCOMPLETE_URL
 from .countries import Country, indeed_domain
@@ -20,23 +20,17 @@ query {{
 """
 
 
-def _text(value: object) -> str:
-    return value.strip() if isinstance(value, str) else ""
-
-
 def _candidate(hit: object, id_key: str, name_key: str) -> dict[str, str] | None:
     """Read one ``{"id", "name"}`` candidate from a hit's two fields, or None when either is blank."""
-    if not isinstance(hit, dict):
-        return None
-    hit_id, name = _text(hit.get(id_key)), _text(hit.get(name_key))
+    hit = as_dict(hit)
+    hit_id, name = ((as_str(hit.get(key)) or "").strip() for key in (id_key, name_key))
     return {"id": hit_id, "name": name} if hit_id and name else None
 
 
-# Each autocomplete kind: the noun for messages, the hit field that holds the
-# ID, and the parameters it adds.
-_KINDS: dict[str, tuple[str, str, dict[str, Any]]] = {
-    "location": ("place", "suggestion", {"formatted": 1}),
-    "company": ("company", "employerKey", {}),
+# Each autocomplete kind: the hit field that holds the ID, and the parameters it adds.
+_KINDS: dict[str, tuple[str, dict[str, Any]]] = {
+    "location": ("suggestion", {"formatted": 1}),
+    "company": ("employerKey", {}),
 }
 
 
@@ -50,30 +44,19 @@ async def _suggestions(
         Stopped: The request failed, or the response held no readable suggestion.
         ValueError: The country edition is unknown.
     """
-    noun, id_key, extra = _KINDS[kind]
-    name = name.strip()
+    id_key, extra = _KINDS[kind]
     _, code = indeed_domain(country)
-    params = {"query": name, "country": code, "language": "en", "count": 10, "rich": "true"}
+    params = {"query": name.strip(), "country": code, "language": "en", "count": 10, "rich": "true"}
     url = f"{AUTOCOMPLETE_URL}/{kind}?{urlencode(params | extra)}"
     result = await fetcher.fetch(url, headers=AUTOCOMPLETE_HEADERS)
-    if result.error:
-        raise Stopped(
-            f"{noun} lookup for {name!r} failed: {result.error}. Try again later", partial=[]
-        )
-    try:
-        hits = json.loads(result.text)
-    except ValueError:
-        hits = None
-    candidates = (
-        [c for hit in hits if (c := _candidate(hit, id_key, "suggestion"))]
-        if isinstance(hits, list)
-        else []
-    )
-    if not isinstance(hits, list) or (hits and not candidates):
-        raise Stopped(
-            f"could not read Indeed's {noun} suggestions for {name!r}. Try again later", partial=[]
-        )
-    return candidates
+
+    def candidates(hits: Any) -> list[dict[str, str]]:  # noqa: ANN401  any decoded JSON, which json_list checks
+        found = [c for hit in json_list(hits) if (c := _candidate(hit, id_key, "suggestion"))]
+        if hits and not found:
+            raise TypeError(f"no suggestion has a {id_key} and a suggestion")
+        return found
+
+    return read_json(result, candidates, site="indeed")
 
 
 @checked
@@ -112,6 +95,32 @@ async def companies(
     return await _suggestions(fetcher, "company", name, country)
 
 
+def _attribute_codes(payload: Any) -> list[dict[str, str]]:  # noqa: ANN401  any decoded JSON, which json_list checks
+    """
+    Collect each attribute code of a search response once, in first-seen order.
+
+    Raises:
+        KeyError: The response lacks the search results.
+        TypeError: The results are not a list, or they hold malformed entries
+            and no readable attribute.
+    """
+    found: dict[str, dict[str, str]] = {}
+    malformed = False
+    for hit in json_list(payload["data"]["jobSearch"], "results"):
+        entries = as_dict(as_dict(hit).get("job")).get("attributes")
+        if not isinstance(entries, list):
+            malformed = True
+            continue
+        for entry in entries:
+            if candidate := _candidate(entry, "key", "label"):
+                found.setdefault(candidate["id"], candidate)
+            else:
+                malformed = True
+    if malformed and not found:
+        raise TypeError("no result has a readable attribute")
+    return list(found.values())
+
+
 @checked
 async def attributes(
     fetcher: Fetcher, query: Annotated[str, "job title or keywords"], *, country: Country
@@ -129,37 +138,10 @@ async def attributes(
         Stopped: The request failed, or the response held no readable attribute.
         ValueError: The query is blank, or the country edition is unknown.
     """
-    query = query.strip()
     _, code = indeed_domain(country)
     result = await fetcher.fetch(
         API_URL,
         headers={**API_HEADERS, "indeed-co": code},
-        json={"query": ATTRIBUTES_QUERY.format(query=json.dumps(query))},
+        json={"query": ATTRIBUTES_QUERY.format(query=json.dumps(query.strip()))},
     )
-    if result.error:
-        raise Stopped(
-            f"attribute lookup for {query!r} failed: {result.error}. Try again later", partial=[]
-        )
-    unreadable = f"could not read Indeed's attributes for {query!r}. Try again later"
-    try:
-        hits = json.loads(result.text)["data"]["jobSearch"]["results"]
-    except (ValueError, KeyError, TypeError) as error:
-        raise Stopped(unreadable, partial=[]) from error
-    if not isinstance(hits, list):
-        raise Stopped(unreadable, partial=[])
-    found: dict[str, dict[str, str]] = {}
-    malformed = False
-    for hit in hits:
-        job = hit.get("job") if isinstance(hit, dict) else None
-        entries = job.get("attributes") if isinstance(job, dict) else None
-        if not isinstance(entries, list):
-            malformed = True
-            continue
-        for entry in entries:
-            if candidate := _candidate(entry, "key", "label"):
-                found.setdefault(candidate["id"], candidate)
-            else:
-                malformed = True
-    if malformed and not found:
-        raise Stopped(unreadable, partial=[])
-    return list(found.values())
+    return read_json(result, _attribute_codes, site="indeed")

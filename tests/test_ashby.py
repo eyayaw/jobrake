@@ -9,7 +9,7 @@ from jobrake.sites import ashby
 
 # Two postings from api.ashbyhq.com/posting-api/job-board/ramp?includeCompensation=true,
 # fetched 2026-10-28, trimmed to the fields jobrake reads plus isListed and isRemote,
-# with each description cut to its role heading and a sentence or two, with
+# with each description cut to its role heading and one short sentence, with
 # compensation cut to its summaryComponents.
 POSTINGS = [
     {
@@ -53,8 +53,7 @@ POSTINGS = [
         "jobUrl": "https://jobs.ashbyhq.com/ramp/c63ba7d7-5290-4d9b-b002-40b2873b66f6",
         "applyUrl": "https://jobs.ashbyhq.com/ramp/c63ba7d7-5290-4d9b-b002-40b2873b66f6/application",
         "descriptionHtml": '<h1><strong>About the Role</strong></h1><p style="min-height:1.5em">'
-        "The Solutions Team are technical experts that work directly with customers and "
-        "partners to provide world-class product, sales, industry, and domain expertise.</p>",
+        "The Solutions Team works with customers.</p>",
         "compensation": {
             "summaryComponents": [
                 {
@@ -94,9 +93,7 @@ POSTINGS = [
         "jobUrl": "https://jobs.ashbyhq.com/ramp/b39ceb08-a0a7-4f8b-a760-2fb88e209956",
         "applyUrl": "https://jobs.ashbyhq.com/ramp/b39ceb08-a0a7-4f8b-a760-2fb88e209956/application",
         "descriptionHtml": '<h1><strong>About the Role</strong></h1><p style="min-height:1.5em">'
-        "The Applied Science team builds models and tools that solve Ramp’s most critical "  # noqa: RUF001  the posting's own apostrophe
-        "problems: from underwriting businesses to combatting fraud to making spend "
-        "management smarter.</p>",
+        "The Applied Science team builds models.</p>",
         "compensation": {
             "summaryComponents": [
                 {
@@ -137,9 +134,7 @@ def test_a_board_parses_into_records():
                 {"name": "New York, NY (HQ)", "city": "New York City", "region": "NY"},
             ],
             "date": "2026-09-02",
-            "description": "About the Role\nThe Solutions Team are technical experts that work "
-            "directly with customers and partners to provide world-class product, sales, "
-            "industry, and domain expertise.",
+            "description": "About the Role\nThe Solutions Team works with customers.",
             "employment_type": "full_time",
             "department": "Sales",
             "workplace_type": "remote",
@@ -150,23 +145,7 @@ def test_a_board_parses_into_records():
             "posted_at": "2026-09-02T17:17:20.841+00:00",
             "apply_url": "https://jobs.ashbyhq.com/ramp/c63ba7d7-5290-4d9b-b002-40b2873b66f6/application",
             "team": "Solutions Consulting",
-            "site_data": {
-                "summaryComponents": [
-                    {
-                        "minValue": 151000,
-                        "maxValue": 231000,
-                        "currencyCode": "USD",
-                        "interval": "1 YEAR",
-                        "compensationType": "Salary",
-                    },
-                    {
-                        "compensationType": "EquityCashValue",
-                        "minValue": None,
-                        "maxValue": None,
-                        "interval": "1 YEAR",
-                    },
-                ],
-            },
+            "site_data": POSTINGS[0]["compensation"],  # passed through as Ashby sends it
         },
         {
             "site": "ashby",
@@ -176,9 +155,7 @@ def test_a_board_parses_into_records():
             "company": None,
             "locations": [{"name": "New York, NY (HQ)", "city": "New York City", "region": "NY"}],
             "date": "2026-09-15",
-            "description": "About the Role\nThe Applied Science team builds models and tools that "
-            "solve Ramp’s most critical problems: from underwriting businesses to combatting "  # noqa: RUF001  the posting's own apostrophe
-            "fraud to making spend management smarter.",
+            "description": "About the Role\nThe Applied Science team builds models.",
             "employment_type": "internship",
             "department": "Data",
             "workplace_type": "hybrid",  # isRemote says true for it
@@ -189,17 +166,7 @@ def test_a_board_parses_into_records():
             "posted_at": "2026-09-15T01:44:04.643+00:00",
             "apply_url": "https://jobs.ashbyhq.com/ramp/b39ceb08-a0a7-4f8b-a760-2fb88e209956/application",
             "team": "Emerging Talent - Data",
-            "site_data": {
-                "summaryComponents": [
-                    {
-                        "compensationType": "Salary",
-                        "interval": "1 MONTH",
-                        "currencyCode": "USD",
-                        "minValue": 12500,
-                        "maxValue": 12500,
-                    }
-                ],
-            },
+            "site_data": POSTINGS[1]["compensation"],
         },
     ]
     assert fetcher.requests == [

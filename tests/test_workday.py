@@ -1,7 +1,6 @@
 """Workday career site parsing and paging tests."""
 
 import asyncio
-import importlib
 import json
 from datetime import date
 
@@ -14,8 +13,6 @@ from jobrake.sites import workday
 
 BOARD = "https://nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite"
 API = "https://nvidia.wd5.myworkdayjobs.com/wday/cxs/nvidia/NVIDIAExternalCareerSite"
-# workday.search is the exported function, so import its module directly.
-SEARCH = importlib.import_module("jobrake.sites.workday.search")
 
 # Three cards, as served, from POST {API}/jobs on 2026-10-28: two from a search
 # without keywords and one from a search for part-time "engineer" postings.
@@ -61,7 +58,7 @@ def numbered(count, start=0):
 
 @pytest.fixture
 def today(monkeypatch):
-    monkeypatch.setattr(SEARCH, "_today", lambda: date(2026, 10, 28))
+    monkeypatch.setattr(workday, "_today", lambda: date(2026, 10, 28))
 
 
 def test_a_search_page_parses_into_records(today):
@@ -105,13 +102,12 @@ def test_a_search_page_parses_into_records(today):
 
 # GET {API}/job/US-CA-Santa-Clara/Networking-Architect_JR1996377 on 2026-10-28,
 # trimmed to jobPostingInfo and hiringOrganization, with the description cut
-# to its first two paragraphs.
+# to two short paragraphs.
 DETAIL = {
     "jobPostingInfo": {
         "id": "9683fb87cfe610016c0dba112fad0000",
         "title": "Networking Architect",
-        "jobDescription": "<p>NVIDIA Networking has been a leader in high performance "
-        "networking infrastructure for many years.</p><p>What you’ll be doing:</p>",  # noqa: RUF001  the posting's own apostrophe
+        "jobDescription": "<p>NVIDIA Networking leads.</p><p>What you will do:</p>",
         "location": "US, CA, Santa Clara",
         "postedOn": "Posted Today",
         "startDate": "2026-10-27",
@@ -141,8 +137,7 @@ FILLED = {
     "company": None,
     "locations": [{"name": "US, CA, Santa Clara", "country_code": "US"}],
     "date": "2026-10-27",  # the start date, a day before the card's "Posted Today"
-    "description": "NVIDIA Networking has been a leader in high performance networking "
-    "infrastructure for many years.\nWhat you’ll be doing:",  # noqa: RUF001  the posting's own apostrophe
+    "description": "NVIDIA Networking leads.\nWhat you will do:",
     "employment_type": "full_time",
     "posted_at": "2026-10-27",
 }
@@ -226,7 +221,7 @@ def test_details_fill_each_card_and_stop_when_one_fails(today, caplog):
         "nvidia:JR1",
     ]
     assert stop.value.partial[:2] == [FILLED, two_places]
-    assert caplog.text.count("skipping the details of") == 2
+    assert caplog.text.count("skipping posting") == 2
 
 
 def test_postings_fetch_each_posting_once_and_key_it_by_reference(caplog):
@@ -256,7 +251,7 @@ def test_postings_fetch_each_posting_once_and_key_it_by_reference(caplog):
         f"{API}/job/US-CA-Santa-Clara/Networking-Architect_JR1996377",
         *(f"{API}/job/Remote/Engineer_JR{n}" for n in range(4)),
     ]
-    assert "skipping the details of" in caplog.text
+    assert "skipping posting" in caplog.text
 
 
 @pytest.mark.parametrize(
@@ -309,7 +304,7 @@ def test_only_a_404_on_the_first_page_means_an_unknown_site():
         asyncio.run(workday.search(StubFetcher({"/jobs": not_found()}), board=board))
     assert stop.value.partial == []
     fetcher = PagedFetcher([page(numbered(20), total=40), not_found()])
-    with pytest.raises(Stopped, match=r"stopped: HTTP 404\. Kept the 20 postings") as stop:
+    with pytest.raises(Stopped, match=r"failed: HTTP 404\. Kept the 20 postings") as stop:
         asyncio.run(workday.search(fetcher, board=BOARD, results=40))
     assert len(stop.value.partial) == 20
 
@@ -336,7 +331,7 @@ def test_paging_ends_at_results_or_the_first_total_and_stops_at_an_early_empty_p
     jobs = asyncio.run(workday.search(fetcher, board=BOARD, results=25))
     assert [job["id"] for job in jobs] == [f"nvidia:JR{n}" for n in range(25)]
     requested = [(body["offset"], body["limit"]) for body in fetcher.bodies]
-    assert requested == [(0, 20), (20, 5), (25, 1)]
+    assert requested == [(0, 20), (20, 20), (25, 20)]
     # An empty page before the reported total may have skipped postings.
     for pages, kept in (
         ([page(numbered(20), total=2000), page([], total=2000)], 20),
@@ -350,7 +345,7 @@ def test_paging_ends_at_results_or_the_first_total_and_stops_at_an_early_empty_p
     assert len(asyncio.run(workday.search(fetcher, board=BOARD, results=100))) == 25
     assert "at most" not in caplog.text
     # Later pages are reported to say total 0, so the first page's total stands.
-    monkeypatch.setattr(SEARCH, "MAX_TOTAL", 43)
+    monkeypatch.setattr(workday, "MAX_TOTAL", 43)
     pages = [page(numbered(20), total=43), page(numbered(20, 20), total=0)]
     fetcher = PagedFetcher([*pages, page(numbered(3, 40), total=0)])
     assert len(asyncio.run(workday.search(fetcher, board=BOARD, results=100))) == 43

@@ -191,15 +191,11 @@ async def paced_fetch(fetcher: Fetcher, url: str) -> FetchResult:
     cookies. Only HTTPS LinkedIn redirects are followed. A persistent 429 is
     returned to the caller. The transport stays open.
     """
-    for hop in range(_MAX_REDIRECTS + 1):
+    for _ in range(_MAX_REDIRECTS + 1):
         result = await _fetch_with_retries(fetcher, url)
+        location = result.headers.get("location")
         # GET redirects: https://www.rfc-editor.org/rfc/rfc9110#section-15.4 (checked 2026-11-07).
-        if result.error or result.status not in {301, 302, 303, 307, 308}:
-            return result
-        if not (location := result.headers.get("location")):
-            return result
-        if hop == _MAX_REDIRECTS:
-            result.error = f"LinkedIn exceeded {_MAX_REDIRECTS} redirects"
+        if result.error or result.status not in {301, 302, 303, 307, 308} or not location:
             return result
         try:
             target = urljoin(result.url, location)
@@ -212,6 +208,7 @@ async def paced_fetch(fetcher: Fetcher, url: str) -> FetchResult:
             result.error = f"invalid LinkedIn redirect: {error}"
             return result
         url = target
+    result.error = f"LinkedIn exceeded {_MAX_REDIRECTS} redirects"
     return result
 
 

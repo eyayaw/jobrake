@@ -12,32 +12,34 @@ systems, and it depends on `httpx` and `bs4`.
 
 - `sites/__init__.py`: `SITES`, the registry with one entry per site, and
   `scrape`, which routes a search to its site.
-- `sites/<site>/`: one package per site. `__init__` exports `search` and any
-  of `places`, `companies`, `attributes`, and `postings`, and the first line
-  of its docstring is the site's CLI help. `search.py` builds requests and
-  parses results. LinkedIn's and Indeed's `client.py` hold their URLs,
-  headers, and pacing, and their `lookups.py` hold the lookups. The other
-  sites need no headers or pacing and have no `client.py`. LinkedIn's
-  `pages.py` reads posting pages for `postings` and `details=True` with a
-  fixed pool of workers, and Indeed's `countries.py` maps ISO country codes
-  to editions.
-- `sites/responses.py`: the response reading the JSON sites share, for one
-  request or each page. `read_json` raises `Stopped` for an unknown board, a
-  failed request, or an unreadable response, `json_list` checks the posting
-  list, `json_page` checks a page's list and its total, and `parse_postings`
-  skips a malformed posting with a warning. A new site of this kind writes
-  no error handling of its own.
+- `sites/<site>`: one module per site, or a package for LinkedIn and Indeed,
+  which split into several modules. It exports `search` and any of `places`,
+  `companies`, `attributes`, and `postings`, and the first line of its
+  docstring is the site's CLI help. In the two packages, `search.py` builds
+  requests and parses results, `client.py` holds the URLs, headers, and
+  pacing, and `lookups.py` holds the lookups. The other sites need no headers
+  or pacing. LinkedIn's `pages.py` reads posting pages for `postings` and
+  `details=True` with a fixed pool of workers, and Indeed's `countries.py`
+  maps ISO country codes to editions.
+- `sites/responses.py`: the response reading the sites share. `read_json`
+  raises `Stopped` for an unknown board, a failed request, or an unreadable
+  response, `json_list` checks the posting list, `json_page` checks a page's
+  list and its total, and `parse_postings` skips a malformed posting with a
+  warning. `collect` gathers the pages a paged search yields: it drops a
+  repeated posting, logs progress, stops at `results`, and keeps the pages
+  before a failure. A site writes no error handling and no page loop of its
+  own.
 - `sites/postings.py`: the posting loop of the sites that fill a card with
   one request per posting. `fill_details` serves `details=True` and
   `fetch_postings` serves `postings`, and each site supplies only the reader
-  of one posting. A field the posting leaves empty keeps the card's value.
+  of one posting, which raises `Stopped` for a posting it could not read. A
+  field the posting leaves empty keeps the card's value.
 - `utils.py`: `site_options`, which reads the `Annotated` arguments of a
   site function, `checked`, which checks every call against them,
-  `report_progress`, which each search's page loop and each posting loop
-  calls to log its progress record, and the JSON value, text, number, and
-  date helpers.
+  `report_progress`, which `collect` and each posting loop call to log
+  their progress records, and the JSON value, text, number, and date helpers.
 - `models.py`: `JobDict`, its `Place`, `make_job`, `make_places`, and `Stopped`.
-- `fetchkit/`: the `Fetcher` protocol, `FetchResult`, and `HttpxFetcher`.
+- `fetchkit.py`: the `Fetcher` protocol, `FetchResult`, and `HttpxFetcher`.
 - `cache.py`: one SQLite table of `JobDict` records keyed by site and ID, and
   the shared `CACHE`.
 - `cli.py` builds `jobrake <site> <command>` from `SITES`, one command per
@@ -45,7 +47,7 @@ systems, and it depends on `httpx` and `bs4`.
 - `tests/`: offline, built on the stub fetcher in `tests/fakes.py`.
   `tests/fakesite.py` is a fake site the tests register.
 
-A new site is a package under `sites/` and one entry in `SITES`. `scrape`,
+A new site is a module under `sites/` and one entry in `SITES`. `scrape`,
 the CLI, and the contract test in `tests/test_scrape.py` need no edit.
 
 ## Non-goals
@@ -125,7 +127,9 @@ the CLI, and the contract test in `tests/test_scrape.py` need no edit.
   sends logs to stderr and data to stdout. It exits 2 for a bad argument, and
   1 when a search or lookup raises `Stopped`, a named posting could not be
   fetched, or the output cannot be written. A stopped search and a postings
-  fetch with a failed reference still write what they got.
+  fetch with a failed reference still write the postings they got. With none
+  they write nothing, so an empty document comes only from a command that
+  completed.
 
 ## Style
 
@@ -150,7 +154,7 @@ the CLI, and the contract test in `tests/test_scrape.py` need no edit.
 - Keep the README as a short landing page. Put detailed usage, output, and
   site-specific behavior in `docs/guide.md`.
 - Keep CLI help terse. It comes from the `Annotated` help of each option and
-  the first docstring line of each site package and site function. Caveats
+  the first docstring line of each site and site function. Caveats
   and site quirks go in the guide.
 - The guide tells readers what they need to use jobrake. Leave out input
   normalization, request sizes, and other internals.

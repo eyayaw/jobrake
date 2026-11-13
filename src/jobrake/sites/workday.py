@@ -1,19 +1,19 @@
-"""Workday career site requests and parsing."""
+"""Search an employer's Workday career site through the JSON API behind it."""
 
 import functools
 import json
 import logging
 import re
+from collections.abc import AsyncGenerator
 from datetime import UTC, date, datetime, timedelta
-from gettext import ngettext
 from typing import Annotated, Any
 from urllib.parse import urlsplit
 
 from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, Stopped, employment_type, make_job
 from jobrake.sites.postings import fetch_postings, fill_details
-from jobrake.sites.responses import json_page, parse_postings, read_json
-from jobrake.utils import as_dict, as_str, checked, html_text, report_progress
+from jobrake.sites.responses import collect, json_page, parse_postings, read_json
+from jobrake.utils import as_dict, as_str, checked, html_text
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +22,7 @@ PAGE_SIZE = 20
 # Workday reports at most this many postings for one search, however many the site lists.
 MAX_TOTAL = 2000
 
-EXAMPLE_BOARD = "https://nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite"
+EXAMPLE_BOARD = "https://zillow.wd5.myworkdayjobs.com/Zillow_Group_External"
 _HOST = re.compile(r"[a-z0-9-]+\.wd\d+\.myworkdayjobs\.com")
 _LOCALE = re.compile(r"[a-z]{2}-[A-Z]{2}")
 _POSTED = re.compile(r"Posted (?:Today|(Yesterday)|(\d{1,4}) Days Ago)")
@@ -85,7 +85,7 @@ def _parse_card(card: dict[str, Any], site_url: str, tenant: str) -> JobDict:
     Build a record from one entry of a search page's ``jobPostings`` list.
 
     The ID joins the tenant and the requisition ID that ends ``externalPath``,
-    as in ``nvidia:JR1996377``, because requisition IDs are unique only
+    as in ``zillow:P751481-1``, because requisition IDs are unique only
     within a tenant.
 
     Raises:
@@ -109,37 +109,27 @@ def _parse_card(card: dict[str, Any], site_url: str, tenant: str) -> JobDict:
     )
 
 
-async def _collect_cards(
-    fetcher: Fetcher,
-    *,
-    board: str,
-    api_url: str,
-    site_url: str,
-    tenant: str,
-    query: str,
-    results: int,
-) -> tuple[list[JobDict], bool]:
+async def _pages(
+    fetcher: Fetcher, board: str, query: str, limit: int
+) -> AsyncGenerator[tuple[list[JobDict], int]]:
     """
-    Return the unique cards, paging until ``results`` cards, the first page's total, or an empty page.
+    Yield each page's cards with the first page's total until the pages reach it.
 
-    The flag tells whether the paging reached a total at ``MAX_TOTAL``, the
-    most Workday reports.
+    Reading every page of a total of ``MAX_TOTAL`` logs a warning, because
+    Workday reports no more than that for one search.
 
     Raises:
-        Stopped: A page request failed, Workday has no such site, it sent
-            an unreadable response, or an empty page came before the first
-            page's total. ``partial`` holds the cards collected before it.
+        Stopped: A request failed, Workday has no such site, it sent an
+            unreadable response, or an empty page came before the total.
     """
-    jobs: list[JobDict] = []
-    seen: set[str] = set()
-    offset, total = 0, None
+    tenant, site_url, api_url, _ = _career_site(board)
     parse = functools.partial(_parse_card, site_url=site_url, tenant=tenant)
     unknown = (
         f"workday has no career site at {board!r}. Copy the URL of the employer's "
         f"job search page, such as {EXAMPLE_BOARD}"
     )
-    while len(jobs) < results and (total is None or offset < total):
-        limit = min(PAGE_SIZE, results - len(jobs))
+    offset, total = 0, None
+    while total is None or offset < total:
         body = {"appliedFacets": {}, "limit": limit, "offset": offset, "searchText": query}
         result = await fetcher.fetch(f"{api_url}/jobs", json=body)
         cards, page_total = read_json(
@@ -149,26 +139,25 @@ async def _collect_cards(
             board=site_url,
             # A site that served a page exists, so a later 404 is a failed request.
             unknown=unknown if total is None else None,
-            partial=jobs,
         )
         # Later pages are reported to say 0, so the first page's total stands.
         total = page_total if total is None else total
+        if not cards and offset < total:
+            raise Stopped(
+                f"workday site {site_url} reported {total} postings but sent an empty page "
+                f"after {offset}, so the result may be incomplete. Postings may have closed "
+                "during the search. A rerun reads the current list"
+            )
         if not cards:
-            if offset < total:
-                raise Stopped(
-                    f"workday site {site_url} reported {total} postings but sent an empty page "
-                    f"after {offset}, so the result may be incomplete. Postings may have closed "
-                    "during the search. A rerun reads the current list",
-                    partial=jobs,
-                )
             break
         offset += len(cards)
-        for job in parse_postings(cards, parse, site="workday"):
-            if job["id"] not in seen:
-                seen.add(job["id"])
-                jobs.append(job)
-        report_progress(logger, "workday search", len(jobs), min(results, total))
-    return jobs, total is not None and offset >= total >= MAX_TOTAL
+        yield parse_postings(cards, parse, site="workday"), total
+    if total >= MAX_TOTAL:
+        logger.warning(
+            "workday reports at most %d postings per search, fewer than requested. "
+            "Narrow the search with a query to reach the rest",
+            MAX_TOTAL,
+        )
 
 
 def _withdrawn(text: str) -> bool:
@@ -181,54 +170,49 @@ def _withdrawn(text: str) -> bool:
         return False
 
 
-async def _detail_fields(fetcher: Fetcher, card: JobDict) -> dict[str, Any] | None:
+def _parse_details(payload: dict[str, Any], card: JobDict) -> dict[str, Any]:
     """
-    Fetch the detail fields of a card's posting, or ``{}`` when Workday reports it gone or withdrawn.
+    Return the detail fields of a card's posting from its ``jobPostingInfo``.
 
     A posting with a start date takes its ``date`` from it, because the
     card's date counts from today in UTC and can be a day past Workday's own.
-    Returns None when the request failed or the response is unreadable, which it logs.
     """
-    posting = card["url"]
-    _, _, api_url, path = _career_site(posting)
+    info = payload["jobPostingInfo"]
+    country = as_dict(as_dict(info.get("jobRequisitionLocation")).get("country"))
+    primary = (as_str(info.get("location")) or "").strip()
+    others = info.get("additionalLocations")
+    # The requisition's country is the primary location's. Without one, the card's place leads.
+    locations = [
+        *(
+            [{"name": primary, "country_code": country.get("alpha2Code")}]
+            if primary
+            else card["locations"]
+        ),
+        *({"name": name} for name in (others if isinstance(others, list) else [])),
+    ]
+    start = as_str(info.get("startDate"))
+    return {
+        "title": as_str(info.get("title")),
+        "description": html_text(as_str(info.get("jobDescription")) or ""),
+        "date": start,
+        "posted_at": start,
+        "employment_type": employment_type(as_str(info.get("timeType"))),
+        "locations": locations,
+    }
+
+
+async def _detail_fields(fetcher: Fetcher, card: JobDict) -> dict[str, Any] | None:
+    """
+    Fetch the detail fields of a card's posting, or None when Workday reports it gone or withdrawn.
+
+    Raises:
+        Stopped: The request failed, or the response is unreadable.
+    """
+    _, _, api_url, path = _career_site(card["url"])
     result = await fetcher.fetch(api_url + path)
     if result.status == 404 or (result.status == 403 and _withdrawn(result.text)):
-        return {}
-    if result.error:
-        logger.warning("skipping the details of %s: %s. A rerun retries it", posting, result.error)
         return None
-    # ValueError covers JSONDecodeError and an integer longer than Python reads.
-    try:
-        info = json.loads(result.text)["jobPostingInfo"]
-        country = as_dict(as_dict(info.get("jobRequisitionLocation")).get("country"))
-        primary = (as_str(info.get("location")) or "").strip()
-        others = info.get("additionalLocations")
-        # The requisition's country is the primary location's. Without one, the card's place leads.
-        locations = [
-            *(
-                [{"name": primary, "country_code": country.get("alpha2Code")}]
-                if primary
-                else card["locations"]
-            ),
-            *({"name": name} for name in (others if isinstance(others, list) else [])),
-        ]
-        start = as_str(info.get("startDate"))
-        return {
-            "title": as_str(info.get("title")),
-            "description": html_text(as_str(info.get("jobDescription")) or ""),
-            "date": start,
-            "posted_at": start,
-            "employment_type": employment_type(as_str(info.get("timeType"))),
-            "locations": locations,
-        }
-    except (ValueError, KeyError, TypeError, AttributeError) as error:
-        logger.warning(
-            "skipping the details of %s: workday sent a response this version cannot read "
-            "(%r), likely an API change. Check for a newer jobrake",
-            posting,
-            error,
-        )
-        return None
+    return read_json(result, functools.partial(_parse_details, card=card), site="workday")
 
 
 @checked
@@ -244,7 +228,7 @@ async def search(
     Search one employer's Workday career site.
 
     ``board`` is the address of the site's job search page as a visitor
-    copies it, such as ``https://nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite``.
+    copies it, such as ``https://zillow.wd5.myworkdayjobs.com/Zillow_Group_External``.
     ``query=""`` lists every posting. Results keep Workday's order and stop
     at ``results``. Workday reports at most ``MAX_TOTAL`` postings per
     search, and a search that reaches that cap short of ``results`` warns.
@@ -260,30 +244,10 @@ async def search(
             details fetched so far.
         ValueError: ``board`` is not a Workday career site URL.
     """
-    tenant, site_url, api_url, _ = _career_site(board)
-    logger.info("searching workday site %s for %r", site_url, query)
-    jobs, capped = await _collect_cards(
-        fetcher,
-        board=board,
-        api_url=api_url,
-        site_url=site_url,
-        tenant=tenant,
-        query=query,
-        results=results,
-    )
-    if capped and len(jobs) < results:
-        logger.warning(
-            "workday reports at most %d postings per search; returning %d of the %d "
-            "requested. Narrow the search with a query to reach the rest",
-            MAX_TOTAL,
-            len(jobs),
-            results,
-        )
-    jobs = jobs[:results]
-    logger.info(
-        "workday search finished with %s",
-        ngettext("%d posting", "%d postings", len(jobs)) % len(jobs),
-    )
+    # Reading the board here rejects a bad one before the first request.
+    logger.info("searching workday site %s for %r", _career_site(board)[1], query)
+    pages = _pages(fetcher, board, query, min(PAGE_SIZE, results))
+    jobs = await collect("workday", pages, results)
     if details:
         return await fill_details("workday", jobs, functools.partial(_detail_fields, fetcher))
     return jobs
@@ -306,7 +270,7 @@ def _card(reference: str) -> JobDict:
     if match is None:
         raise ValueError(
             f"{reference!r} is not a Workday posting URL. Pass a record's url, such as "
-            f"{EXAMPLE_BOARD}/job/US-CA-Santa-Clara/Networking-Architect_JR1996377"
+            f"{EXAMPLE_BOARD}/job/Remote-USA/Applied-Scientist_P751481-1"
         ) from None
     return make_job(site="workday", id=f"{tenant}:{match.group(1)}", url=site_url + path)
 
@@ -333,3 +297,6 @@ async def postings(
     return await fetch_postings(
         "workday", references, _card, functools.partial(_detail_fields, fetcher)
     )
+
+
+__all__ = ["postings", "search"]

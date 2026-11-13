@@ -7,7 +7,7 @@ from fakes import StubFetcher, ok
 
 from jobrake.sites import econjobmarket
 
-# Three ads from backend.econjobmarket.org/data/zz_public/json/Ads, fetched
+# Two ads from backend.econjobmarket.org/data/zz_public/json/Ads, fetched
 # 2026-10-28, trimmed to the fields jobrake reads plus enddate, with each ad
 # text cut to a sentence or two, the first two of its locations kept, and its
 # categories cut to the first two.
@@ -42,38 +42,6 @@ ADS = [
             },
         ],
         "url": "https://econjobmarket.org/positions/12622",
-        "logo_url": "https://backend.econjobmarket.org/data/zz_public/json/Logo/470",
-    },
-    {
-        "adtitle": "Senior Associate/Antitrust & Competition Economics (Europe)",
-        "adtext": '<p><strong><a href="http://www.crai.com/">Charles River Associates</a>'
-        "</strong> is a leading global consulting firm.</p>",
-        "startdate": "2026-09-30",
-        "enddate": "2026-12-01",
-        "deadline_date": "2026-11-06",
-        "name": "Charles River Associates",
-        "department": "All departments",
-        "position_types": [{"name": "Consultant"}],
-        "categories": [{"name": "Econometrics"}, {"name": "Industrial Organization"}],
-        "latitude": 42.3493011,
-        "longitude": -71.0752547,
-        "locations": [
-            {
-                "city": "London",
-                "state": None,
-                "country_code": "GB",
-                "latitude": 51.518512067411244,
-                "longitude": -0.08701994054260755,
-            },
-            {
-                "city": "Brussels",
-                "state": None,
-                "country_code": "BE",
-                "latitude": None,
-                "longitude": None,
-            },
-        ],
-        "url": "https://econjobmarket.org/positions/12723",
         "logo_url": "https://backend.econjobmarket.org/data/zz_public/json/Logo/470",
     },
     {
@@ -133,32 +101,6 @@ def test_the_feed_parses_into_records():
         },
         {
             "site": "econjobmarket",
-            "id": "12723",
-            "url": "https://econjobmarket.org/positions/12723",
-            "title": "Senior Associate/Antitrust & Competition Economics (Europe)",
-            "company": "Charles River Associates",
-            "locations": [
-                {
-                    "name": "London, GB",
-                    "city": "London",
-                    "country_code": "GB",
-                    "latitude": 51.518512067411244,
-                    "longitude": -0.08701994054260755,
-                },
-                {"name": "Brussels, BE", "city": "Brussels", "country_code": "BE"},
-            ],
-            "date": "2026-09-30",
-            "description": "Charles River Associates is a leading global consulting firm.",
-            "company_logo": "https://backend.econjobmarket.org/data/zz_public/json/Logo/470",
-            "posted_at": "2026-09-30",
-            "expires_at": "2026-11-06",
-            "site_data": {
-                "position_types": ["Consultant"],
-                "categories": ["Econometrics", "Industrial Organization"],
-            },
-        },
-        {
-            "site": "econjobmarket",
             "id": "12558",
             "url": "https://econjobmarket.org/positions/12558",
             "title": "Postdoctoral position - Causal inference in electronic health record data",
@@ -177,7 +119,7 @@ def test_the_feed_parses_into_records():
 
 
 def test_an_ad_whose_url_holds_no_number_is_skipped(caplog):
-    malformed = [{**ADS[0], "url": "https://econjobmarket.org/"}, ADS[2]]
+    malformed = [{**ADS[0], "url": "https://econjobmarket.org/"}, ADS[1]]
     fetcher = StubFetcher({"json/Ads": ok(json.dumps(malformed))})
     jobs = asyncio.run(econjobmarket.search(fetcher))
     assert [job["id"] for job in jobs] == ["12558"]

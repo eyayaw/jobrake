@@ -1,14 +1,14 @@
-"""Reading a site's JSON response into postings, and the ``Stopped`` each failure raises."""
+"""Reading a site's responses: one JSON body, its list of postings, and a search's pages."""
 
 import json
 import logging
-from collections.abc import Callable
+from collections.abc import AsyncGenerator, Callable
 from gettext import ngettext
 from typing import Any
 
 from jobrake.fetchkit import FetchResult
 from jobrake.models import JobDict, Stopped
-from jobrake.utils import finite
+from jobrake.utils import finite, report_progress
 
 
 def read_json[T](
@@ -18,37 +18,30 @@ def read_json[T](
     site: str,
     board: str | None = None,
     unknown: str | None = None,
-    partial: list[JobDict] | None = None,
 ) -> T:
     """
     Return what ``unpack`` takes from the JSON body of a site's response.
 
-    ``unpack`` raises ``KeyError`` or ``TypeError`` for a body without what
-    the site needs. ``board`` names the board in the message of a failed
-    request. ``unknown`` is the message for a 404, which without it counts
-    as a failed request. ``partial`` holds the postings of the pages before
-    this one, which a failure keeps.
+    ``unpack`` raises ``KeyError``, ``TypeError``, or ``AttributeError`` for a
+    body without what the site needs. ``board`` names the board in the message
+    of a failed request. ``unknown`` is the message for a 404, which without
+    it counts as a failed request.
 
     Raises:
         Stopped: The site answered 404 and ``unknown`` is given, the request
             failed, or the body is unreadable.
     """
-    partial = [] if partial is None else partial
     if result.status == 404 and unknown:
-        raise Stopped(unknown, partial=partial)
-    count = ngettext("%d posting", "%d postings", len(partial)) % len(partial)
-    kept = f". Kept the {count} collected" if partial else ""
+        raise Stopped(unknown)
     if result.error:
-        where = f" of board {board!r}" if board else ""
-        raise Stopped(f"{site} search{where} stopped: {result.error}{kept}", partial=partial)
+        where = f" for board {board!r}" if board else ""
+        raise Stopped(f"{site} request{where} failed: {result.error}")
     # ValueError covers JSONDecodeError and an integer longer than Python reads.
     try:
         return unpack(json.loads(result.text))
-    except (ValueError, KeyError, TypeError) as error:
+    except (ValueError, KeyError, TypeError, AttributeError) as error:
         raise Stopped(
-            f"{site} sent a response this version cannot read ({error!r}), "
-            f"likely an API change{kept}",
-            partial=partial,
+            f"{site} sent a response this version cannot read ({error!r}), likely an API change"
         ) from error
 
 
@@ -99,3 +92,37 @@ def parse_postings(
         except (TypeError, AttributeError) as error:
             logger.warning("skipping malformed %s posting: %r", site, error)
     return jobs
+
+
+async def collect(
+    site: str, pages: AsyncGenerator[tuple[list[JobDict], int]], results: int
+) -> list[JobDict]:
+    """
+    Gather a search's pages into at most ``results`` postings, in the site's order.
+
+    ``pages`` yields each page's postings with the count the site can serve
+    for the search, and ends where the site does. It is asked for a page only
+    while postings are missing, so the code after its last ``yield`` runs only
+    for a search the site ended short of ``results``. A posting that a later
+    page repeats is kept once, and each page logs a progress record.
+
+    Raises:
+        Stopped: ``pages`` raised it. ``partial`` holds the postings of the
+            pages before it, which the message counts.
+    """
+    logger = logging.getLogger(f"jobrake.sites.{site}")
+    jobs: dict[str, JobDict] = {}
+    try:
+        async for page, total in pages:
+            for job in page:
+                jobs.setdefault(job["id"], job)
+            report_progress(logger, f"{site} search", len(jobs), min(results, total))
+            if len(jobs) >= results:
+                break
+    except Stopped as stopped:
+        count = ngettext("%d posting", "%d postings", len(jobs)) % len(jobs)
+        kept = f". Kept the {count} collected" if jobs else ""
+        raise Stopped(f"{stopped}{kept}", partial=list(jobs.values())) from stopped
+    finally:
+        await pages.aclose()
+    return list(jobs.values())[:results]

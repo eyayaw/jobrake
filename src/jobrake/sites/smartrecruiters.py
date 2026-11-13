@@ -1,11 +1,10 @@
-"""SmartRecruiters Posting API requests and parsing."""
+"""Read an employer's SmartRecruiters job board through its public Posting API."""
 
 import functools
-import json
 import logging
 import re
+from collections.abc import AsyncGenerator
 from datetime import UTC, datetime, timedelta
-from gettext import ngettext
 from html import escape
 from typing import Annotated, Any
 from urllib.parse import quote, urlencode, urlsplit
@@ -13,8 +12,8 @@ from urllib.parse import quote, urlencode, urlsplit
 from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, Stopped, employment_type, make_job
 from jobrake.sites.postings import fetch_postings, fill_details
-from jobrake.sites.responses import json_page, parse_postings, read_json
-from jobrake.utils import as_dict, as_str, checked, finite, html_text, report_progress
+from jobrake.sites.responses import collect, json_page, parse_postings, read_json
+from jobrake.utils import as_dict, as_str, checked, finite, html_text
 
 logger = logging.getLogger(__name__)
 
@@ -93,42 +92,34 @@ def _description(posting: dict[str, Any]) -> str:
     return html_text("".join(parts))
 
 
+def _parse_posting(posting: dict[str, Any]) -> dict[str, Any] | None:
+    """Return a posting's card fields with its ad as ``description``, or None if it is inactive."""
+    if posting.get("active") is False:
+        return None
+    return {**_parse_card(posting), "description": _description(posting)}
+
+
 async def _posting_fields(fetcher: Fetcher, card: JobDict) -> dict[str, Any] | None:
     """
-    Fetch the posting behind a card, or ``{}`` when SmartRecruiters reports it gone.
+    Fetch the posting behind a card, or None when SmartRecruiters reports it gone.
 
-    The posting holds the card's fields, and ``description`` joins its ad.
     SmartRecruiters reports a posting gone with a 404, or by marking a posting
     it still serves inactive. A 400 stays a failure: it answers a malformed
     request, and an ID that belongs to another board.
-    Returns None when the request failed or the response is unreadable, which it logs.
+
+    Raises:
+        Stopped: The request failed, or the response is unreadable.
     """
     company, posting_id = urlsplit(card["url"]).path.strip("/").split("/")
     result = await fetcher.fetch(
         f"{API_URL}/{quote(company, safe='')}/postings/{quote(posting_id, safe='')}"
     )
     if result.status == 404:
-        return {}
-    if result.error:
-        logger.warning("skipping posting %s: %s. A rerun retries it", card["url"], result.error)
         return None
-    # ValueError covers JSONDecodeError and an integer longer than Python reads.
-    try:
-        posting = json.loads(result.text)
-        if posting.get("active") is False:
-            return {}
-        return {**_parse_card(posting), "description": _description(posting)}
-    except (ValueError, KeyError, TypeError, AttributeError) as error:
-        logger.warning(
-            "skipping posting %s: smartrecruiters sent a response this version cannot read "
-            "(%r), likely an API change. Check for a newer jobrake",
-            card["url"],
-            error,
-        )
-        return None
+    return read_json(result, _parse_posting, site="smartrecruiters")
 
 
-def _filters(query: str, max_age_hours: int | None, *, remote: bool) -> dict[str, str]:
+def _filters(query: str, max_age_hours: int | None, *, remote: bool) -> dict[str, Any]:
     """Return the search options as the API's query parameters, leaving out an option left unset."""
     params = {}
     if query:
@@ -143,6 +134,48 @@ def _filters(query: str, max_age_hours: int | None, *, remote: bool) -> dict[str
     if remote:
         params["locationType"] = "REMOTE"
     return params
+
+
+async def _pages(
+    fetcher: Fetcher, token: str, params: dict[str, Any]
+) -> AsyncGenerator[tuple[list[JobDict], int]]:
+    """
+    Yield each page's cards with the board's count of matches, until its last match.
+
+    Raises:
+        Stopped: A request failed, SmartRecruiters sent an unreadable response,
+            or an empty page came before the reported total.
+    """
+    offset = 0  # cards SmartRecruiters has sent, malformed ones included
+    while True:
+        page = urlencode(params | {"offset": offset})
+        result = await fetcher.fetch(f"{API_URL}/{quote(token, safe='')}/postings?{page}")
+        cards, total = read_json(
+            result,
+            lambda page: json_page(page, "content", "totalFound"),
+            site="smartrecruiters",
+            board=token,
+        )
+        if not cards:
+            break
+        offset += len(cards)
+        # A posting released between two requests shifts the cards, so a page can repeat one.
+        yield parse_postings(cards, _parse_card, site="smartrecruiters"), total
+        if offset >= total:
+            return
+    if offset < total:
+        raise Stopped(
+            f"smartrecruiters board {token!r} reported {total} postings but sent an empty "
+            f"page after {offset}, so the result may be incomplete. Postings may have "
+            "closed during the search. A rerun reads the current list"
+        )
+    if offset == 0:
+        logger.info(
+            "smartrecruiters board %r returned no postings. SmartRecruiters answers the same "
+            "for an unknown board, so check the identifier that follows "
+            "jobs.smartrecruiters.com/ in the board's URL",
+            token,
+        )
 
 
 @checked
@@ -181,52 +214,9 @@ async def search(
             is below 1.
     """
     token = board.strip()
-    params = _filters(query, max_age_hours, remote=remote)
     logger.info("reading smartrecruiters board %r", token)
-    jobs: list[JobDict] = []
-    seen: set[str] = set()
-    offset = 0  # cards SmartRecruiters has sent, malformed ones included
-    while len(jobs) < results:
-        page = {"limit": min(PAGE_SIZE, results - len(jobs)), "offset": offset, **params}
-        result = await fetcher.fetch(
-            f"{API_URL}/{quote(token, safe='')}/postings?{urlencode(page)}"
-        )
-        cards, total = read_json(
-            result,
-            lambda page: json_page(page, "content", "totalFound"),
-            site="smartrecruiters",
-            board=token,
-            partial=jobs,
-        )
-        # A posting released between two requests shifts the cards, so a page can repeat one.
-        for job in parse_postings(cards, _parse_card, site="smartrecruiters"):
-            if job["id"] not in seen:
-                seen.add(job["id"])
-                jobs.append(job)
-        report_progress(logger, "smartrecruiters search", len(jobs), min(results, total))
-        if not cards and offset < total:
-            raise Stopped(
-                f"smartrecruiters board {token!r} reported {total} postings but sent an empty "
-                f"page after {offset}, so the result may be incomplete. Postings may have "
-                "closed during the search. A rerun reads the current list",
-                partial=jobs,
-            )
-        offset += len(cards)
-        if not cards or offset >= total:
-            break
-    if offset == 0:
-        logger.info(
-            "smartrecruiters board %r returned no postings. SmartRecruiters answers the same "
-            "for an unknown board, so check the identifier that follows "
-            "jobs.smartrecruiters.com/ in the board's URL",
-            token,
-        )
-    else:
-        logger.info(
-            "smartrecruiters board %r returned %s",
-            token,
-            ngettext("%d posting", "%d postings", len(jobs)) % len(jobs),
-        )
+    params = _filters(query, max_age_hours, remote=remote) | {"limit": min(PAGE_SIZE, results)}
+    jobs = await collect("smartrecruiters", _pages(fetcher, token, params), results)
     if details:
         return await fill_details(
             "smartrecruiters", jobs, functools.partial(_posting_fields, fetcher)
@@ -280,3 +270,6 @@ async def postings(
     return await fetch_postings(
         "smartrecruiters", references, _card, functools.partial(_posting_fields, fetcher)
     )
+
+
+__all__ = ["postings", "search"]

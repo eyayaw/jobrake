@@ -15,22 +15,24 @@ _INVISIBLE_CHARACTERS = (
 )
 
 
-def test_html_text_strips_tags_and_unescapes():
-    assert html_text("<p>Turner &amp; Townsend</p>") == "Turner & Townsend"
-
-
-def test_html_text_one_line_per_block():
-    html = "<h2>The role</h2><p>Build <b>models</b> daily.</p><ul><li>Ship</li><li>Learn</li></ul>"
-    assert html_text(html) == "The role\nBuild models daily.\nShip\nLearn"
-
-
-def test_html_text_spaces_table_cells():
-    html = "<table><tr><td>Clearance</td><td>None</td></tr><tr><td>Type</td><td>Regular</td></tr></table>"
-    assert html_text(html) == "Clearance None\nType Regular"
-
-
-def test_html_text_drops_style_bodies():
-    assert html_text("<style>p { color: red; }</style><p>Prose stays.</p>") == "Prose stays."
+@pytest.mark.parametrize(
+    ("html", "text"),
+    [
+        ("<p>Turner &amp; Townsend</p>", "Turner & Townsend"),
+        (
+            "<h2>The role</h2><p>Build <b>models</b> daily.</p><ul><li>Ship</li><li>Learn</li></ul>",
+            "The role\nBuild models daily.\nShip\nLearn",
+        ),
+        (
+            "<table><tr><td>Clearance</td><td>None</td></tr><tr><td>Type</td><td>Regular</td></tr></table>",
+            "Clearance None\nType Regular",
+        ),
+        ("<style>p { color: red; }</style><p>Prose stays.</p>", "Prose stays."),
+    ],
+    ids=["entities", "blocks", "table-cells", "style"],
+)
+def test_html_text_renders_what_a_reader_sees(html, text):
+    assert html_text(html) == text
 
 
 @pytest.mark.parametrize(
@@ -79,17 +81,18 @@ def test_html_text_drops_invisible_characters_and_keeps_joiners(text, inserts):
     assert html_text(spliced) == " ".join(text.split())
 
 
-def test_epoch_ms_to_iso():
+def test_epoch_ms_to_iso_drops_with_a_warning_what_cannot_be_milliseconds(caplog):
     assert epoch_ms_to_iso(1717200000000) == "2024-06-01T00:00:00+00:00"
-
-
-def test_epoch_ms_to_iso_rejects_what_cannot_be_milliseconds():
-    with pytest.raises(ValueError, match="not epoch milliseconds"):
-        epoch_ms_to_iso("not a timestamp")
-    with pytest.raises(ValueError, match="looks like epoch seconds"):
-        epoch_ms_to_iso(1717200000)  # seconds: reads as 1970-01-20
-    with pytest.raises(ValueError, match="not epoch milliseconds"):
-        epoch_ms_to_iso(1e18)  # past what datetime can represent
+    assert epoch_ms_to_iso(None) is None
+    assert caplog.text == ""
+    for value, message in (
+        ("not a timestamp", "not epoch milliseconds"),
+        (1717200000, "looks like epoch seconds"),  # seconds: reads as 1970-01-20
+        (1e18, "not epoch milliseconds"),  # past what datetime can represent
+    ):
+        caplog.clear()
+        assert epoch_ms_to_iso(value) is None
+        assert message in caplog.text
 
 
 def test_iso_date_takes_dates_and_timestamps():

@@ -1,7 +1,6 @@
-"""Ashby Job Posting API requests and parsing."""
+"""Read an employer's Ashby job board through its public Job Posting API."""
 
 import logging
-from gettext import ngettext
 from typing import Annotated, Any
 from urllib.parse import quote
 
@@ -16,13 +15,7 @@ API_URL = "https://api.ashbyhq.com/posting-api/job-board"
 
 # The Ashby pay intervals that match a JobDict period. Another interval
 # leaves the period out and keeps the amounts.
-_PERIODS = {
-    "1 HOUR": "HOUR",
-    "1 DAY": "DAY",
-    "1 WEEK": "WEEK",
-    "1 MONTH": "MONTH",
-    "1 YEAR": "YEAR",
-}
+_PERIODS = {f"1 {unit}": unit for unit in ("HOUR", "DAY", "WEEK", "MONTH", "YEAR")}
 
 
 def _salary(compensation: dict[str, Any]) -> dict[str, Any]:
@@ -97,13 +90,13 @@ def _parse_posting(posting: dict[str, Any]) -> JobDict:
 async def search(
     fetcher: Fetcher,
     *,
-    board: Annotated[str, "board token from the employer's board URL, e.g., ramp"],
+    board: Annotated[str, "board token from the employer's board URL, e.g., openai"],
 ) -> list[JobDict]:
     """
     List every published posting on one employer's Ashby board.
 
     ``board`` is the token that ends the board's address, as in
-    ``jobs.ashbyhq.com/ramp``. One request returns the whole board,
+    ``jobs.ashbyhq.com/openai``. One request returns the whole board,
     descriptions and compensation included, in Ashby's order. The result
     includes postings the employer marked unlisted, which Ashby serves for
     direct links. The request is neither paced nor retried. A malformed
@@ -125,10 +118,7 @@ async def search(
         unknown=f"ashby has no board {token!r}. Pass the token that ends the employer's "
         "board URL, jobs.ashbyhq.com/<token>",
     )
-    jobs = parse_postings(postings, _parse_posting, site="ashby")
-    logger.info(
-        "ashby board %r has %s",
-        token,
-        ngettext("%d posting", "%d postings", len(jobs)) % len(jobs),
-    )
-    return jobs
+    return parse_postings(postings, _parse_posting, site="ashby")
+
+
+__all__ = ["search"]

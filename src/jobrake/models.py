@@ -1,6 +1,5 @@
 """Normalized job fields shared by the site adapters, and ``Stopped``."""
 
-import functools
 import math
 import re
 from typing import Any, Literal, NotRequired, TypedDict, cast, get_args
@@ -218,17 +217,12 @@ class Stopped(Exception):
     """
     A failed request, or a page that ended a search short of the total the site reported, cut it short.
 
-    ``partial`` holds the records collected before the failure, ``[]`` for a lookup.
+    ``partial`` holds the records collected before the failure, ``[]`` when there are none.
     """
 
-    def __init__(self, message: str, *, partial: list[JobDict]) -> None:
+    def __init__(self, message: str, *, partial: list[JobDict] | None = None) -> None:
         super().__init__(message)
-        self.partial = partial
-
-    def __reduce__(self) -> tuple[Any, ...]:
-        # Unpickling calls the class with args alone, which lack partial, so a
-        # Stopped raised in a process-pool worker would break the pool.
-        return functools.partial(type(self), partial=self.partial), self.args, self.__dict__
+        self.partial = partial or []
 
 
 # schema.org says CONTRACTOR and INTERN, and Ashby says Intern, where the

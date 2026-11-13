@@ -1,7 +1,6 @@
-"""Lever Postings API requests and parsing."""
+"""Read an employer's Lever job board through its public Postings API."""
 
 import logging
-from gettext import ngettext
 from html import escape
 from typing import Annotated, Any
 from urllib.parse import quote
@@ -9,7 +8,7 @@ from urllib.parse import quote
 from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, employment_type, make_job, workplace_type
 from jobrake.sites.responses import json_list, parse_postings, read_json
-from jobrake.utils import as_dict, as_str, checked, epoch_ms_to_iso, finite, html_text
+from jobrake.utils import as_dict, as_str, checked, epoch_ms_to_iso, html_text
 
 logger = logging.getLogger(__name__)
 
@@ -29,17 +28,6 @@ def _description(posting: dict[str, Any]) -> str:
     parts += [as_str(posting.get(name)) or "" for name in ("salaryDescription", "additional")]
     # A section may be plain text, so a block of its own keeps it off its neighbor's line.
     return html_text("".join(f"<div>{part}</div>" for part in parts if part))
-
-
-def _posted_at(posting: dict[str, Any]) -> str | None:
-    if (ms := finite(posting.get("createdAt"))) is None:
-        return None
-    try:
-        return epoch_ms_to_iso(ms)
-    except ValueError as error:
-        # One posting's bad timestamp costs that field, not the posting.
-        logger.warning("lever posting %s: %s", posting.get("id"), error)
-        return None
 
 
 def _parse_posting(posting: dict[str, Any]) -> JobDict:
@@ -74,7 +62,7 @@ def _parse_posting(posting: dict[str, Any]) -> JobDict:
         team=as_str(categories.get("team")),
         # Lever's unspecified is no workplace type.
         workplace_type=workplace_type(as_str(posting.get("workplaceType"))),
-        posted_at=_posted_at(posting),
+        posted_at=epoch_ms_to_iso(posting.get("createdAt")),
         apply_url=as_str(posting.get("applyUrl")),
     )
 
@@ -83,13 +71,13 @@ def _parse_posting(posting: dict[str, Any]) -> JobDict:
 async def search(
     fetcher: Fetcher,
     *,
-    board: Annotated[str, "board token from the employer's board URL, e.g., palantir"],
+    board: Annotated[str, "board token from the employer's board URL, e.g., spotify"],
 ) -> list[JobDict]:
     """
     List every published posting on one employer's Lever board.
 
     ``board`` is the token that ends the board's address, as in
-    ``jobs.lever.co/palantir``. One request returns the whole board,
+    ``jobs.lever.co/spotify``. One request returns the whole board,
     descriptions included, in Lever's order. A board the global host does not
     know is requested once more from the EU host. Neither request is paced or
     retried. A malformed posting costs only that posting. The caller owns
@@ -115,10 +103,7 @@ async def search(
         unknown=f"lever has no board {token!r} on its global or EU host. Pass the token that "
         "ends the employer's board URL, jobs.lever.co/<token> or jobs.eu.lever.co/<token>",
     )
-    jobs = parse_postings(postings, _parse_posting, site="lever")
-    logger.info(
-        "lever board %r has %s",
-        token,
-        ngettext("%d posting", "%d postings", len(jobs)) % len(jobs),
-    )
-    return jobs
+    return parse_postings(postings, _parse_posting, site="lever")
+
+
+__all__ = ["search"]
