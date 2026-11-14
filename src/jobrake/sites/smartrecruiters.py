@@ -187,7 +187,7 @@ async def search(
     results: Annotated[int, "maximum number of postings"] = 100,
     max_age_hours: Annotated[int | None, "maximum posting age in hours"] = None,
     remote: Annotated[bool, "only postings SmartRecruiters marks remote"] = False,
-    details: Annotated[bool, "fetch posting pages for descriptions and other details"] = False,
+    details: Annotated[bool, "fetch each posting for its description and other details"] = False,
 ) -> list[JobDict]:
     """
     List the published postings on one employer's SmartRecruiters board.

@@ -111,7 +111,7 @@ async def search(
     company_ids: Annotated[list[str] | None, "LinkedIn company IDs"] = None,
     easy_apply: Annotated[bool, "only postings with LinkedIn's Easy Apply form"] = False,
     early_applicant: Annotated[bool, "only postings with fewer than 10 applicants"] = False,
-    details: Annotated[bool, "fetch posting pages for descriptions and other details"] = False,
+    details: Annotated[bool, "fetch each posting for its description and other details"] = False,
 ) -> list[JobDict]:
     """
     Search LinkedIn's login-free guest endpoint.

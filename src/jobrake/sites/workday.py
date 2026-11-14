@@ -222,7 +222,7 @@ async def search(
     board: Annotated[str, f"employer's career site URL, e.g., {EXAMPLE_BOARD}"],
     query: Annotated[str, "job title or keywords"] = "",
     results: Annotated[int, "maximum number of postings"] = 20,
-    details: Annotated[bool, "fetch posting pages for descriptions and other details"] = False,
+    details: Annotated[bool, "fetch each posting for its description and other details"] = False,
 ) -> list[JobDict]:
     """
     Search one employer's Workday career site.
