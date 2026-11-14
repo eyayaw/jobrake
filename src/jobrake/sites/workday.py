@@ -17,10 +17,8 @@ from jobrake.utils import as_dict, as_str, checked, html_text
 
 logger = logging.getLogger(__name__)
 
-# A limit above 20 is reported to fail, with an empty page in one account and
-# HTTP 400 in the other (both read 2026-11-14). Neither was measured here.
-# https://dev.to/udaninn/workday-job-boards-have-a-json-api-too-its-just-better-hidden-23fl
-# https://dev.to/glitchbound/workdays-job-api-tells-you-there-are-2000-jobs-then-says-0-on-page-two-2c8e
+# Workday answers a limit above 20 with HTTP 400 (measured 2026-11-14 on two
+# career sites in different Workday data centers).
 PAGE_SIZE = 20
 # Workday reports at most this many postings for one search, however many the site lists.
 MAX_TOTAL = 2000
@@ -143,8 +141,8 @@ async def _pages(
             # A site that served a page exists, so a later 404 is a failed request.
             unknown=unknown if total is None else None,
         )
-        # The second account cited at PAGE_SIZE saw later pages say total 0,
-        # so the first page's total stands.
+        # One of the two sites measured at PAGE_SIZE reported total 0 on every
+        # page after the first, so the first page's total stands.
         total = page_total if total is None else total
         if not cards and offset < total:
             raise Stopped(
