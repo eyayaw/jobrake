@@ -17,7 +17,10 @@ from jobrake.utils import as_dict, as_str, checked, html_text
 
 logger = logging.getLogger(__name__)
 
-# A community report says the search returns no cards for a larger limit.
+# A limit above 20 is reported to fail, with an empty page in one account and
+# HTTP 400 in the other (both read 2026-11-14). Neither was measured here.
+# https://dev.to/udaninn/workday-job-boards-have-a-json-api-too-its-just-better-hidden-23fl
+# https://dev.to/glitchbound/workdays-job-api-tells-you-there-are-2000-jobs-then-says-0-on-page-two-2c8e
 PAGE_SIZE = 20
 # Workday reports at most this many postings for one search, however many the site lists.
 MAX_TOTAL = 2000
@@ -140,7 +143,8 @@ async def _pages(
             # A site that served a page exists, so a later 404 is a failed request.
             unknown=unknown if total is None else None,
         )
-        # Later pages are reported to say 0, so the first page's total stands.
+        # The second account cited at PAGE_SIZE saw later pages say total 0,
+        # so the first page's total stands.
         total = page_total if total is None else total
         if not cards and offset < total:
             raise Stopped(
@@ -161,9 +165,10 @@ async def _pages(
 
 
 def _withdrawn(text: str) -> bool:
-    # Workday answers a withdrawn posting with a 403 whose body names error S22,
-    # a rule from career-ops' liveness classification, not yet seen here. Any
-    # other 403 is a block, which a rerun may pass.
+    # career-ops reads a 403 whose body names error S22 as a withdrawn posting
+    # (liveness-api.mjs in https://github.com/career-ops-hq/career-ops, checked
+    # 2026-11-14). No such answer was seen here. Any other 403 is a block,
+    # which a rerun may pass.
     try:
         return as_dict(json.loads(text)).get("errorCode") == "S22"
     except ValueError:

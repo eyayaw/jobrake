@@ -17,12 +17,12 @@ from .countries import Country, indeed_domain
 
 logger = logging.getLogger(__name__)
 
-# jobspy's query, trimmed to the fields we keep. `limit: 100` sets the API
-# page size and must stay identical on every request of a cursor chain:
-# Indeed binds the size to its cursor and rejects a changed value with
-# BAD_USER_INPUT. Pagination continues through pageInfo.nextCursor. The salary
-# range is a union. Range carries both bounds, AtLeast and AtMost carry one,
-# and Exactly carries one value.
+# The query of JobSpy (https://github.com/speedyapply/JobSpy), trimmed to the
+# fields we keep. `limit: 100` sets the API page size and must stay identical
+# on every request of a cursor chain: Indeed binds the size to its cursor and
+# rejects a changed value with BAD_USER_INPUT. Pagination continues through
+# pageInfo.nextCursor. The salary range is a union. Range carries both bounds,
+# AtLeast and AtMost carry one, and Exactly carries one value.
 #
 # The API returns results newest first by dateOnIndeed under both RELEVANCE
 # and DATE. DATE names that order, so it holds if the two ever diverge.

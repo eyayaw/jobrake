@@ -347,7 +347,7 @@ In our measurements, a LinkedIn posting placed in a whole country, such as "Unit
 
 Workday and SmartRecruiters searches also return cards without descriptions, and `--details` fetches each posting with one more request, one after another, as [Workday fields](reference.md#workday-fields) and [SmartRecruiters fields](reference.md#smartrecruiters-fields) describe.
 On these two sites, a posting removed or withdrawn since the search keeps its search result.
-A posting SmartRecruiters reports missing or marks inactive counts as gone, and jobrake reads a Workday 403 that names error `S22` as withdrawn, a rule from career-ops' liveness checks that we have not observed ourselves.
+A posting SmartRecruiters reports missing or marks inactive counts as gone, and jobrake reads a Workday 403 that names error `S22` as withdrawn, a rule from [career-ops](https://github.com/career-ops-hq/career-ops)' liveness checks that we have not observed ourselves.
 
 A posting whose details cannot be fetched also keeps its search result, and once the rest are fetched the search raises `Stopped` with every posting in `partial`. A rerun retries them.
 See [LinkedIn requests](reference.md#linkedin-requests) for pacing and retries, and [cache settings](#cache-location-and-lifetimes) for reuse.
