@@ -404,13 +404,16 @@ def test_indeed_single_bound_salaries():
     )
 
 
-def test_description_scrubs_flattened_stylesheets():
+def test_description_scrubs_flattened_stylesheets_and_keeps_braces_in_prose():
     # Some ATS pages arrive with their css flattened into the description text.
     css = ".jobdescription td { padding: 0 5px; } /* sidebar */ h1 { font-size: 14px !important; }"
+    css += "@media print { h1 { margin: 0; } }"
     job = parse_one(
         rich_job(description={"html": css + "<p>Great role.</p><p>Salary range: 40k.</p>"})
     )
     assert job["description"] == "Great role.\nSalary range: 40k."
+    prose = 'Return payloads such as {"id": 1}. Pay is {negotiable: yes}. Match src/**/*.py files.'
+    assert parse_one(rich_job(description={"html": f"<p>{prose}</p>"}))["description"] == prose
 
 
 def test_indeed_reads_the_workplace_from_its_exact_tags():
