@@ -42,7 +42,7 @@ jobrake greenhouse search \
 </tr>
 </table>
 
-Each posting comes back as a record like this one, a LinkedIn posting fetched with `--details`:
+A sample record from a LinkedIn posting fetched with jobrake:
 
 ```json
 {
