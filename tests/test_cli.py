@@ -69,7 +69,7 @@ def stub_search(monkeypatch, fetchers):
         @functools.wraps(SITES[site].search)
         async def search(fetcher, **options):
             calls.append((site, options))
-            if isinstance(result, Exception):
+            if isinstance(result, BaseException):
                 raise result
             return result
 
@@ -254,6 +254,15 @@ def test_a_stopped_search_writes_what_it_collected_and_fails(run_cli, stub_searc
     stub_search("indeed", Stopped("indeed request failed: HTTP 429"))
     assert run_cli() == 1
     assert capsys.readouterr().out == ""
+
+
+def test_ctrl_c_ends_the_run_with_one_line_and_no_output(run_cli, stub_search, capsys, caplog):
+    stub_search("indeed", KeyboardInterrupt())
+    assert run_cli() == 130
+    assert capsys.readouterr().out == ""
+    assert [record.getMessage() for record in caplog.records] == [
+        "interrupted, so no output was written"
+    ]
 
 
 def test_format_selects_stdout_and_overrides_output_extension(run_cli, capsys, tmp_path):

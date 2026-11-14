@@ -129,7 +129,7 @@ the CLI, and the contract test in `tests/test_scrape.py` need no edit.
   fetched, or the output cannot be written. A stopped search and a postings
   fetch with a failed reference still write the postings they got. With none
   they write nothing, so an empty document comes only from a command that
-  completed.
+  completed. Ctrl-C ends a command with one line, exit 130, and no output.
 
 ## Style
 

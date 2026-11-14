@@ -308,7 +308,8 @@ def main() -> int | None:
     Returns:
         ``1`` when a search or lookup stops on a failed request, a named posting
         could not be fetched, stdout closes early, or the output file cannot be
-        written. Normal completion returns ``None``.
+        written. ``130`` when Ctrl-C interrupts the run. Normal completion
+        returns ``None``.
     """
     parser = _build_parser()
     args = parser.parse_args()
@@ -327,6 +328,9 @@ def main() -> int | None:
     fmt = _settle_output(command, args) if args.command in _WRITES_POSTINGS else None
     try:
         found, status = _run(command, function, options)
+    except KeyboardInterrupt:
+        logger.warning("interrupted, so no output was written")
+        return 130  # 128 + SIGINT, as a shell reports a command that Ctrl-C ended
     finally:
         # An exceptional exit would otherwise start its traceback beside the progress line.
         handler.clear()
