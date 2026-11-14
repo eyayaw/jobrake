@@ -1,6 +1,6 @@
 # jobrake guide
 
-jobrake provides one interface for Indeed, LinkedIn, EconJobMarket, and employers' boards on six applicant tracking systems, but the sites differ in how they interpret geography, apply search filters, and fetch posting details.
+jobrake provides one interface for Indeed, LinkedIn, EconJobMarket, and employers' boards on applicant tracking systems, but the sites differ in how they interpret geography, apply search filters, and fetch posting details.
 Run `jobrake -h` for the sites, `jobrake <site> -h` for a site's commands, and `jobrake <site> <command> -h` for their options.
 The [reference](reference.md) lists the fields each site returns and how each site's requests behave.
 
