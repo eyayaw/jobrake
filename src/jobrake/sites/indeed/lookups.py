@@ -10,6 +10,7 @@ from jobrake.utils import as_dict, as_str, checked
 
 from .client import API_HEADERS, API_URL, AUTOCOMPLETE_HEADERS, AUTOCOMPLETE_URL
 from .countries import Country, indeed_domain
+from .search import search_results
 
 ATTRIBUTES_QUERY = """
 query {{
@@ -100,13 +101,15 @@ def _attribute_codes(payload: Any) -> list[dict[str, str]]:  # noqa: ANN401  any
     Collect each attribute code of a search response once, in first-seen order.
 
     Raises:
+        Stopped: Indeed answered with a GraphQL error in place of the search data.
         KeyError: The response lacks the search results.
         TypeError: The results are not a list, or they hold malformed entries
             and no readable attribute.
     """
     found: dict[str, dict[str, str]] = {}
     malformed = False
-    for hit in json_list(payload["data"]["jobSearch"], "results"):
+    _, results = search_results(payload)
+    for hit in results:
         entries = as_dict(as_dict(hit).get("job")).get("attributes")
         if not isinstance(entries, list):
             malformed = True

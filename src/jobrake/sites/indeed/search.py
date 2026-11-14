@@ -235,6 +235,26 @@ def _graphql_error_message(payload: object) -> str | None:
     return None
 
 
+def search_results(data: Any) -> tuple[Any, list[Any]]:  # noqa: ANN401  any decoded JSON
+    """
+    Return the ``jobSearch`` object of a GraphQL response and its list of results.
+
+    Raises:
+        Stopped: Indeed answered with a GraphQL error in place of the search data.
+        KeyError: The response lacks required search data.
+        TypeError: The response envelope has an unreadable shape.
+    """
+    try:
+        search = data["data"]["jobSearch"]
+        return search, json_list(search, "results")
+    except KeyError, TypeError:
+        # A GraphQL error arrives as HTTP 200 with null data. Usable data
+        # alongside errors parses and is kept.
+        if message := _graphql_error_message(data):
+            raise Stopped(f"Indeed reported {message!r}") from None
+        raise
+
+
 def _parse_jobs(data: dict[str, Any], base_url: str) -> tuple[list[JobDict], str | None, int]:
     """
     Parse one GraphQL page while isolating malformed results.
@@ -246,19 +266,9 @@ def _parse_jobs(data: dict[str, Any], base_url: str) -> tuple[list[JobDict], str
         The raw count includes malformed results so pagination still advances.
 
     Raises:
-        Stopped: Indeed answered with a GraphQL error in place of the search data.
-        KeyError: The response lacks required search data.
-        TypeError: The response envelope has an unreadable shape.
+        Stopped, KeyError, TypeError: Whatever ``search_results`` raises for ``data``.
     """
-    try:
-        search = data["data"]["jobSearch"]
-        results = json_list(search, "results")
-    except KeyError, TypeError:
-        # A GraphQL error arrives as HTTP 200 with null data. Usable data
-        # alongside errors parses and is kept.
-        if message := _graphql_error_message(data):
-            raise Stopped(f"Indeed reported {message!r}") from None
-        raise
+    search, results = search_results(data)
     jobs = parse_postings(
         results, lambda result: _parse_job(result.get("job"), base_url), site="indeed"
     )

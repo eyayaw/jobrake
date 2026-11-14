@@ -508,19 +508,20 @@ def test_attribute_lookup_preserves_distinct_codes_and_skips_malformed_entries()
 
 
 def test_attribute_lookup_distinguishes_empty_results_from_failure():
-    for payload, found in (
-        ({"data": {"jobSearch": {"results": []}}}, True),
-        ({"data": {"jobSearch": {"results": [{"job": {"attributes": []}}]}}}, True),
-        ({"data": None, "errors": [{"message": "unavailable"}]}, False),
-        ({"data": {"jobSearch": {"results": {}}}}, False),
-        ({"data": {"jobSearch": {"results": [{"job": {"attributes": [None]}}]}}}, False),
-        (None, False),
+    for payload, failure in (
+        ({"data": {"jobSearch": {"results": []}}}, None),
+        ({"data": {"jobSearch": {"results": [{"job": {"attributes": []}}]}}}, None),
+        # Indeed's own message, as a search reports the same answer.
+        ({"data": None, "errors": [{"message": "unavailable"}]}, "Indeed reported 'unavailable'"),
+        ({"data": {"jobSearch": {"results": {}}}}, "cannot read"),
+        ({"data": {"jobSearch": {"results": [{"job": {"attributes": [None]}}]}}}, "cannot read"),
+        (None, "cannot read"),
     ):
         fetcher = StubFetcher({"apis.indeed.com": ok(json.dumps(payload))})
-        if found:
+        if failure is None:
             assert asyncio.run(indeed.attributes(fetcher, "data", country="us")) == []
         else:
-            with pytest.raises(Stopped, match="cannot read"):
+            with pytest.raises(Stopped, match=failure):
                 asyncio.run(indeed.attributes(fetcher, "data", country="us"))
     for response in (ok("not json"), rate_limited()):
         fetcher = StubFetcher({"apis.indeed.com": response})
