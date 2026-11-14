@@ -80,8 +80,7 @@ async def search(
     ``jobs.lever.co/spotify``. One request returns the whole board,
     descriptions included, in Lever's order. A board the global host does not
     know is requested once more from the EU host. Neither request is paced or
-    retried. A malformed posting costs only that posting. The caller owns
-    ``fetcher``.
+    retried.
 
     Raises:
         Stopped: A request failed, neither host has the board, or Lever sent

@@ -78,14 +78,13 @@ async def search(fetcher: Fetcher) -> list[JobDict]:
     """
     List every open ad on EconJobMarket.
 
-    One request returns the whole feed, descriptions included, in EJM's
-    order. EJM applies no filter, so the search takes no options. It is
-    neither paced nor retried. A malformed ad costs only that ad. The caller
-    owns ``fetcher``.
+    One request returns the whole feed, descriptions included, in
+    EconJobMarket's order. The feed applies no filter, so the search takes no
+    options. The request is neither paced nor retried.
 
     Raises:
-        Stopped: The request failed or EJM sent an unreadable response.
-            ``partial`` is empty.
+        Stopped: The request failed or EconJobMarket sent an unreadable
+            response. ``partial`` is empty.
     """
     logger.info("reading the econjobmarket ad feed")
     result = await fetcher.fetch(API_URL)

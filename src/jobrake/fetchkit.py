@@ -76,11 +76,10 @@ class HttpxFetcher:
         transport: httpx.AsyncBaseTransport | None = None,
     ) -> None:
         """
-        Configure the pooled client.
+        Apply ``timeout``, in seconds, to each network operation.
 
-        ``timeout`` applies to each network operation, in seconds. Headers
-        override the browser-like defaults. ``transport`` replaces the
-        network, as ``httpx.MockTransport`` does in tests.
+        ``headers`` override the browser-like defaults. ``transport``
+        replaces the network, as ``httpx.MockTransport`` does in tests.
 
         Raises:
             ValueError: ``timeout`` is not finite and positive.

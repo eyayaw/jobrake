@@ -6,15 +6,17 @@
   </picture>
 </div>
 
-___Scrape job postings together and heap them up.___ Read the launch post [here](https://eyayaw.github.io/posts/jobrake-for-the-job/).
+___The job boards shed new postings every day. Bring a rake.___
+
+jobrake is a Python package and CLI tool for fetching job postings from LinkedIn, Indeed,
+EconJobMarket, and employers' boards on [major](#supported-job-boards) applicant tracking systems.
+It returns each posting as a record with the same fields, whichever site it came from.
 
 > Read it as "**job-rake**".
 >
 > Say it quickly and you hear "**job break**"—a break from the search doomscroll. (^_~)
 >
 > _Did **Jo** show up? **Jo** hit the **brake**, too._
-
-jobrake is a Python package and CLI tool for fetching job postings from LinkedIn, Indeed, EconJobMarket, and employers' boards on six applicant tracking systems.
 
 <table>
 <tr>
@@ -33,26 +35,69 @@ jobrake linkedin search \
 <td valign="top" width="50%">
 
 ```sh
-jobrake indeed search \
-  -q "data scientist" \
-  -l amsterdam -c nl \
-  -a 48 \
-  -n 5 \
-  --radius 100
+jobrake greenhouse search \
+  --board anthropic
 ```
 </td>
 </tr>
 </table>
+
+A sample record from a LinkedIn posting fetched with jobrake:
+
+```json
+{
+  "site": "linkedin",
+  "id": "4447222173",
+  "url": "https://www.linkedin.com/jobs/view/data-scientist-smb-ads-growth-at-openai-4447222173",
+  "title": "Data Scientist, SMB Ads Growth",
+  "company": "OpenAI",
+  "locations": [
+    {
+      "name": "San Francisco, CA",
+      "city": "San Francisco",
+      "region": "CA",
+      "country_code": "US",
+      "latitude": 37.78008,
+      "longitude": -122.42016
+    }
+  ],
+  "date": "2026-11-13",
+  "description": "About The Role\nOpenAI's ads platform is experiencing rapid global scale. ...",
+  "company_url": "https://www.linkedin.com/company/openai",
+  "company_logo": "https://media.licdn.com/dms/image/v2/D560BAQHpzXbqSyR74A/company-logo_200_200/...",
+  "employment_type": "full_time",
+  "salary_min": 293000,
+  "salary_max": 515000,
+  "salary_currency": "USD",
+  "salary_period": "YEAR",
+  "posted_at": "2026-11-13T14:15:13.000Z",
+  "expires_at": "2027-01-26T23:14:46.000Z",
+  "apply_type": "offsite",
+  "applicants": 200,
+  "experience_months": 60,
+  "education": "bachelor degree"
+}
+```
+
+The description and the logo URL are not fully displayed for brevity.
+The [reference](https://github.com/eyayaw/jobrake/blob/main/docs/reference.md#returned-fields) describes every key.
 
 ## Installation
 
 jobrake is not on PyPI. Install it from GitHub with [`uv`](https://github.com/astral-sh/uv):
 
 ```sh
-uv add git+https://github.com/eyayaw/jobrake
+# Try it without installing
+uvx --from git+https://github.com/eyayaw/jobrake jobrake -h
 # Install as a CLI tool
 uv tool install git+https://github.com/eyayaw/jobrake
+# Add it to a project as a library
+uv add git+https://github.com/eyayaw/jobrake
 ```
+
+Releases before 1.0 can break the API, so pin a tag in a project:
+`uv add git+https://github.com/eyayaw/jobrake --tag <tag>`.
+The [changelog](https://github.com/eyayaw/jobrake/blob/main/CHANGELOG.md) marks each breaking change.
 
 ## Usage
 
@@ -79,7 +124,7 @@ jobrake linkedin postings \
 ## Resolve place names
 jobrake linkedin places "amsterdam" # then use the display name in search
                                     # -l "Amsterdam, North Holland, Netherlands"
-# Use the geoid of the place directly (instead of location)
+# Use the geoId of the place directly (instead of location)
 jobrake linkedin search -q "data scientist" -g 102011674 -n 2 # Amsterdam, Netherlands
 
 # Indeed ----
@@ -105,7 +150,8 @@ jobrake econjobmarket search -o ejm.csv
 
 The CLI writes JSON to stdout by default.
 `--format | -f` selects JSON, JSONL, or CSV, and `--output | -o` writes to a file.
-See the [guide](https://github.com/eyayaw/jobrake/blob/main/docs/guide.md#read-and-save-results) for file formats, custom fetchers, and piping, and the [reference](https://github.com/eyayaw/jobrake/blob/main/docs/reference.md) for returned fields.
+See the [guide](https://github.com/eyayaw/jobrake/blob/main/docs/guide.md#read-and-save-results) for file formats and piping,
+and the [reference](https://github.com/eyayaw/jobrake/blob/main/docs/reference.md) for returned fields.
 
 ### As a library
 
@@ -141,21 +187,34 @@ jobs = asyncio.run(main())
 | <a href="https://www.workable.com"><img src="https://www.workable.com/static/apple-touch-icon.png" alt="" height="16"> `workable`</a> | Public widget API, one employer's board | Included in search results |
 | <a href="https://www.workday.com"><img src="https://www.workday.com/favicon.ico" alt="" height="16"> `workday`</a> | Career site JSON API, one employer's career site | Optional, one request per posting |
 
-The sites that read one employer's board require `board`, the employer's board token, or for Workday the career site URL. Indeed requires `country`. LinkedIn accepts either `location` or a geoId.
-See the [guide](https://github.com/eyayaw/jobrake/blob/main/docs/guide.md) for search queries, geography, filters, and detail fetching, and the [reference](https://github.com/eyayaw/jobrake/blob/main/docs/reference.md#requests-by-site) for pagination, rate limits, and retries.
+The employer-board sites require `board`: the employer's token, or for Workday the career site URL.
+Indeed requires `country`. LinkedIn requires `location` or a geoId.
+See the [guide](https://github.com/eyayaw/jobrake/blob/main/docs/guide.md) for search queries, geography, filters, and
+detail fetching, and the [reference](https://github.com/eyayaw/jobrake/blob/main/docs/reference.md#requests-by-site)
+for pagination, rate limits, and retries.
 
 > [!WARNING]
 > LinkedIn answers posting pages with [HTTP 999](https://http.dev/999) from data center IPs, such as a Hetzner VPS.
-> Searches still work there, but `--details` and `jobrake linkedin postings` return no details. So use jobrake from the comfort of your home. :D
+> Searches still work there, but `--details` and `jobrake linkedin postings` return no details.
+> So use jobrake from the comfort of your home. :D
 
-## Credits
+## Contributing
 
-jobrake's Indeed GraphQL endpoint and LinkedIn guest-search approach are based on [python-jobspy](https://pypi.org/project/python-jobspy/). Huge thanks.
+Issues and pull requests are welcome.
+[`AGENTS.md`](https://github.com/eyayaw/jobrake/blob/main/AGENTS.md) describes the layout and the design rules.
+Before a pull request, run `prek run --all-files` with [prek](https://github.com/j178/prek) installed, as CI does.
 
 ## Disclaimer
 
 > [!WARNING]
-> jobrake has no affiliation with any of the [supported sites](#supported-job-boards). Use it to find jobs, not to build datasets by scraping regularly.
-> Scraping may violate their terms of service, and any of them may rate-limit or block your IP address.
-> EconJobMarket offers its ad feed for personal use and academic research, and redisplaying its ads on your own website needs EconJobMarket's approval.
+> jobrake has no affiliation with any of the [supported sites](#supported-job-boards).
+> Use it for your own job search, not to collect postings at scale or republish them.
+> Scraping may violate their ToS, and any of them may rate-limit or block your IP address.
+> EconJobMarket offers its ad feed for personal use and academic research,
+> and redisplaying its ads on your own website needs its approval.
 > You are responsible for checking and complying with their terms.
+
+---
+
+jobrake's Indeed and LinkedIn searches were inspired by
+[python-jobspy](https://pypi.org/project/python-jobspy/). Huge thanks.

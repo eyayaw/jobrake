@@ -123,7 +123,6 @@ async def search(
     ``query=""`` searches without keywords. A filter left at its default, or given ``[]``, applies no restriction.
     Filters combine and travel with every page.
     ``details`` hydrates posting pages, reusing cached copies.
-    The caller owns ``fetcher``.
 
     Search requests share the process-wide fabric pacing. The guest endpoint
     serves about ten cards per page and stops at offset ``MAX_START``,
@@ -164,8 +163,8 @@ async def search(
         # LinkedIn names its radius parameter ``distance`` and reads it in miles.
         "distance": None if radius is None else round(radius / KM_PER_MILE),
         "f_TPR": f"r{max_age_hours * 3600}" if max_age_hours else None,
-        # Newest first. The guest endpoint ignores it today and ranks by
-        # relevance.
+        # Newest first. The guest endpoint ignored it in October 2026 and
+        # ranked by relevance.
         "sortBy": "DD",
         "f_C": ",".join(company_ids) if company_ids else None,
         "f_AL": "true" if easy_apply else None,

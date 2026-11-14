@@ -199,7 +199,7 @@ def test_a_failed_or_early_empty_page_stops_with_the_pages_before_it():
         assert len(stop.value.partial) == 100
 
 
-def test_a_malformed_card_costs_only_itself(caplog):
+def test_a_malformed_card_is_skipped_with_a_warning(caplog):
     bad_place = {"latitude": "north", "longitude": "1e999"}
     malformed = [{**CARDS[0], "id": None}, "not a card", {**CARDS[1], "location": bad_place}]
     fetcher = StubFetcher({"BoschGroup/postings": page(malformed, 3)})

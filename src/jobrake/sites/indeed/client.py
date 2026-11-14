@@ -2,7 +2,8 @@
 
 API_URL = "https://apis.indeed.com/graphql"
 
-# Indeed ships this public key in its iOS app, taken from jobspy.
+# Indeed ships this public key in its iOS app. It is taken from JobSpy
+# (https://github.com/speedyapply/JobSpy, checked 2026-11-14).
 # If changed, 401/403 results will be returned.
 INDEED_APP_KEY = "161092c2017b5bbab13edb12461a62d5a833871e7cad6d9d475304573de67ac8"
 

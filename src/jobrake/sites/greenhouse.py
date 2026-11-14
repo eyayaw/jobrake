@@ -63,8 +63,7 @@ async def search(
     ``board`` is the token that ends the board's address, as in
     ``job-boards.greenhouse.io/airbnb``. One request returns the whole board,
     descriptions included, in Greenhouse's order. It is neither paced nor
-    retried. A malformed posting costs only that posting. The caller owns
-    ``fetcher``.
+    retried.
 
     Raises:
         Stopped: The request failed, Greenhouse has no such board, or it sent

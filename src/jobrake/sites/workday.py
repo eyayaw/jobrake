@@ -17,7 +17,8 @@ from jobrake.utils import as_dict, as_str, checked, html_text
 
 logger = logging.getLogger(__name__)
 
-# A community report says the search returns no cards for a larger limit.
+# Workday answers a limit above 20 with HTTP 400 (measured 2026-11-14 on two
+# career sites in different Workday data centers).
 PAGE_SIZE = 20
 # Workday reports at most this many postings for one search, however many the site lists.
 MAX_TOTAL = 2000
@@ -140,7 +141,8 @@ async def _pages(
             # A site that served a page exists, so a later 404 is a failed request.
             unknown=unknown if total is None else None,
         )
-        # Later pages are reported to say 0, so the first page's total stands.
+        # A career site can report total 0 on later pages (measured
+        # 2026-11-14), so the first page's total stands.
         total = page_total if total is None else total
         if not cards and offset < total:
             raise Stopped(
@@ -161,8 +163,10 @@ async def _pages(
 
 
 def _withdrawn(text: str) -> bool:
-    # Workday answers a withdrawn posting with a 403 whose body names error S22,
-    # a rule from career-ops' liveness classification, not yet seen here. Any
+    # A posting taken off its career site can answer 403 with error S22 in the
+    # body (measured 2026-11-14 on two career sites). career-ops reads that
+    # answer the same way (liveness-api.mjs in
+    # https://github.com/career-ops-hq/career-ops, checked 2026-11-14). Any
     # other 403 is a block, which a rerun may pass.
     try:
         return as_dict(json.loads(text)).get("errorCode") == "S22"
@@ -233,15 +237,15 @@ async def search(
     at ``results``. Workday reports at most ``MAX_TOTAL`` postings per
     search, and a search that reaches that cap short of ``results`` warns.
     A card carries no description, so ``details`` hydrates each posting
-    with one more request. Requests are neither paced nor retried. A
-    malformed card costs only that posting. The caller owns ``fetcher``.
+    with one more request. Requests are neither paced nor retried.
 
     Raises:
         Stopped: A request failed, Workday has no such career site, it
             sent an unreadable response, or an empty page came before the
-            reported total. ``partial`` holds the postings collected before it. With ``details``, a posting's details could
-            not be fetched, and ``partial`` holds every posting, with the
-            details fetched so far.
+            reported total. ``partial`` holds the postings collected before
+            it. With ``details``, a posting's details could not be fetched,
+            and ``partial`` holds every posting, with the details fetched so
+            far.
         ValueError: ``board`` is not a Workday career site URL.
     """
     # Reading the board here rejects a bad one before the first request.
@@ -286,9 +290,8 @@ async def postings(
     The result is keyed by the references given. A reference is a record's
     ``url``, the posting's address on its career site, and references naming
     one posting share one request. A reference maps to ``None`` when Workday
-    reports its posting gone, and has no key after a failed request or an
-    unreadable response, each logged, so a rerun retries it. The caller owns
-    ``fetcher``.
+    reports its posting gone. After a failed request or an unreadable
+    response it has no key, and a warning names its posting.
 
     Raises:
         ValueError: A reference is not a Workday posting URL. Nothing is

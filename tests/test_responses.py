@@ -45,7 +45,7 @@ def test_a_failed_page_keeps_and_counts_the_postings_before_it():
     assert stop.value.partial == collected
 
 
-def test_a_malformed_posting_costs_only_itself(caplog):
+def test_a_malformed_posting_is_skipped_with_a_warning(caplog):
     def parse(posting):
         return make_job(site="acme", id=posting.get("id"), url=posting.get("url"))
 

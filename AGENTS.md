@@ -5,8 +5,8 @@
 jobrake reads the postings a job board publishes and returns each one as a
 record with the same fields, whichever board it came from. It is an async
 Python package and CLI that reads LinkedIn's guest API, Indeed's GraphQL API,
-EconJobMarket's ad feed, and the board APIs of six applicant tracking
-systems, and it depends on `httpx` and `bs4`.
+EconJobMarket's ad feed, and the board APIs of applicant tracking systems,
+and it depends on `httpx` and `bs4`.
 
 ## Map
 
@@ -16,19 +16,19 @@ systems, and it depends on `httpx` and `bs4`.
   which split into several modules. It exports `search` and any of `places`,
   `companies`, `attributes`, and `postings`, and the first line of its
   docstring is the site's CLI help. In the two packages, `search.py` builds
-  requests and parses results, `client.py` holds the URLs, headers, and
-  pacing, and `lookups.py` holds the lookups. The other sites need no headers
-  or pacing. LinkedIn's `pages.py` reads posting pages for `postings` and
-  `details=True` with a fixed pool of workers, and Indeed's `countries.py`
-  maps ISO country codes to editions.
+  requests and parses results, `client.py` holds the URLs and headers, plus
+  LinkedIn's pacing, and `lookups.py` holds the lookups. The other sites
+  need no headers or pacing. LinkedIn's `pages.py` reads posting pages for
+  `postings` and `details=True` with a fixed pool of workers, and Indeed's
+  `countries.py` maps ISO country codes to editions.
 - `sites/responses.py`: the response reading the sites share. `read_json`
   raises `Stopped` for an unknown board, a failed request, or an unreadable
   response, `json_list` checks the posting list, `json_page` checks a page's
   list and its total, and `parse_postings` skips a malformed posting with a
   warning. `collect` gathers the pages a paged search yields: it drops a
   repeated posting, logs progress, stops at `results`, and keeps the pages
-  before a failure. A site writes no error handling and no page loop of its
-  own.
+  before a failure. A paged site yields its pages from a generator and
+  leaves the rest to `collect`.
 - `sites/postings.py`: the posting loop of the sites that fill a card with
   one request per posting. `fill_details` serves `details=True` and
   `fetch_postings` serves `postings`, and each site supplies only the reader
@@ -101,8 +101,8 @@ the CLI, and the contract test in `tests/test_scrape.py` need no edit.
 - A caller can tell a cut-short result from a complete one. A failed
   request, or a page that ends a search short of the total the site
   reported, raises `Stopped`, whose `partial` holds what was collected. A
-  site's own result cap warns and returns, because a rerun meets it again. `postings` never raises `Stopped`
-  and leaves a failed reference out of its result.
+  site's own result cap warns and returns, because a rerun meets it again.
+  `postings` never raises `Stopped` and leaves a failed reference out of its result.
 - A site whose search cards lack fields its posting endpoint serves takes
   `details` on `search` and exports `postings(fetcher, references)`, so a
   caller can fill cards in the same run or a later one. A reference is at
@@ -142,8 +142,8 @@ the CLI, and the contract test in `tests/test_scrape.py` need no edit.
   next action.
 - Treat style checks as heuristics, not bans. Preserve useful facts, concrete
   examples, and the author's voice. Use punctuation where it improves clarity.
-- Wrap only genuinely long passages, tables, and code. Keep short prose
-  sentences on one line even when they cross the usual line length.
+- Wrap prose near 100 columns, at a sentence end or a clause boundary.
+  A line may run to about 120 columns when that keeps a sentence whole or absorbs a short tail.
 - Always write `jobrake` in lowercase.
 - Inside `sites/`, prose uses each site's nouns: postings, cards, and fields.
   "Job" and "job dict" appear only where the package promises them, in `models`, `scrape`,
@@ -151,7 +151,8 @@ the CLI, and the contract test in `tests/test_scrape.py` need no edit.
 - Describe detail fields as what we extract, when present, and avoid "the
   posting states". "Hydrate" stays in code docstrings, and the README says "fetch" or "fill".
 - The tagline is one image with no feature list: "The job boards shed new
-  postings every day. Bring a rake."
+  postings every day. Bring a rake." It heads the README. The package and
+  repository descriptions say what jobrake does.
 - Keep the README as a short landing page. Put detailed usage and output in
   `docs/guide.md`, and each site's fields and request behavior in
   `docs/reference.md`.

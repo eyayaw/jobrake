@@ -99,8 +99,7 @@ async def search(
     ``jobs.ashbyhq.com/openai``. One request returns the whole board,
     descriptions and compensation included, in Ashby's order. The result
     includes postings the employer marked unlisted, which Ashby serves for
-    direct links. The request is neither paced nor retried. A malformed
-    posting costs only that posting. The caller owns ``fetcher``.
+    direct links. The request is neither paced nor retried.
 
     Raises:
         Stopped: The request failed, Ashby has no such board, or it sent an

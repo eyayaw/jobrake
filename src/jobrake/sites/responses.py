@@ -65,8 +65,8 @@ def json_page(payload: Any, key: str, total: str) -> tuple[list[Any], int]:  # n
 
     Raises:
         KeyError: ``payload`` lacks ``key`` or ``total``.
-        TypeError: The list is not a list, the count is not a number, or
-            ``payload`` is not an object.
+        TypeError: ``payload[key]`` is not a list, ``payload[total]`` is not
+            a number, or ``payload`` is not an object.
     """
     count = finite(payload[total])
     if count is None:
@@ -81,7 +81,7 @@ def parse_postings(
     Parse each item of a site's posting list, skipping one that ``parse`` rejects.
 
     ``parse`` raises ``TypeError`` or ``AttributeError`` for a malformed
-    item, which costs only that item and logs a warning.
+    item, which is left out of the result and logged as a warning.
     """
     # The site's own logger, so a handler set on one site still sees its warnings.
     logger = logging.getLogger(f"jobrake.sites.{site}")
