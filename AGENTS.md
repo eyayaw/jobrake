@@ -142,8 +142,8 @@ the CLI, and the contract test in `tests/test_scrape.py` need no edit.
   next action.
 - Treat style checks as heuristics, not bans. Preserve useful facts, concrete
   examples, and the author's voice. Use punctuation where it improves clarity.
-- Wrap only genuinely long passages, tables, and code. Keep short prose
-  sentences on one line even when they cross the usual line length.
+- Wrap prose near 100 columns, at a sentence end or a clause boundary.
+  A line may run to about 120 columns when that keeps a sentence whole or absorbs a short tail.
 - Always write `jobrake` in lowercase.
 - Inside `sites/`, prose uses each site's nouns: postings, cards, and fields.
   "Job" and "job dict" appear only where the package promises them, in `models`, `scrape`,
