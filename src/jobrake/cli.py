@@ -6,6 +6,7 @@ import inspect
 import json
 import logging
 import os
+import signal
 import sys
 import time
 from collections.abc import Awaitable, Callable
@@ -332,7 +333,13 @@ def main() -> int | None:
         found, status = _run(command, function, options)
     except KeyboardInterrupt:
         logger.warning("interrupted, so no output was written")
-        return 130  # 128 + SIGINT, as a shell reports a command that Ctrl-C ended
+        if sys.platform != "win32":
+            # Die of SIGINT, as CPython does for an uncaught KeyboardInterrupt
+            # (https://bugs.python.org/issue1054041, checked 2026-11-14). A
+            # shell stops a loop only when the command it ran died of the signal.
+            signal.signal(signal.SIGINT, signal.SIG_DFL)
+            os.kill(os.getpid(), signal.SIGINT)
+        return 130  # 128 + SIGINT, the status a shell reports for that death
     finally:
         # An exceptional exit would otherwise start its traceback beside the progress line.
         handler.clear()
