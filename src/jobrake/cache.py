@@ -31,7 +31,11 @@ CREATE TABLE IF NOT EXISTS jobs (
 
 
 def _env_seconds(name: str, default: float) -> float:
-    """Read lifetime seconds from an environment variable, with a fallback."""
+    """
+    Return an environment variable as seconds, or ``default`` when it is unset.
+
+    A value that is not a finite positive number logs a warning and gives ``default`` too.
+    """
     raw = os.environ.get(name)
     if not raw:
         return default
@@ -81,10 +85,10 @@ class Cache:
 
     def __init__(self, path: str | Path | None = None) -> None:
         """
-        Configure lazy storage, with the row lifetime from ``JOBRAKE_CACHE_TTL`` or ``TTL``.
+        Take the row lifetime from ``JOBRAKE_CACHE_TTL``, or ``TTL`` without it.
 
         An omitted ``path`` selects ``JOBRAKE_CACHE_PATH`` or the platform
-        user-cache directory.
+        user-cache directory. The database opens on first use.
         """
         self.ttl = _env_seconds("JOBRAKE_CACHE_TTL", TTL)
         self.path = Path(path) if path else _default_path()

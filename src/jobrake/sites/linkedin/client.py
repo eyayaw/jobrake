@@ -101,9 +101,10 @@ class Fabrics:
 
     def pick(self, tried: set[str]) -> tuple[str | None, float]:
         """
-        Choose a fabric for a request that already tried ``tried``, and the seconds to wait first.
+        Return the fabric for a request's next attempt and the seconds to wait before sending it.
 
-        During discovery the request goes out unpinned, as ``None``, unless
+        ``tried`` holds the fabrics the request was already pinned to or
+        answered by. During discovery it goes out unpinned, as ``None``, unless
         it is a retry with a known fabric left to try. An unpinned request can
         land on any fabric, so it needs room in every fabric's window.
         Otherwise pick chooses the earliest available fabric outside ``tried``,
@@ -145,11 +146,13 @@ class Fabrics:
 
     def learn(self, pinned: str | None, result: FetchResult, sent: float) -> None:
         """
-        Record from ``result`` which fabric answered a request pinned to ``pinned`` and sent at ``sent``.
+        Update the pool from the answer to one request.
 
-        Stores the fabric's lidc cookie, drops a pin whose request landed
-        elsewhere, and records the send on a fabric that answered a request
-        pick did not pin to it.
+        ``pinned`` is the fabric ``pick`` chose for the request, and ``sent``
+        the time ``pick`` recorded for its send. learn stores the answering
+        fabric's lidc cookie, drops a pin whose request landed elsewhere, and
+        records the send on a fabric that answered a request pick did not pin
+        to it.
         """
         fabric = result.headers.get("x-li-fabric")
         logger.debug(
