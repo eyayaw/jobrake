@@ -228,9 +228,13 @@ def make_job(**fields: Any) -> JobDict:
 
 class Stopped(Exception):
     """
-    A failed request, or a page that ended a search short of the total the site reported, cut it short.
+    A search or lookup that could not finish.
 
-    ``partial`` holds the records collected before the failure, ``[]`` when there are none.
+    A request failed, the site has no such board or sent a response jobrake
+    cannot read, a page ended a search short of the total the site reported,
+    or a posting's details could not be fetched. ``partial`` holds the records
+    the call collected, ``[]`` when there are none. After a failed details
+    fetch it holds every card, with details where their fetch succeeded.
     """
 
     def __init__(self, message: str, *, partial: list[JobDict] | None = None) -> None:
