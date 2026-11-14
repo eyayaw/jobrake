@@ -42,7 +42,7 @@ jobrake greenhouse search \
 </tr>
 </table>
 
-A LinkedIn search and an employer's board on Greenhouse return records with the same keys, such as this one from LinkedIn:
+Each posting comes back as a record like this one, a LinkedIn posting fetched with `--details`:
 
 ```json
 {
@@ -200,7 +200,7 @@ for pagination, rate limits, and retries.
 ## Contributing
 
 Issues and pull requests are welcome. [`AGENTS.md`](https://github.com/eyayaw/jobrake/blob/main/AGENTS.md) describes the
-layout and the design rules, and `uv run prek run --all-files` runs ruff, ty, and the tests, as CI does.
+layout and the design rules, and `prek run --all-files`, with [prek](https://github.com/j178/prek) installed, runs the hooks CI runs.
 
 ## Credits
 
