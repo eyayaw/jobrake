@@ -15,10 +15,14 @@ BASE_URL = "https://www.linkedin.com"
 SEARCH_URL = f"{BASE_URL}/jobs-guest/jobs/api/seeMoreJobPostings/search"
 TYPEAHEAD_URL = f"{BASE_URL}/jobs-guest/api/typeaheadHits"
 # The guest fragment has the same topcard and criteria markup as the posting page
-# at about a tenth of the size. The canonical page sets a locale cookie from
-# the posting country's subdomain. Request ``_l=en_US`` so the fragment uses
-# the labels and number format understood by the markup parsers.
+# at about a tenth of the size.
 FRAGMENT_URL = f"{BASE_URL}/jobs-guest/jobs/api/jobPosting"
+# A posting page and its fragment come in the language of the posting country's
+# subdomain unless a request asks for en-US. In en-US, the labels and number
+# format are the ones the markup parsers read, the bullet names the place as a
+# search card does, and the schema.org block spells its city the same way
+# (measured 2026-11-14 on 144 postings in 18 countries).
+EN_US_QUERY = "?_l=en_US"
 
 HEADERS = {
     "accept": (

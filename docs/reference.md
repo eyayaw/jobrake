@@ -97,8 +97,10 @@ A LinkedIn search result carries `title`, `company`, `locations`, and `date`, an
 - `id` is LinkedIn's numeric posting ID,
   and `url` is the posting page the search result links to, without its query string.
 - `locations` holds one place, named as the search result shows it.
-  With `--details`, a place carries the `city`, `region`, `country_code`, `latitude`,
-  and `longitude` the page gives, and a posting the page places in several locations lists each.
+  With `--details`, the places come from the page, read in English, and a place carries the `city`, `region`,
+  `country_code`, `latitude`, and `longitude` the page gives. A posting the page places in several locations lists each.
+  In our measurements, a posting open in several cities can show one of them in the search result
+  and another on its page.
 - `apply_type` is `onsite` for LinkedIn's own application form and `offsite` for the employer's.
 - `applicants` is the count the page shows. LinkedIn shows a count above 200 as "Over 200", so `applicants` stops at 200.
 - `experience_months` and `education` are the experience, in whole months, and the credential the posting asks for.

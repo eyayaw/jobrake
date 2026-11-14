@@ -17,7 +17,15 @@ from jobrake.fetchkit import Fetcher, FetchResult
 from jobrake.models import JobDict, Place, employment_type, make_job, make_places
 from jobrake.utils import as_dict, checked, finite, html_text, report_progress
 
-from .client import FABRICS_WANTED, FRAGMENT_URL, job_id, numeric, on_linkedin, paced_fetch
+from .client import (
+    EN_US_QUERY,
+    FABRICS_WANTED,
+    FRAGMENT_URL,
+    job_id,
+    numeric,
+    on_linkedin,
+    paced_fetch,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -171,9 +179,9 @@ def _block_places(posting: dict[str, Any]) -> list[dict[str, Any]]:
     return places
 
 
-def _parse_posting(soup: BeautifulSoup) -> tuple[dict[str, Any], bool]:
+def _parse_posting(soup: BeautifulSoup) -> dict[str, Any]:
     """
-    Extract model fields from a posting page, and report whether its schema.org block was present.
+    Extract model fields from a posting page.
 
     A posting page carries the summary fields alongside the details, so one
     page is enough to build a record without a search card. Page markup fills
@@ -191,11 +199,14 @@ def _parse_posting(soup: BeautifulSoup) -> tuple[dict[str, Any], bool]:
     label = _tag_text(soup, ".topcard__flavor--bullet:not(.topcard__flavor--metadata)")
     # Places count once normalized, so a block of empty entries holds none.
     places = make_places(_block_places(posting))
-    # A lone block place is the place the bullet names. Several keep the names of their parts.
-    if len(places) == 1 and label:
+    # A lone block place is the place the bullet names when the bullet holds its city.
+    # A bullet that names another city stands as a place of its own, and several block
+    # places keep the names of their parts.
+    city = places[0].get("city", "") if len(places) == 1 else ""
+    if len(places) == 1 and label and city.casefold() in label.casefold():
         places = [{**places[0], "name": label}]
-    elif not places and label:
-        places = [Place(name=label)]
+    elif len(places) < 2 and label:
+        places = [Place(name=label), *places]
     # JobDict counts whole months.
     months = _number_value(_obj(posting.get("experienceRequirements")).get("monthsOfExperience"))
     from_block = {
@@ -232,13 +243,12 @@ def _parse_posting(soup: BeautifulSoup) -> tuple[dict[str, Any], bool]:
         # marks its top card with this figure (measured 2026-10-21 on two postings).
         "site_data": {"closed": True} if soup.select_one("figure.closed-job") else None,
     }
-    fields = {
+    return {
         name: value
         for source in (from_markup, from_block)
         for name, value in source.items()
         if value not in (None, "", [])
     }
-    return fields, bool(posting)
 
 
 def _canonical(url: str) -> str:
@@ -315,7 +325,7 @@ async def _request(fetcher: Fetcher, url: str) -> FetchResult | None:
 
 async def _page(
     fetcher: Fetcher, posting_id: str, url: str, *, candidate: bool = False
-) -> tuple[str, dict[str, Any], bool] | None:
+) -> tuple[str, dict[str, Any]] | None:
     """
     Read a posting page, following its canonical link to another address once, and parse its fields.
 
@@ -325,11 +335,11 @@ async def _page(
         _Skip: The page's canonical link rules it out, or the page yields no fields.
     """
     for _ in range(2):
-        result = await _request(fetcher, url)
+        result = await _request(fetcher, f"{url}{EN_US_QUERY}")
         if result is None:
             return None
         if not _posting_url(result.url, posting_id, (_PAGE_PATH,)):
-            return url, {}, False
+            return url, {}
         url = _canonical(result.url)
         soup = BeautifulSoup(result.text, "html.parser")
         # Measured 2026-11-07: www pages name the posting country's canonical
@@ -352,12 +362,11 @@ async def _page(
                 continue
         elif candidate and urlsplit(url).hostname in _WWW_HOSTS:
             raise _Skip(f"its page at {url} names no canonical address")
-        fields, structured = _parse_posting(soup)
-        if not fields:
+        if not (fields := _parse_posting(soup)):
             raise _Skip(
                 f"its page at {url} yielded no fields, so it may be a signup wall or changed markup"
             )
-        return url, fields, structured
+        return url, fields
     raise _Skip(
         f"its canonical page names another canonical address, {url}, so LinkedIn's pages "
         "for it may point at each other"
@@ -366,9 +375,9 @@ async def _page(
 
 async def _resolve_page(
     fetcher: Fetcher, posting_id: str, url: str | None, *, candidate: bool = False
-) -> tuple[str, dict[str, Any], bool, FetchResult | None] | None:
+) -> tuple[str, dict[str, Any], FetchResult | None] | None:
     """Find the canonical page and retain any guest fragment fetched to locate it."""
-    fragment_url = f"{FRAGMENT_URL}/{posting_id}?_l=en_US"
+    fragment_url = f"{FRAGMENT_URL}/{posting_id}{EN_US_QUERY}"
     fragment = None
     if candidate and url is not None:
         with contextlib.suppress(_Skip):
@@ -392,25 +401,19 @@ async def _fetch_posting(
     page = await _resolve_page(fetcher, posting_id, url, candidate=candidate)
     if page is None:
         return None
-    url, fields, structured, fragment = page
-    redirected = not fields
-    if redirected:
+    url, fields, fragment = page
+    if not fields:
         logger.warning(
             "posting %s redirected away from its page; using only its guest fragment", posting_id
         )
-    if not structured:
-        # Localized markup may use employment and salary labels the parsers do
-        # not recognize. Without schema.org data, the en-US fragment supplies
-        # those fields. Reuse it if the canonical URL lookup already fetched it.
+        # Reuse the fragment if the canonical URL lookup already fetched it.
         if fragment is None:
-            fragment = await _request(fetcher, f"{FRAGMENT_URL}/{posting_id}?_l=en_US")
+            fragment = await _request(fetcher, f"{FRAGMENT_URL}/{posting_id}{EN_US_QUERY}")
         if fragment is None:
             raise _Skip("its en-US fragment is gone")
-        if redirected:
-            # The fragment is the only source left, so it must name this posting.
-            _fragment_url(fragment.text, posting_id)
-        fields = _parse_posting(BeautifulSoup(fragment.text, "html.parser"))[0] | fields
-        if not fields:
+        # The fragment is the only source left, so it must name this posting.
+        _fragment_url(fragment.text, posting_id)
+        if not (fields := _parse_posting(BeautifulSoup(fragment.text, "html.parser"))):
             raise _Skip("its guest fragment yielded no fields")
     return fields | {"url": url}
 
@@ -456,15 +459,11 @@ def _job(posting_id: str, known: dict[str, Any], fields: dict[str, Any]) -> JobD
     Build a posting's record from the fields known for it, overridden by its page's fields.
 
     A known ``url`` and ``date``, such as a search card's, stay when set, and a
-    ``None`` or empty page value leaves the known one in place. When the page
-    and the known fields each have one place, the page's place takes the known
-    place's name, so a record read from the cache names its place as a fresh
-    read does.
+    ``None`` or empty page value leaves the known one in place. The page's places
+    replace a card's whole, because a posting open in several cities can show
+    one of them on its card and another on its page.
     """
     page = {name: value for name, value in fields.items() if value not in (None, [])}
-    places, known_places = page.get("locations"), known.get("locations") or []
-    if places and len(places) == 1 and len(known_places) == 1:
-        page["locations"] = [{**places[0], "name": known_places[0]["name"]}]
     kept = {name: known[name] for name in ("url", "date") if known.get(name)}
     return make_job(**(known | page | kept | {"site": "linkedin", "id": posting_id}))
 
@@ -513,9 +512,9 @@ async def fetch_pages(
     ``wanted`` maps each posting ID to the fields known so far, such as a
     search card. ``urls`` supplies page addresses for individual IDs. A cached
     record costs no request. Without an address in ``urls`` or the known fields,
-    a guest-fragment request locates the canonical page. A page without
-    schema.org data needs that fragment for additional fields; the lookup's
-    response is reused when available.
+    a guest-fragment request locates the canonical page. A page that
+    redirects away leaves that fragment as the only source of fields, and the
+    lookup's response is reused when available.
     A fixed pool of workers, two per fabric, takes the postings in order and
     leaves request pacing to ``paced_fetch``. A persistent 429 stops this
     call, cancels the reads in progress, and keeps cached and completed
