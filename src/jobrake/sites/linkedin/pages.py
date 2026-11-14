@@ -228,6 +228,9 @@ def _parse_posting(soup: BeautifulSoup) -> tuple[dict[str, Any], bool]:
         **_salary(soup),
         "apply_type": _apply_type(soup),
         "applicants": _applicants(soup),
+        # LinkedIn keeps serving a posting that stopped taking applications and
+        # marks its top card with this figure (measured 2026-10-21 on two postings).
+        "site_data": {"closed": True} if soup.select_one("figure.closed-job") else None,
     }
     fields = {
         name: value

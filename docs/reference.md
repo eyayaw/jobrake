@@ -103,6 +103,8 @@ A LinkedIn search result carries `title`, `company`, `locations`, and `date`, an
 - `applicants` is the count the page shows. LinkedIn shows a count above 200 as "Over 200", so `applicants` stops at 200.
 - `experience_months` and `education` are the experience, in whole months, and the credential the posting asks for.
 - The salary fields hold the posting's salary range when the page gives one.
+- `site_data` holds `closed`, which is `true` when the page says the posting no longer accepts applications.
+  LinkedIn keeps serving such a posting, and a posting without the mark may still be closed.
 - A posting placed in a whole country comes with fewer details,
   as [Fetch posting details](guide.md#fetch-posting-details) says.
 

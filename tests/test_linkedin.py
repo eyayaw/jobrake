@@ -950,6 +950,14 @@ def test_a_posting_page_maps_schema_org_onto_the_record():
     assert "experience_months" not in parsed(fractional)  # JobDict holds whole months
 
 
+def test_a_closed_posting_says_so_in_site_data():
+    banner = """<figure class="closed-job closed-job__flavor topcard__flavor-row">
+      <figcaption class="closed-job__flavor--closed">No longer accepting applications</figcaption>
+    </figure>"""
+    assert parsed(job_page() + banner)["site_data"] == {"closed": True}
+    assert "site_data" not in parsed(job_page())
+
+
 def test_a_posting_page_drops_nonfinite_numbers():
     # json.loads admits these constants, and json.dumps would write them back
     # out as invalid JSON
