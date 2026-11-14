@@ -1,6 +1,7 @@
 """Tests for the job data model."""
 
 import json
+import math
 import pickle
 import re
 
@@ -156,6 +157,13 @@ def test_places_come_out_named_distinct_and_unchanged_by_a_second_pass(places):
     )
     codes = [place["country_code"] for place in job["locations"] if "country_code" in place]
     assert all(re.fullmatch("[A-Z]{2}", code) for code in codes)
+    # A NaN equals itself inside a container, so the comparison above cannot see one.
+    assert all(
+        math.isfinite(place[key])
+        for place in job["locations"]
+        for key in ("latitude", "longitude")
+        if key in place
+    )
 
 
 def test_a_place_keeps_what_the_site_gives_and_a_malformed_one_is_rejected():
