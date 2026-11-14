@@ -16,11 +16,11 @@ and it depends on `httpx` and `bs4`.
   which split into several modules. It exports `search` and any of `places`,
   `companies`, `attributes`, and `postings`, and the first line of its
   docstring is the site's CLI help. In the two packages, `search.py` builds
-  requests and parses results, `client.py` holds the URLs and headers, and
-  for LinkedIn the pacing, and `lookups.py` holds the lookups. The other
-  sites need no headers or pacing. LinkedIn's `pages.py` reads posting pages for `postings` and
-  `details=True` with a fixed pool of workers, and Indeed's `countries.py`
-  maps ISO country codes to editions.
+  requests and parses results, `client.py` holds the URLs and headers, plus
+  LinkedIn's pacing, and `lookups.py` holds the lookups. The other sites
+  need no headers or pacing. LinkedIn's `pages.py` reads posting pages for
+  `postings` and `details=True` with a fixed pool of workers, and Indeed's
+  `countries.py` maps ISO country codes to editions.
 - `sites/responses.py`: the response reading the sites share. `read_json`
   raises `Stopped` for an unknown board, a failed request, or an unreadable
   response, `json_list` checks the posting list, `json_page` checks a page's
