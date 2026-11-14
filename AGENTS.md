@@ -16,9 +16,9 @@ and it depends on `httpx` and `bs4`.
   which split into several modules. It exports `search` and any of `places`,
   `companies`, `attributes`, and `postings`, and the first line of its
   docstring is the site's CLI help. In the two packages, `search.py` builds
-  requests and parses results, `client.py` holds the URLs, headers, and
-  pacing, and `lookups.py` holds the lookups. The other sites need no headers
-  or pacing. LinkedIn's `pages.py` reads posting pages for `postings` and
+  requests and parses results, `client.py` holds the URLs and headers, and
+  for LinkedIn the pacing, and `lookups.py` holds the lookups. The other
+  sites need no headers or pacing. LinkedIn's `pages.py` reads posting pages for `postings` and
   `details=True` with a fixed pool of workers, and Indeed's `countries.py`
   maps ISO country codes to editions.
 - `sites/responses.py`: the response reading the sites share. `read_json`
@@ -27,8 +27,8 @@ and it depends on `httpx` and `bs4`.
   list and its total, and `parse_postings` skips a malformed posting with a
   warning. `collect` gathers the pages a paged search yields: it drops a
   repeated posting, logs progress, stops at `results`, and keeps the pages
-  before a failure. A site writes no error handling and no page loop of its
-  own.
+  before a failure. A paged site yields its pages from a generator and
+  leaves the rest to `collect`.
 - `sites/postings.py`: the posting loop of the sites that fill a card with
   one request per posting. `fill_details` serves `details=True` and
   `fetch_postings` serves `postings`, and each site supplies only the reader
