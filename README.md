@@ -79,7 +79,7 @@ A sample record from a LinkedIn posting fetched with jobrake:
 }
 ```
 
-The description and the logo URL are cut short for brevity.
+The description and the logo URL are not fully displayed for brevity.
 The [reference](https://github.com/eyayaw/jobrake/blob/main/docs/reference.md#returned-fields) describes every key.
 
 ## Installation
@@ -187,7 +187,7 @@ jobs = asyncio.run(main())
 | <a href="https://www.workable.com"><img src="https://www.workable.com/static/apple-touch-icon.png" alt="" height="16"> `workable`</a> | Public widget API, one employer's board | Included in search results |
 | <a href="https://www.workday.com"><img src="https://www.workday.com/favicon.ico" alt="" height="16"> `workday`</a> | Career site JSON API, one employer's career site | Optional, one request per posting |
 
-The sites that read one employer's board require `board`, the employer's board token, or for Workday the career site URL.
+The employer-board sites require `board`: the employer's token, or for Workday the career site URL.
 Indeed requires `country`. LinkedIn requires `location` or a geoId.
 See the [guide](https://github.com/eyayaw/jobrake/blob/main/docs/guide.md) for search queries, geography, filters, and
 detail fetching, and the [reference](https://github.com/eyayaw/jobrake/blob/main/docs/reference.md#requests-by-site)
@@ -201,8 +201,8 @@ for pagination, rate limits, and retries.
 ## Contributing
 
 Issues and pull requests are welcome.
-[`AGENTS.md`](https://github.com/eyayaw/jobrake/blob/main/AGENTS.md) describes the layout and the design rules,
-and `prek run --all-files`, with [prek](https://github.com/j178/prek) installed, runs the hooks CI runs.
+[`AGENTS.md`](https://github.com/eyayaw/jobrake/blob/main/AGENTS.md) describes the layout and the design rules.
+Before a pull request, run `prek run --all-files` with [prek](https://github.com/j178/prek) installed, as CI does.
 
 ## Disclaimer
 
@@ -211,7 +211,7 @@ and `prek run --all-files`, with [prek](https://github.com/j178/prek) installed,
 > Use it for your own job search, not to collect postings at scale or republish them.
 > Scraping may violate their ToS, and any of them may rate-limit or block your IP address.
 > EconJobMarket offers its ad feed for personal use and academic research,
-> and redisplaying its ads on your own website needs EconJobMarket's approval.
+> and redisplaying its ads on your own website needs its approval.
 > You are responsible for checking and complying with their terms.
 
 ---

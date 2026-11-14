@@ -5,7 +5,7 @@ applicant tracking systems, but the sites differ in how they interpret geography
 apply search filters, and fetch posting details.
 Run `jobrake -h` for the sites, `jobrake <site> -h` for a site's commands,
 and `jobrake <site> <command> -h` for their options.
-The [reference](reference.md) lists the fields each site returns and how each site's requests behave.
+The [reference](reference.md) lists the fields each site returns and how its requests behave.
 
 - [Search for jobs](#search-for-jobs)
 - [Narrow the results](#narrow-the-results)
@@ -35,7 +35,7 @@ Indeed searches one country edition at a time, so `--country` is required,
 and `--location` narrows that edition to a city or area within it.
 LinkedIn has no editions: pass the place as text to `--location`, or its ID to `--geoid`, and leave `--country` out.
 
-Three more options shape the result set rather than its content.
+Three more options bound a search by count, age, and distance.
 By default, a search returns **10 jobs** with **no age limit**.
 
 | Option               | CLI                     | Library         | Accepted values                                  |
@@ -304,7 +304,7 @@ Try the lookup again, or a related query, when a code you expect does not appear
 Labels can differ by country edition. A label can also belong to several codes,
 and the lookup keeps each code separately. jobrake reads the codes live from Indeed.
 
-Once you find the codes you want, then use those codes to filter jobs:
+Then filter jobs with the codes you found:
 
 ```sh
 jobrake indeed search -q "data scientist" -c us --attributes X62BT
@@ -361,9 +361,10 @@ That costs one paced request for most uncached postings and up to three for the 
 In our measurements, a LinkedIn posting placed in a whole country,
 such as "United States" or "Netherlands", comes without its dates, coordinates, and requirements.
 
-Workday and SmartRecruiters searches also return cards without descriptions, and `--details` fetches
-each posting with one more request, one after another, as [Workday fields](reference.md#workday-fields)
-and [SmartRecruiters fields](reference.md#smartrecruiters-fields) describe.
+Workday and SmartRecruiters searches also return cards without descriptions,
+and `--details` fetches each posting with one more request, one at a time.
+[Workday fields](reference.md#workday-fields)
+and [SmartRecruiters fields](reference.md#smartrecruiters-fields) list what it adds.
 On these two sites, a posting removed or withdrawn since the search keeps its search result.
 
 A posting whose details cannot be fetched also keeps its search result,
@@ -617,8 +618,7 @@ jobrake indeed search -q "data scientist" -c us -n 2 \
 `scrape()` creates and closes an HTTP client when `fetcher` is omitted.
 Library calls log under the `jobrake` logger, and your application sets its level and handlers.
 jobrake logs INFO records whose `progress` attribute holds `(done, total)`
-while a LinkedIn, Indeed, Workday, or SmartRecruiters search reads its pages,
-and while LinkedIn, Workday, or SmartRecruiters fetches posting details.
+while a paged search reads its pages and while it fetches posting details.
 A search counts its postings toward `results`, or toward the site's own limit when that is smaller,
 and stops below `total` when the site runs out first.
 While it fetches LinkedIn details, jobrake reads posting pages concurrently,
@@ -684,8 +684,8 @@ that variable is unset), and `%LOCALAPPDATA%\jobrake\` on Windows. No other site
 
 A cached posting stays fresh for seven days and is fetched again after that.
 A posting that LinkedIn reports gone is not cached.
-An upgrade keeps the cache, and a posting whose cached copy no longer fits the job fields is fetched again.
-A cached posting is not read again after an upgrade. It keeps the fields the older version extracted until it expires.
+An upgrade keeps the cache. A cached posting keeps the fields the older version extracted until it expires,
+and is fetched again earlier only if its cached copy no longer fits the job fields.
 
 To refetch every posting at once, move `jobrake.sqlite3` out of the cache directory, or delete it.
 To bypass the cache for one run, point `JOBRAKE_CACHE_PATH` at a new file:
