@@ -30,7 +30,7 @@ Both commands ask for two postings near Amsterdam, Netherlands, but each names t
 Indeed searches one country edition at a time, so `--country` is required, and `--location` narrows that edition to a city or area within it.
 LinkedIn has no editions: pass the place as text to `--location`, or its ID to `--geoid`, and leave `--country` out.
 
-Three more options shape the result set rather than its content. By default, they return **10 jobs** with **no age limit**.
+Three more options shape the result set rather than its content. By default, a search returns **10 jobs** with **no age limit**.
 
 | Option               | CLI                     | Library         | Accepted values                                  |
 | -------------------- | ----------------------- | --------------- | ------------------------------------------------ |
@@ -103,12 +103,12 @@ jobs for an **ambiguous place name**. Include the region and country whenever po
 -l "Amsterdam, North Holland, Netherlands" # Good
 ```
 
-`--geoid | -g` takes a geoid, such as `--geoid 102011674`.
+`--geoid | -g` takes a geoId, such as `--geoid 102011674`.
 This sends that ID straight to LinkedIn and `location` becomes optional.
 The library call equivalent is `geoid="102011674"`.
 Note that leaving the geoid option out is fine, jobrake just searches by location text.
 
-If you want to know the geoid of a place name, you can use `jobrake linkedin places <name>`,
+If you want to know the geoId of a place name, you can use `jobrake linkedin places <name>`,
 which prints LinkedIn's candidates as JSON, best match first.
 
 ```sh
@@ -127,7 +127,7 @@ jobrake linkedin places Birmingham
 ]
 ```
 
-Choose the candidate you want, then search with its display name or geoid:
+Choose the candidate you want, then search with its display name or geoId:
 
 ```sh
 jobrake linkedin search -q "data scientist" -l "Birmingham, England, United Kingdom"
@@ -528,7 +528,7 @@ Every job is a dictionary. [Returned fields](reference.md#returned-fields) descr
 
 ### Output formats
 
-The CLI writes compact JSON to stdout. `--output | -o` writes a new file instead and refuses to overwrite an existing one.
+A search or a `postings` command writes compact JSON to stdout. `--output | -o` writes a new file instead and refuses to overwrite an existing one.
 `--format | -f` chooses `json`, `jsonl`, or `csv`, and defaults to the extension of `--output`.
 A search that returns no jobs writes no file, and the output directory must already exist.
 
@@ -569,7 +569,7 @@ jobrake indeed search -q "data scientist" -c us -n 2 \
 Library calls log under the `jobrake` logger, and your application sets its level and handlers.
 jobrake logs INFO records whose `progress` attribute holds `(done, total)` while a LinkedIn, Indeed, Workday, or SmartRecruiters search reads its pages, and while LinkedIn, Workday, or SmartRecruiters fetches posting details.
 A search counts its postings toward `results`, or toward the site's own limit when that is smaller, and stops below `total` when the site runs out first.
-LinkedIn reads several pages concurrently, counts cached pages at the start, and advances progress as each read finishes.
+While it fetches details, LinkedIn reads several posting pages concurrently, counts cached pages at the start, and advances progress as each read finishes.
 The CLI draws its progress line from these records, and a handler of your own can do the same:
 
 ```python
@@ -619,12 +619,12 @@ On Indeed, EconJobMarket, and the employer boards, jobrake skips a posting it ca
 
 ## Cache location and lifetimes
 
-jobrake keeps the LinkedIn postings it fetched in one SQLite file under your user cache directory: `~/Library/Caches/jobrake/` on macOS, `$XDG_CACHE_HOME/jobrake/` on Linux, `%LOCALAPPDATA%\jobrake\` on Windows.
+jobrake keeps the LinkedIn postings it fetched in one SQLite file under your user cache directory: `~/Library/Caches/jobrake/` on macOS, `$XDG_CACHE_HOME/jobrake/` on Linux, or `~/.cache/jobrake/` when that variable is unset, and `%LOCALAPPDATA%\jobrake\` on Windows.
 No other site is cached.
 
 A cached posting stays fresh for seven days and is fetched again after that. A posting that LinkedIn reports gone is not cached.
 An upgrade keeps the cache, and a posting whose cached copy no longer fits the job fields is fetched again.
-A release that reads posting pages better reaches a cached posting when it expires.
+After an upgrade that reads posting pages better, a cached posting keeps the fields the earlier version read until it expires.
 
 To refetch every posting at once, move `jobrake.sqlite3` out of the cache directory, or delete it.
 To bypass the cache for one run, point `JOBRAKE_CACHE_PATH` at a new file:

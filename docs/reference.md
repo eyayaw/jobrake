@@ -56,7 +56,7 @@ Ashby and LinkedIn's page markup give `salary_period` as `HOUR`, `DAY`, `WEEK`, 
 A place the site lists twice with the same parts appears once. Places that share a name but differ in any part, such as `Remote` in two countries, each appear.
 
 `workplace_type` is `remote`, `hybrid`, or `on_site`, and appears only when the site states it. An absent `workplace_type` leaves the workplace unknown and does not mean on-site.
-`department` is the hiring unit within the employer, as the site names it, such as `Engineering`, and `team` the posting's team within it, on Ashby and Lever.
+`department` is the hiring unit within the employer, as the site names it, such as `Engineering`. `team`, on Ashby and Lever only, is the posting's team within it.
 
 `site_data` holds fields that only one site carries, under that site's own names, such as EconJobMarket's `position_types`. Its keys depend on `site`, and each site's fields section lists them. A key that a second site comes to share with the same meaning moves into the record.
 A detail key is absent when the site omits or does not publish the value, or when jobrake did not fetch the posting page.
@@ -65,7 +65,7 @@ The sites use the same names for the details they share. Each site's section und
 `apply_type`, `applicants`, and `experience_months` come from LinkedIn only, and LinkedIn carries no `workplace_type`, `apply_url`, or `language`.
 
 A posting can carry two dates. `date` holds the calendar date, such as `2026-09-19`, and `posted_at` holds the full timestamp when the site gives one, such as `2026-09-19T05:00:00+00:00`, and the calendar date otherwise.
-jobrake prefers the date a search result states and falls back to the calendar portion of `posted_at`. Compare on `date`, and read `posted_at` for a time of day.
+jobrake prefers the date a search result states and falls back to the calendar portion of `posted_at`. Workday with `--details` is the exception, as [Workday fields](#workday-fields) says. Compare on `date`, and read `posted_at` for a time of day.
 
 ## Fields by site
 
@@ -93,7 +93,7 @@ A search returns them all, so Indeed takes no `--details`.
 - `posted_at` is the time the posting was published, and `date` is its calendar date. `--max-age-hours` filters on another date, as the note under [Search for jobs](guide.md#search-for-jobs) says.
 - `employment_type` comes from the posting's attribute labels, as a slug such as `full_time`.
 - `workplace_type` follows Indeed's Remote and Hybrid work tags, as [Remote jobs](guide.md#remote-jobs) describes.
-- The salary fields hold the range Indeed gives with its currency and period. A posting with one figure carries it as both bounds.
+- The salary fields hold the range Indeed gives with its currency and period. A posting with one exact figure carries it as both bounds, and a posting with only a minimum or only a maximum carries that bound alone.
 - `apply_url` is the application link Indeed gives, and `company_url` is the employer's page on Indeed.
 
 ### Greenhouse fields
@@ -110,13 +110,13 @@ It also carries `company`, `date`, and the details `posted_at`, `language`, `dep
 
 ### Ashby fields
 
-An Ashby record carries `title`, `locations`, `date`, and `description`, and the details `posted_at`, `employment_type`, `department`, `team`, `apply_url`, `workplace_type`, and, when present, `salary_min`, `salary_max`, `salary_currency`, and `salary_period`.
+An Ashby record carries `title`, `locations`, `date`, and `description`, and the details `posted_at`, `employment_type`, `department`, `team`, `apply_url`, and, when present, `workplace_type`, `salary_min`, `salary_max`, `salary_currency`, and `salary_period`.
 
 - `company` is always `None`, because Ashby's response never names the employer. The board token tells you whose board it is.
 - `posted_at` is the time the posting was published, and `date` is its calendar date.
 - `locations` holds the posting's primary location first and then its other places, named as the employer entered them, such as `Remote (US)` and `Remote (Canada)`. Each place carries the `city` and `region` of its address as Ashby spells them, and `region` can be a code or a name, such as `NY` or `Ontario`.
 - Ashby gives the country as a name, such as `USA` or `United Kingdom`, so an Ashby place has no `country_code`.
-- `workplace_type` is `remote`, `hybrid`, or `on_site`, as the employer set it.
+- `workplace_type` is `remote`, `hybrid`, or `on_site`, as the employer set it, and is absent when the employer set none.
 - The salary fields come from the posting's first salary range.
 - `team` is the posting's team, such as `Solutions Consulting`. `site_data` holds its `summaryComponents` as Ashby sends them, so equity, commission, and bonus appear there beside the salary range. In our test on one board, 124 of 172 postings listed an equity value and 40 a commission.
 - `url` and `apply_url` point to the posting on `jobs.ashbyhq.com`.
@@ -125,11 +125,11 @@ An Ashby record carries `title`, `locations`, `date`, and `description`, and the
 
 ### Lever fields
 
-A Lever record carries `title`, `locations`, `date`, and `description`, and the details `posted_at`, `employment_type`, `workplace_type`, `apply_url`, `team`, and, when present, `department`.
+A Lever record carries `title`, `locations`, `date`, and `description`, and the details `posted_at`, `apply_url`, `team`, and, when present, `employment_type`, `workplace_type`, and `department`.
 
 - `company` is always `None`, because Lever's response never names the employer.
 - `posted_at` is the time the posting was created, and `date` is its calendar date.
-- `description` joins the posting's description, its lists such as requirements and benefits, each under its own heading, and its closing text.
+- `description` joins the posting's description, its lists such as requirements and benefits, each under its own heading, its salary text, and its closing text.
 - `locations` holds the posting's primary location first and then its other places, named as the employer entered them, such as `London, United Kingdom`. The primary place carries the posting's `country_code`.
 - `employment_type` is the employer's commitment label as a slug, such as `full_time` for `Full-time`.
 - `workplace_type` is `remote`, `hybrid`, or `on_site`, as the employer set it, and is absent for a posting the employer left unspecified.
@@ -145,7 +145,7 @@ A Workable record carries `title`, `company`, `locations`, `date`, and `descript
 - `posted_at` is the date the posting was published, with no time of day, so it equals `date`.
 - Each place carries the `city`, `region`, and `country_code` the employer entered and is named with the city, region, and country name, such as `Paris, Île-de-France, France`.
 - Workable lists a posting open in several places once per place. jobrake returns it once, with each of its places.
-- A posting's top-level city, state, and country add a place of their own when no listed place has all three, such as `Paris, Île-de-France, France`. On the board we measured, they repeated the first place.
+- A posting's top-level city, state, and country add a place of their own when no listed place matches all three, such as `Paris, Île-de-France, France`. On the board we measured, they repeated the first place.
 - `workplace_type` is `remote` when the employer marked the posting as remote. The board flags remote alone, so another posting has no `workplace_type`. `employment_type` is a slug such as `full_time`.
 - `education` is the degree the employer chose, such as `Master's Degree`, and is absent when the employer chose none.
 - `url` is the posting on `apply.workable.com`, and `apply_url` is its application form.
