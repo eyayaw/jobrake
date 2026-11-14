@@ -54,7 +54,8 @@ async def _suggestions(
     def candidates(hits: Any) -> list[dict[str, str]]:  # noqa: ANN401  any decoded JSON, which json_list checks
         found = [c for hit in json_list(hits) if (c := _candidate(hit, id_key, "suggestion"))]
         if hits and not found:
-            raise TypeError(f"no suggestion has a {id_key} and a suggestion")
+            keys = " and ".join(sorted({id_key, "suggestion"}))
+            raise TypeError(f"no hit carries {keys} as text")
         return found
 
     return read_json(result, candidates, site="indeed")
