@@ -415,6 +415,9 @@ def test_description_scrubs_flattened_stylesheets_and_keeps_braces_in_prose():
         rich_job(description={"html": css + "<p>Great role.</p><p>Salary range: 40k.</p>"})
     )
     assert job["description"] == "Great role.\nSalary range: 40k."
+    # A comment inside the only rule does not hide it.
+    commented = ".a { /* pad */ padding: 0; }<p>Great role.</p>"
+    assert parse_one(rich_job(description={"html": commented}))["description"] == "Great role."
     prose = 'Return payloads such as {"id": 1}. Pay is {negotiable: yes}. Match src/**/*.py files.'
     assert parse_one(rich_job(description={"html": f"<p>{prose}</p>"}))["description"] == prose
 

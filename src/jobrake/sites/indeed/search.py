@@ -131,7 +131,9 @@ def _build_query(
 # text, where html_text keeps them as text. A rule is a selector followed by a
 # {block} of `property: value;` declarations. Only the last declaration may
 # drop its semicolon, so prose such as {"id": 1} or {negotiable: yes} is not a
-# rule. The selector stops at a line break or a sentence period.
+# rule. Neither is an empty block, or a value that holds a semicolon, such as
+# a data URI: those stay in the text. The selector stops at a line break or a
+# sentence period.
 _CSS_BLOCK = r"\{(?:\s*[-\w]+\s*:[^{};]+;)+(?:\s*[-\w]+\s*:[^{};]+)?\s*\}"
 _CSS_RULE = re.compile(r"(?:[^{}\n.]|\.(?!\s)){0,200}?" + _CSS_BLOCK)
 # An at-rule such as @media, once the rules inside it are gone.
@@ -141,10 +143,15 @@ _CSS_COMMENT = re.compile(r"/\*.*?\*/", re.DOTALL)
 
 def _scrub_css(text: str) -> str:
     """Remove CSS rules flattened into some posting descriptions."""
-    if not _CSS_RULE.search(text):
+    if "{" not in text:
         return text
-    # Comments go only from a text that holds a rule, because a file glob in prose holds /* too.
-    text = _CSS_COMMENT.sub(" ", text)
+    # A comment inside a block would hide its rule, so the search runs without
+    # comments. They go only from a text that holds a rule, because a file glob
+    # in prose holds /* too.
+    uncommented = _CSS_COMMENT.sub(" ", text)
+    if not _CSS_RULE.search(uncommented):
+        return text
+    text = uncommented
     while True:
         # Innermost rules first, so nested @media blocks collapse over the passes.
         scrubbed = _CSS_EMPTY_AT_RULE.sub(" ", _CSS_RULE.sub(" ", text))
