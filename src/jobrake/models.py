@@ -4,7 +4,7 @@ import math
 import re
 from typing import Any, Literal, NotRequired, TypedDict, cast, get_args
 
-from jobrake.utils import as_str, finite, iso_date
+from jobrake.utils import as_str, finite, iso_date, well_formed
 
 WorkplaceType = Literal["remote", "hybrid", "on_site"]
 WORKPLACE_TYPES: tuple[WorkplaceType, ...] = get_args(WorkplaceType)
@@ -184,7 +184,8 @@ def make_job(**fields: Any) -> JobDict:
     Identity strings are stripped. A blank or missing summary value becomes
     ``None``, a missing ``locations`` becomes ``[]``, and a blank or ``None``
     detail value is left out. ``date`` keeps the calendar date of the given
-    ``date``, falling back to ``posted_at``.
+    ``date``, falling back to ``posted_at``. A lone surrogate, which JSON can
+    carry as an escape and UTF-8 cannot encode, becomes U+FFFD.
 
     Raises:
         TypeError: An identity field is missing, blank, or not a string, a
@@ -193,6 +194,7 @@ def make_job(**fields: Any) -> JobDict:
     """
     if unknown := fields.keys() - set(JOB_FIELDS):
         raise TypeError(f"not a job field: {', '.join(sorted(unknown))}")
+    fields = well_formed(fields)
     job: dict[str, Any] = {}
     for name in IDENTITY_FIELDS:
         value = fields.get(name)
@@ -215,9 +217,14 @@ def make_job(**fields: Any) -> JobDict:
 
 class Stopped(Exception):
     """
-    A failed request, or a page that ended a search short of the total the site reported, cut it short.
+    A search or lookup that could not finish.
 
-    ``partial`` holds the records collected before the failure, ``[]`` when there are none.
+    A request failed, the site reported an error or has no such board, its
+    response could not be read, a page ended a search short of the total the
+    site reported, or a posting's details could not be fetched. ``partial``
+    holds the records the call collected, ``[]`` when there are none. After a
+    failed details fetch it holds every card, with details where their fetch
+    succeeded.
     """
 
     def __init__(self, message: str, *, partial: list[JobDict] | None = None) -> None:
@@ -245,7 +252,17 @@ def employment_type(label: str | None) -> str | None:
     return _EMPLOYMENT_ALIASES.get(slug, slug) if slug else None
 
 
+# Lever's API sends onsite, where https://github.com/lever/postings-api lists
+# on-site (Spotify's board, 2026-11-14).
+_WORKPLACE_ALIASES = {"onsite": "on_site"}
+
+
 def workplace_type(label: str | None) -> WorkplaceType | None:
-    """Return a site's workplace label, such as Ashby's ``OnSite`` or Lever's ``on-site``, as ``remote``, ``hybrid``, or ``on_site``, or None for any other label."""
+    """
+    Return a site's workplace label as ``remote``, ``hybrid``, or ``on_site``.
+
+    Ashby's ``OnSite`` and Lever's ``onsite`` both read as ``on_site``. Any other label gives None.
+    """
     slug = _slug(label)
+    slug = _WORKPLACE_ALIASES.get(slug, slug)
     return next((kind for kind in WORKPLACE_TYPES if kind == slug), None)

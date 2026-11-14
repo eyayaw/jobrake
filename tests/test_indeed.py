@@ -107,12 +107,15 @@ def test_places_lists_edition_suggestions():
         {"suggestion": "   ", "payload": {"locationType": "CITY"}},
         {"suggestion": "Boston Common, MA", "payload": {"locationType": {"bad": 1}}},
         {"suggestion": "Boston Massacre Marker, MA", "payload": {"locationType": "MISC"}},
+        # Half of a surrogate pair, which the CLI's UTF-8 output could not encode.
+        {"suggestion": "Boston \ud83d, MA", "payload": {"locationType": "CITY"}},
     ]
     fetcher = StubFetcher({"suggestions/location": ok(json.dumps(hits))})
     assert asyncio.run(indeed.places(fetcher, "boston", country="us")) == [
         {"id": "Boston, MA", "name": "Boston, MA"},
         {"id": "Boston Common, MA", "name": "Boston Common, MA"},
         {"id": "Boston Massacre Marker, MA", "name": "Boston Massacre Marker, MA"},
+        {"id": "Boston \ufffd, MA", "name": "Boston \ufffd, MA"},
     ]
     assert "country=US" in fetcher.requests[0]
     with pytest.raises(ValueError, match="country"):
@@ -404,13 +407,19 @@ def test_indeed_single_bound_salaries():
     )
 
 
-def test_description_scrubs_flattened_stylesheets():
+def test_description_scrubs_flattened_stylesheets_and_keeps_braces_in_prose():
     # Some ATS pages arrive with their css flattened into the description text.
     css = ".jobdescription td { padding: 0 5px; } /* sidebar */ h1 { font-size: 14px !important; }"
+    css += "@media print { h1 { margin: 0; } }"
     job = parse_one(
         rich_job(description={"html": css + "<p>Great role.</p><p>Salary range: 40k.</p>"})
     )
     assert job["description"] == "Great role.\nSalary range: 40k."
+    # A comment inside the only rule does not hide it.
+    commented = ".a { /* pad */ padding: 0; }<p>Great role.</p>"
+    assert parse_one(rich_job(description={"html": commented}))["description"] == "Great role."
+    prose = 'Return payloads such as {"id": 1}. Pay is {negotiable: yes}. Match src/**/*.py files.'
+    assert parse_one(rich_job(description={"html": f"<p>{prose}</p>"}))["description"] == prose
 
 
 def test_indeed_reads_the_workplace_from_its_exact_tags():
@@ -505,19 +514,20 @@ def test_attribute_lookup_preserves_distinct_codes_and_skips_malformed_entries()
 
 
 def test_attribute_lookup_distinguishes_empty_results_from_failure():
-    for payload, found in (
-        ({"data": {"jobSearch": {"results": []}}}, True),
-        ({"data": {"jobSearch": {"results": [{"job": {"attributes": []}}]}}}, True),
-        ({"data": None, "errors": [{"message": "unavailable"}]}, False),
-        ({"data": {"jobSearch": {"results": {}}}}, False),
-        ({"data": {"jobSearch": {"results": [{"job": {"attributes": [None]}}]}}}, False),
-        (None, False),
+    for payload, failure in (
+        ({"data": {"jobSearch": {"results": []}}}, None),
+        ({"data": {"jobSearch": {"results": [{"job": {"attributes": []}}]}}}, None),
+        # Indeed's own message, as a search reports the same answer.
+        ({"data": None, "errors": [{"message": "unavailable"}]}, "Indeed reported 'unavailable'"),
+        ({"data": {"jobSearch": {"results": {}}}}, "cannot read"),
+        ({"data": {"jobSearch": {"results": [{"job": {"attributes": [None]}}]}}}, "cannot read"),
+        (None, "cannot read"),
     ):
         fetcher = StubFetcher({"apis.indeed.com": ok(json.dumps(payload))})
-        if found:
+        if failure is None:
             assert asyncio.run(indeed.attributes(fetcher, "data", country="us")) == []
         else:
-            with pytest.raises(Stopped, match="cannot read"):
+            with pytest.raises(Stopped, match=failure):
                 asyncio.run(indeed.attributes(fetcher, "data", country="us"))
     for response in (ok("not json"), rate_limited()):
         fetcher = StubFetcher({"apis.indeed.com": response})

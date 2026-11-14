@@ -26,7 +26,12 @@ def test_an_http_error_status_fails_the_result_and_keeps_the_body():
     result = FetchResult("https://example.test", 429, "body", {"Retry-After": "3"})
     assert (result.error, result.text) == ("HTTP 429", "body")
     assert result.headers == {"retry-after": "3"}
-    assert FetchResult("https://example.test", 200, "body").error is None
+    statuses = (200, 399, 400)
+    assert [FetchResult("https://example.test", status).error for status in statuses] == [
+        None,
+        None,
+        "HTTP 400",
+    ]
 
 
 def test_httpx_fetcher_gets_and_posts_json():

@@ -128,22 +128,33 @@ def _build_query(
 
 
 # Indeed's ingestion flattens some ATS pages' stylesheets into the description
-# text, beyond the reach of tag-level cleanup. These match CSS rule syntax: a
-# selector, then a {block} holding `property: value` (or nothing, once inner
-# rules are gone). The selector may not cross a line break or a sentence
-# period, keeping prose out of reach.
+# text, where html_text keeps them as text. A rule is a selector followed by a
+# {block} of `property: value;` declarations. Only the last declaration may
+# drop its semicolon, so prose such as {"id": 1} or {negotiable: yes} is not a
+# rule. Neither is an empty block, or a value that holds a semicolon, such as
+# a data URI: those stay in the text. The selector stops at a line break or a
+# sentence period.
+_CSS_BLOCK = r"\{(?:\s*[-\w]+\s*:[^{};]+;)+(?:\s*[-\w]+\s*:[^{};]+)?\s*\}"
+_CSS_RULE = re.compile(r"(?:[^{}\n.]|\.(?!\s)){0,200}?" + _CSS_BLOCK)
+# An at-rule such as @media, once the rules inside it are gone.
+_CSS_EMPTY_AT_RULE = re.compile(r"@[^{};\n]{0,200}\{\s*\}")
 _CSS_COMMENT = re.compile(r"/\*.*?\*/", re.DOTALL)
-_CSS_RULE = re.compile(r"(?:[^{}\n.]|\.(?!\s)){0,200}?\{(?:[^{}]*:[^{}]*|\s*)\}")
 
 
 def _scrub_css(text: str) -> str:
     """Remove CSS rules flattened into some posting descriptions."""
     if "{" not in text:
         return text
-    text = _CSS_COMMENT.sub(" ", text)
+    # A comment inside a block would hide its rule, so the search runs without
+    # comments. They go only from a text that holds a rule, because a file glob
+    # in prose holds /* too.
+    uncommented = _CSS_COMMENT.sub(" ", text)
+    if not _CSS_RULE.search(uncommented):
+        return text
+    text = uncommented
     while True:
         # Innermost rules first, so nested @media blocks collapse over the passes.
-        scrubbed = _CSS_RULE.sub(" ", text)
+        scrubbed = _CSS_EMPTY_AT_RULE.sub(" ", _CSS_RULE.sub(" ", text))
         if scrubbed == text:
             break
         text = scrubbed
@@ -231,6 +242,26 @@ def _graphql_error_message(payload: object) -> str | None:
     return None
 
 
+def search_results(data: Any) -> tuple[Any, list[Any]]:  # noqa: ANN401  any decoded JSON
+    """
+    Return the ``jobSearch`` object of a GraphQL response and its list of results.
+
+    Raises:
+        Stopped: Indeed answered with a GraphQL error in place of the search data.
+        KeyError: The response lacks required search data.
+        TypeError: The response envelope has an unreadable shape.
+    """
+    try:
+        search = data["data"]["jobSearch"]
+        return search, json_list(search, "results")
+    except KeyError, TypeError:
+        # A GraphQL error arrives as HTTP 200 with null data. Usable data
+        # alongside errors parses and is kept.
+        if message := _graphql_error_message(data):
+            raise Stopped(f"Indeed reported {message!r}") from None
+        raise
+
+
 def _parse_jobs(data: dict[str, Any], base_url: str) -> tuple[list[JobDict], str | None, int]:
     """
     Parse one GraphQL page while isolating malformed results.
@@ -242,19 +273,9 @@ def _parse_jobs(data: dict[str, Any], base_url: str) -> tuple[list[JobDict], str
         The raw count includes malformed results so pagination still advances.
 
     Raises:
-        Stopped: Indeed answered with a GraphQL error in place of the search data.
-        KeyError: The response lacks required search data.
-        TypeError: The response envelope has an unreadable shape.
+        Stopped, KeyError, TypeError: Whatever ``search_results`` raises for ``data``.
     """
-    try:
-        search = data["data"]["jobSearch"]
-        results = json_list(search, "results")
-    except KeyError, TypeError:
-        # A GraphQL error arrives as HTTP 200 with null data. Usable data
-        # alongside errors parses and is kept.
-        if message := _graphql_error_message(data):
-            raise Stopped(f"Indeed reported {message!r}") from None
-        raise
+    search, results = search_results(data)
     jobs = parse_postings(
         results, lambda result: _parse_job(result.get("job"), base_url), site="indeed"
     )

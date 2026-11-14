@@ -219,9 +219,24 @@ def finite(value: object) -> float | None:
         return None
 
 
+def well_formed(value: Any) -> Any:  # noqa: ANN401  any JSON value
+    """
+    Return a JSON value with each lone surrogate in its text replaced by U+FFFD.
+
+    JSON can carry half of a surrogate pair as an escape, and UTF-8 cannot encode it.
+    """
+    if isinstance(value, str):
+        return value.encode("utf-16", "surrogatepass").decode("utf-16", "replace")
+    if isinstance(value, list):
+        return [well_formed(item) for item in value]
+    if isinstance(value, dict):
+        return {well_formed(key): well_formed(item) for key, item in value.items()}
+    return value
+
+
 def as_str(value: object) -> str | None:
-    """Return a JSON value when it is a string, or None for anything else."""
-    return value if isinstance(value, str) else None
+    """Return a JSON value when it is a string, made well-formed, or None for anything else."""
+    return well_formed(value) if isinstance(value, str) else None
 
 
 def as_dict(value: object) -> dict[str, Any]:

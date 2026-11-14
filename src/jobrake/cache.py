@@ -116,7 +116,12 @@ class Cache:
         self._broken = True
         with contextlib.suppress(sqlite3.Error):
             self.close()
-        logger.warning("cache disabled (%s): %s", self.path, error)
+        logger.warning(
+            "cache disabled (%s): %s. Delete that file if it is damaged, or set "
+            "JOBRAKE_CACHE_PATH to another path",
+            self.path,
+            error,
+        )
 
     def get(self, site: str, ids: Iterable[str]) -> dict[str, JobDict]:
         """

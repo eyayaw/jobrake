@@ -49,6 +49,8 @@ def test_linkedin_parses_cards_and_dedups_by_posting_id():
         + linkedin_card("222")
         + linkedin_card("other-111")
         + linkedin_card("search")
+        # details=True would request a card's link, so a link off LinkedIn is no card.
+        + linkedin_card("role-333").replace("www.linkedin.com", "jobs.example.net")
     )
     fetcher = StubFetcher({"seeMoreJobPostings": ok(html)})
     jobs = asyncio.run(linkedin.search(fetcher, query="economist", location="Seattle", results=3))
@@ -241,6 +243,9 @@ def test_invalid_redirects_fail_before_another_request():
         for location in (
             "http://www.linkedin.com/page",
             "https://linkedin.com.evil.test/page",
+            "https://evillinkedin.com/page",
+            "https://www.linkedin.com:8443/page",
+            "https://user:secret@www.linkedin.com/page",
             "https://[bad",
         ):
             fetcher = StubFetcher(
@@ -935,6 +940,11 @@ def test_a_posting_page_maps_schema_org_onto_the_record():
         {"name": "Delft, NL", "city": "Delft", "country_code": "NL"},
         {"name": "JP", "country_code": "JP"},
     ]
+    # A lone place takes the name the page's top card shows for it.
+    bullet = '<span class="topcard__flavor--bullet">Amsterdam, North Holland, Netherlands</span>'
+    assert parsed(job_page() + bullet)["locations"] == [
+        {"name": "Amsterdam, North Holland, Netherlands", "country_code": "NL", "latitude": 52.37}
+    ]
     assert job["experience_months"] == 36
     fractional = job_page(experienceRequirements={"monthsOfExperience": 24.5})
     assert "experience_months" not in parsed(fractional)  # JobDict holds whole months
@@ -950,7 +960,8 @@ def test_a_posting_page_drops_nonfinite_numbers():
         experienceRequirements={"monthsOfExperience": 10**1000},
     )
     job = parsed(page)
-    assert not {"latitude", "longitude", "salary_min", "experience_months"} & set(job)
+    assert not {"salary_min", "experience_months"} & set(job)
+    assert job["locations"] == []
     assert job["salary_max"] == 135000
     # a markup salary with enough digits converts to infinity, and comma-only
     # bounds hold no number: neither yields a field
@@ -1066,7 +1077,7 @@ def test_a_posting_page_reads_the_en_us_markup_labels():
     assert job["company_logo"] == "https://media.licdn.com/acme-logo.png"
 
 
-@pytest.mark.parametrize("failure", [network_down(), rate_limited()])
+@pytest.mark.parametrize("failure", [network_down(), rate_limited(), not_found()])
 def test_a_blockless_page_pulls_the_en_us_fragment(failure):
     other = "https://nl.linkedin.com/jobs/view/other-at-acme-444"
     fetcher = StubFetcher(
@@ -1097,18 +1108,21 @@ def test_a_blockless_page_pulls_the_en_us_fragment(failure):
 def test_postings_have_three_outcomes():
     gone = "https://nl.linkedin.com/jobs/view/gone-at-acme-222"
     gone_alias = "https://www.linkedin.com/jobs/view/gone-at-acme-222"
+    removed = "https://nl.linkedin.com/jobs/view/removed-at-acme-444"
     flaky = "https://nl.linkedin.com/jobs/view/flaky-at-acme-333"
     fetcher = StubFetcher(
         {
             "economist-at-acme-111": ok(job_page()),
             "gone-at": not_found(),
+            "removed-at": FetchResult(url="stub", status=410),
             "flaky-at": rate_limited(),
         }
     )
-    references = [CANONICAL, CANONICAL, gone, gone_alias, flaky]
+    references = [CANONICAL, CANONICAL, gone, gone_alias, removed, flaky]
     got = asyncio.run(linkedin.postings(fetcher, references))
     assert fetched(got, CANONICAL)["employment_type"] == "full_time"
     assert (got[gone], got[gone_alias]) == (None, None)  # gone, and the alias shares it
+    assert got[removed] is None  # a 410 says gone as a 404 does
     assert flaky not in got  # transient: safe to retry
     assert sum(1 for u in fetcher.requests if u == CANONICAL) == 1  # deduped
     assert sum(1 for u in fetcher.requests if "gone-at" in u) == 1  # so is the alias
@@ -1413,6 +1427,10 @@ def test_postings_resolve_an_id_before_fetching_the_page():
         "https://example.test/private-123",  # another site's page ending in digits
         "https://nl.linkedin.com/company/acme-111",  # linkedin, but not a posting
         "ftp://nl.linkedin.com/jobs/view/economist-at-acme-111",  # not a web address
+        "http://nl.linkedin.com/jobs/view/economist-at-acme-111",  # a cleartext request
+        "https://notlinkedin.com/jobs/view/economist-at-acme-111",  # a host that ends alike
+        "https://nl.linkedin.com:8443/jobs/view/economist-at-acme-111",  # another port
+        "https://user:secret@nl.linkedin.com/jobs/view/economist-at-acme-111",  # credentials
         "https://nl.linkedin.com/jobs/view/economist-at-acme-\uff11\uff11\uff11",  # fullwidth digits
         "   ",  # a blank argument, which names nothing at all
     ],
@@ -1606,6 +1624,18 @@ def test_postings_resolve_a_page_without_its_own_canonical_metadata(canonical):
     job = fetched(asyncio.run(linkedin.postings(fetcher, [www])), www)
     assert (job["url"], job["title"]) == (CANONICAL, "Economist")
     assert fetcher.requests == [www, f"{FRAGMENT}/111?_l=en_US", CANONICAL]
+
+
+def test_two_pages_that_name_each_other_as_canonical_end_after_one_read_of_each():
+    renamed = "https://nl.linkedin.com/jobs/view/analyst-at-acme-111"
+    fetcher = StubFetcher(
+        {
+            CANONICAL: ok(f'<link rel="canonical" href="{renamed}">' + job_page()),
+            renamed: ok(f'<link rel="canonical" href="{CANONICAL}">' + job_page()),
+        }
+    )
+    assert asyncio.run(linkedin.postings(fetcher, [CANONICAL])) == {}
+    assert fetcher.requests == [CANONICAL, renamed]
 
 
 @pytest.mark.parametrize("has_fields", [False, True])

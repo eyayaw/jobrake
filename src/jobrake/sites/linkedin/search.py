@@ -12,7 +12,7 @@ from jobrake.models import JobDict, Stopped, make_job
 from jobrake.sites.responses import collect
 from jobrake.utils import checked
 
-from .client import SEARCH_URL, job_id, numeric, paced_fetch
+from .client import SEARCH_URL, job_id, numeric, on_linkedin, paced_fetch
 from .pages import fetch_pages
 
 logger = logging.getLogger(__name__)
@@ -34,7 +34,8 @@ def _parse_page(html: str) -> tuple[list[JobDict], int]:
             continue
         url = str(link["href"]).split("?")[0]
         posting_id = job_id(url)
-        if not posting_id:
+        # details=True requests this address, so it must be LinkedIn's.
+        if not (posting_id and on_linkedin(url)):
             continue
 
         title_tag = card.find("span", class_="sr-only")
@@ -110,7 +111,7 @@ async def search(
     company_ids: Annotated[list[str] | None, "LinkedIn company IDs"] = None,
     easy_apply: Annotated[bool, "only postings with LinkedIn's Easy Apply form"] = False,
     early_applicant: Annotated[bool, "only postings with fewer than 10 applicants"] = False,
-    details: Annotated[bool, "fetch posting pages for descriptions and other details"] = False,
+    details: Annotated[bool, "fetch each posting for its description and other details"] = False,
 ) -> list[JobDict]:
     """
     Search LinkedIn's login-free guest endpoint.

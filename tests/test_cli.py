@@ -7,6 +7,7 @@ import json
 import logging
 import os
 import shlex
+import signal
 import sys
 import types
 from pathlib import Path
@@ -69,7 +70,7 @@ def stub_search(monkeypatch, fetchers):
         @functools.wraps(SITES[site].search)
         async def search(fetcher, **options):
             calls.append((site, options))
-            if isinstance(result, Exception):
+            if isinstance(result, BaseException):
                 raise result
             return result
 
@@ -256,6 +257,23 @@ def test_a_stopped_search_writes_what_it_collected_and_fails(run_cli, stub_searc
     assert capsys.readouterr().out == ""
 
 
+def test_ctrl_c_ends_the_run_with_one_line_and_dies_of_sigint(
+    run_cli, stub_search, monkeypatch, capsys, caplog
+):
+    # A shell stops a loop only when the command it ran died of the signal.
+    sent = []
+    monkeypatch.setattr(signal, "signal", lambda number, action: sent.append((number, action)))
+    monkeypatch.setattr(os, "kill", lambda pid, number: sent.append((pid, number)))
+    stub_search("indeed", KeyboardInterrupt())
+    assert run_cli() == 130
+    # asyncio.run sets its own SIGINT handler first, so only the last two calls are the CLI's.
+    assert sent[-2:] == [(signal.SIGINT, signal.SIG_DFL), (os.getpid(), signal.SIGINT)]
+    assert capsys.readouterr().out == ""
+    assert [record.getMessage() for record in caplog.records] == [
+        "interrupted, so no output was written"
+    ]
+
+
 def test_format_selects_stdout_and_overrides_output_extension(run_cli, capsys, tmp_path):
     run_cli("--format", "jsonl")
     assert [json.loads(line) for line in capsys.readouterr().out.splitlines()] == JOBS
@@ -356,7 +374,7 @@ def test_invalid_output_fails_before_scraping(run_cli, stub_search, tmp_path, ca
     assert f"output file already exists: {dangling}" in errors
     assert f"output directory is not writable: {locked}" in errors
     assert "usage:" not in errors
-    assert errors.count("Run 'jobrake -h' for help.") == 6
+    assert errors.count("Run 'jobrake indeed search -h' for help.") == 6
 
 
 def test_status_handler_progress():

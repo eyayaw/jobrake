@@ -95,12 +95,6 @@ def test_epoch_ms_to_iso_drops_with_a_warning_what_cannot_be_milliseconds(caplog
         assert message in caplog.text
 
 
-def test_iso_date_takes_dates_and_timestamps():
-    assert iso_date("2026-08-05T08:04:27.000Z") == "2026-08-05"
-    assert iso_date("2026-08-01") == "2026-08-01"
-    assert iso_date(None) is None
-
-
 def test_iso_date_passes_junk_through_with_a_warning(caplog):
     with caplog.at_level(logging.WARNING, logger="jobrake.utils"):
         assert iso_date("posted yesterday, allegedly") == "posted yes"

@@ -17,7 +17,7 @@ from jobrake.fetchkit import Fetcher, FetchResult
 from jobrake.models import JobDict, Place, employment_type, make_job, make_places
 from jobrake.utils import as_dict, checked, finite, html_text, report_progress
 
-from .client import FABRICS_WANTED, FRAGMENT_URL, job_id, numeric, paced_fetch
+from .client import FABRICS_WANTED, FRAGMENT_URL, job_id, numeric, on_linkedin, paced_fetch
 
 logger = logging.getLogger(__name__)
 
@@ -254,16 +254,7 @@ _REFERENCE_PATHS = (_PAGE_PATH, f"{urlsplit(FRAGMENT_URL).path}/")
 
 def _posting_url(url: str, posting_id: str, paths: tuple[str, ...]) -> bool:
     """Check that a URL is one of LinkedIn's addresses for one posting."""
-    try:
-        parts = urlsplit(url)
-    except ValueError:
-        return False
-    return (
-        parts.scheme in ("http", "https")
-        and f".{parts.hostname}".endswith(".linkedin.com")
-        and parts.path.startswith(paths)
-        and job_id(url) == posting_id
-    )
+    return on_linkedin(url) and urlsplit(url).path.startswith(paths) and job_id(url) == posting_id
 
 
 class _Skip(Exception):

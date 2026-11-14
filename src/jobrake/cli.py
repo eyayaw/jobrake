@@ -6,10 +6,12 @@ import inspect
 import json
 import logging
 import os
+import signal
 import sys
 import time
 from collections.abc import Awaitable, Callable
 from contextlib import suppress
+from gettext import ngettext
 from pathlib import Path
 from types import ModuleType
 from typing import Any, Never, TextIO, override
@@ -159,6 +161,9 @@ def _build_parser() -> _ArgumentParser:
         for name in (name for name in COMMANDS if name in module.__all__):
             function = getattr(module, name)
             command = _add_parser(commands.add_parser, name, function)
+            # main() reports an error it finds after parsing through this
+            # parser, so the message names the command and its help.
+            command.set_defaults(command_parser=command)
             _add_arguments(command, function)
             if name not in _WRITES_POSTINGS:
                 continue
@@ -278,11 +283,12 @@ def _write_jobs(args: argparse.Namespace, jobs: list[JobDict], fmt: str) -> int 
     Returns:
         ``1`` when stdout closes early or the file cannot be written. ``None`` otherwise.
     """
+    count = len(jobs)
     if args.output is None:
-        logger.info("found %d jobs", len(jobs))
+        logger.info(ngettext("found %d job", "found %d jobs", count), count)
         return _write_stdout(RENDERERS[fmt](jobs))
     if not jobs:
-        logger.warning("no jobs found; leaving %s untouched", args.output)
+        logger.warning("no jobs found, so %s was not created", args.output)
         return None
     try:
         with args.output.open("x", encoding="utf-8") as output:
@@ -292,7 +298,7 @@ def _write_jobs(args: argparse.Namespace, jobs: list[JobDict], fmt: str) -> int 
             "could not write %s: %s", args.output, error
         )
         return 1
-    logger.info("wrote %d jobs to %s", len(jobs), args.output)
+    logger.info(ngettext("wrote %d job to %s", "wrote %d jobs to %s", count), count, args.output)
     return None
 
 
@@ -303,7 +309,8 @@ def main() -> int | None:
     Returns:
         ``1`` when a search or lookup stops on a failed request, a named posting
         could not be fetched, stdout closes early, or the output file cannot be
-        written. Normal completion returns ``None``.
+        written. ``130`` when Ctrl-C interrupts the run. Normal completion
+        returns ``None``.
     """
     parser = _build_parser()
     args = parser.parse_args()
@@ -318,9 +325,19 @@ def main() -> int | None:
     options = {name: vars(args)[name] for name in site_options(function) if name in vars(args)}
     # A lookup prints its candidates and has no output to settle. A search and a
     # posting fetch settle theirs before spending any requests.
-    fmt = _settle_output(parser, args) if args.command in _WRITES_POSTINGS else None
+    command = args.command_parser
+    fmt = _settle_output(command, args) if args.command in _WRITES_POSTINGS else None
     try:
-        found, status = _run(parser, function, options)
+        found, status = _run(command, function, options)
+    except KeyboardInterrupt:
+        logger.warning("interrupted, so no output was written")
+        if sys.platform != "win32":
+            # Die of SIGINT, as CPython does for an uncaught KeyboardInterrupt
+            # (https://bugs.python.org/issue1054041, checked 2026-11-14). A
+            # shell stops a loop only when the command it ran died of the signal.
+            signal.signal(signal.SIGINT, signal.SIG_DFL)
+            os.kill(os.getpid(), signal.SIGINT)
+        return 130  # 128 + SIGINT, the status a shell reports for that death
     finally:
         # An exceptional exit would otherwise start its traceback beside the progress line.
         handler.clear()

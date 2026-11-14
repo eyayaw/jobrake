@@ -205,8 +205,7 @@ def test_a_malformed_card_costs_only_itself(caplog):
     fetcher = StubFetcher({"BoschGroup/postings": page(malformed, 3)})
     (job,) = asyncio.run(smartrecruiters.search(fetcher, board="BoschGroup"))
     assert job["id"] == "744000158108729"
-    assert "latitude" not in job
-    assert "longitude" not in job
+    assert job["locations"] == []
     assert caplog.text.count("skipping malformed smartrecruiters posting") == 2
 
 

@@ -1,5 +1,7 @@
 """Tests for the job data model."""
 
+import json
+import math
 import pickle
 import re
 
@@ -42,12 +44,17 @@ def test_employment_type_is_unified_across_sites():
 
 
 def test_workplace_type_reads_the_sites_labels_and_nothing_else():
-    labels = ("OnSite", "on-site", "Remote", "Hybrid")  # Ashby's and Lever's spellings
-    assert [workplace_type(label) for label in labels] == ["on_site", "on_site", "remote", "hybrid"]
+    # Ashby's OnSite, then the spelling Lever's API sends and the one its README lists.
+    labels = ("OnSite", "onsite", "on-site", "Remote", "Hybrid")
+    assert [workplace_type(label) for label in labels] == [
+        "on_site",
+        "on_site",
+        "on_site",
+        "remote",
+        "hybrid",
+    ]
     # Lever's unspecified, and slugs of labels no site sends, are no workplace type.
-    assert [workplace_type(label) for label in ("unspecified", "onsite", "Hybrid work", None)] == [
-        None
-    ] * 4
+    assert [workplace_type(label) for label in ("unspecified", "Hybrid work", None)] == [None] * 3
     assert "workplace_type" not in make_job(site="x", id="1", url="u", workplace_type="anywhere")
 
 
@@ -104,6 +111,24 @@ def test_date_falls_back_to_the_posting_timestamp():
     assert job["posted_at"] == "2026-08-05T08:04:27.000Z"  # kept whole
 
 
+def test_a_lone_surrogate_in_any_text_becomes_the_replacement_character():
+    # JSON can carry half of a surrogate pair as an escape, and UTF-8 cannot encode it.
+    half = json.loads('"Engineer \\ud83d"')
+    job = make_job(
+        site="x",
+        id="1",
+        url="u",
+        title=half,
+        locations=[{"name": half}],
+        site_data={"team": [half]},
+    )
+    assert (job["title"], job["locations"], job["site_data"]) == (
+        "Engineer \ufffd",
+        [{"name": "Engineer \ufffd"}],
+        {"team": ["Engineer \ufffd"]},
+    )
+
+
 def test_make_job_rejects_a_record_outside_job_dict():
     # A cached row from an older field set must fail here rather than reach callers.
     with pytest.raises(TypeError, match="headcount"):
@@ -132,6 +157,13 @@ def test_places_come_out_named_distinct_and_unchanged_by_a_second_pass(places):
     )
     codes = [place["country_code"] for place in job["locations"] if "country_code" in place]
     assert all(re.fullmatch("[A-Z]{2}", code) for code in codes)
+    # A NaN equals itself inside a container, so the comparison above cannot see one.
+    assert all(
+        math.isfinite(place[key])
+        for place in job["locations"]
+        for key in ("latitude", "longitude")
+        if key in place
+    )
 
 
 def test_a_place_keeps_what_the_site_gives_and_a_malformed_one_is_rejected():

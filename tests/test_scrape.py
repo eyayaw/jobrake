@@ -130,6 +130,9 @@ def test_a_registered_site_needs_no_change_to_scrape(fake_site):
     with pytest.raises(TypeError, match="tags must be a list of strings or None"):
         asyncio.run(scrape("fakesite", query="x", tags="a"))
     assert len(fake_site.calls) == 1
+    # An explicit None passes for an option that may be None.
+    asyncio.run(scrape("fakesite", query="x", tags=None, fetcher=StubFetcher({})))
+    assert fake_site.calls[-1]["tags"] is None
 
 
 def test_scrape_closes_only_the_fetcher_it_created(fake_site, monkeypatch):
