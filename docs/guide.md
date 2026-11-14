@@ -367,7 +367,7 @@ Sites take postings down over time, so the examples above may be gone. Use refer
 Name as many postings as you like. Results follow the order given and have the fields of a search with `--details`, except a field only the search result carries, such as SmartRecruiters' `department`. Several references to one posting return one job.
 The command accepts the same `--output | -o` and `--format | -f` options as a search.
 A posting that is gone or unreachable is reported on stderr and left out. When one was unreachable, the command writes the others and exits nonzero.
-A LinkedIn reference is a numeric ID or a posting URL, including the link in a LinkedIn job alert email and a search page address with `currentJobId=`. A Workday or SmartRecruiters reference is a search result's `url`, and SmartRecruiters also takes the posting's address with its title slug. Any other reference is an error, and nothing is fetched.
+A LinkedIn reference is a numeric ID or an HTTPS posting URL, including the link in a LinkedIn job alert email and a search page address with `currentJobId=`. A Workday or SmartRecruiters reference is a search result's `url`, and SmartRecruiters also takes the posting's address with its title slug. Any other reference is an error, and nothing is fetched.
 
 Library callers use the `postings` function of `jobrake.sites.linkedin`, `jobrake.sites.workday`, or `jobrake.sites.smartrecruiters`, which never raises `Stopped`.
 It maps each ID or URL to its whole job, or to `None` when the site reports the posting gone.
