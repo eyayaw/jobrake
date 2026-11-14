@@ -177,6 +177,17 @@ def _detail(name: str, value: object) -> object:
     return value
 
 
+def _encodable(value: Any) -> Any:  # noqa: ANN401  any JSON value
+    """Return a JSON value with each lone surrogate in its text replaced by U+FFFD."""
+    if isinstance(value, str):
+        return value.encode("utf-16", "surrogatepass").decode("utf-16", "replace")
+    if isinstance(value, list):
+        return [_encodable(item) for item in value]
+    if isinstance(value, dict):
+        return {_encodable(key): _encodable(item) for key, item in value.items()}
+    return value
+
+
 def make_job(**fields: Any) -> JobDict:
     """
     Build a ``JobDict`` from a site's fields, normalizing their text.
@@ -184,7 +195,8 @@ def make_job(**fields: Any) -> JobDict:
     Identity strings are stripped. A blank or missing summary value becomes
     ``None``, a missing ``locations`` becomes ``[]``, and a blank or ``None``
     detail value is left out. ``date`` keeps the calendar date of the given
-    ``date``, falling back to ``posted_at``.
+    ``date``, falling back to ``posted_at``. A lone surrogate, which JSON can
+    carry as an escape and UTF-8 cannot encode, becomes U+FFFD.
 
     Raises:
         TypeError: An identity field is missing, blank, or not a string, a
@@ -193,6 +205,7 @@ def make_job(**fields: Any) -> JobDict:
     """
     if unknown := fields.keys() - set(JOB_FIELDS):
         raise TypeError(f"not a job field: {', '.join(sorted(unknown))}")
+    fields = _encodable(fields)
     job: dict[str, Any] = {}
     for name in IDENTITY_FIELDS:
         value = fields.get(name)

@@ -1,5 +1,6 @@
 """Tests for the job data model."""
 
+import json
 import pickle
 import re
 
@@ -107,6 +108,24 @@ def test_date_falls_back_to_the_posting_timestamp():
     )
     assert job["date"] == "2026-08-05"
     assert job["posted_at"] == "2026-08-05T08:04:27.000Z"  # kept whole
+
+
+def test_a_lone_surrogate_in_any_text_becomes_the_replacement_character():
+    # JSON can carry half of a surrogate pair as an escape, and UTF-8 cannot encode it.
+    half = json.loads('"Engineer \\ud83d"')
+    job = make_job(
+        site="x",
+        id="1",
+        url="u",
+        title=half,
+        locations=[{"name": half}],
+        site_data={"team": [half]},
+    )
+    assert (job["title"], job["locations"], job["site_data"]) == (
+        "Engineer \ufffd",
+        [{"name": "Engineer \ufffd"}],
+        {"team": ["Engineer \ufffd"]},
+    )
 
 
 def test_make_job_rejects_a_record_outside_job_dict():
