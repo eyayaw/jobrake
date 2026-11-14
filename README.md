@@ -193,7 +193,8 @@ jobrake's Indeed GraphQL endpoint and LinkedIn guest-search approach are based o
 ## Disclaimer
 
 > [!WARNING]
-> jobrake has no affiliation with any of the [supported sites](#supported-job-boards). Use it to find jobs, not to build datasets by scraping regularly.
-> Scraping may violate their terms of service, and any of them may rate-limit or block your IP address.
-> EconJobMarket offers its ad feed for personal use and academic research, and redisplaying its ads on your own website needs EconJobMarket's approval.
-> You are responsible for checking and complying with their terms.
+> jobrake has no affiliation with any of the [supported sites](#supported-job-boards).
+> Use it for your own job search, not to collect postings at scale or republish them.
+> Scraping may violate their ToS, and any of them may rate-limit or block your IP address.
+> EconJobMarket offers its ad feed for personal use and academic research, and redisplaying its ads on your own website
+> needs EconJobMarket's approval. You are responsible for checking and complying with their terms.
