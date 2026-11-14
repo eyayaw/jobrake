@@ -40,6 +40,13 @@ def read_json[T](
     try:
         return unpack(json.loads(result.text))
     except (ValueError, KeyError, TypeError, AttributeError) as error:
+        # Workday answers 200 with its maintenance page while a data center is
+        # down (measured 2026-11-14 on two career sites).
+        if result.text.lstrip().startswith("<"):
+            raise Stopped(
+                f"{site} sent a web page where its API sends JSON, so the site may be "
+                "under maintenance. Try again later"
+            ) from error
         raise Stopped(
             f"{site} sent a response this version cannot read ({error!r}), likely an API change"
         ) from error
