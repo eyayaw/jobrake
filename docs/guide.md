@@ -365,9 +365,6 @@ Workday and SmartRecruiters searches also return cards without descriptions, and
 each posting with one more request, one after another, as [Workday fields](reference.md#workday-fields)
 and [SmartRecruiters fields](reference.md#smartrecruiters-fields) describe.
 On these two sites, a posting removed or withdrawn since the search keeps its search result.
-A posting SmartRecruiters reports missing or marks inactive counts as gone,
-and jobrake reads a Workday 403 that names error `S22` as withdrawn,
-as [career-ops](https://github.com/career-ops-hq/career-ops)' liveness checks do.
 
 A posting whose details cannot be fetched also keeps its search result,
 and once the rest are fetched the search raises `Stopped` with every posting in `partial`. A rerun retries them.
