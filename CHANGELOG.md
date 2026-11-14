@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.27.0](https://github.com/eyayaw/jobrake/releases/tag/v0.27.0) - 2026-11-14
+
+### Changed
+
+- **Breaking:** A LinkedIn posting reference must be an HTTPS address on LinkedIn's default port, without credentials. `postings` rejects an `http://` address, another port, or `user:pass@` with `ValueError`, where it requested them.
+- `docs/reference.md` lists every returned key with its type and meaning. It marks Ashby's `workplace_type` and Lever's `employment_type` and `workplace_type` as present only when the site gives them, where it listed them as always present.
+
+### Fixed
+
+- A Lever posting the employer marked on-site carries `workplace_type`. Lever's API sends `onsite`, which jobrake read as no workplace type.
+- An Indeed description that holds braces in its prose, such as `{"id": 1}`, keeps its text. The stylesheet cleanup removed the clause before the brace, and it took quadratic time on a brace that never closed. The cleanup now leaves an empty rule and a rule whose value holds a semicolon, such as a data URI.
+- A lone surrogate in the text of a posting or a lookup result becomes U+FFFD. It crashed the CLI with a traceback, left an empty `--output` file that made the rerun fail, and turned the LinkedIn cache off for the rest of the run.
+- A LinkedIn search card whose link leaves LinkedIn is skipped, so `--details` requests no other host.
+- Ctrl-C ends a command with one line, where it printed the traceback of the canceled search.
+- An error found after the arguments parse, such as a blank board or an output file that exists, names the command and points to its help, `jobrake greenhouse search -h`, where it pointed to `jobrake -h`.
+- Indeed `attributes` reports Indeed's own message when Indeed answers with a GraphQL error, as `search` does. It reported a response it could not read.
+- The warning that disables the cache says how to recover: delete the file if it is damaged, or set `JOBRAKE_CACHE_PATH` to another path.
+- The CLI logs `found 1 job` and `wrote 1 job` for one posting.
+
 ## [0.26.0](https://github.com/eyayaw/jobrake/releases/tag/v0.26.0) - 2026-11-13
 
 This release routes every site through one response reader and one page loop, and makes `fetchkit` and seven of the nine sites single modules. In our live comparison on 2026-11-12, every posting that both this release and 0.25.0 returned was equal, on all nine sites.

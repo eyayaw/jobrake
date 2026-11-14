@@ -1,6 +1,6 @@
 [project]
 name = "jobrake"
-version = "0.26.0"
+version = "0.27.0"
 description = "Read job postings from LinkedIn, Indeed, EconJobMarket, and ATS boards, all in one schema."
 readme = "README.md"
 requires-python = ">=3.15"
