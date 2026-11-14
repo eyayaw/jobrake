@@ -55,18 +55,16 @@ Spotify's board on Lever labels its postings `permanent`.
 Ashby gives `salary_period` as `HOUR`, `DAY`, `WEEK`, `MONTH`, or `YEAR`, and so does LinkedIn's page markup.
 Indeed's value and the one in LinkedIn's structured data pass through as sent.
 
-`locations` lists the posting's places in the site's order.
-Each place has a `name`, the site's label for it or its parts joined when the site gives no label,
+Each place in `locations` has a `name`, the site's label for it or its parts joined when the site gives no label,
 and carries `city`, `region`, `country_code`, `latitude`, and `longitude` only when the site gives them for that place.
 `country_code` has the form of an ISO 3166-1 alpha-2 code, such as `US`, and jobrake checks the form only.
 jobrake parses nothing out of a place's name, so a place named `Seattle, WA` carries no `city`
 unless the site sent one. A place the site lists twice with the same parts appears once.
 Places that share a name but differ in any part, such as `Remote` in two countries, each appear.
 
-`workplace_type` is `remote`, `hybrid`, or `on_site`, and appears only when the site states it.
-An absent `workplace_type` leaves the workplace unknown and does not mean on-site.
-`department` is the hiring unit within the employer, as the site names it, such as `Engineering`.
-`team`, on Ashby and Lever only, is the posting's team within it.
+`workplace_type` appears only when the site states it,
+so an absent one leaves the workplace unknown and does not mean on-site.
+`team` comes from Ashby and Lever only.
 
 `site_data` holds fields that only one site carries, under that site's own names,
 such as EconJobMarket's `position_types`. Its keys depend on `site`, and each site's fields section lists them.
