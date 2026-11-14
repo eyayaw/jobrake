@@ -123,7 +123,6 @@ async def search(
     ``query=""`` searches without keywords. A filter left at its default, or given ``[]``, applies no restriction.
     Filters combine and travel with every page.
     ``details`` hydrates posting pages, reusing cached copies.
-    The caller owns ``fetcher``.
 
     Search requests share the process-wide fabric pacing. The guest endpoint
     serves about ten cards per page and stops at offset ``MAX_START``,

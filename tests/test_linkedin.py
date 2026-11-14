@@ -956,7 +956,7 @@ def test_a_posting_page_drops_nonfinite_numbers():
     page = job_page(
         jobLocation={"latitude": float("nan"), "longitude": float("inf")},
         baseSalary={"currency": "USD", "value": {"minValue": float("-inf"), "maxValue": 135000}},
-        # an integer beyond float range costs only its field
+        # an integer beyond float range loses only its field
         experienceRequirements={"monthsOfExperience": 10**1000},
     )
     job = parsed(page)
@@ -1317,7 +1317,7 @@ def test_postings_attempt_each_posting_once(caplog):
     assert "no fields" in caplog.text
 
 
-def test_an_interrupted_fetch_keeps_paid_results():
+def test_an_interrupted_fetch_keeps_the_postings_it_read():
     fetcher = PagedFetcher([ok(job_page()), RuntimeError("interrupted")])
     with pytest.raises(RuntimeError):
         asyncio.run(linkedin.postings(fetcher, [CANONICAL, OTHER]))

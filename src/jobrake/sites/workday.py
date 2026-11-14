@@ -238,15 +238,15 @@ async def search(
     at ``results``. Workday reports at most ``MAX_TOTAL`` postings per
     search, and a search that reaches that cap short of ``results`` warns.
     A card carries no description, so ``details`` hydrates each posting
-    with one more request. Requests are neither paced nor retried. A
-    malformed card costs only that posting. The caller owns ``fetcher``.
+    with one more request. Requests are neither paced nor retried.
 
     Raises:
         Stopped: A request failed, Workday has no such career site, it
             sent an unreadable response, or an empty page came before the
-            reported total. ``partial`` holds the postings collected before it. With ``details``, a posting's details could
-            not be fetched, and ``partial`` holds every posting, with the
-            details fetched so far.
+            reported total. ``partial`` holds the postings collected before
+            it. With ``details``, a posting's details could not be fetched,
+            and ``partial`` holds every posting, with the details fetched so
+            far.
         ValueError: ``board`` is not a Workday career site URL.
     """
     # Reading the board here rejects a bad one before the first request.
@@ -291,9 +291,8 @@ async def postings(
     The result is keyed by the references given. A reference is a record's
     ``url``, the posting's address on its career site, and references naming
     one posting share one request. A reference maps to ``None`` when Workday
-    reports its posting gone, and has no key after a failed request or an
-    unreadable response, each logged, so a rerun retries it. The caller owns
-    ``fetcher``.
+    reports its posting gone. After a failed request or an unreadable
+    response it has no key, and a warning names it.
 
     Raises:
         ValueError: A reference is not a Workday posting URL. Nothing is

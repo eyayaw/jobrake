@@ -267,7 +267,7 @@ def epoch_ms_to_iso(ms: object) -> str | None:
 
     ``None`` returns ``None``. A value that is no number, is out of range, or
     resolves before the year 2000, as epoch seconds do, logs a warning and
-    returns ``None``, so it costs only its field.
+    returns ``None``.
     """
     if ms is None:
         return None

@@ -198,11 +198,10 @@ async def search(
     ``max_age_hours`` keeps postings released within that many hours. Pages
     of up to 100 cards follow one another without pacing or retries until
     ``results``, the board's last match, or an empty page. A posting that a
-    later page repeats is kept once. An unknown board
-    answers like a board with no postings, so it returns ``[]`` and logs that
-    the board may be misspelled. A malformed card costs only that card. A
-    card carries no description, so ``details`` fetches each posting with one
-    more request. The caller owns ``fetcher``.
+    later page repeats is kept once. An unknown board answers like a board
+    with no postings, so it returns ``[]`` and logs that the board may be
+    misspelled. A card carries no description, so ``details`` fetches each
+    posting with one more request.
 
     Raises:
         Stopped: A request failed, SmartRecruiters sent an unreadable
@@ -259,9 +258,8 @@ async def postings(
     The result is keyed by the references given. A reference is a record's
     ``url`` or the posting's ``postingUrl``, which adds a title slug, and
     references naming one posting share one request. A reference maps to
-    ``None`` when SmartRecruiters reports its posting gone, and has no key
-    after a failed request or an unreadable response, each logged, so a
-    rerun retries it. The caller owns ``fetcher``.
+    ``None`` when SmartRecruiters reports its posting gone. After a failed
+    request or an unreadable response it has no key, and a warning names it.
 
     Raises:
         ValueError: A reference is not a SmartRecruiters posting URL. Nothing

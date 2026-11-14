@@ -259,7 +259,7 @@ def _posting_url(url: str, posting_id: str, paths: tuple[str, ...]) -> bool:
 
 class _Skip(Exception):
     """
-    A posting failed, so it gets no result and a rerun retries it.
+    A posting failed, so it gets no result and no cache row, and a later call reads it again.
 
     The message is the reason ``_read`` logs.
     """
@@ -520,7 +520,7 @@ async def fetch_pages(
 
     Returns:
         A ``JobDict`` per fetched posting and ``None`` per posting LinkedIn
-        reports gone. A posting that failed has no key, so a rerun retries it.
+        reports gone. A posting that failed has no key and no cache row.
     """
     if not wanted:
         return {}
@@ -584,8 +584,8 @@ async def postings(
     URLs are tried directly; an uncertain ``www`` address falls back to a
     guest-fragment lookup. Other references need that lookup first.
     A reference maps to ``None`` when LinkedIn reports its posting gone.
-    A failed request or persistent 429 is logged and leaves out the affected
-    references, so a rerun retries them. The caller owns ``fetcher``.
+    A failed request or persistent 429 is logged and leaves the affected
+    references out of the result and of the cache.
 
     Raises:
         ValueError: A reference is neither a numeric posting ID nor a LinkedIn

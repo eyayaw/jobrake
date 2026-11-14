@@ -305,7 +305,7 @@ async def _pages(
             result, lambda payload: _parse_jobs(payload, base_url), site="indeed"
         )
         # A page without results ends the search. A page whose results all
-        # failed to parse costs only those results; its cursor still advances.
+        # failed to parse yields none, and its cursor still advances.
         if not raw:
             break
         served += raw
@@ -359,13 +359,11 @@ async def search(
     ``language`` takes Indeed's two-letter code in either case, such as ``"en"``, including the legacy codes ``"iw"`` and ``"in"``.
     The supplied filters combine on every page.
     Age uses Indeed's ``dateOnIndeed`` field, which can differ from the publication timestamp returned as ``posted_at``.
-    The caller owns ``fetcher``.
 
     Each request asks for 100 jobs, newest first. The returned list keeps
-    that order and trims the final page to ``results``, which Indeed caps at
-    ``MAX_RESULTS`` with a warning. Requests are neither paced nor retried. A
-    malformed result costs only that result. An invalid field costs only that
-    field.
+    that order and stops at ``results``. Indeed serves at most
+    ``MAX_RESULTS`` results per search, and a search that reaches that cap
+    short of ``results`` warns. Requests are neither paced nor retried.
 
     Raises:
         Stopped: A request failed, or Indeed answered with an error or an

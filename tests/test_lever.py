@@ -119,7 +119,7 @@ def test_a_board_parses_into_records():
     assert fetcher.requests == [f"{GLOBAL}/palantir?mode=json"]
 
 
-def test_a_creation_time_in_seconds_costs_only_its_field(caplog):
+def test_a_creation_time_in_seconds_is_left_out_with_a_warning(caplog):
     posting = {**POSTINGS[0], "createdAt": 1786469891}
     fetcher = StubFetcher({"api.lever.co": ok(json.dumps([posting]))})
     (job,) = asyncio.run(lever.search(fetcher, board="palantir"))
@@ -141,7 +141,7 @@ def test_the_description_keeps_every_section_on_its_own_line():
     assert job["description"] == (
         "Build software\nRequirements\nPython\nPlus commission\nBenefits included"
     )
-    # An unreadable lists field costs only its own sections.
+    # An unreadable lists field loses only its own sections.
     fetcher = StubFetcher({"api.lever.co": ok(json.dumps([{**posting, "lists": 1}]))})
     (job,) = asyncio.run(lever.search(fetcher, board="palantir"))
     assert job["description"] == "Build software\nPlus commission\nBenefits included"
