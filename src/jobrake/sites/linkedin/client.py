@@ -199,13 +199,11 @@ async def paced_fetch(fetcher: Fetcher, url: str) -> FetchResult:
             return result
         try:
             target = urljoin(result.url, location)
-            parts = urlsplit(target)
-            if parts.scheme != "https" or not (
-                parts.hostname == "linkedin.com" or (parts.hostname or "").endswith(".linkedin.com")
-            ):
-                raise ValueError("expected an HTTPS LinkedIn URL")
-        except ValueError as error:
-            result.error = f"invalid LinkedIn redirect: {error}"
+        except ValueError:
+            # on_linkedin rejects a Location that cannot be parsed.
+            target = location
+        if not on_linkedin(target):
+            result.error = f"invalid LinkedIn redirect: {location} is not an HTTPS LinkedIn URL"
             return result
         url = target
     result.error = f"LinkedIn exceeded {_MAX_REDIRECTS} redirects"
@@ -252,6 +250,22 @@ async def _fetch_on_turn(fetcher: Fetcher, url: str, tried: set[str]) -> FetchRe
     if answered := result.headers.get("x-li-fabric"):
         tried.add(answered)
     return result
+
+
+def on_linkedin(url: str) -> bool:
+    """Tell whether a URL is an HTTPS LinkedIn address with the default port and no credentials."""
+    try:
+        parts = urlsplit(url)
+        port = parts.port
+    except ValueError:
+        return False
+    host = parts.hostname or ""
+    return (
+        parts.scheme == "https"
+        and (host == "linkedin.com" or host.endswith(".linkedin.com"))
+        and port in (None, 443)
+        and "@" not in parts.netloc
+    )
 
 
 def numeric(text: str) -> bool:

@@ -49,6 +49,8 @@ def test_linkedin_parses_cards_and_dedups_by_posting_id():
         + linkedin_card("222")
         + linkedin_card("other-111")
         + linkedin_card("search")
+        # details=True would request a card's link, so a link off LinkedIn is no card.
+        + linkedin_card("role-333").replace("www.linkedin.com", "jobs.example.net")
     )
     fetcher = StubFetcher({"seeMoreJobPostings": ok(html)})
     jobs = asyncio.run(linkedin.search(fetcher, query="economist", location="Seattle", results=3))
@@ -241,6 +243,9 @@ def test_invalid_redirects_fail_before_another_request():
         for location in (
             "http://www.linkedin.com/page",
             "https://linkedin.com.evil.test/page",
+            "https://evillinkedin.com/page",
+            "https://www.linkedin.com:8443/page",
+            "https://user:secret@www.linkedin.com/page",
             "https://[bad",
         ):
             fetcher = StubFetcher(
@@ -1413,6 +1418,10 @@ def test_postings_resolve_an_id_before_fetching_the_page():
         "https://example.test/private-123",  # another site's page ending in digits
         "https://nl.linkedin.com/company/acme-111",  # linkedin, but not a posting
         "ftp://nl.linkedin.com/jobs/view/economist-at-acme-111",  # not a web address
+        "http://nl.linkedin.com/jobs/view/economist-at-acme-111",  # a cleartext request
+        "https://notlinkedin.com/jobs/view/economist-at-acme-111",  # a host that ends alike
+        "https://nl.linkedin.com:8443/jobs/view/economist-at-acme-111",  # another port
+        "https://user:secret@nl.linkedin.com/jobs/view/economist-at-acme-111",  # credentials
         "https://nl.linkedin.com/jobs/view/economist-at-acme-\uff11\uff11\uff11",  # fullwidth digits
         "   ",  # a blank argument, which names nothing at all
     ],
