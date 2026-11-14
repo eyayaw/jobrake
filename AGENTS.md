@@ -101,8 +101,8 @@ the CLI, and the contract test in `tests/test_scrape.py` need no edit.
 - A caller can tell a cut-short result from a complete one. A failed
   request, or a page that ends a search short of the total the site
   reported, raises `Stopped`, whose `partial` holds what was collected. A
-  site's own result cap warns and returns, because a rerun meets it again. `postings` never raises `Stopped`
-  and leaves a failed reference out of its result.
+  site's own result cap warns and returns, because a rerun meets it again.
+  `postings` never raises `Stopped` and leaves a failed reference out of its result.
 - A site whose search cards lack fields its posting endpoint serves takes
   `details` on `search` and exports `postings(fetcher, references)`, so a
   caller can fill cards in the same run or a later one. A reference is at

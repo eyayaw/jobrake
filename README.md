@@ -95,7 +95,8 @@ uv tool install git+https://github.com/eyayaw/jobrake
 uv add git+https://github.com/eyayaw/jobrake
 ```
 
-Releases before 1.0 can break the API, so pin a tag in a project: `uv add git+https://github.com/eyayaw/jobrake --tag <tag>`.
+Releases before 1.0 can break the API, so pin a tag in a project:
+`uv add git+https://github.com/eyayaw/jobrake --tag <tag>`.
 The [changelog](https://github.com/eyayaw/jobrake/blob/main/CHANGELOG.md) marks each breaking change.
 
 ## Usage
@@ -199,12 +200,15 @@ for pagination, rate limits, and retries.
 
 ## Contributing
 
-Issues and pull requests are welcome. [`AGENTS.md`](https://github.com/eyayaw/jobrake/blob/main/AGENTS.md) describes the
-layout and the design rules, and `prek run --all-files`, with [prek](https://github.com/j178/prek) installed, runs the hooks CI runs.
+Issues and pull requests are welcome.
+[`AGENTS.md`](https://github.com/eyayaw/jobrake/blob/main/AGENTS.md) describes the layout and the design rules,
+and `prek run --all-files`, with [prek](https://github.com/j178/prek) installed, runs the hooks CI runs.
 
 ## Credits
 
-jobrake's Indeed GraphQL endpoint and LinkedIn guest-search approach are adapted from [python-jobspy](https://pypi.org/project/python-jobspy/). Huge thanks. jobrake adds employers' own boards and EconJobMarket.
+jobrake's Indeed GraphQL endpoint and LinkedIn guest-search approach are adapted from
+[python-jobspy](https://pypi.org/project/python-jobspy/). Huge thanks.
+jobrake adds employers' own boards and EconJobMarket.
 
 ## Disclaimer
 
@@ -212,5 +216,6 @@ jobrake's Indeed GraphQL endpoint and LinkedIn guest-search approach are adapted
 > jobrake has no affiliation with any of the [supported sites](#supported-job-boards).
 > Use it for your own job search, not to collect postings at scale or republish them.
 > Scraping may violate their ToS, and any of them may rate-limit or block your IP address.
-> EconJobMarket offers its ad feed for personal use and academic research, and redisplaying its ads on your own website
-> needs EconJobMarket's approval. You are responsible for checking and complying with their terms.
+> EconJobMarket offers its ad feed for personal use and academic research,
+> and redisplaying its ads on your own website needs EconJobMarket's approval.
+> You are responsible for checking and complying with their terms.
