@@ -159,6 +159,9 @@ def _build_parser() -> _ArgumentParser:
         for name in (name for name in COMMANDS if name in module.__all__):
             function = getattr(module, name)
             command = _add_parser(commands.add_parser, name, function)
+            # main() reports an error it finds after parsing through this
+            # parser, so the message names the command and its help.
+            command.set_defaults(command_parser=command)
             _add_arguments(command, function)
             if name not in _WRITES_POSTINGS:
                 continue
@@ -320,9 +323,10 @@ def main() -> int | None:
     options = {name: vars(args)[name] for name in site_options(function) if name in vars(args)}
     # A lookup prints its candidates and has no output to settle. A search and a
     # posting fetch settle theirs before spending any requests.
-    fmt = _settle_output(parser, args) if args.command in _WRITES_POSTINGS else None
+    command = args.command_parser
+    fmt = _settle_output(command, args) if args.command in _WRITES_POSTINGS else None
     try:
-        found, status = _run(parser, function, options)
+        found, status = _run(command, function, options)
     finally:
         # An exceptional exit would otherwise start its traceback beside the progress line.
         handler.clear()

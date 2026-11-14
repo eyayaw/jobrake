@@ -356,7 +356,7 @@ def test_invalid_output_fails_before_scraping(run_cli, stub_search, tmp_path, ca
     assert f"output file already exists: {dangling}" in errors
     assert f"output directory is not writable: {locked}" in errors
     assert "usage:" not in errors
-    assert errors.count("Run 'jobrake -h' for help.") == 6
+    assert errors.count("Run 'jobrake indeed search -h' for help.") == 6
 
 
 def test_status_handler_progress():
