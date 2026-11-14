@@ -1,7 +1,7 @@
 [project]
 name = "jobrake"
 version = "0.26.0"
-description = "Read job postings from LinkedIn, Indeed, EconJobMarket, and employers' ATS boards as records with the same fields."
+description = "Read job postings from LinkedIn, Indeed, EconJobMarket, and ATS boards, all in one schema."
 readme = "README.md"
 requires-python = ">=3.15"
 authors = [{ name = "Eyayaw Beze" }]
