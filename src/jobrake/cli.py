@@ -290,11 +290,9 @@ def _write_jobs(args: argparse.Namespace, jobs: list[JobDict], fmt: str) -> int 
     if not jobs:
         logger.warning("no jobs found, so %s was not created", args.output)
         return None
-    # Render before creating the file, so a render that fails leaves none behind.
-    text = RENDERERS[fmt](jobs)
     try:
         with args.output.open("x", encoding="utf-8") as output:
-            output.write(text)
+            output.write(RENDERERS[fmt](jobs))
     except OSError as error:
         logger.error(  # noqa: TRY400  the message says what failed
             "could not write %s: %s", args.output, error
