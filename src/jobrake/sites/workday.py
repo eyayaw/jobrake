@@ -24,7 +24,13 @@ PAGE_SIZE = 20
 MAX_TOTAL = 2000
 
 EXAMPLE_BOARD = "https://zillow.wd5.myworkdayjobs.com/Zillow_Group_External"
-_HOST = re.compile(r"[a-z0-9-]+\.wd\d+\.myworkdayjobs\.com")
+# A career site has a host of its own, <tenant>.wd<n>.myworkdayjobs.com/<site>,
+# or a path on a shared one, wd<n>.myworkdaysite.com/recruiting/<tenant>/<site>.
+# Both serve the API at /wday/cxs/<tenant>/<site> on the same host, and a posting's
+# path below the site is the same on both (measured 2026-11-14 on one career site of
+# each kind).
+_OWN_HOST = re.compile(r"([a-z0-9-]+)\.wd\d+\.myworkdayjobs\.com")
+_SHARED_HOST = re.compile(r"wd\d+\.myworkdaysite\.com")
 _LOCALE = re.compile(r"[a-z]{2}-[A-Z]{2}")
 _POSTED = re.compile(r"Posted (?:Today|(Yesterday)|(\d{1,4}) Days Ago)")
 # The requisition ID follows the first underscore of the path's last segment,
@@ -39,29 +45,37 @@ def _career_site(board: str) -> tuple[str, str, str, str]:
     """
     Split a career site URL into its tenant, site URL, API URL, and the path after the site name.
 
-    A locale segment such as ``en-US`` before the site name is skipped. The
+    A leading locale segment such as ``en-US`` is skipped. The
     API serves a site and its postings under their public paths.
 
     Raises:
-        ValueError: ``board`` is not a ``myworkdayjobs.com`` career site URL,
-            names a port, or is an API address under ``/wday/``.
+        ValueError: ``board`` is not a Workday career site URL, names a port,
+            or is an API address under ``/wday/``.
     """
     parts = urlsplit(board.strip())
     host = parts.hostname or ""
     names = [name for name in parts.path.split("/") if name]
     if names and _LOCALE.fullmatch(names[0]):
         names = names[1:]
+    tenant, prefix = "", ""
+    if own := _OWN_HOST.fullmatch(host):
+        tenant = own[1]
+    elif _SHARED_HOST.fullmatch(host) and names[:1] == ["recruiting"] and len(names) > 1:
+        # The API answers a tenant in lowercase only (measured 2026-11-14).
+        tenant = names[1].lower()
+        prefix, names = f"/recruiting/{tenant}", names[2:]
     # The requests go to the host alone, so an authority with more, such as a port, is refused.
-    bare = parts.netloc.lower() == host and _HOST.fullmatch(host)
+    bare = parts.netloc.lower() == host and tenant
     if parts.scheme not in {"http", "https"} or not bare or not names or names[0] == "wday":
         raise ValueError(
             f"board {board!r} is not a Workday career site URL. Pass the address a visitor "
-            f"sees, https://<tenant>.wd<n>.myworkdayjobs.com/<site>, such as {EXAMPLE_BOARD}"
+            f"sees, https://<tenant>.wd<n>.myworkdayjobs.com/<site> or "
+            f"https://wd<n>.myworkdaysite.com/recruiting/<tenant>/<site>, such as {EXAMPLE_BOARD}"
         )
-    tenant, career_site, rest = host.partition(".")[0], names[0], "/".join(names[1:])
+    career_site, rest = names[0], "/".join(names[1:])
     return (
         tenant,
-        f"https://{host}/{career_site}",
+        f"https://{host}{prefix}/{career_site}",
         f"https://{host}/wday/cxs/{tenant}/{career_site}",
         f"/{rest}" if rest else "",
     )

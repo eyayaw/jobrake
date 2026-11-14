@@ -283,7 +283,19 @@ def test_a_board_url_names_its_career_site():
     fetcher = StubFetcher({"/jobs": ok(page([]))})
     asyncio.run(workday.search(fetcher, board=copied))
     assert fetcher.requests == [f"{API}/jobs"]
+    # A career site on the shared host names its tenant in the path, and the API
+    # takes that tenant in lowercase.
+    host = "https://wd5.myworkdaysite.com"
+    site, api = f"{host}/recruiting/guidewire/external", f"{host}/wday/cxs/guidewire/external"
+    path = POSTING.removeprefix(BOARD)
+    fetcher = StubFetcher({"/jobs": ok(page(CARDS[:1])), path: ok(json.dumps(DETAIL))})
+    [job] = asyncio.run(workday.search(fetcher, board=f"{host}/recruiting/Guidewire/external"))
+    assert (job["id"], job["url"]) == ("guidewire:JR1996377", site + path)
+    asyncio.run(workday.postings(fetcher, [job["url"]]))
+    assert fetcher.requests == [f"{api}/jobs", api + path]
     for board in (
+        "https://wd5.myworkdaysite.com/recruiting/guidewire",
+        "https://wd5.myworkdaysite.com/guidewire/external",
         "https://nvidia.wd5.myworkdaysite.com/recruiting/nvidia/NVIDIAExternalCareerSite",
         "https://nvidia.wd5.myworkdayjobs.com/en-US",
         "nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite",

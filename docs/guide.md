@@ -478,7 +478,7 @@ Workday has no board token. Pass the address of the employer's job search page i
 copied from the browser, such as `https://zillow.wd5.myworkdayjobs.com/Zillow_Group_External`.
 The address has the form `https://<tenant>.wd<n>.myworkdayjobs.com/<site>`, with or without a
 language part such as `en-US` before the site name. A posting's address on the same site works too.
-Addresses on `myworkdaysite.com` are not supported.
+Some employers' sites live at `https://wd<n>.myworkdaysite.com/recruiting/<tenant>/<site>`, which works the same way.
 An address jobrake cannot read stops before any request with an error that shows the expected form,
 and a site name Workday does not know stops the search with an error that says so.
 
