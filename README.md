@@ -6,15 +6,17 @@
   </picture>
 </div>
 
-___Scrape job postings together and heap them up.___ Read the launch post [here](https://eyayaw.github.io/posts/jobrake-for-the-job/).
+___The job boards shed new postings every day. Bring a rake.___
+
+jobrake is a Python package and CLI tool for fetching job postings from LinkedIn, Indeed,
+EconJobMarket, and employers' boards on [major](#supported-job-boards) applicant tracking systems.
+It returns each posting as a record with the same fields, whichever site it came from.
 
 > Read it as "**job-rake**".
 >
 > Say it quickly and you hear "**job break**"—a break from the search doomscroll. (^_~)
 >
 > _Did **Jo** show up? **Jo** hit the **brake**, too._
-
-jobrake is a Python package and CLI tool for fetching job postings from LinkedIn, Indeed, EconJobMarket, and employers' boards on six applicant tracking systems.
 
 <table>
 <tr>
@@ -33,16 +35,52 @@ jobrake linkedin search \
 <td valign="top" width="50%">
 
 ```sh
-jobrake indeed search \
-  -q "data scientist" \
-  -l amsterdam -c nl \
-  -a 48 \
-  -n 5 \
-  --radius 100
+jobrake greenhouse search \
+  --board anthropic
 ```
 </td>
 </tr>
 </table>
+
+A LinkedIn search and an employer's board on Greenhouse return records with the same keys, such as this one from LinkedIn:
+
+```json
+{
+  "site": "linkedin",
+  "id": "4447222173",
+  "url": "https://www.linkedin.com/jobs/view/data-scientist-smb-ads-growth-at-openai-4447222173",
+  "title": "Data Scientist, SMB Ads Growth",
+  "company": "OpenAI",
+  "locations": [
+    {
+      "name": "San Francisco, CA",
+      "city": "San Francisco",
+      "region": "CA",
+      "country_code": "US",
+      "latitude": 37.78008,
+      "longitude": -122.42016
+    }
+  ],
+  "date": "2026-11-13",
+  "description": "About The Role\nOpenAI's ads platform is experiencing rapid global scale. ...",
+  "company_url": "https://www.linkedin.com/company/openai",
+  "company_logo": "https://media.licdn.com/dms/image/v2/D560BAQHpzXbqSyR74A/company-logo_200_200/...",
+  "employment_type": "full_time",
+  "salary_min": 293000,
+  "salary_max": 515000,
+  "salary_currency": "USD",
+  "salary_period": "YEAR",
+  "posted_at": "2026-11-13T14:15:13.000Z",
+  "expires_at": "2027-01-26T23:14:46.000Z",
+  "apply_type": "offsite",
+  "applicants": 200,
+  "experience_months": 60,
+  "education": "bachelor degree"
+}
+```
+
+The description and the logo URL are cut short for brevity.
+The [reference](https://github.com/eyayaw/jobrake/blob/main/docs/reference.md#returned-fields) describes every key.
 
 ## Installation
 

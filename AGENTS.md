@@ -151,7 +151,8 @@ the CLI, and the contract test in `tests/test_scrape.py` need no edit.
 - Describe detail fields as what we extract, when present, and avoid "the
   posting states". "Hydrate" stays in code docstrings, and the README says "fetch" or "fill".
 - The tagline is one image with no feature list: "The job boards shed new
-  postings every day. Bring a rake."
+  postings every day. Bring a rake." It heads the README. The package and
+  repository descriptions say what jobrake does.
 - Keep the README as a short landing page. Put detailed usage and output in
   `docs/guide.md`, and each site's fields and request behavior in
   `docs/reference.md`.
