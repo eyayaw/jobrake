@@ -10,6 +10,7 @@ import sys
 import time
 from collections.abc import Awaitable, Callable
 from contextlib import suppress
+from gettext import ngettext
 from pathlib import Path
 from types import ModuleType
 from typing import Any, Never, TextIO, override
@@ -281,11 +282,12 @@ def _write_jobs(args: argparse.Namespace, jobs: list[JobDict], fmt: str) -> int 
     Returns:
         ``1`` when stdout closes early or the file cannot be written. ``None`` otherwise.
     """
+    count = len(jobs)
     if args.output is None:
-        logger.info("found %d jobs", len(jobs))
+        logger.info(ngettext("found %d job", "found %d jobs", count), count)
         return _write_stdout(RENDERERS[fmt](jobs))
     if not jobs:
-        logger.warning("no jobs found; leaving %s untouched", args.output)
+        logger.warning("no jobs found, so %s was not created", args.output)
         return None
     # Render before creating the file, so a render that fails leaves none behind.
     text = RENDERERS[fmt](jobs)
@@ -297,7 +299,7 @@ def _write_jobs(args: argparse.Namespace, jobs: list[JobDict], fmt: str) -> int 
             "could not write %s: %s", args.output, error
         )
         return 1
-    logger.info("wrote %d jobs to %s", len(jobs), args.output)
+    logger.info(ngettext("wrote %d job to %s", "wrote %d jobs to %s", count), count, args.output)
     return None
 
 
