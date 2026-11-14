@@ -42,12 +42,17 @@ def test_employment_type_is_unified_across_sites():
 
 
 def test_workplace_type_reads_the_sites_labels_and_nothing_else():
-    labels = ("OnSite", "on-site", "Remote", "Hybrid")  # Ashby's and Lever's spellings
-    assert [workplace_type(label) for label in labels] == ["on_site", "on_site", "remote", "hybrid"]
+    # Ashby's OnSite, then the spelling Lever's API sends and the one its README lists.
+    labels = ("OnSite", "onsite", "on-site", "Remote", "Hybrid")
+    assert [workplace_type(label) for label in labels] == [
+        "on_site",
+        "on_site",
+        "on_site",
+        "remote",
+        "hybrid",
+    ]
     # Lever's unspecified, and slugs of labels no site sends, are no workplace type.
-    assert [workplace_type(label) for label in ("unspecified", "onsite", "Hybrid work", None)] == [
-        None
-    ] * 4
+    assert [workplace_type(label) for label in ("unspecified", "Hybrid work", None)] == [None] * 3
     assert "workplace_type" not in make_job(site="x", id="1", url="u", workplace_type="anywhere")
 
 

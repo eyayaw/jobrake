@@ -245,7 +245,17 @@ def employment_type(label: str | None) -> str | None:
     return _EMPLOYMENT_ALIASES.get(slug, slug) if slug else None
 
 
+# Lever's API sends onsite, where https://github.com/lever/postings-api lists
+# on-site (Spotify's board, 2026-11-14).
+_WORKPLACE_ALIASES = {"onsite": "on_site"}
+
+
 def workplace_type(label: str | None) -> WorkplaceType | None:
-    """Return a site's workplace label, such as Ashby's ``OnSite`` or Lever's ``on-site``, as ``remote``, ``hybrid``, or ``on_site``, or None for any other label."""
+    """
+    Return a site's workplace label as ``remote``, ``hybrid``, or ``on_site``.
+
+    Ashby's ``OnSite`` and Lever's ``onsite`` both read as ``on_site``. Any other label gives None.
+    """
     slug = _slug(label)
+    slug = _WORKPLACE_ALIASES.get(slug, slug)
     return next((kind for kind in WORKPLACE_TYPES if kind == slug), None)
