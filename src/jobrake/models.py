@@ -219,11 +219,12 @@ class Stopped(Exception):
     """
     A search or lookup that could not finish.
 
-    A request failed, the site has no such board or sent a response jobrake
-    cannot read, a page ended a search short of the total the site reported,
-    or a posting's details could not be fetched. ``partial`` holds the records
-    the call collected, ``[]`` when there are none. After a failed details
-    fetch it holds every card, with details where their fetch succeeded.
+    A request failed, the site reported an error or has no such board, its
+    response could not be read, a page ended a search short of the total the
+    site reported, or a posting's details could not be fetched. ``partial``
+    holds the records the call collected, ``[]`` when there are none. After a
+    failed details fetch it holds every card, with details where their fetch
+    succeeded.
     """
 
     def __init__(self, message: str, *, partial: list[JobDict] | None = None) -> None:
