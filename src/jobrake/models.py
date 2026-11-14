@@ -4,7 +4,7 @@ import math
 import re
 from typing import Any, Literal, NotRequired, TypedDict, cast, get_args
 
-from jobrake.utils import as_str, finite, iso_date
+from jobrake.utils import as_str, finite, iso_date, well_formed
 
 WorkplaceType = Literal["remote", "hybrid", "on_site"]
 WORKPLACE_TYPES: tuple[WorkplaceType, ...] = get_args(WorkplaceType)
@@ -177,17 +177,6 @@ def _detail(name: str, value: object) -> object:
     return value
 
 
-def _encodable(value: Any) -> Any:  # noqa: ANN401  any JSON value
-    """Return a JSON value with each lone surrogate in its text replaced by U+FFFD."""
-    if isinstance(value, str):
-        return value.encode("utf-16", "surrogatepass").decode("utf-16", "replace")
-    if isinstance(value, list):
-        return [_encodable(item) for item in value]
-    if isinstance(value, dict):
-        return {_encodable(key): _encodable(item) for key, item in value.items()}
-    return value
-
-
 def make_job(**fields: Any) -> JobDict:
     """
     Build a ``JobDict`` from a site's fields, normalizing their text.
@@ -205,7 +194,7 @@ def make_job(**fields: Any) -> JobDict:
     """
     if unknown := fields.keys() - set(JOB_FIELDS):
         raise TypeError(f"not a job field: {', '.join(sorted(unknown))}")
-    fields = _encodable(fields)
+    fields = well_formed(fields)
     job: dict[str, Any] = {}
     for name in IDENTITY_FIELDS:
         value = fields.get(name)

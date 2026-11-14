@@ -107,12 +107,15 @@ def test_places_lists_edition_suggestions():
         {"suggestion": "   ", "payload": {"locationType": "CITY"}},
         {"suggestion": "Boston Common, MA", "payload": {"locationType": {"bad": 1}}},
         {"suggestion": "Boston Massacre Marker, MA", "payload": {"locationType": "MISC"}},
+        # Half of a surrogate pair, which the CLI's UTF-8 output could not encode.
+        {"suggestion": "Boston \ud83d, MA", "payload": {"locationType": "CITY"}},
     ]
     fetcher = StubFetcher({"suggestions/location": ok(json.dumps(hits))})
     assert asyncio.run(indeed.places(fetcher, "boston", country="us")) == [
         {"id": "Boston, MA", "name": "Boston, MA"},
         {"id": "Boston Common, MA", "name": "Boston Common, MA"},
         {"id": "Boston Massacre Marker, MA", "name": "Boston Massacre Marker, MA"},
+        {"id": "Boston \ufffd, MA", "name": "Boston \ufffd, MA"},
     ]
     assert "country=US" in fetcher.requests[0]
     with pytest.raises(ValueError, match="country"):
