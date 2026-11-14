@@ -149,10 +149,10 @@ class Fabrics:
         Update the pool from the answer to one request.
 
         ``pinned`` is the fabric ``pick`` chose for the request, and ``sent``
-        the time ``pick`` recorded for its send. learn stores the answering
+        the time ``pick`` recorded for its send. It stores the answering
         fabric's lidc cookie, drops a pin whose request landed elsewhere, and
-        records the send on a fabric that answered a request pick did not pin
-        to it.
+        records the send on a fabric that answered a request ``pick`` did not
+        pin to it.
         """
         fabric = result.headers.get("x-li-fabric")
         logger.debug(

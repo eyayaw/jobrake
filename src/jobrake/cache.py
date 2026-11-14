@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS jobs (
 
 def _env_seconds(name: str, default: float) -> float:
     """
-    Return an environment variable as seconds, or ``default`` when it is unset.
+    Return an environment variable as seconds, or ``default`` when it is unset or empty.
 
     A value that is not a finite positive number logs a warning and gives ``default`` too.
     """
@@ -85,7 +85,7 @@ class Cache:
 
     def __init__(self, path: str | Path | None = None) -> None:
         """
-        Take the row lifetime from ``JOBRAKE_CACHE_TTL``, or ``TTL`` without it.
+        Take the row lifetime from ``JOBRAKE_CACHE_TTL``, falling back to ``TTL``.
 
         An omitted ``path`` selects ``JOBRAKE_CACHE_PATH`` or the platform
         user-cache directory. The database opens on first use.

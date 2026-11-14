@@ -92,10 +92,10 @@ async def search(
     List every published posting on one employer's Workable board.
 
     ``board`` is the token that follows the host in the careers page address,
-    as in ``apply.workable.com/huggingface``. One request, neither paced nor
-    retried, returns the whole board, descriptions included, in Workable's
-    order. A posting open in several places comes back once, with each place
-    in ``locations``.
+    as in ``apply.workable.com/huggingface``. One request returns the whole
+    board, descriptions included, in Workable's order. A posting open in
+    several places comes back once, with each place in ``locations``. The
+    request is neither paced nor retried.
 
     Raises:
         Stopped: The request failed, Workable has no such board, or it sent

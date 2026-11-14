@@ -141,7 +141,7 @@ def test_the_description_keeps_every_section_on_its_own_line():
     assert job["description"] == (
         "Build software\nRequirements\nPython\nPlus commission\nBenefits included"
     )
-    # An unreadable lists field loses only its own sections.
+    # An unreadable lists field drops only its own sections from the description.
     fetcher = StubFetcher({"api.lever.co": ok(json.dumps([{**posting, "lists": 1}]))})
     (job,) = asyncio.run(lever.search(fetcher, board="palantir"))
     assert job["description"] == "Build software\nPlus commission\nBenefits included"

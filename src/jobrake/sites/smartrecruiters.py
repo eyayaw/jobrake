@@ -259,7 +259,8 @@ async def postings(
     ``url`` or the posting's ``postingUrl``, which adds a title slug, and
     references naming one posting share one request. A reference maps to
     ``None`` when SmartRecruiters reports its posting gone. After a failed
-    request or an unreadable response it has no key, and a warning names it.
+    request or an unreadable response it has no key, and a warning names its
+    posting.
 
     Raises:
         ValueError: A reference is not a SmartRecruiters posting URL. Nothing

@@ -363,7 +363,7 @@ async def search(
 
     Each request asks for 100 jobs, newest first. The returned list keeps
     that order and stops at ``results``. Indeed serves at most
-    ``MAX_RESULTS`` results per search, and a search that reaches that cap
+    ``MAX_RESULTS`` jobs per search, and a search that reaches that cap
     short of ``results`` warns. Requests are neither paced nor retried.
 
     Raises:

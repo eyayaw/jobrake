@@ -291,7 +291,7 @@ async def postings(
     ``url``, the posting's address on its career site, and references naming
     one posting share one request. A reference maps to ``None`` when Workday
     reports its posting gone. After a failed request or an unreadable
-    response it has no key, and a warning names it.
+    response it has no key, and a warning names its posting.
 
     Raises:
         ValueError: A reference is not a Workday posting URL. Nothing is
