@@ -141,8 +141,8 @@ async def _pages(
             # A site that served a page exists, so a later 404 is a failed request.
             unknown=unknown if total is None else None,
         )
-        # One of the two sites measured at PAGE_SIZE reported total 0 on every
-        # page after the first, so the first page's total stands.
+        # A career site can report total 0 on later pages (measured
+        # 2026-11-14), so the first page's total stands.
         total = page_total if total is None else total
         if not cards and offset < total:
             raise Stopped(
@@ -163,10 +163,11 @@ async def _pages(
 
 
 def _withdrawn(text: str) -> bool:
-    # career-ops reads a 403 whose body names error S22 as a withdrawn posting
-    # (liveness-api.mjs in https://github.com/career-ops-hq/career-ops, checked
-    # 2026-11-14). No such answer was seen here. Any other 403 is a block,
-    # which a rerun may pass.
+    # A posting taken off its career site can answer 403 with error S22 in the
+    # body (measured 2026-11-14 on two career sites). career-ops reads that
+    # answer the same way (liveness-api.mjs in
+    # https://github.com/career-ops-hq/career-ops, checked 2026-11-14). Any
+    # other 403 is a block, which a rerun may pass.
     try:
         return as_dict(json.loads(text)).get("errorCode") == "S22"
     except ValueError:
