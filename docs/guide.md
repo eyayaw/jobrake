@@ -569,7 +569,7 @@ jobrake indeed search -q "data scientist" -c us -n 2 \
 Library calls log under the `jobrake` logger, and your application sets its level and handlers.
 jobrake logs INFO records whose `progress` attribute holds `(done, total)` while a LinkedIn, Indeed, Workday, or SmartRecruiters search reads its pages, and while LinkedIn, Workday, or SmartRecruiters fetches posting details.
 A search counts its postings toward `results`, or toward the site's own limit when that is smaller, and stops below `total` when the site runs out first.
-While it fetches details, LinkedIn reads several posting pages concurrently, counts cached pages at the start, and advances progress as each read finishes.
+While it fetches LinkedIn details, jobrake reads posting pages concurrently, counts cached pages at the start, and advances progress as each read finishes.
 The CLI draws its progress line from these records, and a handler of your own can do the same:
 
 ```python
@@ -619,12 +619,12 @@ On Indeed, EconJobMarket, and the employer boards, jobrake skips a posting it ca
 
 ## Cache location and lifetimes
 
-jobrake keeps the LinkedIn postings it fetched in one SQLite file under your user cache directory: `~/Library/Caches/jobrake/` on macOS, `$XDG_CACHE_HOME/jobrake/` on Linux, or `~/.cache/jobrake/` when that variable is unset, and `%LOCALAPPDATA%\jobrake\` on Windows.
+jobrake keeps the LinkedIn postings it fetched in one SQLite file under your user cache directory: `~/Library/Caches/jobrake/` on macOS, `$XDG_CACHE_HOME/jobrake/` on Linux (`~/.cache/jobrake/` when that variable is unset), and `%LOCALAPPDATA%\jobrake\` on Windows.
 No other site is cached.
 
 A cached posting stays fresh for seven days and is fetched again after that. A posting that LinkedIn reports gone is not cached.
 An upgrade keeps the cache, and a posting whose cached copy no longer fits the job fields is fetched again.
-After an upgrade that reads posting pages better, a cached posting keeps the fields the earlier version read until it expires.
+A cached posting is not read again after an upgrade. It keeps the fields the older version extracted until it expires.
 
 To refetch every posting at once, move `jobrake.sqlite3` out of the cache directory, or delete it.
 To bypass the cache for one run, point `JOBRAKE_CACHE_PATH` at a new file:

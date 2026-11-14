@@ -18,10 +18,10 @@ Every job is a dictionary, with three groups of keys.
 Identity and summary keys are always present, with `None` for an unavailable summary value and `[]` when jobrake found no place.
 An empty `locations` says only that jobrake extracted no place. It does not say the posting has no place, nor that it is remote.
 
-| Key | Type | Value |
+| Key | Type | Meaning |
 | --- | --- | --- |
 | `site` | string | The site's name, such as `linkedin` |
-| `id` | string | The site's own ID for the posting, unique together with `site` |
+| `id` | string | The posting's ID on the site, unique together with `site` |
 | `url` | string | The posting's page |
 | `title` | string or `None` | The job title |
 | `company` | string or `None` | The employer's name |
@@ -38,18 +38,18 @@ An empty `locations` says only that jobrake extracted no place. It does not say 
 | `salary_min`, `salary_max` | number | The bounds of the salary range, in `salary_currency` per `salary_period` |
 | `salary_currency` | string | The currency code the site gives, such as `USD` |
 | `salary_period` | string | The time unit the amounts cover, such as `YEAR` or `HOUR` |
-| `posted_at` | string | When the posting was published, as an ISO 8601 timestamp, or as a calendar date where the site gives no time |
-| `expires_at` | string | When the posting closes or its application deadline, in the same two forms |
+| `posted_at` | string | When the posting was published or created, as an ISO 8601 timestamp, or as a calendar date where the site gives no time |
+| `expires_at` | string | The posting's closing time or application deadline, in the same two forms |
 | `apply_url` | string | The application form or link |
-| `apply_type` | string | `onsite` for LinkedIn's own application form, `offsite` for the employer's |
+| `apply_type` | string | LinkedIn's apply kind as its page names it: `onsite` for its own application form, `offsite` for the employer's |
 | `applicants` | integer | The applicant count LinkedIn's page shows |
 | `experience_months` | integer | The experience the posting asks for, in whole months |
 | `education` | string | The credential the posting asks for, as the site words it |
 | `site_data` | object | Fields only this site carries, under the site's own names |
 
 The keys from `description` down are the detail keys.
-`employment_type` is a slug of whatever label the site sends, so its values form no fixed list. One Lever board we read labels its postings `permanent`.
-Ashby and LinkedIn's page markup give `salary_period` as `HOUR`, `DAY`, `WEEK`, `MONTH`, or `YEAR`. Indeed's value and the one in LinkedIn's structured data pass through as sent.
+`employment_type` is a slug of the label the site sends, with `contractor` and `intern` read as `contract` and `internship`. Indeed sends one of six labels, and elsewhere the values form no fixed list: Spotify's board on Lever labels its postings `permanent`.
+Ashby gives `salary_period` as `HOUR`, `DAY`, `WEEK`, `MONTH`, or `YEAR`, and so does LinkedIn's page markup. Indeed's value and the one in LinkedIn's structured data pass through as sent.
 
 `locations` lists the posting's places in the site's order. Each place has a `name`, the site's label for it or its parts joined when the site gives no label, and carries `city`, `region`, `country_code`, `latitude`, and `longitude` only when the site gives them for that place.
 `country_code` has the form of an ISO 3166-1 alpha-2 code, such as `US`, and jobrake checks the form only. jobrake parses nothing out of a place's name, so a place named `Seattle, WA` carries no `city` unless the site sent one.
@@ -65,7 +65,7 @@ The sites use the same names for the details they share. Each site's section und
 `apply_type`, `applicants`, and `experience_months` come from LinkedIn only, and LinkedIn carries no `workplace_type`, `apply_url`, or `language`.
 
 A posting can carry two dates. `date` holds the calendar date, such as `2026-09-19`, and `posted_at` holds the full timestamp when the site gives one, such as `2026-09-19T05:00:00+00:00`, and the calendar date otherwise.
-jobrake prefers the date a search result states and falls back to the calendar portion of `posted_at`. Workday with `--details` is the exception, as [Workday fields](#workday-fields) says. Compare on `date`, and read `posted_at` for a time of day.
+jobrake prefers the date a search result states and falls back to the calendar portion of `posted_at`. The exception is Workday with `--details`, where `date` is `posted_at`. Compare on `date`, and read `posted_at` for a time of day.
 
 ## Fields by site
 
