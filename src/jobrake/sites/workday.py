@@ -10,9 +10,9 @@ from typing import Annotated, Any
 from urllib.parse import urlsplit
 
 from jobrake.fetchkit import Fetcher
-from jobrake.models import JobDict, Stopped, employment_type, make_job
+from jobrake.models import JobDict, employment_type, make_job
 from jobrake.sites.postings import fetch_postings, fill_details
-from jobrake.sites.responses import collect, json_page, parse_postings, read_json
+from jobrake.sites.responses import collect, cut_short, json_page, parse_postings, read_json
 from jobrake.utils import as_dict, as_str, checked, html_text
 
 logger = logging.getLogger(__name__)
@@ -156,11 +156,7 @@ async def _pages(
         # so the first page's total stands.
         total = page_total if total is None else total
         if not cards and offset < total:
-            raise Stopped(
-                f"workday site {site_url} reported {total} postings but sent an empty page "
-                f"after {offset}, so the result may be incomplete. Postings may have closed "
-                "during the search. A rerun reads the current list"
-            )
+            raise cut_short(f"workday site {site_url}", total, offset)
         if not cards:
             break
         offset += len(cards)

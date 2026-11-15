@@ -10,9 +10,9 @@ from typing import Annotated, Any
 from urllib.parse import quote, urlencode, urlsplit
 
 from jobrake.fetchkit import Fetcher
-from jobrake.models import JobDict, Stopped, employment_type, make_job
+from jobrake.models import JobDict, employment_type, make_job
 from jobrake.sites.postings import fetch_postings, fill_details
-from jobrake.sites.responses import collect, json_page, parse_postings, read_json
+from jobrake.sites.responses import collect, cut_short, json_page, parse_postings, read_json
 from jobrake.utils import as_dict, as_str, checked, finite, html_text
 
 logger = logging.getLogger(__name__)
@@ -164,11 +164,7 @@ async def _pages(
         if offset >= total:
             return
     if offset < total:
-        raise Stopped(
-            f"smartrecruiters board {token!r} reported {total} postings but sent an empty "
-            f"page after {offset}, so the result may be incomplete. Postings may have "
-            "closed during the search. A rerun reads the current list"
-        )
+        raise cut_short(f"smartrecruiters board {token!r}", total, offset)
     if offset == 0:
         logger.info(
             "smartrecruiters board %r returned no postings. SmartRecruiters answers the same "
