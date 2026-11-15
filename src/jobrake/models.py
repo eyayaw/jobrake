@@ -1,4 +1,4 @@
-"""Normalized job fields shared by the site adapters, and ``Stopped``."""
+"""The ``JobDict`` record every site returns, the helpers that build it, and ``Stopped``."""
 
 import math
 import re
@@ -81,10 +81,11 @@ _ALPHA2 = re.compile(r"[A-Za-z]{2}")
 
 def _place(entry: object) -> dict[str, Any]:
     """
-    Normalize one place, leaving out a blank or malformed part and naming it from its parts when it has no name.
+    Normalize one place, leaving out a blank or malformed part.
 
-    A ``country_code`` that is not two letters, such as a country name, is left out.
-    The result has no ``name`` when the place has neither a name nor a text part.
+    A place without a name is named from its city, region, and country code. A ``country_code``
+    that is not two letters, such as a country name, is left out. The result has no ``name`` when
+    the place has neither a name nor a text part.
 
     Raises:
         TypeError: ``entry`` is not an object or has a key that is not a ``Place`` field.
@@ -203,7 +204,6 @@ def make_job(**fields: Any) -> JobDict:
     for name in DETAIL_FIELDS:
         if (value := _detail(name, fields.get(name))) is not None:
             job[name] = value
-    # Prefer the search date. Fall back to the posting timestamp.
     job["date"] = iso_date(job["date"] or job.get("posted_at"))
     return cast(JobDict, job)
 

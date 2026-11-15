@@ -9,10 +9,10 @@ from jobrake import Stopped, check, scrape
 from jobrake.sites import personio
 
 # Positions from the feeds of tado and gesis, fetched 2026-11-15, trimmed to one short block of
-# description each. The GESIS block has a blank name, as all of that board's first blocks do. The
-# GESIS position also gains an empty block, as some feeds carry, a trailing space in its recruiting
-# category, as 117 of 2,369 measured positions had, and an everphone position's monthly salary,
-# which has no maximum.
+# description each. The GESIS block has a blank name, as all of that board's first blocks do.
+# The GESIS position also gains an empty block, as some feeds carry, and a trailing space in its
+# recruiting category, as 117 of 2,369 measured positions had. Its monthly salary comes from an
+# everphone position and has no maximum.
 WERKSTUDENT = """<position>
     <id>2840027</id>
     <subcompany>tado GmbH</subcompany>

@@ -1064,7 +1064,7 @@ def test_a_posting_page_normalizes_union_valued_fields():
     assert job["employment_type"] == "full_time"  # the first of a list
     assert job["company_url"] == "https://nl.linkedin.com/company/acme"
     assert job["company_logo"] == "https://media.licdn.com/acme.png"  # unwrapped ImageObject
-    # a Country object's name, and only numbers reach the model
+    # a Country object's name, and a latitude only when it is a number
     assert job["locations"] == [{"name": "US", "country_code": "US"}]
 
 

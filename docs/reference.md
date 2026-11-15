@@ -90,7 +90,8 @@ and `posted_at` holds the full timestamp when the site gives one,
 such as `2026-09-19T05:00:00+00:00`, and the calendar date otherwise.
 jobrake prefers the date a search result states and falls back to the calendar portion
 of `posted_at`.
-The exception is Workday with `--details`, where `date` is `posted_at`.
+The exceptions are Workday and StepStone with `--details`, where `date` is the calendar date of the
+`posted_at` that the posting page gives.
 Compare on `date`, and read `posted_at` for a time of day.
 
 ## Fields by site
@@ -295,6 +296,33 @@ from a search result's `url` in a later run.
 
 A Workday record has no salary, workplace type, or application link.
 
+### StepStone fields
+
+A StepStone search result carries `title`, `company`, `locations`, and `date`, and the details
+`language`, `company_logo`, `posted_at`, and `expires_at`. `--details | -d` adds `description`,
+`employment_type`, and `company_url`.
+
+- `locations` holds one place, named as StepStone writes it, with every city of a posting open in
+  several. It adds `country_code`, and `latitude` and `longitude` when StepStone gives them.
+- `date` is the posting's calendar date, `posted_at` the time StepStone dates it, and `expires_at`
+  the time StepStone expects to remove it. `language` is a code such as `de`.
+- `url` opens the posting at `stepstone.de/job/<id>`.
+- `site_data` carries the result's `section`, either `main` or `regionalExtended` for a match
+  outside the radius, and the card's `labels`, such as `REMOTE`, `EASY_APPLY`, and `NO_COVER_LETTER`.
+  `REMOTE` marks a posting that allows home office, though not every such posting carries it.
+- StepStone serves the ad text only on a posting's page, so a search result has no `description`.
+  `--details | -d` fetches each posting, which a cached posting skips, and adds its `description`,
+  `employment_type`, `company_url`, and the place's `city` when the posting names one city.
+  The page dates a posting to when it went online, up to 15 hours after the search result's
+  `posted_at` on 11 postings compared, so `--details` can move `posted_at` and `date`.
+- [`jobrake stepstone postings`](guide.md#fetch-known-postings) builds the same record from a
+  search result's `url` in a later run.
+- A record has no salary, because the range StepStone sends is its own estimate rather than the
+  employer's figure, and no application link. It has no workplace type, because a posting states
+  only whether home office is possible, in the same words for a fully and a partly remote role.
+  `--remote` applies StepStone's own filter for fully remote postings, whose records also lack a
+  workplace type.
+
 ### Personio fields
 
 A Personio record carries `title`, `locations`, and `date`, and the details `posted_at`,
@@ -425,4 +453,16 @@ when that cap cuts a search short.
 Narrow the search with `--query` to reach the rest.
 A failed request raises `Stopped` with the postings collected before it.
 So does an empty page that comes before the number of postings Workday reported,
+because postings may have closed during the search and a rerun may find more.
+
+### StepStone requests
+
+A search reads StepStone's mobile listings API and pages through the results one request after
+another, without pacing, and each request gets a single attempt.
+StepStone mixes in postings outside the radius, so the results can exceed the radius's own matches.
+A search stops at `--results`, at the last match, or at an empty page.
+`--details` and `jobrake stepstone postings` fetch each posting's page for its description,
+one request per posting, which a cached posting skips.
+A failed request raises `Stopped` with the postings of the pages before it.
+So does an empty page that comes before the number of matches StepStone reported,
 because postings may have closed during the search and a rerun may find more.

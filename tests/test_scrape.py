@@ -165,6 +165,7 @@ def test_identify_names_the_site_and_id_a_search_gives(link, named):
         "https://www.indeed.com/viewjob",
         "https://example.com/jobs/view/4449382178",
         # A posting ID holds digits 0-9, and \d also matches other scripts' digits.
+        "https://www.stepstone.de/job/１４５６９０４２",  # noqa: RUF001  fullwidth digits are the input under test
         "https://jobs.smartrecruiters.com/BoschGroup/７４４０００１５８１９７８８９",  # noqa: RUF001  fullwidth digits are the input under test
     ],
 )

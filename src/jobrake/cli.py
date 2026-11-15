@@ -192,10 +192,10 @@ def _write_stdout(text: str) -> int | None:
         # interpreter exit, past this handler.
         sys.stdout.flush()
     except BrokenPipeError:
-        # The downstream reader (e.g. `jobrake ... | head`) stopped early.
-        # Keep this handler local. SIGPIPE, signal(SIGPIPE, SIG_DFL), works only on Unix and
-        # changes signal handling for the whole process. Point stdout at /dev/null so the exit-time
-        # flush stays quiet.
+        # The downstream reader (e.g. `jobrake ... | head`) stopped early. Restoring the default
+        # SIGPIPE action would work only on Unix and would change signal handling for the whole
+        # process, so the handling stays here. Pointing stdout at /dev/null keeps the exit-time
+        # flush quiet.
         with Path(os.devnull).open("w") as devnull:
             os.dup2(devnull.fileno(), sys.stdout.fileno())
         return 1
@@ -316,11 +316,12 @@ def main() -> int | None:
     Returns:
         ``1`` when a search or lookup stops on a failed request, a named posting could not be
         fetched, stdout closes early, or the output file cannot be written.
-        ``130`` when Ctrl-C interrupts the run. Normal completion returns ``None``.
+        ``130`` when Ctrl-C interrupts the run on Windows. Elsewhere the process dies of SIGINT
+        instead. Normal completion returns ``None``.
     """
     parser = _build_parser()
     args = parser.parse_args()
-    # Progress and warnings go to stderr, stdout stays pure data for piping.
+    # Progress and warnings go to stderr, so stdout carries only data for piping.
     # The WARNING root level mutes dependencies such as httpx, which logs every request at INFO.
     # Only jobrake logs progress at INFO.
     handler = _StatusHandler()

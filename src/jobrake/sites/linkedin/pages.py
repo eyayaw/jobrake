@@ -142,7 +142,11 @@ def _company(soup: BeautifulSoup) -> dict[str, Any]:
 
 
 def _apply_type(soup: BeautifulSoup) -> str | None:
-    """Use ``onsite`` for LinkedIn forms and ``offsite`` for employer forms."""
+    """
+    Return the apply kind the page's apply link names.
+
+    LinkedIn names its own form ``onsite`` and an employer's ``offsite``.
+    """
     for element in soup.select("[data-tracking-control-name*='apply-link-']"):
         if found := re.search(r"apply-link-([a-z]+)", str(element["data-tracking-control-name"])):
             return found.group(1)
