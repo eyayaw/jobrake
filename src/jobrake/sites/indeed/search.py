@@ -316,7 +316,10 @@ async def _pages(
         )
 
 
-def _check_filters(company_ids: list[str] | None, language: str | None) -> None:
+def _validate(
+    *, country: str, company_ids: list[str] | None, language: str | None, **_: object
+) -> None:
+    indeed_domain(country)
     # Indeed intersects the employer keys it receives, so a search takes one.
     if len(company_ids or []) > 1:
         raise ValueError(
@@ -329,7 +332,7 @@ def _check_filters(company_ids: list[str] | None, language: str | None) -> None:
         )
 
 
-@checked
+@checked(validator=_validate)
 async def search(
     fetcher: Fetcher,
     *,
@@ -366,7 +369,6 @@ async def search(
             a list holds a blank entry, or ``language`` is not two ASCII letters.
     """
     subdomain, api_code = indeed_domain(country)
-    _check_filters(company_ids, language)
     base_url = f"https://{subdomain}.indeed.com"
     headers = {**API_HEADERS, "indeed-co": api_code}
     logger.info(

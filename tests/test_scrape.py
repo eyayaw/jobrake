@@ -7,7 +7,7 @@ from typing import Annotated
 import pytest
 from fakes import StubFetcher, ok
 
-from jobrake import cli, scrape, sites
+from jobrake import check, cli, scrape, sites
 from jobrake.sites import SITES
 from jobrake.utils import checked, site_options
 
@@ -100,16 +100,20 @@ def test_a_site_function_the_cli_cannot_build_fails_when_decorated(function, mat
         ("linkedin", {"geoid": ""}, ValueError, "must use digits"),
         ("linkedin", {"location": "Seattle", "company_ids": ["Acme"]}, ValueError, "company ID"),
         ("linkedin", {"location": "Seattle", "company_ids": ["１２３"]}, ValueError, "company ID"),  # noqa: RUF001  fullwidth digits are the input under test
+        ("workday", {"board": "https://example.com/jobs"}, ValueError, "not a Workday career site"),
     ],
 )
-def test_scrape_rejects_bad_options_before_any_request(site, kwargs, error, match):
+def test_check_and_scrape_reject_bad_options_before_any_request(site, kwargs, error, match):
+    with pytest.raises(error, match=match):
+        check(site, query="x", **kwargs)
     fetcher = StubFetcher({})
     with pytest.raises(error, match=match):
         asyncio.run(scrape(site, query="x", fetcher=fetcher, **kwargs))
     assert fetcher.requests == []
 
 
-def test_scrape_accepts_an_explicit_zero_radius():
+def test_check_and_scrape_accept_an_explicit_zero_radius():
+    check("linkedin", query="x", location="Seattle", radius=0)
     fetcher = StubFetcher({"seeMoreJobPostings": ok("")})
     asyncio.run(scrape("linkedin", query="x", location="Seattle", radius=0, fetcher=fetcher))
     assert len(fetcher.requests) == 1

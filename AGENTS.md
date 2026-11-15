@@ -9,8 +9,8 @@ systems, and it depends on `httpx` and `bs4`.
 
 ## Map
 
-- `sites/__init__.py`: `SITES`, the registry with one entry per site, and `scrape`,
-  which routes a search to its site.
+- `sites/__init__.py`: `SITES`, the registry with one entry per site, `scrape`,
+  which routes a search to its site, and `check`, which runs a search's option checks alone.
 - `sites/<site>`: one module per site, or a package for LinkedIn and Indeed,
   which split into several modules. It exports `search` and any of `places`, `companies`,
   `attributes`, and `postings`, and the first line of its docstring is the site's CLI help.
@@ -30,8 +30,9 @@ systems, and it depends on `httpx` and `bs4`.
   could not read. A field the posting leaves empty keeps the card's value, and a cached posting
   costs no request. `stop_if_unread` raises the `Stopped` of a details search, for LinkedIn too.
 - `utils.py`: `site_options`, which reads the `Annotated` arguments of a site function, `checked`,
-  which checks every call against them, `report_progress`, which `collect` and each posting loop
-  call to log their progress records, and the JSON value, text, number, and date helpers.
+  which wraps it in a `Checked` that runs those checks and the site's validator on every call,
+  or alone through `check`, `report_progress`, which `collect` and each posting loop call to log
+  their progress records, and the JSON value, text, number, and date helpers.
 - `models.py`: `JobDict`, its `Place`, `make_job`, `make_places`, and `Stopped`.
 - `fetchkit.py`: the `Fetcher` protocol, `FetchResult`, and `HttpxFetcher`.
 - `cache.py`: one SQLite table of `JobDict` records keyed by site and ID, and the shared `CACHE`.
@@ -81,9 +82,12 @@ and the contract test in `tests/test_scrape.py` need no edit.
   A name two sites share keeps one meaning and unit. Every function a site exports carries
   `@checked`, which raises `TypeError` for an unknown, missing, or wrongly typed argument and
   `ValueError` for a value out of range, a blank required string, or a blank list entry,
-  all before the first request. `site_options` rejects an annotation or a boolean default that
-  breaks these rules when the module is imported, and `test_a_site_meets_the_site_contract` checks
-  that `search` takes no positional option and that a shared name keeps its type.
+  all before the first request. A rule of the site's own, such as Indeed's country editions,
+  goes in the validator it passes as `@checked(validator=_validate)`, never in the function body,
+  so `check` raises everything `scrape` would, without a request. `site_options` rejects an
+  annotation or a boolean default that breaks these rules when the module is imported, and
+  `test_a_site_meets_the_site_contract` checks that `search` takes no positional option and that a
+  shared name keeps its type.
 - A caller can tell a cut-short result from a complete one. A failed request, or a page that ends a
   search short of the total the site reported, raises `Stopped`, whose `partial` holds what was
   collected. A site's own result cap warns and returns, because a rerun meets it again.

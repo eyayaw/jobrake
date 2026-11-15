@@ -8,7 +8,7 @@ import re
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from types import NoneType
-from typing import Annotated, Any, NamedTuple, Union, get_args, get_origin
+from typing import Annotated, Any, NamedTuple, Union, get_args, get_origin, overload
 
 lazy from bs4 import BeautifulSoup
 lazy from bs4.element import Tag
@@ -163,36 +163,73 @@ def _check(options: dict[str, Option], given: dict[str, object]) -> None:
             raise ValueError(f"{name} holds a blank entry. Pass the {option.help}")
 
 
-def checked[**P, R](function: Callable[P, Awaitable[R]]) -> Callable[P, Awaitable[R]]:
+# A site's own rules for its options: it takes every option, defaults included, as a keyword and
+# raises ValueError for a value the site cannot use.
+type Validator = Callable[..., None]
+
+
+class Checked[**P, R]:
     """
-    Check every call of a site function against its annotations before the function runs.
+    A site function that checks every call against its annotations and its site's rules first.
 
-    The signature is read once, here, so a site function that breaks the rules of ``site_options``
-    fails when its module is imported. Error messages name the site after its module below
-    ``jobrake.sites``.
-
-    Raises:
-        TypeError: At decoration, the signature breaks a rule of ``site_options``. At a call,
-            an argument is unknown, missing, or of the wrong type.
-        ValueError: At a call, ``results``, ``radius``, or ``max_age_hours`` is below its minimum,
-            or a required string or a list entry is blank.
+    The signature is read once, at decoration, so a site function that breaks the rules of
+    ``site_options`` fails when its module is imported. Error messages name the site after its
+    module below ``jobrake.sites``.
     """
-    signature = inspect.signature(function)
-    options = site_options(function)
-    site = function.__module__.removeprefix("jobrake.sites.").partition(".")[0]
-    keywords = ", ".join(name for name, option in options.items() if not option.positional)
-    listing = f"Its options are {keywords}" if keywords else "It takes no options"
 
-    @functools.wraps(function)
-    async def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
+    def __init__(
+        self, function: Callable[P, Awaitable[R]], validator: Validator | None = None
+    ) -> None:
+        functools.update_wrapper(self, function)
+        self._function = function
+        self._validator = validator
+        self._signature = inspect.signature(function)
+        self._options = site_options(function)
+        self._site = function.__module__.removeprefix("jobrake.sites.").partition(".")[0]
+
+    async def __call__(self, *args: P.args, **kwargs: P.kwargs) -> R:
+        self._verify(*args, **kwargs)
+        return await self._function(*args, **kwargs)
+
+    def check(self, **options: object) -> None:
+        """
+        Raise what a call with these options would raise before its first request, without calling.
+
+        Raises:
+            TypeError: An option is unknown, missing, or of the wrong type.
+            ValueError: ``results``, ``radius``, or ``max_age_hours`` is below its minimum,
+                a required string or a list entry is blank, or the site's rules refuse a value.
+        """
+        self._verify(None, **options)
+
+    def _verify(self, *args: object, **kwargs: object) -> None:
         try:
-            _, *given = signature.bind(*args, **kwargs).arguments.items()
+            bound = self._signature.bind(*args, **kwargs)
         except TypeError as error:
-            raise TypeError(f"{site}: {error}. {listing}") from None
-        _check(options, dict(given))
-        return await function(*args, **kwargs)
+            names = [name for name, option in self._options.items() if not option.positional]
+            listing = f"Its options are {', '.join(names)}" if names else "It takes no options"
+            raise TypeError(f"{self._site}: {error}. {listing}") from None
+        _, *given = bound.arguments.items()
+        _check(self._options, dict(given))
+        if self._validator is not None:
+            bound.apply_defaults()
+            _, *values = bound.arguments.items()
+            self._validator(**dict(values))
 
-    return wrapper
+
+@overload
+def checked[**P, R](function: Callable[P, Awaitable[R]], /) -> Checked[P, R]: ...
+@overload
+def checked[**P, R](
+    *, validator: Validator
+) -> Callable[[Callable[P, Awaitable[R]]], Checked[P, R]]: ...
+def checked[**P, R](
+    function: Callable[P, Awaitable[R]] | None = None, /, *, validator: Validator | None = None
+) -> Checked[P, R] | Callable[[Callable[P, Awaitable[R]]], Checked[P, R]]:
+    """Make a site function ``Checked``, as ``@checked`` or with its site's rules."""
+    if function is None:
+        return functools.partial(Checked, validator=validator)
+    return Checked(function)
 
 
 def report_progress(logger: logging.Logger, label: str, done: int, total: int) -> None:

@@ -99,7 +99,27 @@ async def _pages(
     )
 
 
-@checked
+def _validate(
+    *, location: str | None, geoid: str | None, company_ids: list[str] | None, **_: object
+) -> None:
+    if geoid is None and (location is None or not location.strip()):
+        raise ValueError(
+            "location is required without a geoid. Try 'Amsterdam, North Holland, Netherlands'"
+        )
+    if geoid is not None and not numeric(geoid):
+        raise ValueError(
+            f"geoid {geoid!r} must use digits 0-9, such as '102011674'. "
+            "Find IDs with 'jobrake linkedin places NAME'"
+        )
+    for company in company_ids or []:
+        if not numeric(company):
+            raise ValueError(
+                f"company ID {company!r} must use digits 0-9, such as '1173'. "
+                "Find IDs with 'jobrake linkedin companies NAME'"
+            )
+
+
+@checked(validator=_validate)
 async def search(
     fetcher: Fetcher,
     *,
@@ -136,21 +156,6 @@ async def search(
         ValueError: The location is missing or blank, or the geoid or a company ID uses characters
             other than digits 0-9.
     """
-    if geoid is None and (location is None or not location.strip()):
-        raise ValueError(
-            "location is required without a geoid. Try 'Amsterdam, North Holland, Netherlands'"
-        )
-    if geoid is not None and not numeric(geoid):
-        raise ValueError(
-            f"geoid {geoid!r} must use digits 0-9, such as '102011674'. "
-            "Find IDs with 'jobrake linkedin places NAME'"
-        )
-    for company in company_ids or []:
-        if not numeric(company):
-            raise ValueError(
-                f"company ID {company!r} must use digits 0-9, such as '1173'. "
-                "Find IDs with 'jobrake linkedin companies NAME'"
-            )
     if location:
         logger.info("searching linkedin for %r in %r", query, location)
     else:

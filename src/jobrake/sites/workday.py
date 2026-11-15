@@ -229,7 +229,11 @@ async def _detail_fields(fetcher: Fetcher, card: JobDict) -> dict[str, Any] | No
     return read_json(result, functools.partial(_parse_details, card=card), site="workday")
 
 
-@checked
+def _validate(*, board: str, **_: object) -> None:
+    _career_site(board)
+
+
+@checked(validator=_validate)
 async def search(
     fetcher: Fetcher,
     *,
@@ -256,7 +260,6 @@ async def search(
             lists the URLs of the postings that missed theirs.
         ValueError: ``board`` is not a Workday career site URL.
     """
-    # Reading the board here rejects a bad one before the first request.
     logger.info("searching workday site %s for %r", _career_site(board)[1], query)
     pages = _pages(fetcher, board, query, min(PAGE_SIZE, results))
     jobs = await collect("workday", pages, results)
