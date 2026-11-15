@@ -16,8 +16,8 @@ systems, and it depends on `httpx` and `bs4`.
   which split into several modules. It exports `search` and any of `places`, `companies`,
   `attributes`, and `postings`, and the first line of its docstring is the site's CLI help.
   A site whose links name a posting also defines `card(reference)`, outside `__all__`, which reads
-  one link as the card it names for `identify` through the parser its `postings` uses. Every site
-  that exports `postings` defines one.
+  one link as the card it names for `identify` and refuses anything else. Every site that exports
+  `postings` defines one and reads its references with the same parser.
   In the two packages, `search.py` builds requests and parses results, `client.py` holds the URLs
   and headers, plus LinkedIn's pacing, and `lookups.py` holds the lookups. The other sites need no
   headers or pacing. LinkedIn's `pages.py` reads posting pages for `postings` and `details=True`

@@ -77,12 +77,9 @@ def identify(link: str) -> tuple[str, str] | None:
     It sends no request. Each site that defines ``card`` reads its own links, and a link no site
     reads gives None.
     """
-    # A bare number reads as a LinkedIn posting ID, so only a web address names a posting here.
-    if not link.strip().lower().startswith(("http://", "https://")):
-        return None
     for module in SITES.values():
-        with contextlib.suppress(ValueError):
-            if read := getattr(module, "card", None):
+        if read := getattr(module, "card", None):
+            with contextlib.suppress(ValueError):
                 job = read(link)
                 return job["site"], job["id"]
     return None

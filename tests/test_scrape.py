@@ -120,31 +120,40 @@ def test_check_and_scrape_reject_bad_options_before_any_request(site, kwargs, er
 @pytest.mark.parametrize(
     ("link", "named"),
     [
-        ("https://nl.linkedin.com/jobs/view/economist-at-acme-4449382178?trk=x", "linkedin"),
-        ("https://www.linkedin.com/comm/jobs/view/4449382178?trk=eml", "linkedin"),
-        ("https://www.linkedin.com/jobs/search/?currentJobId=4449382178", "linkedin"),
-        ("https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/4449382178", "linkedin"),
-        ("https://nl.indeed.com/viewjob?jk=1a2b3c4d5e6f7a8b&from=serp", "indeed"),
-        ("https://www.indeed.com/jobs?q=economist&vjk=1a2b3c4d5e6f7a8b", "indeed"),
+        (
+            "https://nl.linkedin.com/jobs/view/economist-at-acme-4449382178?trk=x",
+            ("linkedin", "4449382178"),
+        ),
+        ("https://www.linkedin.com/comm/jobs/view/4449382178?trk=eml", ("linkedin", "4449382178")),
+        (
+            "https://www.linkedin.com/jobs/search/?currentJobId=4449382178",
+            ("linkedin", "4449382178"),
+        ),
+        (
+            "https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/4449382178",
+            ("linkedin", "4449382178"),
+        ),
+        (
+            "https://nl.indeed.com/viewjob?jk=1a2b3c4d5e6f7a8b&from=serp",
+            ("indeed", "1a2b3c4d5e6f7a8b"),
+        ),
+        (
+            "https://www.indeed.com/jobs?q=economist&vjk=1a2b3c4d5e6f7a8b",
+            ("indeed", "1a2b3c4d5e6f7a8b"),
+        ),
         (
             "https://NVIDIA.wd5.myworkdayjobs.com/en-US/NVIDIAExternalCareerSite"
             "/job/US-CA-Santa-Clara/Networking-Architect_JR1996377/?source=email",
-            "workday",
+            ("workday", "nvidia:JR1996377"),
         ),
         (
             "https://jobs.smartrecruiters.com/BoschGroup/744000158197889-product-expert?trk=x",
-            "smartrecruiters",
+            ("smartrecruiters", "744000158197889"),
         ),
     ],
 )
 def test_identify_names_the_site_and_id_a_search_gives(link, named):
-    ids = {
-        "linkedin": "4449382178",
-        "indeed": "1a2b3c4d5e6f7a8b",
-        "workday": "nvidia:JR1996377",
-        "smartrecruiters": "744000158197889",
-    }
-    assert identify(link) == (named, ids[named])
+    assert identify(link) == named
 
 
 @pytest.mark.parametrize(

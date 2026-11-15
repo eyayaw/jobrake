@@ -452,11 +452,14 @@ def _reference(reference: str) -> tuple[str, str | None]:
 
 def card(reference: str) -> JobDict:
     """
-    Read a LinkedIn posting ID or URL as the card it names, for ``identify``.
+    Read a LinkedIn posting URL as the card it names, for ``identify``.
 
     Raises:
-        ValueError: The reference is neither a numeric posting ID nor a LinkedIn posting URL.
+        ValueError: The reference is not a LinkedIn posting URL. A bare posting ID is refused too,
+            because a number alone names no site.
     """
+    if numeric(reference.strip()):
+        raise ValueError(f"{reference!r} is a number, not a LinkedIn posting URL")
     posting_id, page = _reference(reference)
     url = page or f"{BASE_URL}{_PAGE_PATH}{posting_id}"
     return make_job(site="linkedin", id=posting_id, url=url)
