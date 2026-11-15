@@ -15,14 +15,14 @@ from jobrake.utils import checked, finite, html_text
 
 logger = logging.getLogger(__name__)
 
-# The feed's languages, as Personio's recruiting API spec lists them on 2026-11-15:
+# The feed's languages, from Personio's recruiting API spec on 2026-11-15:
 # https://github.com/personio/api-docs/blob/master/personio-recruiting-api.yaml
-# English comes first because it filled 152 of the 161 postings that the default feeds of 71 boards
-# left without a description.
+# English comes first because it described 152 of the 161 postings that the default feeds of 71
+# boards left without a description. The rest keep the spec's order.
 LANGUAGES = ("en", "de", "fr", "es", "nl", "it", "pt")
 
-# The board becomes the host name, so it must be one DNS label, or a value such as x@evil.com#
-# would send the request elsewhere.
+# The board becomes the first label of the host name, so it must be one DNS label, or a value
+# such as x@evil.com# would send the request elsewhere.
 _BOARD = re.compile(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?", re.IGNORECASE | re.ASCII)
 
 # The salary types measured on 62 postings of 71 boards (2026-11-15). Another type leaves the period

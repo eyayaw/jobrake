@@ -306,7 +306,7 @@ and the salary fields.
 - `posted_at` is the time the posting was created, and `date` is its calendar date.
 - `locations` holds the posting's office and then its additional offices,
   named as the employer entered them, such as `Mannheim` and `Köln`.
-- `description` joins the posting's description blocks, each under its own heading.
+- `description` joins the posting's description blocks, each under its name when it has one.
   Personio serves each posting's description in one language,
   and its feed in any other language lists the posting without one.
   jobrake first reads the feed in the board's default language,
@@ -365,7 +365,7 @@ A failed request raises `Stopped` with an empty `partial`.
 ### Personio requests
 
 A Personio search reads the board's feed in its default language.
-While a posting still lacks a description, it reads the feed in the next language,
+While a posting still lacks a description, the search reads the feed in the next language,
 in the order [Personio fields](#personio-fields) gives, so a search takes one to eight requests.
 In our test, 69 of 71 boards took one or two requests.
 Each request gets a single attempt and no pacing.
