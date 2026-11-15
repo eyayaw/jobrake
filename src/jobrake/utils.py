@@ -211,12 +211,12 @@ class Checked[**P, R]:
             names = [name for name, option in self._options.items() if not option.positional]
             listing = f"Its options are {', '.join(names)}" if names else "It takes no options"
             raise TypeError(f"{self._site}: {error}. {listing}") from None
+        bound.apply_defaults()
         _, *given = bound.arguments.items()
-        _check(self._options, dict(given))
+        values = dict(given)
+        _check(self._options, values)
         if self._validator is not None:
-            bound.apply_defaults()
-            _, *values = bound.arguments.items()
-            self._validator(**dict(values))
+            self._validator(**values)
 
 
 @overload
