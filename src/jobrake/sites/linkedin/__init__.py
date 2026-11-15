@@ -1,6 +1,7 @@
 """Read LinkedIn job postings through its login-free guest API."""
 
 from .lookups import companies, places
+from .pages import card as card
 from .pages import postings
 from .search import search
 

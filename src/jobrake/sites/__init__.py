@@ -1,5 +1,6 @@
-"""Supported sites and the public ``scrape`` entrypoint."""
+"""Supported sites and the public ``scrape``, ``check``, and ``identify``."""
 
+import contextlib
 from types import ModuleType
 
 from jobrake.fetchkit import Fetcher, HttpxFetcher
@@ -69,4 +70,22 @@ def check(site: str, **options: object) -> None:
     _search(site).check(**options)
 
 
-__all__ = ["SITES", "check", "scrape"]
+def identify(link: str) -> tuple[str, str] | None:
+    """
+    Return the ``site`` and ``id`` a search gives the posting a link names, or None.
+
+    It sends no request. Each site that defines ``card`` reads its own links, and a link no site
+    reads gives None.
+    """
+    # A bare number reads as a LinkedIn posting ID, so only a web address names a posting here.
+    if not link.strip().lower().startswith(("http://", "https://")):
+        return None
+    for module in SITES.values():
+        with contextlib.suppress(ValueError):
+            if read := getattr(module, "card", None):
+                job = read(link)
+                return job["site"], job["id"]
+    return None
+
+
+__all__ = ["SITES", "check", "identify", "scrape"]

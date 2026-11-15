@@ -220,9 +220,9 @@ async def search(
     return jobs
 
 
-def _card(reference: str) -> JobDict:
+def card(reference: str) -> JobDict:
     """
-    Read a SmartRecruiters posting URL as the card it names.
+    Read a SmartRecruiters posting URL as the card it names, for ``postings`` and ``identify``.
 
     Raises:
         ValueError: The reference is not a posting URL on jobs.smartrecruiters.com.
@@ -262,7 +262,7 @@ async def postings(
             Nothing is fetched in that case.
     """
     return await fetch_postings(
-        "smartrecruiters", references, _card, functools.partial(_posting_fields, fetcher)
+        "smartrecruiters", references, card, functools.partial(_posting_fields, fetcher)
     )
 
 

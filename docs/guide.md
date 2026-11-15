@@ -434,6 +434,19 @@ It maps each ID or URL to its whole job, or to `None` when the site reports the 
 A reference whose request failed, or whose response jobrake cannot read, is absent from the result,
 and calling the function again retries it.
 
+To match a link someone sends you to a posting you already stored, `jobrake.identify` returns the
+`site` and `id` a search gives that posting, and sends no request:
+
+```python
+import jobrake
+
+jobrake.identify("https://nl.indeed.com/viewjob?jk=1a2b3c4d5e6f7a8b")
+# ('indeed', '1a2b3c4d5e6f7a8b')
+```
+
+It reads the posting URLs that `postings` takes, and Indeed links that carry the key in `jk`,
+or in `vjk` on a search page. Any other link, including a bare LinkedIn ID, gives `None`.
+
 ### Fetch selected results
 
 For a large search, omit `-d` and fetch only the postings you want:

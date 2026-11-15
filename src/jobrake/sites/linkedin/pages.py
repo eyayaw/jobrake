@@ -18,6 +18,7 @@ from jobrake.models import JobDict, Place, employment_type, make_job, make_place
 from jobrake.utils import as_dict, checked, finite, html_text, report_progress
 
 from .client import (
+    BASE_URL,
     EN_US_QUERY,
     FABRICS_WANTED,
     FRAGMENT_URL,
@@ -447,6 +448,18 @@ def _reference(reference: str) -> tuple[str, str | None]:
     slug = parts.path.rstrip("/").rsplit("/", 1)[-1]
     page = parts.path.startswith(_PAGE_PATH) and slug != posting_id
     return posting_id, _canonical(ref) if page else None
+
+
+def card(reference: str) -> JobDict:
+    """
+    Read a LinkedIn posting ID or URL as the card it names, for ``identify``.
+
+    Raises:
+        ValueError: The reference is neither a numeric posting ID nor a LinkedIn posting URL.
+    """
+    posting_id, page = _reference(reference)
+    url = page or f"{BASE_URL}{_PAGE_PATH}{posting_id}"
+    return make_job(site="linkedin", id=posting_id, url=url)
 
 
 def _job(posting_id: str, known: dict[str, Any], fields: dict[str, Any]) -> JobDict:

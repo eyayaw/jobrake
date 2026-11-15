@@ -268,9 +268,9 @@ async def search(
     return jobs
 
 
-def _card(reference: str) -> JobDict:
+def card(reference: str) -> JobDict:
     """
-    Read a Workday posting URL as the card it names.
+    Read a Workday posting URL as the card it names, for ``postings`` and ``identify``.
 
     Raises:
         ValueError: The reference is not a posting URL on a Workday career site.
@@ -307,7 +307,7 @@ async def postings(
         ValueError: A reference is not a Workday posting URL. Nothing is fetched in that case.
     """
     return await fetch_postings(
-        "workday", references, _card, functools.partial(_detail_fields, fetcher)
+        "workday", references, card, functools.partial(_detail_fields, fetcher)
     )
 
 
