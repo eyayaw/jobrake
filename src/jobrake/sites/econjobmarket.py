@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 API_URL = "https://backend.econjobmarket.org/data/zz_public/json/Ads"
 
 # An ad carries no ID field. Its page URL ends in the ad's number.
-_AD_ID = re.compile(r"/positions/(\d+)")
+_AD_ID = re.compile(r"/positions/([0-9]+)")
 
 
 def _names(entries: object) -> list[str]:

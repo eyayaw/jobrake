@@ -21,7 +21,7 @@ def test_a_site_meets_the_site_contract(site):
     assert "search" in module.__all__
     assert set(module.__all__) <= set(cli.COMMANDS)  # the functions the CLI knows how to run
     if "postings" in module.__all__:
-        assert callable(getattr(module, "card", None))  # the link reader identify shares
+        assert callable(getattr(module, "card", None))  # postings' link reader, for identify
     for name in module.__all__:
         function = getattr(module, name)
         assert inspect.getdoc(function), name  # its command's CLI help
@@ -91,7 +91,8 @@ def test_a_site_function_the_cli_cannot_build_fails_when_decorated(function, mat
             ValueError,
             "country is blank. Pass the ISO 3166-1 alpha-2 code",
         ),
-        # The checks each site makes of the values it accepts.
+        # The site validators raise the rows below, except the blank list entry, which
+        # @checked rejects on every site.
         ("indeed", {"country": "atlantis"}, ValueError, "unknown Indeed country"),
         (
             "indeed",
@@ -163,6 +164,8 @@ def test_identify_names_the_site_and_id_a_search_gives(link, named):
         "https://boards.greenhouse.io/airbnb/jobs/7649441",
         "https://www.indeed.com/viewjob",
         "https://example.com/jobs/view/4449382178",
+        # A posting ID holds digits 0-9, and \d also matches other scripts' digits.
+        "https://jobs.smartrecruiters.com/BoschGroup/７４４０００１５８１９７８８９",  # noqa: RUF001  fullwidth digits are the input under test
     ],
 )
 def test_identify_gives_none_for_a_link_no_site_reads(link):

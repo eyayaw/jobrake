@@ -91,7 +91,7 @@ def _parse_position(position: ET.Element, board: str) -> JobDict:
         TypeError: The position lacks a numeric ``id``.
     """
     posting_id = position.findtext("id") or ""
-    if not posting_id.isdigit():
+    if not (posting_id.isascii() and posting_id.isdigit()):
         raise TypeError(f"position id {posting_id!r} is not a number")
     others = position.iterfind("additionalOffices/office")
     offices = [position.findtext("office"), *(office.text for office in others)]

@@ -22,7 +22,7 @@ API_URL = "https://api.smartrecruiters.com/v1/companies"
 POSTING_URL = "https://jobs.smartrecruiters.com/{company}/{id}"
 # A posting's page path, where a title slug may follow the ID, as in
 # /BoschGroup/744000158197889-product-expert.
-_POSTING_PATH = re.compile(r"/([^/]+)/(\d+)(?:-[^/]*)?/?")
+_POSTING_PATH = re.compile(r"/([^/]+)/([0-9]+)(?:-[^/]*)?/?")
 PAGE_SIZE = 100  # the largest limit the API accepts
 
 

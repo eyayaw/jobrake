@@ -28,14 +28,14 @@ EXAMPLE_BOARD = "https://zillow.wd5.myworkdayjobs.com/Zillow_Group_External"
 # or a path on a shared one, wd<n>.myworkdaysite.com/recruiting/<tenant>/<site>.
 # Both serve the API at /wday/cxs/<tenant>/<site> on the same host, and a posting's path below the
 # site is the same on both (measured 2026-11-14 on one career site of each kind).
-_OWN_HOST = re.compile(r"([a-z0-9-]+)\.wd\d+\.myworkdayjobs\.com")
-_SHARED_HOST = re.compile(r"wd\d+\.myworkdaysite\.com")
+_OWN_HOST = re.compile(r"([a-z0-9-]+)\.wd[0-9]+\.myworkdayjobs\.com")
+_SHARED_HOST = re.compile(r"wd[0-9]+\.myworkdaysite\.com")
 _LOCALE = re.compile(r"[a-z]{2}-[A-Z]{2}")
 _POSTED = re.compile(r"Posted (?:Today|(Yesterday)|(\d{1,4}) Days Ago)")
 # The requisition ID follows the first underscore of the path's last segment,
 # because title slugs join words with hyphens, so an ID such as JR_2024_00123 stays whole.
 # An ID holds a digit, and a title word such as Scientist in /job/Remote/Data_Scientist does not.
-_REQUISITION = re.compile(r"/(?:[^/]+/)*[^/_]*_([^/]*\d[^/]*)")
+_REQUISITION = re.compile(r"/(?:[^/]+/)*[^/_]*_([^/]*[0-9][^/]*)")
 _LOCATION_COUNT = re.compile(r"\d+ Locations")
 
 
