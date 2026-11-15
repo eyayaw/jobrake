@@ -7,10 +7,9 @@ from fakes import StubFetcher, ok
 
 from jobrake.sites import ashby
 
-# Two postings from api.ashbyhq.com/posting-api/job-board/ramp?includeCompensation=true,
-# fetched 2026-10-28, trimmed to the fields jobrake reads plus isListed and isRemote,
-# with each description cut to its role heading and one short sentence, with
-# compensation cut to its summaryComponents.
+# Two postings from api.ashbyhq.com/posting-api/job-board/ramp?includeCompensation=true, fetched
+# 2026-10-28, trimmed to the fields jobrake reads plus isListed and isRemote, with each description
+# cut to its role heading and one short sentence, with compensation cut to its summaryComponents.
 POSTINGS = [
     {
         "id": "c63ba7d7-5290-4d9b-b002-40b2873b66f6",

@@ -80,7 +80,8 @@ A sample record from a LinkedIn posting fetched with jobrake:
 ```
 
 The description and the logo URL are not fully displayed for brevity.
-The [reference](https://github.com/eyayaw/jobrake/blob/main/docs/reference.md#returned-fields) describes every key.
+The [reference](https://github.com/eyayaw/jobrake/blob/main/docs/reference.md#returned-fields)
+describes every key.
 
 ## Installation
 
@@ -97,7 +98,8 @@ uv add git+https://github.com/eyayaw/jobrake
 
 Releases before 1.0 can break the API, so pin a tag in a project:
 `uv add git+https://github.com/eyayaw/jobrake --tag <tag>`.
-The [changelog](https://github.com/eyayaw/jobrake/blob/main/CHANGELOG.md) marks each breaking change.
+The [changelog](https://github.com/eyayaw/jobrake/blob/main/CHANGELOG.md)
+marks each breaking change.
 
 ## Usage
 
@@ -150,8 +152,10 @@ jobrake econjobmarket search -o ejm.csv
 
 The CLI writes JSON to stdout by default.
 `--format | -f` selects JSON, JSONL, or CSV, and `--output | -o` writes to a file.
-See the [guide](https://github.com/eyayaw/jobrake/blob/main/docs/guide.md#read-and-save-results) for file formats and piping,
-and the [reference](https://github.com/eyayaw/jobrake/blob/main/docs/reference.md) for returned fields.
+See the [guide](https://github.com/eyayaw/jobrake/blob/main/docs/guide.md#read-and-save-results)
+for file formats and piping,
+and the [reference](https://github.com/eyayaw/jobrake/blob/main/docs/reference.md)
+for returned fields.
 
 ### As a library
 
@@ -189,20 +193,24 @@ jobs = asyncio.run(main())
 
 The employer-board sites require `board`: the employer's token, or for Workday the career site URL.
 Indeed requires `country`. LinkedIn requires `location` or a geoId.
-See the [guide](https://github.com/eyayaw/jobrake/blob/main/docs/guide.md) for search queries, geography, filters, and
-detail fetching, and the [reference](https://github.com/eyayaw/jobrake/blob/main/docs/reference.md#requests-by-site)
+See the [guide](https://github.com/eyayaw/jobrake/blob/main/docs/guide.md)
+for search queries, geography, filters, and detail fetching,
+and the [reference](https://github.com/eyayaw/jobrake/blob/main/docs/reference.md#requests-by-site)
 for pagination, rate limits, and retries.
 
 > [!WARNING]
-> LinkedIn answers posting pages with [HTTP 999](https://http.dev/999) from data center IPs, such as a Hetzner VPS.
+> LinkedIn answers posting pages with [HTTP 999](https://http.dev/999) from data center IPs,
+> such as a Hetzner VPS.
 > Searches still work there, but `--details` and `jobrake linkedin postings` return no details.
 > So use jobrake from the comfort of your home. :D
 
 ## Contributing
 
 Issues and pull requests are welcome.
-[`AGENTS.md`](https://github.com/eyayaw/jobrake/blob/main/AGENTS.md) describes the layout and the design rules.
-Before a pull request, run `prek run --all-files` with [prek](https://github.com/j178/prek) installed, as CI does.
+[`AGENTS.md`](https://github.com/eyayaw/jobrake/blob/main/AGENTS.md) describes the layout
+and the design rules.
+Before a pull request, run `prek run --all-files` with [prek](https://github.com/j178/prek)
+installed, as CI does.
 
 ## Disclaimer
 

@@ -17,16 +17,14 @@ from .countries import Country, indeed_domain
 
 logger = logging.getLogger(__name__)
 
-# JobSpy's query (https://github.com/speedyapply/JobSpy, checked 2026-11-14),
-# trimmed to the fields we keep. `limit: 100` sets the API page size and must
-# stay identical on every request of a cursor chain: Indeed binds the size to
-# its cursor and rejects a changed value with BAD_USER_INPUT. Pagination
-# continues through pageInfo.nextCursor. The salary range is a union. Range
-# carries both bounds, AtLeast and AtMost carry one, and Exactly carries one
-# value.
+# JobSpy's query (https://github.com/speedyapply/JobSpy, checked 2026-11-14), trimmed to the fields
+# we keep. `limit: 100` sets the API page size and must stay identical on every request of a cursor
+# chain: Indeed binds the size to its cursor and rejects a changed value with BAD_USER_INPUT.
+# Pagination continues through pageInfo.nextCursor. The salary range is a union.
+# Range carries both bounds, AtLeast and AtMost carry one, and Exactly carries one value.
 #
-# The API returns results newest first by dateOnIndeed under both RELEVANCE
-# and DATE. DATE names that order, so it holds if the two ever diverge.
+# The API returns results newest first by dateOnIndeed under both RELEVANCE and DATE.
+# DATE names that order, so it holds if the two ever diverge.
 QUERY = """
 query GetJobData {{
   jobSearch(
@@ -75,8 +73,8 @@ query GetJobData {{
 # Indeed ends a cursor chain after this many results.
 MAX_RESULTS = 1000
 
-# Indeed mixes employment types into the attributes bag with skills and
-# benefits. These labels pick them out. The headers pin the en-US locale.
+# Indeed mixes employment types into the attributes bag with skills and benefits.
+# These labels pick them out. The headers pin the en-US locale.
 EMPLOYMENT_TYPES = ("Full-time", "Part-time", "Contract", "Temporary", "Internship", "Per diem")
 
 
@@ -128,13 +126,11 @@ def _build_query(
     )
 
 
-# Indeed's ingestion flattens some ATS pages' stylesheets into the description
-# text, where html_text keeps them as text. A rule is a selector followed by a
-# {block} of `property: value;` declarations. Only the last declaration may
-# drop its semicolon, so prose such as {"id": 1} or {negotiable: yes} is not a
-# rule. Neither is an empty block, or a value that holds a semicolon, such as
-# a data URI: those stay in the text. The selector stops at a line break or a
-# sentence period.
+# Indeed's ingestion flattens some ATS pages' stylesheets into the description text, where html_text
+# keeps them as text. A rule is a selector followed by a {block} of `property: value;` declarations.
+# Only the last declaration may drop its semicolon, so prose such as {"id": 1} or {negotiable: yes}
+# is not a rule. Neither is an empty block, or a value that holds a semicolon, such as a data URI:
+# those stay in the text. The selector stops at a line break or a sentence period.
 _CSS_BLOCK = r"\{(?:\s*[-\w]+\s*:[^{};]+;)+(?:\s*[-\w]+\s*:[^{};]+)?\s*\}"
 _CSS_RULE = re.compile(r"(?:[^{}\n.]|\.(?!\s)){0,200}?" + _CSS_BLOCK)
 # An at-rule such as @media, once the rules inside it are gone.
@@ -146,9 +142,8 @@ def _scrub_css(text: str) -> str:
     """Remove CSS rules flattened into some posting descriptions."""
     if "{" not in text:
         return text
-    # A comment inside a block would hide its rule, so the search runs without
-    # comments. They go only from a text that holds a rule, because a file glob
-    # in prose holds /* too.
+    # A comment inside a block would hide its rule, so the search runs without comments.
+    # They go only from a text that holds a rule, because a file glob in prose holds /* too.
     uncommented = _CSS_COMMENT.sub(" ", text)
     if not _CSS_RULE.search(uncommented):
         return text
@@ -167,9 +162,8 @@ def _workplace_type(labels: list[str]) -> WorkplaceType | None:
     """
     Read the workplace from Indeed's Remote and Hybrid work tags.
 
-    Return None when both tags are present or both are absent, because a
-    missing tag proves nothing. Indeed tagged 1 of 100 hybrid postings Remote
-    as well on 2026-10-28.
+    Return None when both tags are present or both are absent, because a missing tag proves nothing.
+    Indeed tagged 1 of 100 hybrid postings Remote as well on 2026-10-28.
     """
     remote, hybrid = "Remote" in labels, "Hybrid work" in labels
     if remote == hybrid:
@@ -187,8 +181,8 @@ def _parse_job(job: dict[str, Any], base_url: str) -> JobDict:
     salary = as_dict(compensation.get("baseSalary"))
     amount = as_dict(salary.get("range"))
     exactly = finite(amount.get("value"))
-    # Employment types share the attributes bag with skills and benefits.
-    # Malformed entries, or a bag that is not a list, are ignored.
+    # Employment types share the attributes bag with skills and benefits. Malformed entries,
+    # or a bag that is not a list, are ignored.
     attributes = job.get("attributes")
     labels = [
         attribute.get("label")
@@ -256,8 +250,8 @@ def search_results(data: Any) -> tuple[Any, list[Any]]:  # noqa: ANN401  any dec
         search = data["data"]["jobSearch"]
         return search, json_list(search, "results")
     except KeyError, TypeError:
-        # A GraphQL error arrives as HTTP 200 with null data. Usable data
-        # alongside errors parses and is kept.
+        # A GraphQL error arrives as HTTP 200 with null data. Usable data alongside errors
+        # parses and is kept.
         if message := _graphql_error_message(data):
             raise Stopped(f"Indeed reported {message!r}") from None
         raise
@@ -305,8 +299,8 @@ async def _pages(
         page, cursor, raw = read_json(
             result, lambda payload: _parse_jobs(payload, base_url), site="indeed"
         )
-        # A page without results ends the search. A page whose results all
-        # failed to parse yields none, and its cursor still advances.
+        # A page without results ends the search. A page whose results all failed to parse yields
+        # none, and its cursor still advances.
         if not raw:
             break
         served += raw
@@ -354,24 +348,22 @@ async def search(
     Search one Indeed country edition through its GraphQL API.
 
     ``country`` selects the edition, and ``location`` narrows it to a place within that edition.
-    ``company_ids`` takes one employer key and keeps jobs at that employer, and ``attributes`` keeps postings carrying every listed code.
-    Whitespace around the key and the codes is removed.
-    ``remote=True`` adds Indeed's Remote attribute, ``"DSQF7"``, to those codes.
-    ``language`` takes Indeed's two-letter code in either case, such as ``"en"``, including the legacy codes ``"iw"`` and ``"in"``.
-    The supplied filters combine on every page.
-    Age uses Indeed's ``dateOnIndeed`` field, which can differ from the publication timestamp returned as ``posted_at``.
+    ``company_ids`` takes one employer key and keeps jobs at that employer, and ``attributes`` keeps
+    postings carrying every listed code. Whitespace around the key and the codes is removed.
+    ``remote=True`` adds Indeed's Remote attribute, ``"DSQF7"``, to those codes. ``language`` takes
+    Indeed's two-letter code in either case, such as ``"en"``, including the legacy codes ``"iw"``
+    and ``"in"``. The supplied filters combine on every page. Age uses Indeed's ``dateOnIndeed``
+    field, which can differ from the publication timestamp returned as ``posted_at``.
 
-    Each request asks for 100 jobs, newest first. The returned list keeps
-    that order and stops at ``results``. Indeed serves at most
-    ``MAX_RESULTS`` jobs per search, and a search that reaches that cap
-    short of ``results`` warns. Requests are neither paced nor retried.
+    Each request asks for 100 jobs, newest first. The returned list keeps that order and stops at
+    ``results``. Indeed serves at most ``MAX_RESULTS`` jobs per search, and a search that reaches
+    that cap short of ``results`` warns. Requests are neither paced nor retried.
 
     Raises:
-        Stopped: A request failed, or Indeed answered with an error or an
-            unreadable response. ``partial`` holds the jobs collected before it.
-        ValueError: The country is unknown, ``company_ids`` holds more than
-            one ID, a list holds a blank entry, or ``language`` is not two
-            ASCII letters.
+        Stopped: A request failed, or Indeed answered with an error or an unreadable response.
+            ``partial`` holds the jobs collected before it.
+        ValueError: The country is unknown, ``company_ids`` holds more than one ID,
+            a list holds a blank entry, or ``language`` is not two ASCII letters.
     """
     subdomain, api_code = indeed_domain(country)
     _check_filters(company_ids, language)

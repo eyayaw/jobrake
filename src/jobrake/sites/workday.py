@@ -17,20 +17,24 @@ from jobrake.utils import as_dict, as_str, checked, html_text
 
 logger = logging.getLogger(__name__)
 
-# Workday answers a limit above 20 with HTTP 400 (measured 2026-11-14 on two
-# career sites in different Workday data centers).
+# Workday answers a limit above 20 with HTTP 400 (measured 2026-11-14 on two career sites in
+# different Workday data centers).
 PAGE_SIZE = 20
 # Workday reports at most this many postings for one search, however many the site lists.
 MAX_TOTAL = 2000
 
 EXAMPLE_BOARD = "https://zillow.wd5.myworkdayjobs.com/Zillow_Group_External"
-_HOST = re.compile(r"[a-z0-9-]+\.wd\d+\.myworkdayjobs\.com")
+# A career site has a host of its own, <tenant>.wd<n>.myworkdayjobs.com/<site>,
+# or a path on a shared one, wd<n>.myworkdaysite.com/recruiting/<tenant>/<site>.
+# Both serve the API at /wday/cxs/<tenant>/<site> on the same host, and a posting's path below the
+# site is the same on both (measured 2026-11-14 on one career site of each kind).
+_OWN_HOST = re.compile(r"([a-z0-9-]+)\.wd\d+\.myworkdayjobs\.com")
+_SHARED_HOST = re.compile(r"wd\d+\.myworkdaysite\.com")
 _LOCALE = re.compile(r"[a-z]{2}-[A-Z]{2}")
 _POSTED = re.compile(r"Posted (?:Today|(Yesterday)|(\d{1,4}) Days Ago)")
 # The requisition ID follows the first underscore of the path's last segment,
-# because title slugs join words with hyphens, so an ID such as JR_2024_00123
-# stays whole. An ID holds a digit, and a title word such as Scientist in
-# /job/Remote/Data_Scientist does not.
+# because title slugs join words with hyphens, so an ID such as JR_2024_00123 stays whole.
+# An ID holds a digit, and a title word such as Scientist in /job/Remote/Data_Scientist does not.
 _REQUISITION = re.compile(r"/(?:[^/]+/)*[^/_]*_([^/]*\d[^/]*)")
 _LOCATION_COUNT = re.compile(r"\d+ Locations")
 
@@ -39,29 +43,37 @@ def _career_site(board: str) -> tuple[str, str, str, str]:
     """
     Split a career site URL into its tenant, site URL, API URL, and the path after the site name.
 
-    A locale segment such as ``en-US`` before the site name is skipped. The
-    API serves a site and its postings under their public paths.
+    A leading locale segment such as ``en-US`` is skipped. The API serves a site and its postings
+    under their public paths.
 
     Raises:
-        ValueError: ``board`` is not a ``myworkdayjobs.com`` career site URL,
-            names a port, or is an API address under ``/wday/``.
+        ValueError: ``board`` is not a Workday career site URL, names a port,
+            or is an API address under ``/wday/``.
     """
     parts = urlsplit(board.strip())
     host = parts.hostname or ""
     names = [name for name in parts.path.split("/") if name]
     if names and _LOCALE.fullmatch(names[0]):
         names = names[1:]
+    tenant, prefix = "", ""
+    if own := _OWN_HOST.fullmatch(host):
+        tenant = own[1]
+    elif _SHARED_HOST.fullmatch(host) and names[:1] == ["recruiting"] and len(names) > 1:
+        # The API answers a tenant in lowercase only (measured 2026-11-14).
+        tenant = names[1].lower()
+        prefix, names = f"/recruiting/{tenant}", names[2:]
     # The requests go to the host alone, so an authority with more, such as a port, is refused.
-    bare = parts.netloc.lower() == host and _HOST.fullmatch(host)
+    bare = parts.netloc.lower() == host and tenant
     if parts.scheme not in {"http", "https"} or not bare or not names or names[0] == "wday":
         raise ValueError(
             f"board {board!r} is not a Workday career site URL. Pass the address a visitor "
-            f"sees, https://<tenant>.wd<n>.myworkdayjobs.com/<site>, such as {EXAMPLE_BOARD}"
+            f"sees, https://<tenant>.wd<n>.myworkdayjobs.com/<site> or "
+            f"https://wd<n>.myworkdaysite.com/recruiting/<tenant>/<site>, such as {EXAMPLE_BOARD}"
         )
-    tenant, career_site, rest = host.partition(".")[0], names[0], "/".join(names[1:])
+    career_site, rest = names[0], "/".join(names[1:])
     return (
         tenant,
-        f"https://{host}/{career_site}",
+        f"https://{host}{prefix}/{career_site}",
         f"https://{host}/wday/cxs/{tenant}/{career_site}",
         f"/{rest}" if rest else "",
     )
@@ -86,8 +98,7 @@ def _parse_card(card: dict[str, Any], site_url: str, tenant: str) -> JobDict:
     Build a record from one entry of a search page's ``jobPostings`` list.
 
     The ID joins the tenant and the requisition ID that ends ``externalPath``,
-    as in ``zillow:P751481-1``, because requisition IDs are unique only
-    within a tenant.
+    as in ``zillow:P751481-1``, because requisition IDs are unique only within a tenant.
 
     Raises:
         TypeError: The card lacks an ``externalPath`` ending in a requisition ID.
@@ -116,12 +127,12 @@ async def _pages(
     """
     Yield each page's cards with the first page's total until the pages reach it.
 
-    Reading every page of a total of ``MAX_TOTAL`` logs a warning, because
-    Workday reports no more than that for one search.
+    Reading every page of a total of ``MAX_TOTAL`` logs a warning, because Workday reports no more
+    than that for one search.
 
     Raises:
-        Stopped: A request failed, Workday has no such site, it sent an
-            unreadable response, or an empty page came before the total.
+        Stopped: A request failed, Workday has no such site, it sent an unreadable response,
+            or an empty page came before the total.
     """
     tenant, site_url, api_url, _ = _career_site(board)
     parse = functools.partial(_parse_card, site_url=site_url, tenant=tenant)
@@ -141,8 +152,8 @@ async def _pages(
             # A site that served a page exists, so a later 404 is a failed request.
             unknown=unknown if total is None else None,
         )
-        # A career site can report total 0 on later pages (measured
-        # 2026-11-14), so the first page's total stands.
+        # A career site can report total 0 on later pages (measured 2026-11-14),
+        # so the first page's total stands.
         total = page_total if total is None else total
         if not cards and offset < total:
             raise Stopped(
@@ -163,11 +174,10 @@ async def _pages(
 
 
 def _withdrawn(text: str) -> bool:
-    # A posting taken off its career site can answer 403 with error S22 in the
-    # body (measured 2026-11-14 on two career sites). career-ops reads that
-    # answer the same way (liveness-api.mjs in
-    # https://github.com/career-ops-hq/career-ops, checked 2026-11-14). Any
-    # other 403 is a block, which a rerun may pass.
+    # A posting taken off its career site can answer 403 with error S22 in the body (measured
+    # 2026-11-14 on two career sites). career-ops reads that answer the same way (liveness-api.mjs
+    # in https://github.com/career-ops-hq/career-ops, checked 2026-11-14). Any other 403 is a block,
+    # which a rerun may pass.
     try:
         return as_dict(json.loads(text)).get("errorCode") == "S22"
     except ValueError:
@@ -178,8 +188,8 @@ def _parse_details(payload: dict[str, Any], card: JobDict) -> dict[str, Any]:
     """
     Return the detail fields of a card's posting from its ``jobPostingInfo``.
 
-    A posting with a start date takes its ``date`` from it, because the
-    card's date counts from today in UTC and can be a day past Workday's own.
+    A posting with a start date takes its ``date`` from it, because the card's date counts from
+    today in UTC and can be a day past Workday's own.
     """
     info = payload["jobPostingInfo"]
     country = as_dict(as_dict(info.get("jobRequisitionLocation")).get("country"))
@@ -231,21 +241,18 @@ async def search(
     """
     Search one employer's Workday career site.
 
-    ``board`` is the address of the site's job search page as a visitor
-    copies it, such as ``https://zillow.wd5.myworkdayjobs.com/Zillow_Group_External``.
-    ``query=""`` lists every posting. Results keep Workday's order and stop
-    at ``results``. Workday reports at most ``MAX_TOTAL`` postings per
-    search, and a search that reaches that cap short of ``results`` warns.
-    A card carries no description, so ``details`` hydrates each posting
+    ``board`` is the address of the site's job search page as a visitor copies it,
+    such as ``https://zillow.wd5.myworkdayjobs.com/Zillow_Group_External``.
+    ``query=""`` lists every posting. Results keep Workday's order and stop at ``results``.
+    Workday reports at most ``MAX_TOTAL`` postings per search, and a search that reaches that cap
+    short of ``results`` warns. A card carries no description, so ``details`` hydrates each posting
     with one more request. Requests are neither paced nor retried.
 
     Raises:
-        Stopped: A request failed, Workday has no such career site, it
-            sent an unreadable response, or an empty page came before the
-            reported total. ``partial`` holds the postings collected before
-            it. With ``details``, a posting's details could not be fetched,
-            and ``partial`` holds every posting, with the details fetched so
-            far.
+        Stopped: A request failed, Workday has no such career site, it sent an unreadable response,
+            or an empty page came before the reported total. ``partial`` holds the postings
+            collected before it. With ``details``, a posting's details could not be fetched,
+            and ``partial`` holds every posting, with the details fetched so far.
         ValueError: ``board`` is not a Workday career site URL.
     """
     # Reading the board here rejects a bad one before the first request.
@@ -287,15 +294,13 @@ async def postings(
     """
     Fetch known Workday postings by URL, one request each.
 
-    The result is keyed by the references given. A reference is a record's
-    ``url``, the posting's address on its career site, and references naming
-    one posting share one request. A reference maps to ``None`` when Workday
-    reports its posting gone. After a failed request or an unreadable
-    response it has no key, and a warning names its posting.
+    The result is keyed by the references given. A reference is a record's ``url``,
+    the posting's address on its career site, and references naming one posting share one request.
+    A reference maps to ``None`` when Workday reports its posting gone. After a failed request or an
+    unreadable response it has no key, and a warning names its posting.
 
     Raises:
-        ValueError: A reference is not a Workday posting URL. Nothing is
-            fetched in that case.
+        ValueError: A reference is not a Workday posting URL. Nothing is fetched in that case.
     """
     return await fetch_postings(
         "workday", references, _card, functools.partial(_detail_fields, fetcher)

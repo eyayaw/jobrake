@@ -5,10 +5,9 @@ from typing import Annotated
 # The country option of every Indeed function that searches one edition.
 Country = Annotated[str, "ISO 3166-1 alpha-2 code of an Indeed edition, e.g., de, gb, or us"]
 
-# The country sites Indeed lists at https://www.indeed.com/worldwide, as read
-# on 2026-10-29. The code is also the edition's API code and, except in
-# _SUBDOMAINS, its website subdomain. The API answered HTTP 400 for unlisted
-# countries we tried, such as SI and HR.
+# The country sites Indeed lists at https://www.indeed.com/worldwide, as read on 2026-10-29.
+# The code is also the edition's API code and, except in _SUBDOMAINS, its website subdomain.
+# The API answered HTTP 400 for unlisted countries we tried, such as SI and HR.
 # fmt: off
 _EDITIONS = {
     "ae", "ar", "at", "au", "be", "bh", "br", "ca", "ch", "cl", "cn", "co", "cr",

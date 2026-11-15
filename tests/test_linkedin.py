@@ -132,8 +132,8 @@ def test_pacing_pins_each_request_to_a_fabric_in_turn():
         assert asyncio.run(paced(fetcher)) == []
 
     cookies = [h["cookie"] for h in fetcher.headers]
-    # Unpinned until three fabrics are known, then each fabric in turn, least
-    # recently used first: prod-a answered the third request, after prod-b.
+    # Unpinned until three fabrics are known, then each fabric in turn, least recently used first:
+    # prod-a answered the third request, after prod-b.
     assert cookies[:4] == ["lidc="] * 4
     assert cookies[4:] == ['lidc="prod-b"', 'lidc="prod-a"', 'lidc="prod-c"', 'lidc="prod-b"']
 
@@ -339,8 +339,8 @@ def test_pacing_drops_a_pin_whose_request_lands_elsewhere(monkeypatch):
     fetcher = Rerouting(["prod-d"])
     for _ in range(5):
         asyncio.run(paced(fetcher))
-    # prod-b took the second turn and never another. Its drop restarted
-    # discovery, which found prod-d; the rest go on least recently used first.
+    # prod-b took the second turn and never another. Its drop restarted discovery,
+    # which found prod-d; the rest go on least recently used first.
     assert sorted(client.POOL.known) == ["prod-a", "prod-c", "prod-d"]
     cookies = [h["cookie"] for h in fetcher.headers]
     assert cookies == ['lidc="prod-a"', 'lidc="prod-b"', "lidc=", 'lidc="prod-c"', 'lidc="prod-a"']
@@ -364,9 +364,8 @@ def test_a_concurrent_request_waits_for_the_next_turn(monkeypatch):
         await asyncio.gather(paced(fetcher), paced(fetcher))
 
     asyncio.run(two_callers())
-    # The first caller's unpinned request takes the turn and finds prod-c. It
-    # may land on any fabric, so the second waits for discovery's spacing, then chooses
-    # among three.
+    # The first caller's unpinned request takes the turn and finds prod-c. It may land on any
+    # fabric, so the second waits for discovery's spacing, then chooses among three.
     assert [h["cookie"] for h in fetcher.headers] == ["lidc=", 'lidc="prod-a"']
     assert sleeps == [2.32]
 
@@ -452,8 +451,8 @@ def test_an_unpinned_request_waits_until_every_fabric_is_paced(monkeypatch):
 
     monkeypatch.setattr(client, "monotonic", lambda: now[0])
     monkeypatch.setattr(client.asyncio, "sleep", sleep)
-    # A reroute left one fabric known, so discovery runs. prod-b took a
-    # full window 0.5 s ago, and the unpinned request might land there.
+    # A reroute left one fabric known, so discovery runs. prod-b took a full window 0.5 s ago,
+    # and the unpinned request might land there.
     client.POOL.known = {"prod-a": '"prod-a"'}
     client.POOL.sent = {"prod-a": 0.0, "prod-b": 1.0}
     client.POOL.history = {"prod-b": [1.0] * 5}
@@ -464,8 +463,8 @@ def test_an_unpinned_request_waits_until_every_fabric_is_paced(monkeypatch):
 
 
 def test_a_retry_skips_the_fabric_that_refused_an_unpinned_attempt():
-    # Two fabrics are known, so discovery runs. The unpinned attempt lands on
-    # prod-b, which refuses it without a new cookie, so discovery goes on.
+    # Two fabrics are known, so discovery runs. The unpinned attempt lands on prod-b,
+    # which refuses it without a new cookie, so discovery goes on.
     client.POOL.known = {name: f'"{name}"' for name in ("prod-a", "prod-b")}
 
     class Refusing(StubFetcher):
@@ -557,8 +556,8 @@ def test_pacing_retries_a_refusal_on_an_untried_fabric(monkeypatch):
 
 def test_concurrent_retries_try_each_fabric_once_and_keep_each_fabric_paced(monkeypatch):
     # Three callers share the pacer. Every fabric refuses the target request,
-    # and the other two callers take the turns between its retries. Time is
-    # virtual, so a sleep parks its caller until the driver moves the clock.
+    # and the other two callers take the turns between its retries. Time is virtual,
+    # so a sleep parks its caller until the driver moves the clock.
     monkeypatch.setattr(client, "DISCOVERY", 0)
     fabrics = ("prod-a", "prod-b", "prod-c")
     client.POOL.known = {name: f'"{name}"' for name in fabrics}
@@ -762,8 +761,12 @@ def test_search_by_geoid_needs_no_location_or_query():
 
 
 def test_search_details_hydrate_from_the_canonical_page():
+    # A posting open in several cities can show one on its card and another on its page.
+    place = {"address": {"addressLocality": "Bellevue", "addressRegion": "WA"}}
+    bullet = '<span class="topcard__flavor topcard__flavor--bullet">Bellevue, WA</span>'
+    page = job_page(jobLocation=place) + bullet
     fetcher = StubFetcher(
-        {"seeMoreJobPostings": ok(linkedin_card("111")), "jobs/view/111": ok(job_page())}
+        {"seeMoreJobPostings": ok(linkedin_card("111")), "jobs/view/111": ok(page)}
     )
     jobs = asyncio.run(
         linkedin.search(fetcher, query="x", location="Seattle", results=1, details=True)
@@ -772,10 +775,8 @@ def test_search_details_hydrate_from_the_canonical_page():
     assert jobs[0]["employment_type"] == "full_time"
     assert jobs[0]["applicants"] == 200
     assert jobs[0]["title"] == "Economist"  # summary fields survive the merge
-    # The page's lone place takes the card's label.
-    assert jobs[0]["locations"] == [
-        {"name": "Seattle, WA", "country_code": "NL", "latitude": 52.37}
-    ]
+    # The page's place replaces the card's whole, so its name and parts name one city.
+    assert jobs[0]["locations"] == [{"name": "Bellevue, WA", "city": "Bellevue", "region": "WA"}]
     fetcher = StubFetcher(
         {
             "seeMoreJobPostings": ok(linkedin_card("222")),
@@ -820,6 +821,11 @@ def test_search_stops_when_a_posting_cannot_be_fetched():
 CANONICAL = "https://nl.linkedin.com/jobs/view/economist-at-acme-111"
 
 
+def in_en_us(page):
+    """Return the address a read requests for ``page``, which asks for it in en-US."""
+    return f"{page}?_l=en_US"
+
+
 def job_page(apply="offsite", applicants="Over 200 applicants", **overrides):
     posting = {
         "@type": "JobPosting",
@@ -856,8 +862,8 @@ def blockless_page():
 
 
 def en_fragment(url=CANONICAL):
-    # The same posting's guest fragment: identical markup in en-US, and the
-    # cheapest place LinkedIn writes down the canonical URL.
+    # The same posting's guest fragment: identical markup in en-US, and the cheapest place LinkedIn
+    # writes down the canonical URL.
     return f"""
     <html><a class="topcard__link" href="{url}?trk=public_jobs_topcard-title">
       <h2 class="top-card-layout__title topcard__title">Economist</h2></a>
@@ -888,8 +894,7 @@ def fetched(found, reference) -> JobDict:
 
 def parse(page) -> JobDict | None:
     """Return the record postings() builds from ``page`` served as CANONICAL, or None for no fields."""
-    # An empty fragment answers a blockless page, so the record holds the page's fields alone.
-    fetcher = StubFetcher({"economist-at-acme-111": ok(page), "jobPosting/111": ok("")})
+    fetcher = StubFetcher({"economist-at-acme-111": ok(page)})
     # An earlier parse in the same test must not answer from the cache.
     cache.CACHE.close()
     cache.CACHE.path.unlink(missing_ok=True)
@@ -950,9 +955,25 @@ def test_a_posting_page_maps_schema_org_onto_the_record():
     assert "experience_months" not in parsed(fractional)  # JobDict holds whole months
 
 
+def test_a_bullet_that_names_another_city_than_the_block_stands_apart():
+    bullet = '<span class="topcard__flavor topcard__flavor--bullet">Rotterdam, South Holland, Netherlands</span>'
+    utrecht = {"address": {"addressLocality": "Utrecht", "addressCountry": "NL"}}
+    assert parsed(job_page(jobLocation=utrecht) + bullet)["locations"] == [
+        {"name": "Rotterdam, South Holland, Netherlands"},
+        {"name": "Utrecht, NL", "city": "Utrecht", "country_code": "NL"},
+    ]
+
+
+def test_a_closed_posting_says_so_in_site_data():
+    banner = """<figure class="closed-job closed-job__flavor topcard__flavor-row">
+      <figcaption class="closed-job__flavor--closed">No longer accepting applications</figcaption>
+    </figure>"""
+    assert parsed(job_page() + banner)["site_data"] == {"closed": True}
+    assert "site_data" not in parsed(job_page())
+
+
 def test_a_posting_page_drops_nonfinite_numbers():
-    # json.loads admits these constants, and json.dumps would write them back
-    # out as invalid JSON
+    # json.loads admits these constants, and json.dumps would write them back out as invalid JSON
     page = job_page(
         jobLocation={"latitude": float("nan"), "longitude": float("inf")},
         baseSalary={"currency": "USD", "value": {"minValue": float("-inf"), "maxValue": 135000}},
@@ -963,8 +984,8 @@ def test_a_posting_page_drops_nonfinite_numbers():
     assert not {"salary_min", "experience_months"} & set(job)
     assert job["locations"] == []
     assert job["salary_max"] == 135000
-    # a markup salary with enough digits converts to infinity, and comma-only
-    # bounds hold no number: neither yields a field
+    # a markup salary with enough digits converts to infinity, and comma-only bounds hold no number:
+    # neither yields a field
     huge = "9" * 400
     assert parse(f'<div class="compensation__salary">USD {huge}/yr - USD {huge}/yr</div>') is None
     assert parse('<div class="compensation__salary">USD ,/yr - USD ,/yr</div>') is None
@@ -1009,8 +1030,8 @@ def test_a_posting_page_survives_schema_variants():
 
 
 def test_a_posting_page_decodes_the_entities_the_block_arrives_with():
-    # Entities inside a script element reach the parser undecoded, so every
-    # string the block holds needs decoding, not just the description markup.
+    # Entities inside a script element reach the parser undecoded, so every string the block holds
+    # needs decoding, not just the description markup.
     page = job_page(
         title="Data &amp; Analytics Lead",
         hiringOrganization={
@@ -1077,32 +1098,12 @@ def test_a_posting_page_reads_the_en_us_markup_labels():
     assert job["company_logo"] == "https://media.licdn.com/acme-logo.png"
 
 
-@pytest.mark.parametrize("failure", [network_down(), rate_limited(), not_found()])
-def test_a_blockless_page_pulls_the_en_us_fragment(failure):
-    other = "https://nl.linkedin.com/jobs/view/other-at-acme-444"
-    fetcher = StubFetcher(
-        {
-            "economist-at-acme-111": ok(blockless_page()),
-            "jobPosting/111": ok(en_fragment()),
-            "other-at-acme-444": ok(blockless_page()),
-            "jobPosting/444": failure,
-        }
-    )
-    got = asyncio.run(linkedin.postings(fetcher, ["111", other]))
-    assert fetched(got, "111")["employment_type"] == "full_time"  # the fragment's part
-    assert fetched(got, "111")["applicants"] == 200  # the page wins where both speak
-    assert fetcher.requests[:4] == [
-        f"{FRAGMENT}/111?_l=en_US",  # names the URL, and serves the labels too
-        CANONICAL,
-        other,
-        f"{FRAGMENT}/444?_l=en_US",  # forced locale: the labels must parse
-    ]
-    # a posting whose fragment failed is left out and not cached, so a rerun fetches it again
-    assert other not in got
-    fetcher.requests.clear()
-    assert asyncio.run(linkedin.postings(fetcher, ["111", other])) == got
-    assert fetcher.requests[0] == other
-    assert CANONICAL not in fetcher.requests
+def test_a_blockless_page_costs_one_request():
+    # In en-US, a page without the block has the fragment's markup, so the fragment adds nothing.
+    fetcher = StubFetcher({"economist-at-acme-111": ok(en_fragment()), "jobPosting": not_found()})
+    job = fetched(asyncio.run(linkedin.postings(fetcher, [CANONICAL])), CANONICAL)
+    assert job["employment_type"] == "full_time"
+    assert fetcher.requests == [in_en_us(CANONICAL)]
 
 
 def test_postings_have_three_outcomes():
@@ -1124,7 +1125,7 @@ def test_postings_have_three_outcomes():
     assert (got[gone], got[gone_alias]) == (None, None)  # gone, and the alias shares it
     assert got[removed] is None  # a 410 says gone as a 404 does
     assert flaky not in got  # transient: safe to retry
-    assert sum(1 for u in fetcher.requests if u == CANONICAL) == 1  # deduped
+    assert fetcher.requests.count(in_en_us(CANONICAL)) == 1  # deduped
     assert sum(1 for u in fetcher.requests if "gone-at" in u) == 1  # so is the alias
 
 
@@ -1139,7 +1140,7 @@ def test_postings_overlap_page_reads_and_keep_reference_order(caplog):
             self.active += 1
             self.peak = max(self.peak, self.active)
             # Every read yields so that each worker starts one, and the first posting ends last.
-            for _ in range(10 if url == references[0] else 1):
+            for _ in range(10 if url == in_en_us(references[0]) else 1):
                 await asyncio.sleep(0)
             self.active -= 1
             return await super().fetch(
@@ -1150,7 +1151,7 @@ def test_postings_overlap_page_reads_and_keep_reference_order(caplog):
     with caplog.at_level(logging.INFO, logger="jobrake.sites.linkedin"):
         got = asyncio.run(linkedin.postings(fetcher, references))
     assert fetcher.peak == 6
-    assert fetcher.requests[-1] == references[0]
+    assert fetcher.requests[-1] == in_en_us(references[0])
     assert list(got) == references
     assert all(fetched(got, ref)["applicants"] == 200 for ref in references)
     progress = [record.progress for record in caplog.records if hasattr(record, "progress")]
@@ -1160,15 +1161,16 @@ def test_postings_overlap_page_reads_and_keep_reference_order(caplog):
 
 def test_a_persistent_429_cancels_unfinished_reads_and_keeps_completed_pages():
     references = [f"https://nl.linkedin.com/jobs/view/role-{n}" for n in range(111, 135)]
+    pages = [in_en_us(reference) for reference in references]
     cancelled = []
 
     class Refusing(StubFetcher):
         async def fetch(self, url, *, headers=None, json=None, follow_redirects=True):
-            if url == references[0]:
+            if url == pages[0]:
                 return await super().fetch(
                     url, headers=headers, json=json, follow_redirects=follow_redirects
                 )
-            if url == references[1]:
+            if url == pages[1]:
                 await asyncio.sleep(0)
                 self.requests.append(url)
                 return rate_limited()
@@ -1191,9 +1193,9 @@ def test_a_persistent_429_cancels_unfinished_reads_and_keeps_completed_pages():
 
     got = asyncio.run(run())
     assert list(got) == references[:1]
-    assert set(fetcher.requests) == set(references[:7])
-    assert set(cancelled) == set(references[2:7])
-    assert fetcher.requests.count(references[1]) == 6
+    assert set(fetcher.requests) == set(pages[:7])
+    assert set(cancelled) == set(pages[2:7])
+    assert fetcher.requests.count(pages[1]) == 6
     assert asyncio.run(linkedin.postings(StubFetcher({}), references[:1])) == got
 
 
@@ -1205,13 +1207,13 @@ def test_a_429_stop_propagates_a_completed_fetcher_exception_after_cleanup():
     class Refusing(StubFetcher):
         async def fetch(self, url, *, headers=None, json=None, follow_redirects=True):
             nonlocal attempts
-            if url == CANONICAL:
+            if url == in_en_us(CANONICAL):
                 await entered.wait()
                 attempts += 1
                 if attempts == 4:
                     released.set()
                 return rate_limited()
-            if url == OTHER:
+            if url == in_en_us(OTHER):
                 await released.wait()
                 raise RuntimeError("fetcher failed")
             entered.set()
@@ -1236,13 +1238,12 @@ def test_postings_stop_when_the_429_retries_also_fail(caplog):
     assert len(fetcher.requests) == 1 + client.RETRIES
     assert "rate limiting" in caplog.text
 
-    # A persistently limited fragment fails the whole posting too.
-    fetcher = StubFetcher(
-        {"economist-at-acme-111": ok(blockless_page()), "jobPosting/111": rate_limited()}
-    )
+    # A persistently limited fragment fails a posting whose page redirected away too.
+    expired = FetchResult("https://nl.linkedin.com/jobs/search?trk=expired_jd_redirect", 200, "")
+    fetcher = StubFetcher({"economist-at-acme-111": expired, "jobPosting/111": rate_limited()})
     assert asyncio.run(linkedin.postings(fetcher, [CANONICAL])) == {}
     fragment = f"{FRAGMENT}/111?_l=en_US"
-    assert fetcher.requests == [CANONICAL] + [fragment] * (1 + client.RETRIES)
+    assert fetcher.requests == [in_en_us(CANONICAL)] + [fragment] * (1 + client.RETRIES)
 
     # a stop still serves the postings it never reached from the cache
     first = "https://nl.linkedin.com/jobs/view/first-at-acme-333"
@@ -1277,7 +1278,7 @@ def test_malformed_response_urls_do_not_abort_other_postings(origin, malformed):
     got = asyncio.run(linkedin.postings(fetcher, [first, OTHER]))
     assert list(got) == [OTHER]
     assert fetched(got, OTHER)["title"] == "Healthy"
-    assert OTHER in fetcher.requests
+    assert in_en_us(OTHER) in fetcher.requests
 
 
 @pytest.mark.parametrize("suffix", ["/", "?trk=public_jobs", "/?trk=public_jobs", "#apply"])
@@ -1286,7 +1287,7 @@ def test_postings_reduce_a_url_to_its_page(suffix):
     got = asyncio.run(linkedin.postings(fetcher, [CANONICAL + suffix]))
     assert fetched(got, CANONICAL + suffix)["url"] == CANONICAL  # keyed as passed
     # fetched without a trailing slash, or the page omits the block
-    assert fetcher.requests == [CANONICAL]
+    assert fetcher.requests == [in_en_us(CANONICAL)]
 
 
 def test_a_details_search_caches_the_page_without_its_card():
@@ -1335,7 +1336,7 @@ def test_interrupted_postings_finish_their_readers_before_returning(cancel):
 
     class Interrupted(StubFetcher):
         async def fetch(self, url, *, headers=None, json=None, follow_redirects=True):
-            if url == CANONICAL:
+            if url == in_en_us(CANONICAL):
                 await entered.wait()
                 if not cancel:
                     raise RuntimeError("interrupted")
@@ -1361,7 +1362,7 @@ def test_interrupted_postings_finish_their_readers_before_returning(cancel):
             task.cancel()
         with pytest.raises(asyncio.CancelledError if cancel else RuntimeError):
             await task
-        assert started == references[1:6]
+        assert started == [in_en_us(reference) for reference in references[1:6]]
         assert set(cancelled) == set(started)
 
     asyncio.run(asyncio.wait_for(run(), timeout=1))
@@ -1385,9 +1386,9 @@ def test_postings_resolve_an_id_before_fetching_the_page():
         }
     )
     got = asyncio.run(linkedin.postings(fetcher, ["111"]))
-    # /jobs/view/111 answers without the schema.org block, so the id buys the
-    # canonical URL from the fragment first
-    assert fetcher.requests == [f"{FRAGMENT}/111?_l=en_US", CANONICAL]
+    # /jobs/view/111 answers without the schema.org block, so the id buys the canonical URL from
+    # the fragment first
+    assert fetcher.requests == [f"{FRAGMENT}/111?_l=en_US", in_en_us(CANONICAL)]
     job = fetched(got, "111")
     assert (job["id"], job["url"], job["title"]) == ("111", CANONICAL, "Economist")
     assert job["posted_at"] == "2026-08-05T08:04:27.000Z"  # what the block adds
@@ -1416,7 +1417,7 @@ def test_postings_resolve_an_id_before_fetching_the_page():
         cache.CACHE.close()
         cache.CACHE.path.unlink(missing_ok=True)
         assert asyncio.run(linkedin.postings(fetcher, [address])) == {address: job}
-        assert fetcher.requests == [f"{FRAGMENT}/111?_l=en_US", CANONICAL]
+        assert fetcher.requests == [f"{FRAGMENT}/111?_l=en_US", in_en_us(CANONICAL)]
 
 
 @pytest.mark.parametrize(
@@ -1436,8 +1437,8 @@ def test_postings_resolve_an_id_before_fetching_the_page():
     ],
 )
 def test_postings_reject_a_reference_that_is_not_a_linkedin_posting(reference):
-    # A wrong address must fail rather than quietly become whichever linkedin
-    # posting shares its trailing digits, or vanish and leave a short result.
+    # A wrong address must fail rather than quietly become whichever linkedin posting shares its
+    # trailing digits, or vanish and leave a short result.
     fetcher = StubFetcher({})
     with pytest.raises(ValueError, match="posting ID"):
         asyncio.run(linkedin.postings(fetcher, [CANONICAL, reference]))
@@ -1463,7 +1464,7 @@ def test_postings_collapse_the_addresses_of_one_posting():
     ]
     got = asyncio.run(linkedin.postings(fetcher, references))
     # one posting, fetched once from the first canonical address
-    assert fetcher.requests == [CANONICAL]
+    assert fetcher.requests == [in_en_us(CANONICAL)]
     assert list(got) == references
     assert all(job == got[CANONICAL] for job in got.values())
     assert fetched(got, "111")["url"] == CANONICAL
@@ -1500,8 +1501,8 @@ def test_postings_keep_what_they_resolved_in_reference_order(caplog):
     assert [record.message.split(".")[0] for record in caplog.records] == [
         "skipping posting 333: connection reset",
     ]
-    # a rerun asks only about the postings it did not fetch: 444 and 111 come
-    # from the cache with their URLs
+    # a rerun asks only about the postings it did not fetch: 444 and 111 come from the cache
+    # with their URLs
     fetcher.requests.clear()
     assert asyncio.run(linkedin.postings(fetcher, references)) == got
     assert fetcher.requests == [f"{FRAGMENT}/333?_l=en_US", f"{FRAGMENT}/222?_l=en_US"]
@@ -1521,7 +1522,7 @@ def test_postings_fetch_a_us_posting_on_www(caplog, by_id):
         job = fetched(asyncio.run(linkedin.postings(fetcher, [reference])), reference)
     assert (job["id"], job["url"], job["title"]) == ("111", www, "Economist")
     assert job["posted_at"] == "2026-08-05T08:04:27.000Z"
-    assert fetcher.requests == ([f"{FRAGMENT}/111?_l=en_US", www] if by_id else [www])
+    assert fetcher.requests == [f"{FRAGMENT}/111?_l=en_US"] * by_id + [in_en_us(www)]
     assert caplog.records == []
 
 
@@ -1541,7 +1542,7 @@ def test_postings_follow_a_pages_canonical_link_to_another_address(address):
     )
     got = asyncio.run(linkedin.postings(fetcher, [address]))
     job = fetched(got, address)
-    assert fetcher.requests == [address, CANONICAL]
+    assert fetcher.requests == [in_en_us(address), in_en_us(CANONICAL)]
     assert (job["url"], job["title"], job["description"]) == (
         CANONICAL,
         "Economist",
@@ -1558,7 +1559,7 @@ def test_a_canonical_link_spelling_the_pages_address_another_way_costs_no_second
     fetcher = StubFetcher({"-111": ok(link + job_page(title="Economist"))})
     job = fetched(asyncio.run(linkedin.postings(fetcher, [encoded])), encoded)
     assert (job["url"], job["title"]) == (encoded, "Economist")
-    assert fetcher.requests == [encoded]
+    assert fetcher.requests == [in_en_us(encoded)]
 
 
 def test_a_page_whose_canonical_link_names_another_posting_is_skipped_with_the_reason(caplog):
@@ -1593,7 +1594,7 @@ def test_postings_resolve_a_failed_candidate_with_the_guest_fragment(candidate, 
         "Economist",
         "2026-08-05T08:04:27.000Z",
     )
-    assert fetcher.requests == [www, f"{FRAGMENT}/111?_l=en_US", CANONICAL]
+    assert fetcher.requests == [in_en_us(www), f"{FRAGMENT}/111?_l=en_US", in_en_us(CANONICAL)]
     assert [record for record in caplog.records if record.levelno >= logging.WARNING] == []
 
 
@@ -1607,7 +1608,7 @@ def test_a_failed_page_does_not_repeat_the_guest_lookup_it_already_used():
         }
     )
     assert asyncio.run(linkedin.postings(fetcher, [www])) == {}
-    assert fetcher.requests == [www, f"{FRAGMENT}/111?_l=en_US", CANONICAL]
+    assert fetcher.requests == [in_en_us(www), f"{FRAGMENT}/111?_l=en_US", in_en_us(CANONICAL)]
 
 
 @pytest.mark.parametrize("canonical", [None, OTHER])
@@ -1623,7 +1624,7 @@ def test_postings_resolve_a_page_without_its_own_canonical_metadata(canonical):
     )
     job = fetched(asyncio.run(linkedin.postings(fetcher, [www])), www)
     assert (job["url"], job["title"]) == (CANONICAL, "Economist")
-    assert fetcher.requests == [www, f"{FRAGMENT}/111?_l=en_US", CANONICAL]
+    assert fetcher.requests == [in_en_us(www), f"{FRAGMENT}/111?_l=en_US", in_en_us(CANONICAL)]
 
 
 def test_two_pages_that_name_each_other_as_canonical_end_after_one_read_of_each():
@@ -1635,7 +1636,7 @@ def test_two_pages_that_name_each_other_as_canonical_end_after_one_read_of_each(
         }
     )
     assert asyncio.run(linkedin.postings(fetcher, [CANONICAL])) == {}
-    assert fetcher.requests == [CANONICAL, renamed]
+    assert fetcher.requests == [in_en_us(CANONICAL), in_en_us(renamed)]
 
 
 @pytest.mark.parametrize("has_fields", [False, True])
@@ -1658,7 +1659,7 @@ def test_an_expired_page_cannot_replace_fields_from_its_surviving_fragment(has_f
         "https://media.licdn.com/acme-logo.png",
     )
     assert job["url"] == CANONICAL
-    assert fetcher.requests == [f"{FRAGMENT}/111?_l=en_US", CANONICAL]
+    assert fetcher.requests == [f"{FRAGMENT}/111?_l=en_US", in_en_us(CANONICAL)]
 
 
 @pytest.mark.parametrize("metadata", [False, True])
@@ -1669,4 +1670,4 @@ def test_postings_reuse_a_response_already_redirected_to_its_canonical_url(metad
     fetcher = StubFetcher({www: redirected, "jobPosting/111": not_found()})
     job = fetched(asyncio.run(linkedin.postings(fetcher, [www])), www)
     assert (job["url"], job["title"]) == (CANONICAL, "Economist")
-    assert fetcher.requests == [www]
+    assert fetcher.requests == [in_en_us(www)]

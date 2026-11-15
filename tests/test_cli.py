@@ -173,8 +173,7 @@ def test_site_commands_dispatch_their_options(monkeypatch, stub_search):
         monkeypatch.setattr(sys, "argv", ["jobrake", *shlex.split(argv)])
         cli.main()
 
-    # Each site receives the options given on its command line, and its search
-    # supplies the rest.
+    # Each site receives the options given on its command line, and its search supplies the rest.
     assert calls == [
         (
             "indeed",
@@ -289,8 +288,8 @@ def test_output_csv_roundtrips_hostile_fields(run_cli, tmp_path, capsys):
         reader = csv.DictReader(f)
         rows = list(reader)
     assert reader.fieldnames == list(JOB_FIELDS)
-    # Unavailable summaries and absent details read back as empty cells, the
-    # places as their names, and the site's own fields as JSON.
+    # Unavailable summaries and absent details read back as empty cells, the places as their names,
+    # and the site's own fields as JSON.
     nested = [
         {
             "locations": "Seattle, WA; Portland, OR",
@@ -311,8 +310,8 @@ def test_output_csv_roundtrips_hostile_fields(run_cli, tmp_path, capsys):
     ("name", "read"),
     [
         ("jobs.json", json.loads),
-        # The extension picks the format whatever its case. A leaked raw newline
-        # in a description would break the per-line parse.
+        # The extension picks the format whatever its case. A leaked raw newline in a description
+        # would break the per-line parse.
         ("jobs.JSONL", lambda text: [json.loads(line) for line in text.splitlines()]),
     ],
 )
@@ -356,8 +355,8 @@ def test_invalid_output_fails_before_scraping(run_cli, stub_search, tmp_path, ca
     existing.write_text("previous run", encoding="utf-8")
     with pytest.raises(SystemExit):
         run_cli("-o", str(existing))
-    # Exclusive creation refuses a dangling symlink, and a read-only directory
-    # refuses any new file. Either would cost a finished scrape its results.
+    # Exclusive creation refuses a dangling symlink, and a read-only directory refuses any new file.
+    # Either would cost a finished scrape its results.
     dangling = tmp_path / "dangling.json"
     dangling.symlink_to(tmp_path / "nowhere.json")
     with pytest.raises(SystemExit):

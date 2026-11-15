@@ -7,10 +7,9 @@ from fakes import StubFetcher, ok
 
 from jobrake.sites import econjobmarket
 
-# Two ads from backend.econjobmarket.org/data/zz_public/json/Ads, fetched
-# 2026-10-28, trimmed to the fields jobrake reads plus enddate, with each ad
-# text cut to a sentence or two, the first two of its locations kept, and its
-# categories cut to the first two.
+# Two ads from backend.econjobmarket.org/data/zz_public/json/Ads, fetched 2026-10-28,
+# trimmed to the fields jobrake reads plus enddate, with each ad text cut to a sentence or two,
+# the first two of its locations kept, and its categories cut to the first two.
 ADS = [
     {
         "adtitle": "Senior Associate (North America)",

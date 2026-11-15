@@ -21,6 +21,7 @@ UNREADABLE = r"^acme sent a response this version cannot read \("
         (not_found(), {"board": "x"}, r"^acme request for board 'x' failed: HTTP 404$"),
         (network_down(), {}, "^acme request failed: connection reset$"),
         (ok("not JSON"), {}, UNREADABLE + "JSONDecodeError"),
+        (ok("\n<!DOCTYPE html><title>Maintenance</title>"), {}, "^acme sent a web page where"),
         (ok("[" + "9" * 5000 + "]"), {}, UNREADABLE + "ValueError"),
         (ok("[]"), {}, UNREADABLE + "TypeError"),
         (ok("{}"), {}, UNREADABLE + r"KeyError\('jobs'\)"),

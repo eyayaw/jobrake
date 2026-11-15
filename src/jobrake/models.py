@@ -14,11 +14,10 @@ class Place(TypedDict, closed=True):
     """
     One place a posting names, with the parts the site gives for it.
 
-    ``name`` is the site's label for the place, or its city, region, and
-    country code joined when the site gives no label. ``country_code`` is two
-    uppercase letters in the form of an ISO 3166-1 alpha-2 code. ``make_places``
-    checks the form only, so an unassigned code such as ``ZZ`` stays. Nothing
-    is parsed out of a label.
+    ``name`` is the site's label for the place, or its city, region, and country code joined when
+    the site gives no label. ``country_code`` is two uppercase letters in the form of an ISO 3166-1
+    alpha-2 code. ``make_places`` checks the form only, so an unassigned code such as ``ZZ`` stays.
+    Nothing is parsed out of a label.
     """
 
     name: str
@@ -33,15 +32,13 @@ class JobDict(TypedDict, closed=True):
     """
     A posting from any site, under shared field names.
 
-    Identity and summary keys are always present. A summary value the site
-    lacks is ``None``, and ``locations`` is ``[]`` when no place was
-    extracted, which says nothing about whether the posting has one. A
-    detail key appears only when it has a value. ``id`` is the site's own
-    identifier, so ``(site, id)`` is unique. ``locations`` keeps the site's
-    order. ``date`` is a calendar date. ``workplace_type`` appears only
-    when the site states it, so its absence leaves the workplace unknown.
-    ``site_data`` holds fields only the site named in ``site`` carries, under
-    that site's own names, as JSON values.
+    Identity and summary keys are always present. A summary value the site lacks is ``None``,
+    and ``locations`` is ``[]`` when no place was extracted, which says nothing about whether the
+    posting has one. A detail key appears only when it has a value. ``id`` is the site's own
+    identifier, so ``(site, id)`` is unique. ``locations`` keeps the site's order.
+    ``date`` is a calendar date. ``workplace_type`` appears only when the site states it,
+    so its absence leaves the workplace unknown. ``site_data`` holds fields only the site named in
+    ``site`` carries, under that site's own names, as JSON values.
     """
 
     site: str
@@ -86,9 +83,8 @@ def _place(entry: object) -> dict[str, Any]:
     """
     Normalize one place, leaving out a blank or malformed part and naming it from its parts when it has no name.
 
-    A ``country_code`` that is not two letters, such as a country name, is
-    left out. The result has no ``name`` when the place has neither a name
-    nor a text part.
+    A ``country_code`` that is not two letters, such as a country name, is left out.
+    The result has no ``name`` when the place has neither a name nor a text part.
 
     Raises:
         TypeError: ``entry`` is not an object or has a key that is not a ``Place`` field.
@@ -116,13 +112,13 @@ def make_places(value: object) -> list[Place]:
     """
     Normalize a site's or a cache row's places, so that normalizing the result changes nothing.
 
-    A place with neither a name nor a text part is left out, and a place equal
-    to an earlier one once normalized appears once. Places that differ in any
-    part stay separate, because a shared name alone does not make them one.
+    A place with neither a name nor a text part is left out, and a place equal to an earlier one
+    once normalized appears once. Places that differ in any part stay separate,
+    because a shared name alone does not make them one.
 
     Raises:
-        TypeError: ``value`` is not a list, or a place is not an object or
-            has a key that is not a ``Place`` field.
+        TypeError: ``value`` is not a list, or a place is not an object or has a key that is not a
+            ``Place`` field.
     """
     if value is None:
         return []
@@ -150,13 +146,12 @@ def _site_data(value: object) -> dict[str, Any] | None:
     """
     Return the site's own fields that have a value, or None if no field has one.
 
-    A number that strict JSON cannot write becomes None and leaves the rest of
-    its field in place. One example is the infinity that ``json.loads`` makes
-    of ``1e400``.
+    A number that strict JSON cannot write becomes None and leaves the rest of its field in place.
+    One example is the infinity that ``json.loads`` makes of ``1e400``.
 
     Raises:
-        TypeError: ``value`` is not an object with text keys, so a cache row
-            of another shape is a miss.
+        TypeError: ``value`` is not an object with text keys, so a cache row of another
+            shape is a miss.
     """
     if value is None:
         return None
@@ -181,16 +176,14 @@ def make_job(**fields: Any) -> JobDict:
     """
     Build a ``JobDict`` from a site's fields, normalizing their text.
 
-    Identity strings are stripped. A blank or missing summary value becomes
-    ``None``, a missing ``locations`` becomes ``[]``, and a blank or ``None``
-    detail value is left out. ``date`` keeps the calendar date of the given
-    ``date``, falling back to ``posted_at``. A lone surrogate, which JSON can
-    carry as an escape and UTF-8 cannot encode, becomes U+FFFD.
+    Identity strings are stripped. A blank or missing summary value becomes ``None``,
+    a missing ``locations`` becomes ``[]``, and a blank or ``None`` detail value is left out.
+    ``date`` keeps the calendar date of the given ``date``, falling back to ``posted_at``.
+    A lone surrogate, which JSON can carry as an escape and UTF-8 cannot encode, becomes U+FFFD.
 
     Raises:
-        TypeError: An identity field is missing, blank, or not a string, a
-            field is not a ``JobDict`` key, or ``locations`` or ``site_data``
-            is malformed.
+        TypeError: An identity field is missing, blank, or not a string, a field is not a
+            ``JobDict`` key, or ``locations`` or ``site_data`` is malformed.
     """
     if unknown := fields.keys() - set(JOB_FIELDS):
         raise TypeError(f"not a job field: {', '.join(sorted(unknown))}")
@@ -219,12 +212,10 @@ class Stopped(Exception):
     """
     A search or lookup that could not finish.
 
-    A request failed, the site reported an error or has no such board, its
-    response could not be read, a page ended a search short of the total the
-    site reported, or a posting's details could not be fetched. ``partial``
-    holds the records the call collected, ``[]`` when there are none. After a
-    failed details fetch it holds every card, with details where their fetch
-    succeeded.
+    A request failed, the site reported an error or has no such board, its response could not be
+    read, a page ended a search short of the total the site reported, or a posting's details could
+    not be fetched. ``partial`` holds the records the call collected, ``[]`` when there are none.
+    After a failed details fetch it holds every card, with details where their fetch succeeded.
     """
 
     def __init__(self, message: str, *, partial: list[JobDict] | None = None) -> None:
@@ -232,8 +223,8 @@ class Stopped(Exception):
         self.partial = partial or []
 
 
-# schema.org says CONTRACTOR and INTERN, and Ashby says Intern, where the
-# other boards say Contract and Internship.
+# schema.org says CONTRACTOR and INTERN, and Ashby says Intern, where the other boards say Contract
+# and Internship.
 _EMPLOYMENT_ALIASES = {"contractor": "contract", "intern": "internship"}
 
 
@@ -241,7 +232,8 @@ def _slug(label: str | None) -> str | None:
     """Return a site's label as a snake_case slug such as ``full_time``, or None for no label."""
     if not label:
         return None
-    # A camelCase label, such as Ashby's FullTime, splits before a capital that follows a lowercase letter or digit.
+    # A camelCase label, such as Ashby's FullTime, splits before a capital that follows a lowercase
+    # letter or digit.
     words = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", "_", label)
     return re.sub(r"[^a-z0-9]+", "_", words.lower()).strip("_") or None
 
@@ -252,8 +244,8 @@ def employment_type(label: str | None) -> str | None:
     return _EMPLOYMENT_ALIASES.get(slug, slug) if slug else None
 
 
-# Lever's API sends onsite, where https://github.com/lever/postings-api lists
-# on-site (Spotify's board, 2026-11-14).
+# Lever's API sends onsite, where https://github.com/lever/postings-api lists on-site (Spotify's
+# board, 2026-11-14).
 _WORKPLACE_ALIASES = {"onsite": "on_site"}
 
 

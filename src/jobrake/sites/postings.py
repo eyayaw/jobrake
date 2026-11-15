@@ -9,9 +9,8 @@ from jobrake.utils import report_progress
 
 logger = logging.getLogger(__name__)
 
-# A site's reader of one card's posting: the fields the posting adds, or None
-# when the site reports the posting gone. It raises Stopped for a failed
-# request or an unreadable response.
+# A site's reader of one card's posting: the fields the posting adds, or None when the site reports
+# the posting gone. It raises Stopped for a failed request or an unreadable response.
 type Reader = Callable[[JobDict], Awaitable[dict[str, Any] | None]]
 
 
@@ -46,8 +45,8 @@ async def fill_details(site: str, cards: list[JobDict], read: Reader) -> list[Jo
     A posting the site reports gone keeps its card.
 
     Raises:
-        Stopped: A posting's fields could not be read. ``partial`` holds every
-            card, filled where its read succeeded.
+        Stopped: A posting's fields could not be read. ``partial`` holds every card,
+            filled where its read succeeded.
     """
     found = await _read_each(site, cards, read)
     filled = [_merge(card, found.get(card["id"]) or {}) for card in cards]
@@ -66,10 +65,9 @@ async def fetch_postings(
     """
     Fetch the posting each reference names, keyed by the references given.
 
-    ``card`` reads a reference as the card it names, so every reference is
-    checked before the first request. References naming one posting share
-    one request. A posting the site reports gone maps to None, and a
-    reference whose read failed has no key.
+    ``card`` reads a reference as the card it names, so every reference is checked before the first
+    request. References naming one posting share one request. A posting the site reports gone maps
+    to None, and a reference whose read failed has no key.
 
     Raises:
         ValueError: ``card`` rejected a reference.

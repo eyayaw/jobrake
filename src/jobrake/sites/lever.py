@@ -76,15 +76,13 @@ async def search(
     """
     List every published posting on one employer's Lever board.
 
-    ``board`` is the token that ends the board's address, as in
-    ``jobs.lever.co/spotify``. One request returns the whole board,
-    descriptions included, in Lever's order. A board the global host does not
-    know is requested once more from the EU host. Neither request is paced or
-    retried.
+    ``board`` is the token that ends the board's address, as in ``jobs.lever.co/spotify``.
+    One request returns the whole board, descriptions included, in Lever's order. A board the global
+    host does not know is requested once more from the EU host. Neither request is paced or retried.
 
     Raises:
-        Stopped: A request failed, neither host has the board, or Lever sent
-            an unreadable response. ``partial`` is empty.
+        Stopped: A request failed, neither host has the board, or Lever sent an unreadable response.
+            ``partial`` is empty.
         ValueError: ``board`` is blank.
     """
     token = board.strip()

@@ -68,9 +68,9 @@ async def places(
     """
     List an Indeed edition's location suggestions for a name, best match first.
 
-    Each is an ``{"id", "name"}`` dict, and ``id`` is the exact string the
-    edition's search geocodes, ready for ``search``'s ``location``. Indeed
-    sends up to ten. An empty list means the edition offers no such place.
+    Each is an ``{"id", "name"}`` dict, and ``id`` is the exact string the edition's search
+    geocodes, ready for ``search``'s ``location``. Indeed sends up to ten. An empty list means the
+    edition offers no such place.
 
     Raises:
         Stopped: The request failed, or the response held no readable suggestion.
@@ -87,8 +87,7 @@ async def companies(
     List an Indeed edition's company suggestions for a name.
 
     Each is an ``{"id", "name"}`` dict, and ``id`` is Indeed's employer key,
-    which ``search`` takes in ``company_ids``. An empty list means Indeed
-    returned no suggestions.
+    which ``search`` takes in ``company_ids``. An empty list means Indeed returned no suggestions.
 
     Raises:
         Stopped: The request failed, or the response held no readable suggestion.
@@ -104,8 +103,8 @@ def _attribute_codes(payload: Any) -> list[dict[str, str]]:  # noqa: ANN401  any
     Raises:
         Stopped: Indeed answered with a GraphQL error in place of the search data.
         KeyError: The response lacks the search results.
-        TypeError: The results are not a list, or they hold malformed entries
-            and no readable attribute.
+        TypeError: The results are not a list, or they hold malformed entries and no
+            readable attribute.
     """
     found: dict[str, dict[str, str]] = {}
     malformed = False
@@ -132,11 +131,10 @@ async def attributes(
     """
     Collect the attribute codes on the first 100 matching Indeed jobs.
 
-    Each is an ``{"id", "name"}`` dict. ``id`` is a code that ``search`` takes
-    in ``attributes``, and ``name`` is Indeed's label, which can vary by edition. The search has no posting-age
-    restriction. Codes appear once, in first-seen order, and different codes
-    with the same label stay separate. Malformed entries are skipped. A
-    search with no attributes returns ``[]``.
+    Each is an ``{"id", "name"}`` dict. ``id`` is a code that ``search`` takes in ``attributes``,
+    and ``name`` is Indeed's label, which can vary by edition. The search has no posting-age
+    restriction. Codes appear once, in first-seen order, and different codes with the same label
+    stay separate. Malformed entries are skipped. A search with no attributes returns ``[]``.
 
     Raises:
         Stopped: The request failed, or the response held no readable attribute.

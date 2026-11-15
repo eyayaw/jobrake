@@ -13,10 +13,10 @@ from jobrake import Stopped
 from jobrake.fetchkit import FetchResult
 from jobrake.sites import smartrecruiters
 
-# Two cards from api.smartrecruiters.com/v1/companies/BoschGroup/postings, the
-# second with locationType=REMOTE, fetched 2026-10-28, trimmed to the fields
-# jobrake reads plus a few it leaves out. The first card gains a department in
-# SmartRecruiters' documented shape, which BoschGroup leaves out.
+# Two cards from api.smartrecruiters.com/v1/companies/BoschGroup/postings, the second with
+# locationType=REMOTE, fetched 2026-10-28, trimmed to the fields jobrake reads plus a few it leaves
+# out. The first card gains a department in SmartRecruiters' documented shape,
+# which BoschGroup leaves out.
 CARDS = [
     {
         "id": "744000158197889",
@@ -209,10 +209,9 @@ def test_a_malformed_card_is_skipped_with_a_warning(caplog):
     assert caplog.text.count("skipping malformed smartrecruiters posting") == 2
 
 
-# GET {API}/BoschGroup/postings/744000158197889 on 2026-10-29, the posting
-# behind CARDS[0], trimmed to the fields jobrake reads, with each section cut
-# to its opening and additionalInformation emptied, as another BoschGroup
-# posting serves it.
+# GET {API}/BoschGroup/postings/744000158197889 on 2026-10-29, the posting behind CARDS[0],
+# trimmed to the fields jobrake reads, with each section cut to its opening and
+# additionalInformation emptied, as another BoschGroup posting serves it.
 POSTING = {
     "id": "744000158197889",
     "name": "Product Industrialization Expert_PS_RBCW      ",
@@ -307,8 +306,8 @@ def test_postings_fetch_each_posting_once_and_key_it_by_reference():
     )
     references = [url, slugged, shouted, gone, malformed, closed, failed]
     got = asyncio.run(smartrecruiters.postings(fetcher, references))
-    # Without a card, the record is the posting's alone, which names no department. A 400
-    # fails like a dropped connection, so its reference has no key.
+    # Without a card, the record is the posting's alone, which names no department.
+    # A 400 fails like a dropped connection, so its reference has no key.
     record = {**PRODUCT_EXPERT, "description": DESCRIPTION}
     del record["department"]
     assert got == {

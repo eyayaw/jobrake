@@ -22,14 +22,13 @@ def read_json[T](
     """
     Return what ``unpack`` takes from the JSON body of a site's response.
 
-    ``unpack`` raises ``KeyError``, ``TypeError``, or ``AttributeError`` for a
-    body without what the site needs. ``board`` names the board in the message
-    of a failed request. ``unknown`` is the message for a 404, which without
-    it counts as a failed request.
+    ``unpack`` raises ``KeyError``, ``TypeError``, or ``AttributeError`` for a body without what the
+    site needs. ``board`` names the board in the message of a failed request.
+    ``unknown`` is the message for a 404, which without it counts as a failed request.
 
     Raises:
-        Stopped: The site answered 404 and ``unknown`` is given, the request
-            failed, or the body is unreadable.
+        Stopped: The site answered 404 and ``unknown`` is given, the request failed,
+            or the body is unreadable.
     """
     if result.status == 404 and unknown:
         raise Stopped(unknown)
@@ -40,6 +39,13 @@ def read_json[T](
     try:
         return unpack(json.loads(result.text))
     except (ValueError, KeyError, TypeError, AttributeError) as error:
+        # Workday answers 200 with its maintenance page while a data center is down (measured
+        # 2026-11-14 on two career sites).
+        if result.text.lstrip().startswith("<"):
+            raise Stopped(
+                f"{site} sent a web page where its API sends JSON, so the site may be "
+                "under maintenance. Try again later"
+            ) from error
         raise Stopped(
             f"{site} sent a response this version cannot read ({error!r}), likely an API change"
         ) from error
@@ -65,8 +71,8 @@ def json_page(payload: Any, key: str, total: str) -> tuple[list[Any], int]:  # n
 
     Raises:
         KeyError: ``payload`` lacks ``key`` or ``total``.
-        TypeError: ``payload[key]`` is not a list, ``payload[total]`` is not
-            a number, or ``payload`` is not an object.
+        TypeError: ``payload[key]`` is not a list, ``payload[total]`` is not a number,
+            or ``payload`` is not an object.
     """
     count = finite(payload[total])
     if count is None:
@@ -80,8 +86,8 @@ def parse_postings(
     """
     Parse each item of a site's posting list, skipping one that ``parse`` rejects.
 
-    ``parse`` raises ``TypeError`` or ``AttributeError`` for a malformed
-    item, which is left out of the result and logged as a warning.
+    ``parse`` raises ``TypeError`` or ``AttributeError`` for a malformed item,
+    which is left out of the result and logged as a warning.
     """
     # The site's own logger, so a handler set on one site still sees its warnings.
     logger = logging.getLogger(f"jobrake.sites.{site}")
@@ -100,15 +106,14 @@ async def collect(
     """
     Gather a search's pages into at most ``results`` postings, in the site's order.
 
-    ``pages`` yields each page's postings with the count the site can serve
-    for the search, and ends where the site does. It is asked for a page only
-    while postings are missing, so the code after its last ``yield`` runs only
-    for a search the site ended short of ``results``. A posting that a later
-    page repeats is kept once, and each page logs a progress record.
+    ``pages`` yields each page's postings with the count the site can serve for the search,
+    and ends where the site does. It is asked for a page only while postings are missing,
+    so the code after its last ``yield`` runs only for a search the site ended short of ``results``.
+    A posting that a later page repeats is kept once, and each page logs a progress record.
 
     Raises:
-        Stopped: ``pages`` raised it. ``partial`` holds the postings of the
-            pages before it, which the message counts.
+        Stopped: ``pages`` raised it. ``partial`` holds the postings of the pages before it,
+            which the message counts.
     """
     logger = logging.getLogger(f"jobrake.sites.{site}")
     jobs: dict[str, JobDict] = {}

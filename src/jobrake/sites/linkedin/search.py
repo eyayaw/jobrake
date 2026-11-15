@@ -23,8 +23,8 @@ KM_PER_MILE = 1.609344
 
 def _parse_page(html: str) -> tuple[list[JobDict], int]:
     """Parse card summaries, and count every card LinkedIn served, parsable or not."""
-    # Search cards contain only summary fields. fetch_pages() reads the
-    # detail fields from each posting page.
+    # Search cards contain only summary fields. fetch_pages() reads the detail fields from each
+    # posting page.
     soup = BeautifulSoup(html, "html.parser")
     cards = soup.find_all("div", class_="base-search-card")
     jobs = []
@@ -76,9 +76,9 @@ async def _pages(
         if not raw and start == 0 and params["geoId"]:
             logger.warning("linkedin returned no postings for geoId=%s", params["geoId"])
         elif not raw and start == 0:
-            # An unresolvable location and a genuine no-results page both return an
-            # empty 200. The guest geocoder often needs a region and country. "Berlin"
-            # works, while bare "Amsterdam" does not.
+            # An unresolvable location and a genuine no-results page both return an empty 200.
+            # The guest geocoder often needs a region and country. "Berlin" works,
+            # while bare "Amsterdam" does not.
             logger.warning(
                 "linkedin returned no postings for location=%r. "
                 "A location without its region and country may not resolve; try "
@@ -88,8 +88,8 @@ async def _pages(
         if not raw:
             return
         yield cards, MAX_START
-        # Offsets can overlap, and some cards cannot be parsed. Only a page
-        # without cards marks the end. Advance by the server's own card count.
+        # Offsets can overlap, and some cards cannot be parsed. Only a page without cards marks the
+        # end. Advance by the server's own card count.
         start += raw
     logger.warning(
         "linkedin's guest search serves nothing past offset %d, fewer postings than requested. "
@@ -116,25 +116,23 @@ async def search(
     """
     Search LinkedIn's login-free guest endpoint.
 
-    ``geoid``, a place ID from :func:`places`, names the search area and makes ``location`` optional.
-    Otherwise ``location`` is required and works best with a region and country.
+    ``geoid``, a place ID from :func:`places`, names the search area and makes ``location``
+    optional. Otherwise ``location`` is required and works best with a region and country.
     ``radius`` reaches LinkedIn's undocumented ``distance`` parameter as whole miles.
     A search by geoId ignores the radius for some places.
-    ``query=""`` searches without keywords. A filter left at its default, or given ``[]``, applies no restriction.
-    Filters combine and travel with every page.
+    ``query=""`` searches without keywords. A filter left at its default, or given ``[]``,
+    applies no restriction. Filters combine and travel with every page.
     ``details`` hydrates posting pages, reusing cached copies.
 
-    Search requests share the process-wide fabric pacing. The guest endpoint
-    serves about ten cards per page and stops at offset ``MAX_START``,
-    limiting one search to roughly 1,000 cards. Results retain guest-search
-    order and stop at ``results``.
+    Search requests share the process-wide fabric pacing. The guest endpoint serves about ten cards
+    per page and stops at offset ``MAX_START``, limiting one search to roughly 1,000 cards.
+    Results retain guest-search order and stop at ``results``.
 
     Raises:
-        Stopped: A request failed after its retries, or a posting's details
-            could not be fetched. ``partial`` holds the postings collected,
-            with the details fetched so far.
-        ValueError: The location is missing or blank, or the geoid or a
-            company ID uses characters other than digits 0-9.
+        Stopped: A request failed after its retries, or a posting's details could not be fetched.
+            ``partial`` holds the postings collected, with the details fetched so far.
+        ValueError: The location is missing or blank, or the geoid or a company ID uses characters
+            other than digits 0-9.
     """
     if geoid is None and (location is None or not location.strip()):
         raise ValueError(
@@ -163,8 +161,7 @@ async def search(
         # LinkedIn names its radius parameter ``distance`` and reads it in miles.
         "distance": None if radius is None else round(radius / KM_PER_MILE),
         "f_TPR": f"r{max_age_hours * 3600}" if max_age_hours else None,
-        # Newest first. The guest endpoint ignored it in October 2026 and
-        # ranked by relevance.
+        # Newest first. The guest endpoint ignored it in October 2026 and ranked by relevance.
         "sortBy": "DD",
         "f_C": ",".join(company_ids) if company_ids else None,
         "f_AL": "true" if easy_apply else None,

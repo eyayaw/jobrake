@@ -9,8 +9,8 @@ class StubFetcher:
     """
     Serve canned FetchResults by URL substring, record every request, and count each close.
 
-    A result answers with the requested URL when its own is ``"stub"``. Any other ``url``
-    stands for a redirect the transport followed to that address.
+    A result answers with the requested URL when its own is ``"stub"``. Any other ``url`` stands for
+    a redirect the transport followed to that address.
     """
 
     def __init__(self, responses: dict[str, FetchResult]):

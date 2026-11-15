@@ -46,9 +46,8 @@ async def places(
     """
     List LinkedIn's places for a name, best match first.
 
-    Each is an ``{"id", "name"}`` dict, and ``id`` is the geoId that ``search``
-    takes as ``geoid``. LinkedIn sends up to ten. An empty list means
-    LinkedIn knows no such place.
+    Each is an ``{"id", "name"}`` dict, and ``id`` is the geoId that ``search`` takes as ``geoid``.
+    LinkedIn sends up to ten. An empty list means LinkedIn knows no such place.
 
     Raises:
         Stopped: The request failed, or the response held no readable place.
@@ -64,9 +63,8 @@ async def companies(
     """
     List LinkedIn's company suggestions for a name.
 
-    Each is an ``{"id", "name"}`` dict, and ``id`` is a company ID that
-    ``search`` takes in ``company_ids``. An empty list means LinkedIn returned
-    no suggestions.
+    Each is an ``{"id", "name"}`` dict, and ``id`` is a company ID that ``search`` takes in
+    ``company_ids``. An empty list means LinkedIn returned no suggestions.
 
     Raises:
         Stopped: The request failed, or the response held no readable suggestion.

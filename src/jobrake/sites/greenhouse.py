@@ -60,14 +60,13 @@ async def search(
     """
     List every published posting on one employer's Greenhouse board.
 
-    ``board`` is the token that ends the board's address, as in
-    ``job-boards.greenhouse.io/airbnb``. One request returns the whole board,
-    descriptions included, in Greenhouse's order. It is neither paced nor
-    retried.
+    ``board`` is the token that ends the board's address, as in ``job-boards.greenhouse.io/airbnb``.
+    One request returns the whole board, descriptions included, in Greenhouse's order.
+    It is neither paced nor retried.
 
     Raises:
-        Stopped: The request failed, Greenhouse has no such board, or it sent
-            an unreadable response. ``partial`` is empty.
+        Stopped: The request failed, Greenhouse has no such board, or it sent an unreadable
+            response. ``partial`` is empty.
         ValueError: ``board`` is blank.
     """
     token = board.strip()

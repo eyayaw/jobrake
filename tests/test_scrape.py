@@ -24,8 +24,8 @@ def test_a_site_meets_the_site_contract(site):
         options = site_options(function)
         positional = [option for option, spec in options.items() if spec.positional]
         assert len(positional) == (name != "search"), name
-        # Every exported function checks its arguments before any request, and
-        # takes its fetcher by name as well as by position.
+        # Every exported function checks its arguments before any request, and takes its fetcher by
+        # name as well as by position.
         fetcher = StubFetcher({})
         text = {option: ["x"] if name == "postings" else "x" for option in positional}
         with pytest.raises(TypeError, match=f"^{site}: "):

@@ -12,12 +12,11 @@ from jobrake.sites import lever
 GLOBAL = "https://api.lever.co/v0/postings"
 EU = "https://api.eu.lever.co/v0/postings"
 
-# Two postings from api.lever.co/v0/postings/palantir?mode=json, fetched
-# 2026-10-28, trimmed to the fields jobrake reads plus opening, with each HTML
-# field and list cut to a block or two of one short sentence. The second posting's workplaceType is
-# changed from hybrid to remote to cover a second workplace type, New York is
-# added to its allLocations to cover a second place, and the first posting
-# gains categories.department, which Lever documents and palantir leaves out.
+# Two postings from api.lever.co/v0/postings/palantir?mode=json, fetched 2026-10-28,
+# trimmed to the fields jobrake reads plus opening, with each HTML field and list cut to a block or
+# two of one short sentence. The second posting's workplaceType is changed from hybrid to remote to
+# cover a second workplace type, New York is added to its allLocations to cover a second place,
+# and the first posting gains categories.department, which Lever documents and palantir leaves out.
 POSTINGS = [
     {
         "id": "6ed76ce8-4156-4b60-b120-403538bd66cd",

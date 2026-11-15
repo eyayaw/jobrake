@@ -8,8 +8,8 @@ from hypothesis import strategies as st
 
 from jobrake.utils import epoch_ms_to_iso, html_text, iso_date
 
-# Soft hyphen, zero-width space, word joiner, BOM, and the bidi embedding,
-# override, and isolate controls.
+# Soft hyphen, zero-width space, word joiner, BOM, and the bidi embedding, override,
+# and isolate controls.
 _INVISIBLE_CHARACTERS = (
     "\u00ad\u200b\u2060\ufeff\u202a\u202b\u202c\u202d\u202e\u2066\u2067\u2068\u2069"
 )
@@ -72,8 +72,8 @@ def test_html_text_keeps_styled_text_a_reader_sees(shown):
     st.lists(st.tuples(st.integers(min_value=0), st.sampled_from(_INVISIBLE_CHARACTERS))),
 )
 def test_html_text_drops_invisible_characters_and_keeps_joiners(text, inserts):
-    # ZWNJ, ZWJ, LRM, and RLM in the alphabet carry meaning in Persian, Arabic,
-    # and Indic text, so they survive while every inserted character goes.
+    # ZWNJ, ZWJ, LRM, and RLM in the alphabet carry meaning in Persian, Arabic, and Indic text,
+    # so they survive while every inserted character goes.
     spliced = text
     for position, character in inserts:
         index = position % (len(spliced) + 1)

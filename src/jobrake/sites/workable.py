@@ -11,8 +11,8 @@ from jobrake.utils import as_dict, as_str, checked, html_text
 
 logger = logging.getLogger(__name__)
 
-# Workable documents www.workable.com/api/accounts/<board>, which answers with
-# a 302 to this URL. Requesting it directly costs one request on any fetcher.
+# Workable documents www.workable.com/api/accounts/<board>, which answers with a 302 to this URL.
+# Requesting it directly costs one request on any fetcher.
 API_URL = "https://apply.workable.com/api/v1/widget/accounts"
 
 
@@ -31,8 +31,8 @@ def _parse_posting(posting: dict[str, Any], company: str | None) -> JobDict:
     """
     places = posting.get("locations")
     listed = [as_dict(place) for place in (places if isinstance(places, list) else [])]
-    # Each place is named with Workable's own text, whose country is a name
-    # such as France, so a country without its code keeps the place.
+    # Each place is named with Workable's own text, whose country is a name such as France,
+    # so a country without its code keeps the place.
     locations = [
         {
             "name": ", ".join(filter(None, _texts(place, ("city", "region", "country")))),
@@ -43,8 +43,7 @@ def _parse_posting(posting: dict[str, Any], company: str | None) -> JobDict:
         for place in listed
     ]
     top = _texts(posting, ("city", "state", "country"))
-    # On the board we measured, the top-level fields repeated the first place
-    # and added none.
+    # On the board we measured, the top-level fields repeated the first place and added none.
     if all(_texts(place, ("city", "region", "country")) != top for place in listed):
         city, state, _ = top
         name = ", ".join(filter(None, top))
@@ -52,8 +51,8 @@ def _parse_posting(posting: dict[str, Any], company: str | None) -> JobDict:
     education = as_str(posting.get("education"))
     return make_job(
         site="workable",
-        # The shortcode alone resolves at apply.workable.com/j/<shortcode>, so
-        # it is unique across all boards, not just this one.
+        # The shortcode alone resolves at apply.workable.com/j/<shortcode>,
+        # so it is unique across all boards, not just this one.
         id=posting.get("shortcode"),
         url=posting.get("url"),
         title=posting.get("title"),
@@ -92,14 +91,13 @@ async def search(
     List every published posting on one employer's Workable board.
 
     ``board`` is the token that follows the host in the careers page address,
-    as in ``apply.workable.com/huggingface``. One request returns the whole
-    board, descriptions included, in Workable's order. A posting open in
-    several places comes back once, with each place in ``locations``. The
-    request is neither paced nor retried.
+    as in ``apply.workable.com/huggingface``. One request returns the whole board,
+    descriptions included, in Workable's order. A posting open in several places comes back once,
+    with each place in ``locations``. The request is neither paced nor retried.
 
     Raises:
-        Stopped: The request failed, Workable has no such board, or it sent
-            an unreadable response. ``partial`` is empty.
+        Stopped: The request failed, Workable has no such board, or it sent an unreadable response.
+            ``partial`` is empty.
         ValueError: ``board`` is blank.
     """
     token = board.strip()

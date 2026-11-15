@@ -23,9 +23,9 @@ class FetchResult:
     """
     One response, or the failure that took its place.
 
-    Header names are lowercased. A status of 400 or more sets ``error`` to
-    ``"HTTP <status>"`` unless the fetcher supplied a message, so a 429 from
-    any fetcher reads as ``status == 429`` and carries an ``error``.
+    Header names are lowercased. A status of 400 or more sets ``error`` to ``"HTTP <status>"``
+    unless the fetcher supplied a message, so a 429 from any fetcher reads as ``status == 429`` and
+    carries an ``error``.
 
     Attributes:
         url: Final response URL, or the requested URL when no response arrived.
@@ -78,8 +78,8 @@ class HttpxFetcher:
         """
         Apply ``timeout``, in seconds, to each network operation.
 
-        ``headers`` override the browser-like defaults. ``transport``
-        replaces the network, as ``httpx.MockTransport`` does in tests.
+        ``headers`` override the browser-like defaults. ``transport`` replaces the network,
+        as ``httpx.MockTransport`` does in tests.
 
         Raises:
             ValueError: ``timeout`` is not finite and positive.

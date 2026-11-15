@@ -141,9 +141,8 @@ def test_a_board_parses_into_records():
             "country_code": "GB",
         },
     ]
-    # Top-level fields that no listed place matches in city, region, and
-    # country make a place of their own, whose name holds the country as
-    # Workable names it.
+    # Top-level fields that no listed place matches in city, region, and country make a place of
+    # their own, whose name holds the country as Workable names it.
     paris = {"name": "Paris, Île-de-France, France", "city": "Paris", "region": "Île-de-France"}
     for top, listed, expected in (
         ({}, [], [paris]),
