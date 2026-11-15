@@ -23,7 +23,7 @@ LANGUAGES = ("en", "de", "fr", "es", "nl", "it", "pt")
 
 # The board becomes the host name, so it must be one DNS label, or a value such as x@evil.com#
 # would send the request elsewhere.
-_BOARD = re.compile(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?", re.IGNORECASE)
+_BOARD = re.compile(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?", re.IGNORECASE | re.ASCII)
 
 # The salary types measured on 62 postings of 71 boards (2026-11-15). Another type leaves the period
 # out and keeps the amounts.

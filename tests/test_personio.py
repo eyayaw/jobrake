@@ -211,11 +211,11 @@ def test_a_body_that_is_not_the_feed_is_unreadable(body, error):
         asyncio.run(personio.search(StubFetcher({"/xml": ok(body)}), board="tado"))
 
 
-def test_a_board_that_is_not_a_subdomain_is_refused_before_any_request():
-    host = "tado.jobs.personio.de"
-    with pytest.raises(ValueError, match=r"^board 'tado\.jobs\.personio\.de' is not a Personio"):
-        check("personio", board=host)
+@pytest.mark.parametrize("board", ["tado.jobs.personio.de", "\N{LATIN SMALL LETTER LONG S}tado"])
+def test_a_board_that_is_not_a_subdomain_is_refused_before_any_request(board):
+    with pytest.raises(ValueError, match=r"is not a Personio subdomain"):
+        check("personio", board=board)
     fetcher = StubFetcher({})
     with pytest.raises(ValueError, match=r"Pass the name before \.jobs\.personio\.de"):
-        asyncio.run(scrape("personio", board=host, fetcher=fetcher))
+        asyncio.run(scrape("personio", board=board, fetcher=fetcher))
     assert fetcher.requests == []
