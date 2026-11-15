@@ -107,7 +107,8 @@ def _parse_position(position: ET.Element, board: str) -> JobDict:
         employment_type=employment_type(position.findtext("employmentType")),
         posted_at=position.findtext("createdAt"),
         **_salary(position),
-        site_data={name: position.findtext(name) for name in _SITE_FIELDS},
+        # Employers type some of these with a trailing space, which make_job leaves in site_data.
+        site_data={name: (position.findtext(name) or "").strip() for name in _SITE_FIELDS},
     )
 
 
