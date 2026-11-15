@@ -1,5 +1,46 @@
 # Changelog
 
+## [0.28.0](https://github.com/eyayaw/jobrake/releases/tag/v0.28.0) - 2026-11-15
+
+### Added
+
+- A Workday career site on the shared host,
+  `https://wd<n>.myworkdaysite.com/recruiting/<tenant>/<site>`,
+  is read like one on `myworkdayjobs.com`. Its address was rejected as not a Workday URL.
+- A LinkedIn posting that no longer accepts applications carries `closed: true` in `site_data`.
+  LinkedIn keeps serving such a posting, and it read as open.
+- `Stopped.failed` lists the URLs of the postings a details search could not fetch, and the CLI
+  prints the `postings` command that retries them. A failed posting looked like a gone one in
+  `partial`, and a rerun retried it only if the search still listed it.
+- `jobrake.check(site, **options)` raises the error `scrape` would raise for a search's options,
+  without a request or an event loop.
+- `jobrake.identify(link)` returns the `site` and `id` of the posting a LinkedIn, Indeed, Workday,
+  or SmartRecruiters link names, as a search returns them, or `None`, without a request.
+
+### Changed
+
+- Workday and SmartRecruiters cache the postings they fetch for details, as LinkedIn does,
+  so a repeated details search spends a request only on each new posting.
+- A Workday posting read for details that names no primary location lists only its other places.
+  The search result's place led them, which tied the posting's fields to the card that fetched it.
+- A LinkedIn posting page without structured data, such as one placed in a whole country,
+  costs one request for its details.
+  It took a second for the guest fragment, which adds nothing once the page is in English.
+
+### Fixed
+
+- A site that sends a web page where its API sends JSON, as Workday does during maintenance,
+  stops the search with a message that says so and to try again later.
+  The message blamed an API change.
+- A LinkedIn posting read for details takes its places whole from its page,
+  which jobrake now requests in English.
+  The record joined the search result's place name to the page's parts,
+  so a page in the posting country's language gave `Den Haag` under
+  `The Hague, South Holland, Netherlands`, and a posting open in several cities could name one city
+  and carry another's parts. The page's `company` is in English too, such as `MediaTek`
+  where a Taiwanese page gave `聯發科技`.
+  A record already cached keeps its old values until its row expires.
+
 ## [0.27.0](https://github.com/eyayaw/jobrake/releases/tag/v0.27.0) - 2026-11-14
 
 ### Changed
