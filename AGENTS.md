@@ -22,12 +22,12 @@ systems, and it depends on `httpx` and `bs4`.
   and headers, plus LinkedIn's pacing, and `lookups.py` holds the lookups. The other sites need no
   headers or pacing. LinkedIn's `pages.py` reads posting pages for `postings` and `details=True`
   with a fixed pool of workers, and Indeed's `countries.py` maps ISO country codes to editions.
-- `sites/responses.py`: the response reading the sites share. `read_json` raises `Stopped` for an
-  unknown board, a failed request, or an unreadable response, `json_list` checks the posting list,
-  `json_page` checks a page's list and its total, and `parse_postings` skips a malformed posting
-  with a warning. `collect` gathers the pages a paged search yields: it drops a repeated posting,
-  logs progress, stops at `results`, and keeps the pages before a failure. A paged site yields its
-  pages from a generator and leaves the rest to `collect`.
+- `sites/responses.py`: the response reading the sites share. `read_json` and `read_xml` raise
+  `Stopped` for an unknown board, a failed request, or an unreadable response, `json_list` checks
+  the posting list, `json_page` checks a page's list and its total, and `parse_postings` skips a
+  malformed posting with a warning. `collect` gathers the pages a paged search yields: it drops a
+  repeated posting, logs progress, stops at `results`, and keeps the pages before a failure. A paged
+  site yields its pages from a generator and leaves the rest to `collect`.
 - `sites/postings.py`: the posting loop of the sites that fill a card with one request per posting.
   `fill_details` serves `details=True` and `fetch_postings` serves `postings`,
   and each site supplies only the reader of the posting at a URL, which raises `Stopped` for a

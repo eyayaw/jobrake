@@ -295,6 +295,38 @@ from a search result's `url` in a later run.
 
 A Workday record has no salary, workplace type, or application link.
 
+### Personio fields
+
+A Personio record carries `title`, `locations`, and `date`, and the details `posted_at`,
+`employment_type`, `site_data`, and, when present, `company`, `description`, `department`,
+and the salary fields.
+
+- `company` is the posting's subcompany, such as `tado GmbH`,
+  which Personio names when the employer has set up subcompanies.
+- `posted_at` is the time the posting was created, and `date` is its calendar date.
+- `locations` holds the posting's office and then its additional offices,
+  named as the employer entered them, such as `Mannheim` and `Köln`.
+- `description` joins the posting's description blocks, each under its name when it has one.
+  Personio serves each posting's description in one language,
+  and its feed in any other language lists the posting without one.
+  jobrake first reads the feed in the board's default language,
+  German or English on the boards we tested.
+  A posting that feed leaves without a description comes whole, title included,
+  from the first of English, German, French, Spanish, Dutch, Italian, and Portuguese
+  that describes it.
+  In our test on 71 boards, the default-language feeds left 161 of 742 postings without a
+  description, and the other languages described all of them.
+- `employment_type` is Personio's contract type as a slug,
+  such as `permanent`, `internship`, `fixed_term`, or `working_student`.
+- `salary_period` is `YEAR`, `MONTH`, or `HOUR`, and a salary without a maximum carries
+  `salary_min` alone. In the same test, 62 of 742 postings published a salary.
+- `site_data` holds `seniority`, `schedule`, `occupation`, `occupationCategory`, and,
+  when present, `recruitingCategory`, `yearsOfExperience`, and `keywords`,
+  as the feed names them.
+- `url` is the posting on `<board>.jobs.personio.de`.
+
+A Personio record has no workplace type or application link.
+
 ### EconJobMarket fields
 
 An EconJobMarket record carries `title`, `company`, `locations`, `date`, and `description`,
@@ -329,6 +361,16 @@ and a failure on Lever's global host other than "not found" stops the search wit
 asking the EU host.
 Each request gets a single attempt and no pacing.
 A failed request raises `Stopped` with an empty `partial`.
+
+### Personio requests
+
+A Personio search reads the board's feed in its default language.
+While a posting still lacks a description, the search reads the feed in the next language,
+in the order [Personio fields](#personio-fields) gives, so a search takes one to eight requests.
+In our test, 69 of 71 boards took one or two requests.
+Each request gets a single attempt and no pacing.
+A failed first request raises `Stopped` with an empty `partial`,
+and a failed later one keeps the postings already read in `partial`.
 
 ### Indeed requests
 
