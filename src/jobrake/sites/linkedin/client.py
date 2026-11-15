@@ -14,14 +14,13 @@ logger = logging.getLogger(__name__)
 BASE_URL = "https://www.linkedin.com"
 SEARCH_URL = f"{BASE_URL}/jobs-guest/jobs/api/seeMoreJobPostings/search"
 TYPEAHEAD_URL = f"{BASE_URL}/jobs-guest/api/typeaheadHits"
-# The guest fragment has the same topcard and criteria markup as the posting page
-# at about a tenth of the size.
+# The guest fragment has the same topcard and criteria markup as the posting page at about a
+# tenth of the size.
 FRAGMENT_URL = f"{BASE_URL}/jobs-guest/jobs/api/jobPosting"
-# A posting page and its fragment come in the language of the posting country's
-# subdomain unless a request asks for en-US. In en-US, the labels and number
-# format are the ones the markup parsers read, the bullet names the place as a
-# search card does, and the schema.org block spells its city the same way
-# (measured 2026-11-14 on 144 postings in 18 countries).
+# A posting page and its fragment come in the language of the posting country's subdomain unless a
+# request asks for en-US. In en-US, the labels and number format are the ones the markup parsers
+# read, the bullet names the place as a search card does, and the schema.org block spells its city
+# the same way (measured 2026-11-14 on 144 postings in 18 countries).
 EN_US_QUERY = "?_l=en_US"
 
 HEADERS = {
@@ -36,53 +35,49 @@ HEADERS = {
     ),
 }
 
-# LinkedIn serves the guest API from several data centers, which it calls
-# fabrics, and counts the 429 budget per IP and per fabric. The response
-# header ``x-li-fabric`` names the fabric that answered.
+# LinkedIn serves the guest API from several data centers, which it calls fabrics,
+# and counts the 429 budget per IP and per fabric. The response header ``x-li-fabric`` names the
+# fabric that answered.
 #
-# The ``lidc`` cookie pins a client to one fabric. A request without it may
-# land on any fabric, and the response sets that fabric's cookie. A client
-# that keeps its cookie jar therefore spends one fabric's budget only.
+# The ``lidc`` cookie pins a client to one fabric. A request without it may land on any fabric,
+# and the response sets that fabric's cookie. A client that keeps its cookie jar therefore spends
+# one fabric's budget only.
 #
-# Measured 2026-10-13 from a residential IP: a fabric serves 5 requests per
-# sliding 11.5-second window. Live posting-page probes on 2026-11-07 also
-# accepted five-request bursts. The same three fabrics answer from North
-# America, Europe, Asia, and Oceania.
+# Measured 2026-10-13 from a residential IP: a fabric serves 5 requests per sliding 11.5-second
+# window. Live posting-page probes on 2026-11-07 also accepted five-request bursts.
+# The same three fabrics answer from North America, Europe, Asia, and Oceania.
 #
-# A cookie holding only the b= field pins a request to the fabric its first
-# letter names, and LinkedIn routes it without checking a signature.
-# paced_fetch therefore starts from FABRICS and pins each request to
-# the least recently used fabric. When a pin drops, it sends requests without
-# the cookie to learn a replacement. If LinkedIn starts ignoring these
-# cookies, their pins drop the same way.
-# pick records sends in a sliding window, allowing a short batch to finish
-# without waiting between requests while keeping the sustained rate bounded.
-# A request that LinkedIn reroutes to another fabric lands there out of turn.
-# Requests overlap, so several can be in flight to a fabric when its pin
-# drops, and the fabric that answers them then takes that many beyond its
-# window. The pool coordinates this process only; LinkedIn counts every
-# process on the IP.
+# A cookie holding only the b= field pins a request to the fabric its first letter names,
+# and LinkedIn routes it without checking a signature.
+# paced_fetch therefore starts from FABRICS and pins each request to the least recently used fabric.
+# When a pin drops, it sends requests without the cookie to learn a replacement.
+# If LinkedIn starts ignoring these cookies, their pins drop the same way.
+# pick records sends in a sliding window, allowing a short batch to finish without waiting between
+# requests while keeping the sustained rate bounded.
+# A request that LinkedIn reroutes to another fabric lands there out of turn. Requests overlap,
+# so several can be in flight to a fabric when its pin drops, and the fabric that answers them then
+# takes that many beyond its window. The pool coordinates this process only;
+# LinkedIn counts every process on the IP.
 FABRICS = {"prod-lor1": '"b=OGST02"', "prod-ltx1": '"b=TGST02"', "prod-lva1": '"b=VGST02"'}
 WINDOW = 11.6  # seconds per fabric window, with 0.1 s beyond the measured limit
 REQUESTS = 5  # requests per fabric window
 FABRICS_WANTED = len(FABRICS)  # distinct fabrics to look for before every request is pinned
 DISCOVERY = 12  # unpinned requests to spend looking for them
-# LinkedIn refuses some requests however slow the pace, and in our runs it
-# refused a retry about as often as a first attempt (measured 2026-11-11). Each
-# retry therefore cuts the odds of a persistent 429, which ends a search or a
-# detail fetch. A retry waits RETRY_DELAY only after every fabric refused it.
+# LinkedIn refuses some requests however slow the pace, and in our runs it refused a retry about as
+# often as a first attempt (measured 2026-11-11). Each retry therefore cuts the odds of a
+# persistent 429, which ends a search or a detail fetch. A retry waits RETRY_DELAY only after every
+# fabric refused it.
 RETRIES = 5
 
 # Match HTTPX's default: https://www.python-httpx.org/api/#asyncclient (checked 2026-11-07).
 _MAX_REDIRECTS = 20
 
-# LinkedIn's guest 429 responses carry no Retry-After header. A 429 from a
-# full window clears once the window's oldest request ages out, so a retry
-# that waits sleeps one full window.
+# LinkedIn's guest 429 responses carry no Retry-After header. A 429 from a full window clears once
+# the window's oldest request ages out, so a retry that waits sleeps one full window.
 RETRY_DELAY = WINDOW
 
-# The cookie value is quoted and holds neither comma nor semicolon, so it
-# survives the comma-joined set-cookie header a fetcher may deliver.
+# The cookie value is quoted and holds neither comma nor semicolon, so it survives the comma-joined
+# set-cookie header a fetcher may deliver.
 _LIDC = re.compile(r'lidc=("[^"]*")')
 
 
@@ -94,8 +89,8 @@ class Fabrics:
         self.unpinned = 0
         self.sent: dict[str, float] = {}  # monotonic time of each fabric's latest send
         # None holds unanswered unpinned sends, charged against every fabric.
-        # A refused send keeps its slot, because LinkedIn appears to count refused
-        # requests against the window (measured 2026-11-11).
+        # A refused send keeps its slot, because LinkedIn appears to count refused requests against
+        # the window (measured 2026-11-11).
         self.history: dict[str | None, list[float]] = {}
         # Discovery stays spaced because its routing is unknown until the answer.
         self.next_turn = -inf
@@ -107,14 +102,13 @@ class Fabrics:
         """
         Return the fabric for a request's next attempt and the seconds to wait before sending it.
 
-        ``tried`` holds the fabrics the request was already pinned to or
-        answered by. During discovery it goes out unpinned, as ``None``, unless
-        it is a retry with a known fabric left to try. An unpinned request can
-        land on any fabric, so it needs room in every fabric's window.
-        Otherwise pick chooses the earliest available fabric outside ``tried``,
-        or among all known fabrics once the request has tried each one, with
-        the least recently used first. With no wait, pick records the send
-        and adds a pinned fabric to ``tried``.
+        ``tried`` holds the fabrics the request was already pinned to or answered by.
+        During discovery it goes out unpinned, as ``None``, unless it is a retry with a known
+        fabric left to try. An unpinned request can land on any fabric, so it needs room in every
+        fabric's window.
+        Otherwise pick chooses the earliest available fabric outside ``tried``, or among all known
+        fabrics once the request has tried each one, with the least recently used first.
+        With no wait, pick records the send and adds a pinned fabric to ``tried``.
         """
         now = monotonic()
         self.history = {
@@ -152,11 +146,10 @@ class Fabrics:
         """
         Update the pool from the answer to one request.
 
-        ``pinned`` is the fabric ``pick`` chose for the request, and ``sent``
-        the time ``pick`` recorded for its send. It stores the answering
-        fabric's lidc cookie, drops a pin whose request landed elsewhere, and
-        records the send on a fabric that answered a request ``pick`` did not
-        pin to it.
+        ``pinned`` is the fabric ``pick`` chose for the request, and ``sent`` the time ``pick``
+        recorded for its send. It stores the answering fabric's lidc cookie,
+        drops a pin whose request landed elsewhere, and records the send on a fabric that answered a
+        request ``pick`` did not pin to it.
         """
         fabric = result.headers.get("x-li-fabric")
         logger.debug(
@@ -166,15 +159,14 @@ class Fabrics:
             f"a request pinned to {pinned}" if pinned else "an unpinned request",
         )
         if pinned and fabric and fabric != pinned:
-            # The pin no longer holds, so its cookie would land anywhere. A
-            # concurrent request may have dropped it already. The discovery
-            # budget resets, so pick looks for a replacement while fewer than
-            # FABRICS_WANTED are known.
+            # The pin no longer holds, so its cookie would land anywhere. A concurrent request may
+            # have dropped it already. The discovery budget resets, so pick looks for a replacement
+            # while fewer than FABRICS_WANTED are known.
             self.known.pop(pinned, None)
             self.unpinned = 0
         if fabric and fabric != pinned:
-            # An unpinned or rerouted request still spent this fabric's
-            # budget. Out-of-order replies must keep its window chronological.
+            # An unpinned or rerouted request still spent this fabric's budget.
+            # Out-of-order replies must keep its window chronological.
             self.sent[fabric] = max(self.sent.get(fabric, -inf), sent)
             self.history[fabric] = sorted([*self.history.get(fabric, []), sent])
             if pinned is None:
@@ -194,9 +186,9 @@ async def paced_fetch(fetcher: Fetcher, url: str) -> FetchResult:
     """
     Fetch ``url`` with paced redirect hops and up to ``RETRIES`` retries for each hop's 429.
 
-    Each request carries a lidc Cookie header in place of the fetcher's own
-    cookies. Only HTTPS LinkedIn redirects are followed. A persistent 429 is
-    returned to the caller. The transport stays open.
+    Each request carries a lidc Cookie header in place of the fetcher's own cookies.
+    Only HTTPS LinkedIn redirects are followed. A persistent 429 is returned to the caller.
+    The transport stays open.
     """
     for _ in range(_MAX_REDIRECTS + 1):
         result = await _fetch_with_retries(fetcher, url)
@@ -223,12 +215,11 @@ async def _fetch_with_retries(fetcher: Fetcher, url: str) -> FetchResult:
     for _ in range(RETRIES):
         if result.status != 429:
             break
-        # A pinned retry goes to a fabric this request has not tried, which
-        # has its own budget. Once it has tried every known fabric, it waits
-        # for the window to clear first, so a fabric that refused it does not
-        # get it back at once. During discovery that retry goes out unpinned
-        # instead, without the wait. Unpinned attempts also reserve room in
-        # every fabric's window until their answers identify where they landed.
+        # A pinned retry goes to a fabric this request has not tried, which has its own budget.
+        # Once it has tried every known fabric, it waits for the window to clear first,
+        # so a fabric that refused it does not get it back at once. During discovery that retry goes
+        # out unpinned instead, without the wait. Unpinned attempts also reserve room in every
+        # fabric's window until their answers identify where they landed.
         if POOL.known.keys() <= tried and not POOL.discovering():
             await asyncio.sleep(RETRY_DELAY)
         result = await _fetch_on_turn(fetcher, url, tried)
@@ -237,23 +228,22 @@ async def _fetch_with_retries(fetcher: Fetcher, url: str) -> FetchResult:
 
 async def _fetch_on_turn(fetcher: Fetcher, url: str, tried: set[str]) -> FetchResult:
     """Send one paced request on the fabric ``POOL.pick`` chooses for ``tried``."""
-    # pick records a send before any await, so concurrent callers never
-    # share a turn.
+    # pick records a send before any await, so concurrent callers never share a turn.
     while True:
         fabric, wait = POOL.pick(tried)
         if not wait:
             break
-        # A request that must wait asks again afterward. Waiters that wake
-        # together, after an event loop stall or when a dropped pin starts
-        # discovery, then leave one turn at a time: the first to ask takes it.
+        # A request that must wait asks again afterward. Waiters that wake together,
+        # after an event loop stall or when a dropped pin starts discovery,
+        # then leave one turn at a time: the first to ask takes it.
         await asyncio.sleep(wait)
     # An explicit Cookie header replaces the jar's cookies for this request.
     headers = HEADERS | {"cookie": f"lidc={POOL.known[fabric]}" if fabric else "lidc="}
     sent = POOL.history[fabric][-1]
     result = await fetcher.fetch(url, headers=headers, follow_redirects=False)
     POOL.learn(fabric, result, sent)
-    # An unpinned or rerouted attempt reveals the fabric that refused it only
-    # in its answer, so a retry learns to skip that fabric here.
+    # An unpinned or rerouted attempt reveals the fabric that refused it only in its answer,
+    # so a retry learns to skip that fabric here.
     if answered := result.headers.get("x-li-fabric"):
         tried.add(answered)
     return result

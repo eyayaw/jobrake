@@ -20,7 +20,8 @@ The [reference](reference.md) lists the fields each site returns and how its req
 
 ## Search for jobs
 
-The searches in this section run on Indeed and LinkedIn. To read one employer's board or EconJobMarket,
+The searches in this section run on Indeed and LinkedIn.
+To read one employer's board or EconJobMarket,
 go to [Employer boards](#employer-boards) or [EconJobMarket](#econjobmarket).
 
 Choose a site and supply a job title or keywords:
@@ -30,10 +31,12 @@ jobrake indeed search -q "data scientist" -c nl -l Amsterdam -n 2
 jobrake linkedin search -q "data scientist" -l "Amsterdam, North Holland, Netherlands" -n 2
 ```
 
-Both commands ask for two postings near Amsterdam, Netherlands, but each names that place its own way.
+Both commands ask for two postings near Amsterdam, Netherlands,
+but each names that place its own way.
 Indeed searches one country edition at a time, so `--country` is required,
 and `--location` narrows that edition to a city or area within it.
-LinkedIn has no editions: pass the place as text to `--location`, or its ID to `--geoid`, and leave `--country` out.
+LinkedIn has no editions: pass the place as text to `--location`, or its ID to `--geoid`,
+and leave `--country` out.
 
 Three more options bound a search by count, age, and distance.
 By default, a search returns **10 jobs** with **no age limit**.
@@ -56,7 +59,8 @@ By default, a search returns **10 jobs** with **no age limit**.
 
 ### Write a query
 
-Search for a job title or keywords. jobrake sends the query unchanged to Indeed's `what` or LinkedIn's `keywords` field.
+Search for a job title or keywords.
+jobrake sends the query unchanged to Indeed's `what` or LinkedIn's `keywords` field.
 
 Both sites match loosely, so a returned job need not contain every word you typed.
 Where that matters, run several narrow queries and filter the results yourself.
@@ -85,7 +89,8 @@ Keep those restrictions out of query text such as `"data science jobs in England
 
 #### LinkedIn query syntax
 
-LinkedIn documents [Boolean search operators](https://www.linkedin.com/help/linkedin/answer/a524335/using-boolean-search-on-linkedin?lang=en) for its own search interface.
+LinkedIn documents [Boolean search operators](https://www.linkedin.com/help/linkedin/answer/a524335/using-boolean-search-on-linkedin?lang=en)
+for its own search interface.
 However, they do not behave as expected on the guest endpoint jobrake uses,
 so write plain keywords for LinkedIn queries.
 
@@ -146,7 +151,8 @@ jobrake linkedin search -q "data scientist" -g 100356971
 The `places`, `companies`, and `attributes` commands print JSON lists of `{"id", "name"}` entries,
 and their library functions return the same lists.
 Each `id` is the value a search takes. An empty list means the lookup found no matches.
-A failed request or unreadable response raises `Stopped` in a library call. The CLI exits nonzero on failure.
+A failed request or unreadable response raises `Stopped` in a library call.
+The CLI exits nonzero on failure.
 
 | Command                                       | Library function                                               |
 | --------------------------------------------- | -------------------------------------------------------------- |
@@ -158,7 +164,8 @@ A failed request or unreadable response raises `Stopped` in a library call. The 
 
 ## Narrow the results
 
-Search filters apply on every page, alongside keywords and geography, **before the result limit is applied**.
+Search filters apply on every page, alongside keywords and geography,
+**before the result limit is applied**.
 Each one has a CLI option and a library argument of the same name.
 Pass the library argument to `scrape()` or the site's `search()` function.
 
@@ -176,7 +183,8 @@ A list option takes several values after one flag, `--attributes CF3CP 6QC5F`, o
 
 > [!NOTE]
 > Each site takes only the filters it applies.
-> `scrape("linkedin", remote=True)` raises `TypeError` before any request and lists LinkedIn's options,
+> `scrape("linkedin", remote=True)` raises `TypeError` before any request
+> and lists LinkedIn's options,
 > and `jobrake linkedin search --remote` fails as an unrecognized argument.
 
 ### Companies
@@ -274,10 +282,14 @@ Use `--language CODE` to select Indeed postings in one language:
 jobrake indeed search -q econometrics -c nl --language en
 ```
 
-Indeed decides each posting's language. The option accepts two-letter language codes such as `EN` and `NL`.
-Indeed's [language-code reference](https://docs.indeed.com/api/common/objects/LanguageCode) describes ISO 639-1.
-Search results also carry the legacy codes `iw` for Hebrew and `in` for Indonesian, which jobrake preserves.
-An Indeed search rejects a malformed value before any request, though a well-formed code can still match nothing.
+Indeed decides each posting's language.
+The option accepts two-letter language codes such as `EN` and `NL`.
+Indeed's [language-code reference](https://docs.indeed.com/api/common/objects/LanguageCode)
+describes ISO 639-1.
+Search results also carry the legacy codes `iw` for Hebrew and `in` for Indonesian,
+which jobrake preserves.
+An Indeed search rejects a malformed value before any request,
+though a well-formed code can still match nothing.
 
 jobrake's LinkedIn search has no language filter.
 
@@ -289,8 +301,10 @@ The `attributes` command helps you find codes on postings matching a job title o
 jobrake indeed attributes -c us "data scientist"
 ```
 
-The command reads the first 100 matching postings and prints a JSON list of code and label pairs, as `id` and `name`.
-It applies no posting-age restriction. Those postings carry several (hundred) attributes between them.
+The command reads the first 100 matching postings and prints a JSON list of code and label pairs,
+as `id` and `name`.
+It applies no posting-age restriction.
+Those postings carry several (hundred) attributes between them.
 Search the list by label:
 
 ```sh
@@ -299,7 +313,8 @@ jobrake indeed attributes -c us "data scientist" \
 # X62BT	Python
 ```
 
-Each run samples the postings afresh, so a code can be missing from one lookup and present in the next.
+Each run samples the postings afresh, so a code can be missing from one lookup
+and present in the next.
 Try the lookup again, or a related query, when a code you expect does not appear.
 Labels can differ by country edition. A label can also belong to several codes,
 and the lookup keeps each code separately. jobrake reads the codes live from Indeed.
@@ -311,9 +326,11 @@ jobrake indeed search -q "data scientist" -c us --attributes X62BT
 jobrake indeed search -q economist -c us --attributes CF3CP 6QC5F
 ```
 
-`X62BT` selects Python. The second search requires both Full-time (`CF3CP`) and Doctoral degree (`6QC5F`),
-because codes intersect: every returned posting carries every code you list. To match any of several codes,
-run separate searches and combine the results. A posting can hold codes that look mutually exclusive,
+`X62BT` selects Python.
+The second search requires both Full-time (`CF3CP`) and Doctoral degree (`6QC5F`),
+because codes intersect: every returned posting carries every code you list.
+To match any of several codes, run separate searches and combine the results.
+A posting can hold codes that look mutually exclusive,
 so a Full-time match may carry Part-time as well when the employer offers either arrangement.
 The filter has no way to exclude a code.
 
@@ -325,8 +342,10 @@ Pass `--remote` to search postings that Indeed tags Remote:
 jobrake indeed search -q "econometrics" -c us --remote
 ```
 
-`--remote` is shorthand for `--attributes DSQF7`, so a posting must carry the Remote tag and every other code you pass.
-The tag reflects Indeed's classification. Check the posting for residency and workplace requirements.
+`--remote` is shorthand for `--attributes DSQF7`, so a posting must carry the Remote tag
+and every other code you pass.
+The tag reflects Indeed's classification.
+Check the posting for residency and workplace requirements.
 An Indeed record's `workplace_type` is `remote` for a posting tagged Remote
 and `hybrid` for one tagged Hybrid work, whose code is `PAXZC`.
 Indeed tags some postings both, and such a posting has no `workplace_type`.
@@ -368,7 +387,8 @@ and [SmartRecruiters fields](reference.md#smartrecruiters-fields) list what it a
 On these two sites, a posting removed or withdrawn since the search keeps its search result.
 
 A posting whose details cannot be fetched also keeps its search result,
-and once the rest are fetched the search raises `Stopped` with every posting in `partial`. A rerun retries them.
+and once the rest are fetched the search raises `Stopped` with every posting in `partial`.
+A rerun retries them.
 See [LinkedIn requests](reference.md#linkedin-requests) for pacing and retries,
 and [cache settings](#cache-location-and-lifetimes) for reuse.
 
@@ -383,10 +403,12 @@ jobrake workday postings https://zillow.wd5.myworkdayjobs.com/Zillow_Group_Exter
 jobrake smartrecruiters postings https://jobs.smartrecruiters.com/BoschGroup/744000158197889
 ```
 
-Sites take postings down over time, so the examples above may be gone. Use references from a recent search.
+Sites take postings down over time, so the examples above may be gone.
+Use references from a recent search.
 Name as many postings as you like.
 Results follow the order given and have the fields of a search with `--details`, except a field only
-the search result carries, such as SmartRecruiters' `department`. Several references to one posting return one job.
+the search result carries, such as SmartRecruiters' `department`.
+Several references to one posting return one job.
 The command accepts the same `--output | -o` and `--format | -f` options as a search.
 A posting that is gone or unreachable is reported on stderr and left out.
 When one was unreachable, the command writes the others and exits nonzero.
@@ -454,21 +476,25 @@ jobs = asyncio.run(scrape("greenhouse", board="airbnb"))
 These searches take no query, result limit, or filters. Ashby, Greenhouse, and Workable apply none.
 Lever filters only on the employer's own labels for location, team, department, and commitment,
 which must match exactly, so jobrake offers none of them.
-To narrow the postings, [pipe the results](#pipe-results) through `jq` or load them into another tool.
+To narrow the postings, [pipe the results](#pipe-results) through `jq`
+or load them into another tool.
 SmartRecruiters and Workday search on the server, as [Search a board](#search-a-board) describes.
 
 ### Find a board
 
 The board token is the last part of the board's address:
 
-- Greenhouse: `airbnb` in `boards.greenhouse.io/airbnb`, or `anthropic` in `job-boards.greenhouse.io/anthropic`.
+- Greenhouse: `airbnb` in `boards.greenhouse.io/airbnb`,
+  or `anthropic` in `job-boards.greenhouse.io/anthropic`.
 - Ashby: `openai` in `jobs.ashbyhq.com/openai`.
 - Lever: `spotify` in `jobs.lever.co/spotify`.
   A board on Lever's EU host, `jobs.eu.lever.co/<token>`, works the same way.
 - Workable: `huggingface` in `apply.workable.com/huggingface`.
-- SmartRecruiters: `BoschGroup` in `jobs.smartrecruiters.com/BoschGroup`. In our tests, capitals did not matter.
+- SmartRecruiters: `BoschGroup` in `jobs.smartrecruiters.com/BoschGroup`.
+  In our tests, capitals did not matter.
 
-A token the site does not know stops the search with an error that says so, except on SmartRecruiters.
+A token the site does not know stops the search with an error that says so,
+except on SmartRecruiters.
 SmartRecruiters answers a token it does not know as it answers a board with no postings,
 so jobrake cannot tell the two apart.
 Either way the search returns no postings and logs that the token may be misspelled.
@@ -478,7 +504,8 @@ Workday has no board token. Pass the address of the employer's job search page i
 copied from the browser, such as `https://zillow.wd5.myworkdayjobs.com/Zillow_Group_External`.
 The address has the form `https://<tenant>.wd<n>.myworkdayjobs.com/<site>`, with or without a
 language part such as `en-US` before the site name. A posting's address on the same site works too.
-Some employers' sites live at `https://wd<n>.myworkdaysite.com/recruiting/<tenant>/<site>`, which works the same way.
+Some employers' sites live at `https://wd<n>.myworkdaysite.com/recruiting/<tenant>/<site>`,
+which works the same way.
 An address jobrake cannot read stops before any request with an error that shows the expected form,
 and a site name Workday does not know stops the search with an error that says so.
 
@@ -521,9 +548,11 @@ board = "https://zillow.wd5.myworkdayjobs.com/Zillow_Group_External"
 jobs = asyncio.run(scrape("workday", board=board, query="analyst", details=True))
 ```
 
-`--query | -q` is Workday's keyword search, and `--results | -n` caps the postings returned, 20 by default.
+`--query | -q` is Workday's keyword search,
+and `--results | -n` caps the postings returned, 20 by default.
 Each employer defines its own Workday filters, such as job category or country,
-so jobrake offers no location, remote, or age filter for Workday. Workday publishes no documentation for this API.
+so jobrake offers no location, remote, or age filter for Workday.
+Workday publishes no documentation for this API.
 The behavior described here was measured on NVIDIA's career site in October 2026,
 and another employer's site may differ.
 
@@ -589,7 +618,8 @@ The formats represent unavailable fields differently.
 - CSV writes every field as a column and leaves unavailable cells empty.
   Its `locations` column holds the place names, separated by `; `, without their parts,
   and its `site_data` column holds the site's fields as JSON.
-  A place name can itself contain `; `, such as Greenhouse's `Remote, Canada; Remote, United States`,
+  A place name can itself contain `; `, such as Greenhouse's
+  `Remote, Canada; Remote, United States`,
   so read JSON or JSONL to count places.
 
 > [!TIP]
@@ -606,7 +636,8 @@ The formats represent unavailable fields differently.
 
 ### Pipe results
 
-Pipe stdout into another program to reshape the jobs. [`jq`](https://github.com/jqlang/jq) picks out fields:
+Pipe stdout into another program to reshape the jobs.
+[`jq`](https://github.com/jqlang/jq) picks out fields:
 
 ```sh
 jobrake indeed search -q "data scientist" -c us -n 2 \
@@ -641,19 +672,23 @@ logger.setLevel(logging.INFO)
 logger.addHandler(Progress())
 ```
 
-A fetcher you supply is yours to close. Use its context manager when several calls should share one connection pool,
+A fetcher you supply is yours to close.
+Use its context manager when several calls should share one connection pool,
 as the example under [Fetch selected results](#fetch-selected-results) does.
 
 To use another HTTP client or a browser, implement the `Fetcher` protocol from `jobrake.fetchkit`:
-an async `fetch(url, *, headers=None, json=None, follow_redirects=True)` that sends a POST when `json` is given.
+an async `fetch(url, *, headers=None, json=None, follow_redirects=True)`
+that sends a POST when `json` is given.
 With `follow_redirects=False`, return the first response,
 including its `Location` header. LinkedIn uses this to pace each redirect hop.
 `fetch` returns a `FetchResult` and reports a failed request in its `error`.
-A status of 400 or more sets `error` on its own. An exception your own `Fetcher` raises propagates out of `scrape()`.
+A status of 400 or more sets `error` on its own.
+An exception your own `Fetcher` raises propagates out of `scrape()`.
 
 ## Request limits and partial results
 
-A failed request ends a search with `Stopped`, and so does a page that ends it short of the total the site reported.
+A failed request ends a search with `Stopped`,
+and so does a page that ends it short of the total the site reported.
 Its `partial` holds the jobs collected before the search stopped:
 
 ```python
@@ -670,7 +705,8 @@ async def main():
 
 The CLI writes those jobs and exits 1. When there are none it writes nothing,
 so empty output such as `[]` always comes from a search that completed.
-Reaching a site's own result cap is not a failure. jobrake warns on stderr and returns what the site served.
+Reaching a site's own result cap is not a failure.
+jobrake warns on stderr and returns what the site served.
 On Indeed, EconJobMarket, and the employer boards, jobrake skips a posting it cannot read
 and leaves out a field it cannot read.
 
@@ -684,7 +720,8 @@ that variable is unset), and `%LOCALAPPDATA%\jobrake\` on Windows. No other site
 
 A cached posting stays fresh for seven days and is fetched again after that.
 A posting that LinkedIn reports gone is not cached.
-An upgrade keeps the cache. A cached posting keeps the fields the older version extracted until it expires,
+An upgrade keeps the cache.
+A cached posting keeps the fields the older version extracted until it expires,
 and is fetched again earlier only if its cached copy no longer fits the job fields.
 
 To refetch every posting at once, move `jobrake.sqlite3` out of the cache directory, or delete it.
@@ -701,7 +738,8 @@ Two environment variables configure the cache:
 | `JOBRAKE_CACHE_PATH` | platform user cache | Path to the SQLite file, with home-directory expansion |
 | `JOBRAKE_CACHE_TTL`  | 604800              | Seconds a cached posting is served before a refetch    |
 
-The lifetime must be a positive number of seconds. An invalid value draws a warning and falls back to the default.
+The lifetime must be a positive number of seconds.
+An invalid value draws a warning and falls back to the default.
 
 A storage failure disables the cache with a warning, and scraping carries on without it.
 

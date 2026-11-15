@@ -7,9 +7,9 @@ from fakes import StubFetcher, ok
 
 from jobrake.sites import greenhouse
 
-# Two postings from boards-api.greenhouse.io/v1/boards/airbnb/jobs?content=true,
-# fetched 2026-10-28, trimmed to the fields jobrake reads plus updated_at and
-# internal_job_id, with each description cut to a block or two of one short sentence.
+# Two postings from boards-api.greenhouse.io/v1/boards/airbnb/jobs?content=true, fetched 2026-10-28,
+# trimmed to the fields jobrake reads plus updated_at and internal_job_id, with each description cut
+# to a block or two of one short sentence.
 POSTINGS = [
     {
         "id": 8285171,

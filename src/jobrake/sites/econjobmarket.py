@@ -41,8 +41,8 @@ def _parse_ad(ad: dict[str, Any]) -> JobDict:
     # "All departments" stands for no unit in particular, in 61 of 319 ads on 2026-10-28.
     department = as_str(ad.get("department"))
     locations = ad.get("locations")
-    # The top-level coordinates are the institution's, which can lie on
-    # another continent, so each place takes its own.
+    # The top-level coordinates are the institution's, which can lie on another continent,
+    # so each place takes its own.
     places = [
         {
             "city": place.get("city"),
@@ -78,13 +78,13 @@ async def search(fetcher: Fetcher) -> list[JobDict]:
     """
     List every open ad on EconJobMarket.
 
-    One request returns the whole feed, descriptions included, in
-    EconJobMarket's order. The feed applies no filter, so the search takes no
-    options. The request is neither paced nor retried.
+    One request returns the whole feed, descriptions included, in EconJobMarket's order.
+    The feed applies no filter, so the search takes no options. The request is neither
+    paced nor retried.
 
     Raises:
-        Stopped: The request failed or EconJobMarket sent an unreadable
-            response. ``partial`` is empty.
+        Stopped: The request failed or EconJobMarket sent an unreadable response.
+            ``partial`` is empty.
     """
     logger.info("reading the econjobmarket ad feed")
     result = await fetcher.fetch(API_URL)

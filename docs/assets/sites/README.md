@@ -1,7 +1,8 @@
 # Site logos
 
 The README's table of supported job boards shows these two logos.
-The other sites' logos load from their owners' servers, Greenhouse's comes from the Simple Icons CDN.
+The other sites' logos load from their owners' servers,
+Greenhouse's comes from the Simple Icons CDN.
 
 | Files | Source | Checked |
 | --- | --- | --- |
@@ -10,4 +11,5 @@ The other sites' logos load from their owners' servers, Greenhouse's comes from 
 
 Each `light` file is for a light background and each `dark` file for a dark one.
 
-The logos are trademarks of LinkedIn Corporation and Indeed, Inc. jobrake's MIT license does not cover these files.
+The logos are trademarks of LinkedIn Corporation and Indeed, Inc.
+jobrake's MIT license does not cover these files.

@@ -46,8 +46,8 @@ def _parse_card(card: dict[str, Any]) -> JobDict:
     """
     company = as_dict(card.get("company"))
     location = as_dict(card.get("location"))
-    # SmartRecruiters' own example card has the place fields without
-    # fullLocation, so make_job names that place from its parts.
+    # SmartRecruiters' own example card has the place fields without fullLocation,
+    # so make_job names that place from its parts.
     place = {
         "name": location.get("fullLocation"),
         "city": location.get("city"),
@@ -103,9 +103,9 @@ async def _posting_fields(fetcher: Fetcher, card: JobDict) -> dict[str, Any] | N
     """
     Fetch the posting behind a card, or None when SmartRecruiters reports it gone.
 
-    SmartRecruiters reports a posting gone with a 404, or by marking a posting
-    it still serves inactive. A 400 stays a failure: it answers a malformed
-    request, and an ID that belongs to another board.
+    SmartRecruiters reports a posting gone with a 404, or by marking a posting it still
+    serves inactive. A 400 stays a failure: it answers a malformed request,
+    and an ID that belongs to another board.
 
     Raises:
         Stopped: The request failed, or the response is unreadable.
@@ -192,25 +192,20 @@ async def search(
     """
     List the published postings on one employer's SmartRecruiters board.
 
-    ``board`` is the company identifier that follows
-    ``jobs.smartrecruiters.com/`` in the board's address. SmartRecruiters
-    applies every option: ``query`` searches titles and locations, and
-    ``max_age_hours`` keeps postings released within that many hours. Pages
-    of up to 100 cards follow one another without pacing or retries until
-    ``results``, the board's last match, or an empty page. A posting that a
-    later page repeats is kept once. An unknown board answers like a board
-    with no postings, so it returns ``[]`` and logs that the board may be
-    misspelled. A card carries no description, so ``details`` fetches each
-    posting with one more request.
+    ``board`` is the company identifier that follows ``jobs.smartrecruiters.com/`` in the board's
+    address. SmartRecruiters applies every option: ``query`` searches titles and locations,
+    and ``max_age_hours`` keeps postings released within that many hours. Pages of up to 100 cards
+    follow one another without pacing or retries until ``results``, the board's last match,
+    or an empty page. A posting that a later page repeats is kept once. An unknown board answers
+    like a board with no postings, so it returns ``[]`` and logs that the board may be misspelled.
+    A card carries no description, so ``details`` fetches each posting with one more request.
 
     Raises:
-        Stopped: A request failed, SmartRecruiters sent an unreadable
-            response, or an empty page came before the reported total.
-            ``partial`` holds the postings of the pages before it. With
-            ``details``, a posting could not be fetched, and ``partial`` holds
-            every posting, filled where its fetch succeeded.
-        ValueError: ``board`` is blank, or ``results`` or ``max_age_hours``
-            is below 1.
+        Stopped: A request failed, SmartRecruiters sent an unreadable response,
+            or an empty page came before the reported total.
+            ``partial`` holds the postings of the pages before it. With ``details``, a posting could
+            not be fetched, and ``partial`` holds every posting, filled where its fetch succeeded.
+        ValueError: ``board`` is blank, or ``results`` or ``max_age_hours`` is below 1.
     """
     token = board.strip()
     logger.info("reading smartrecruiters board %r", token)
@@ -255,16 +250,14 @@ async def postings(
     """
     Fetch known SmartRecruiters postings by URL, one request each.
 
-    The result is keyed by the references given. A reference is a record's
-    ``url`` or the posting's ``postingUrl``, which adds a title slug, and
-    references naming one posting share one request. A reference maps to
-    ``None`` when SmartRecruiters reports its posting gone. After a failed
-    request or an unreadable response it has no key, and a warning names its
-    posting.
+    The result is keyed by the references given. A reference is a record's ``url`` or the posting's
+    ``postingUrl``, which adds a title slug, and references naming one posting share one request.
+    A reference maps to ``None`` when SmartRecruiters reports its posting gone.
+    After a failed request or an unreadable response it has no key, and a warning names its posting.
 
     Raises:
-        ValueError: A reference is not a SmartRecruiters posting URL. Nothing
-            is fetched in that case.
+        ValueError: A reference is not a SmartRecruiters posting URL.
+            Nothing is fetched in that case.
     """
     return await fetch_postings(
         "smartrecruiters", references, _card, functools.partial(_posting_fields, fetcher)

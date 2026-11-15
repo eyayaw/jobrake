@@ -132,8 +132,8 @@ def test_pacing_pins_each_request_to_a_fabric_in_turn():
         assert asyncio.run(paced(fetcher)) == []
 
     cookies = [h["cookie"] for h in fetcher.headers]
-    # Unpinned until three fabrics are known, then each fabric in turn, least
-    # recently used first: prod-a answered the third request, after prod-b.
+    # Unpinned until three fabrics are known, then each fabric in turn, least recently used first:
+    # prod-a answered the third request, after prod-b.
     assert cookies[:4] == ["lidc="] * 4
     assert cookies[4:] == ['lidc="prod-b"', 'lidc="prod-a"', 'lidc="prod-c"', 'lidc="prod-b"']
 
@@ -339,8 +339,8 @@ def test_pacing_drops_a_pin_whose_request_lands_elsewhere(monkeypatch):
     fetcher = Rerouting(["prod-d"])
     for _ in range(5):
         asyncio.run(paced(fetcher))
-    # prod-b took the second turn and never another. Its drop restarted
-    # discovery, which found prod-d; the rest go on least recently used first.
+    # prod-b took the second turn and never another. Its drop restarted discovery,
+    # which found prod-d; the rest go on least recently used first.
     assert sorted(client.POOL.known) == ["prod-a", "prod-c", "prod-d"]
     cookies = [h["cookie"] for h in fetcher.headers]
     assert cookies == ['lidc="prod-a"', 'lidc="prod-b"', "lidc=", 'lidc="prod-c"', 'lidc="prod-a"']
@@ -364,9 +364,8 @@ def test_a_concurrent_request_waits_for_the_next_turn(monkeypatch):
         await asyncio.gather(paced(fetcher), paced(fetcher))
 
     asyncio.run(two_callers())
-    # The first caller's unpinned request takes the turn and finds prod-c. It
-    # may land on any fabric, so the second waits for discovery's spacing, then chooses
-    # among three.
+    # The first caller's unpinned request takes the turn and finds prod-c. It may land on any
+    # fabric, so the second waits for discovery's spacing, then chooses among three.
     assert [h["cookie"] for h in fetcher.headers] == ["lidc=", 'lidc="prod-a"']
     assert sleeps == [2.32]
 
@@ -452,8 +451,8 @@ def test_an_unpinned_request_waits_until_every_fabric_is_paced(monkeypatch):
 
     monkeypatch.setattr(client, "monotonic", lambda: now[0])
     monkeypatch.setattr(client.asyncio, "sleep", sleep)
-    # A reroute left one fabric known, so discovery runs. prod-b took a
-    # full window 0.5 s ago, and the unpinned request might land there.
+    # A reroute left one fabric known, so discovery runs. prod-b took a full window 0.5 s ago,
+    # and the unpinned request might land there.
     client.POOL.known = {"prod-a": '"prod-a"'}
     client.POOL.sent = {"prod-a": 0.0, "prod-b": 1.0}
     client.POOL.history = {"prod-b": [1.0] * 5}
@@ -464,8 +463,8 @@ def test_an_unpinned_request_waits_until_every_fabric_is_paced(monkeypatch):
 
 
 def test_a_retry_skips_the_fabric_that_refused_an_unpinned_attempt():
-    # Two fabrics are known, so discovery runs. The unpinned attempt lands on
-    # prod-b, which refuses it without a new cookie, so discovery goes on.
+    # Two fabrics are known, so discovery runs. The unpinned attempt lands on prod-b,
+    # which refuses it without a new cookie, so discovery goes on.
     client.POOL.known = {name: f'"{name}"' for name in ("prod-a", "prod-b")}
 
     class Refusing(StubFetcher):
@@ -557,8 +556,8 @@ def test_pacing_retries_a_refusal_on_an_untried_fabric(monkeypatch):
 
 def test_concurrent_retries_try_each_fabric_once_and_keep_each_fabric_paced(monkeypatch):
     # Three callers share the pacer. Every fabric refuses the target request,
-    # and the other two callers take the turns between its retries. Time is
-    # virtual, so a sleep parks its caller until the driver moves the clock.
+    # and the other two callers take the turns between its retries. Time is virtual,
+    # so a sleep parks its caller until the driver moves the clock.
     monkeypatch.setattr(client, "DISCOVERY", 0)
     fabrics = ("prod-a", "prod-b", "prod-c")
     client.POOL.known = {name: f'"{name}"' for name in fabrics}
@@ -863,8 +862,8 @@ def blockless_page():
 
 
 def en_fragment(url=CANONICAL):
-    # The same posting's guest fragment: identical markup in en-US, and the
-    # cheapest place LinkedIn writes down the canonical URL.
+    # The same posting's guest fragment: identical markup in en-US, and the cheapest place LinkedIn
+    # writes down the canonical URL.
     return f"""
     <html><a class="topcard__link" href="{url}?trk=public_jobs_topcard-title">
       <h2 class="top-card-layout__title topcard__title">Economist</h2></a>
@@ -974,8 +973,7 @@ def test_a_closed_posting_says_so_in_site_data():
 
 
 def test_a_posting_page_drops_nonfinite_numbers():
-    # json.loads admits these constants, and json.dumps would write them back
-    # out as invalid JSON
+    # json.loads admits these constants, and json.dumps would write them back out as invalid JSON
     page = job_page(
         jobLocation={"latitude": float("nan"), "longitude": float("inf")},
         baseSalary={"currency": "USD", "value": {"minValue": float("-inf"), "maxValue": 135000}},
@@ -986,8 +984,8 @@ def test_a_posting_page_drops_nonfinite_numbers():
     assert not {"salary_min", "experience_months"} & set(job)
     assert job["locations"] == []
     assert job["salary_max"] == 135000
-    # a markup salary with enough digits converts to infinity, and comma-only
-    # bounds hold no number: neither yields a field
+    # a markup salary with enough digits converts to infinity, and comma-only bounds hold no number:
+    # neither yields a field
     huge = "9" * 400
     assert parse(f'<div class="compensation__salary">USD {huge}/yr - USD {huge}/yr</div>') is None
     assert parse('<div class="compensation__salary">USD ,/yr - USD ,/yr</div>') is None
@@ -1032,8 +1030,8 @@ def test_a_posting_page_survives_schema_variants():
 
 
 def test_a_posting_page_decodes_the_entities_the_block_arrives_with():
-    # Entities inside a script element reach the parser undecoded, so every
-    # string the block holds needs decoding, not just the description markup.
+    # Entities inside a script element reach the parser undecoded, so every string the block holds
+    # needs decoding, not just the description markup.
     page = job_page(
         title="Data &amp; Analytics Lead",
         hiringOrganization={
@@ -1388,8 +1386,8 @@ def test_postings_resolve_an_id_before_fetching_the_page():
         }
     )
     got = asyncio.run(linkedin.postings(fetcher, ["111"]))
-    # /jobs/view/111 answers without the schema.org block, so the id buys the
-    # canonical URL from the fragment first
+    # /jobs/view/111 answers without the schema.org block, so the id buys the canonical URL from
+    # the fragment first
     assert fetcher.requests == [f"{FRAGMENT}/111?_l=en_US", in_en_us(CANONICAL)]
     job = fetched(got, "111")
     assert (job["id"], job["url"], job["title"]) == ("111", CANONICAL, "Economist")
@@ -1439,8 +1437,8 @@ def test_postings_resolve_an_id_before_fetching_the_page():
     ],
 )
 def test_postings_reject_a_reference_that_is_not_a_linkedin_posting(reference):
-    # A wrong address must fail rather than quietly become whichever linkedin
-    # posting shares its trailing digits, or vanish and leave a short result.
+    # A wrong address must fail rather than quietly become whichever linkedin posting shares its
+    # trailing digits, or vanish and leave a short result.
     fetcher = StubFetcher({})
     with pytest.raises(ValueError, match="posting ID"):
         asyncio.run(linkedin.postings(fetcher, [CANONICAL, reference]))
@@ -1503,8 +1501,8 @@ def test_postings_keep_what_they_resolved_in_reference_order(caplog):
     assert [record.message.split(".")[0] for record in caplog.records] == [
         "skipping posting 333: connection reset",
     ]
-    # a rerun asks only about the postings it did not fetch: 444 and 111 come
-    # from the cache with their URLs
+    # a rerun asks only about the postings it did not fetch: 444 and 111 come from the cache
+    # with their URLs
     fetcher.requests.clear()
     assert asyncio.run(linkedin.postings(fetcher, references)) == got
     assert fetcher.requests == [f"{FRAGMENT}/333?_l=en_US", f"{FRAGMENT}/222?_l=en_US"]

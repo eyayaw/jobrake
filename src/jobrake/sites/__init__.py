@@ -35,16 +35,14 @@ async def scrape(site: str, *, fetcher: Fetcher | None = None, **options: object
     """
     Search one site and return its postings as ``JobDict`` records.
 
-    ``options`` are the keyword options of ``jobrake.sites.<site>.search``,
-    which checks them against its signature before any request. Without ``fetcher``,
-    ``scrape`` creates and closes an ``HttpxFetcher``. A given fetcher stays
-    open and belongs to the caller.
+    ``options`` are the keyword options of ``jobrake.sites.<site>.search``, which checks them
+    against its signature before any request. Without ``fetcher``, ``scrape`` creates and closes an
+    ``HttpxFetcher``. A given fetcher stays open and belongs to the caller.
 
     Raises:
-        TypeError: An option is unknown to the site, a required option is
-            missing, or a value has the wrong type.
-        ValueError: The site is unknown, or an option value is out of range
-            or unusable on the site.
+        TypeError: An option is unknown to the site, a required option is missing,
+            or a value has the wrong type.
+        ValueError: The site is unknown, or an option value is out of range or unusable on the site.
         Stopped: The search could not finish. ``partial`` holds the postings it collected.
     """
     if site not in SITES:

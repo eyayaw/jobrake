@@ -14,8 +14,8 @@ from jobrake.sites import workday
 BOARD = "https://nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite"
 API = "https://nvidia.wd5.myworkdayjobs.com/wday/cxs/nvidia/NVIDIAExternalCareerSite"
 
-# Three cards, as served, from POST {API}/jobs on 2026-10-28: two from a search
-# without keywords and one from a search for part-time "engineer" postings.
+# Three cards, as served, from POST {API}/jobs on 2026-10-28: two from a search without keywords and
+# one from a search for part-time "engineer" postings.
 CARDS = [
     {
         "title": "Networking Architect",
@@ -100,9 +100,8 @@ def test_a_search_page_parses_into_records(today):
     ]
 
 
-# GET {API}/job/US-CA-Santa-Clara/Networking-Architect_JR1996377 on 2026-10-28,
-# trimmed to jobPostingInfo and hiringOrganization, with the description cut
-# to two short paragraphs.
+# GET {API}/job/US-CA-Santa-Clara/Networking-Architect_JR1996377 on 2026-10-28, trimmed to
+# jobPostingInfo and hiringOrganization, with the description cut to two short paragraphs.
 DETAIL = {
     "jobPostingInfo": {
         "id": "9683fb87cfe610016c0dba112fad0000",
@@ -144,8 +143,8 @@ FILLED = {
 
 
 # GET {API}/job/US-CA-Santa-Clara/Principal-Architect--System-Software---Orbital-Data-Center_JR2019010
-# on 2026-10-28, a card that says "2 Locations", trimmed to the fields jobrake
-# reads, with the description cut to its first sentence.
+# on 2026-10-28, a card that says "2 Locations", trimmed to the fields jobrake reads, with the
+# description cut to its first sentence.
 TWO_PLACES = {
     "jobPostingInfo": {
         "title": "Principal Architect, System Software - Orbital Data Center",
@@ -283,8 +282,8 @@ def test_a_board_url_names_its_career_site():
     fetcher = StubFetcher({"/jobs": ok(page([]))})
     asyncio.run(workday.search(fetcher, board=copied))
     assert fetcher.requests == [f"{API}/jobs"]
-    # A career site on the shared host names its tenant in the path, and the API
-    # takes that tenant in lowercase.
+    # A career site on the shared host names its tenant in the path, and the API takes that tenant
+    # in lowercase.
     host = "https://wd5.myworkdaysite.com"
     site, api = f"{host}/recruiting/guidewire/external", f"{host}/wday/cxs/guidewire/external"
     path = POSTING.removeprefix(BOARD)

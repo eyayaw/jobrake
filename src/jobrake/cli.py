@@ -41,10 +41,9 @@ class _StatusHandler(logging.StreamHandler[TextIO]):
     """
     Stderr handler with terse prefixes and a terminal progress line.
 
-    A record logged with ``extra={"progress": (done, total)}`` rewrites the
-    current terminal line with its message; ordinary records erase that line
-    first, so warnings landing mid-fetch stay legible. A non-terminal stderr
-    skips progress records and receives no control codes.
+    A record logged with ``extra={"progress": (done, total)}`` rewrites the current terminal line
+    with its message; ordinary records erase that line first, so warnings landing mid-fetch stay
+    legible. A non-terminal stderr skips progress records and receives no control codes.
     """
 
     _showing_progress = False
@@ -101,8 +100,8 @@ _SHORT_FLAGS = {
 
 # The functions a site may export, each a command of that site, in help order.
 COMMANDS = ("search", "postings", "places", "companies", "attributes")
-# The commands that write postings, and so take --output and --format. The
-# lookups print their candidates as JSON.
+# The commands that write postings, and so take --output and --format. The lookups print their
+# candidates as JSON.
 _WRITES_POSTINGS = ("search", "postings")
 
 
@@ -121,8 +120,8 @@ def _add_arguments(parser: argparse.ArgumentParser, function: Callable[..., obje
     """
     Add one argument per argument of a site function after the fetcher.
 
-    The text a lookup or ``postings`` takes first becomes a positional
-    argument, and each keyword option a flag named after it.
+    The text a lookup or ``postings`` takes first becomes a positional argument,
+    and each keyword option a flag named after it.
     """
     for name, option in site_options(function).items():
         if option.positional:
@@ -161,8 +160,8 @@ def _build_parser() -> _ArgumentParser:
         for name in (name for name in COMMANDS if name in module.__all__):
             function = getattr(module, name)
             command = _add_parser(commands.add_parser, name, function)
-            # main() reports an error it finds after parsing through this
-            # parser, so the message names the command and its help.
+            # main() reports an error it finds after parsing through this parser,
+            # so the message names the command and its help.
             command.set_defaults(command_parser=command)
             _add_arguments(command, function)
             if name not in _WRITES_POSTINGS:
@@ -188,14 +187,14 @@ def _write_stdout(text: str) -> int | None:
     """
     try:
         sys.stdout.write(text)
-        # Flush now: when the output fits the pipe buffer, a closed pipe
-        # would otherwise surface at interpreter exit, past this handler.
+        # Flush now: when the output fits the pipe buffer, a closed pipe would otherwise surface at
+        # interpreter exit, past this handler.
         sys.stdout.flush()
     except BrokenPipeError:
         # The downstream reader (e.g. `jobrake ... | head`) stopped early.
-        # Keep this handler local. SIGPIPE, signal(SIGPIPE, SIG_DFL),
-        # works only on Unix and changes signal handling for the whole process.
-        # Point stdout at /dev/null so the exit-time flush stays quiet.
+        # Keep this handler local. SIGPIPE, signal(SIGPIPE, SIG_DFL), works only on Unix and
+        # changes signal handling for the whole process. Point stdout at /dev/null so the exit-time
+        # flush stays quiet.
         with Path(os.devnull).open("w") as devnull:
             os.dup2(devnull.fileno(), sys.stdout.fileno())
         return 1
@@ -238,8 +237,8 @@ def _fetched(
     """
     Return one record per posting fetched, in reference order, and 1 when a reference failed.
 
-    A reference to a posting the site reports gone logs a warning. A failed
-    reference has no key in ``found``, and the site has reported why.
+    A reference to a posting the site reports gone logs a warning. A failed reference has no key in
+    ``found``, and the site has reported why.
     """
     for reference, job in found.items():
         if job is None:
@@ -307,24 +306,23 @@ def main() -> int | None:
     Run a search, posting fetch, or lookup.
 
     Returns:
-        ``1`` when a search or lookup stops on a failed request, a named posting
-        could not be fetched, stdout closes early, or the output file cannot be
-        written. ``130`` when Ctrl-C interrupts the run. Normal completion
-        returns ``None``.
+        ``1`` when a search or lookup stops on a failed request, a named posting could not be
+        fetched, stdout closes early, or the output file cannot be written.
+        ``130`` when Ctrl-C interrupts the run. Normal completion returns ``None``.
     """
     parser = _build_parser()
     args = parser.parse_args()
     # Progress and warnings go to stderr, stdout stays pure data for piping.
-    # The WARNING root level mutes dependencies such as httpx, which logs every
-    # request at INFO. Only jobrake logs progress at INFO.
+    # The WARNING root level mutes dependencies such as httpx, which logs every request at INFO.
+    # Only jobrake logs progress at INFO.
     handler = _StatusHandler()
     logging.basicConfig(level=logging.WARNING, handlers=[handler])
     logging.getLogger("jobrake").setLevel(logging.INFO)
     function = getattr(SITES[args.site], args.command)
     # In signature order, so the text a lookup takes comes first.
     options = {name: vars(args)[name] for name in site_options(function) if name in vars(args)}
-    # A lookup prints its candidates and has no output to settle. A search and a
-    # posting fetch settle theirs before spending any requests.
+    # A lookup prints its candidates and has no output to settle. A search and a posting fetch
+    # settle theirs before spending any requests.
     command = args.command_parser
     fmt = _settle_output(command, args) if args.command in _WRITES_POSTINGS else None
     try:
@@ -333,8 +331,8 @@ def main() -> int | None:
         logger.warning("interrupted, so no output was written")
         if sys.platform != "win32":
             # Die of SIGINT, as CPython does for an uncaught KeyboardInterrupt
-            # (https://bugs.python.org/issue1054041, checked 2026-11-14). A
-            # shell stops a loop only when the command it ran died of the signal.
+            # (https://bugs.python.org/issue1054041, checked 2026-11-14). A shell stops a loop only
+            # when the command it ran died of the signal.
             signal.signal(signal.SIGINT, signal.SIG_DFL)
             os.kill(os.getpid(), signal.SIGINT)
         return 130  # 128 + SIGINT, the status a shell reports for that death

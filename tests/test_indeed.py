@@ -214,8 +214,8 @@ def test_indeed_keeps_a_job_whose_date_is_not_milliseconds(caplog):
     ids=["every-filter", "remote", "none"],
 )
 def test_indeed_requests_full_pages_throughout_a_cursor_chain(filters, expected):
-    # Indeed binds the page size to its cursor and rejects a changed limit
-    # with BAD_USER_INPUT, so every request in a chain asks for a full page.
+    # Indeed binds the page size to its cursor and rejects a changed limit with BAD_USER_INPUT,
+    # so every request in a chain asks for a full page.
     pages = [indeed_payload(["a", "b"], cursor="next"), indeed_payload(["b", "c", "d"])]
     fetcher = PagedFetcher([json.dumps(page) for page in pages])
     given = copy.deepcopy(filters)
@@ -454,8 +454,7 @@ def test_indeed_omits_invalid_detail_values():
     )
     assert (job["id"], job["url"]) == ("a", "https://www.indeed.com/viewjob?jk=a")
     assert (job["title"], job["company"], job["locations"]) == (None, None, [])
-    # a numeric string, nan, and an integer beyond float range each cost
-    # only their field
+    # a numeric string, nan, and an integer beyond float range each cost only their field
     assert set(job) == {*IDENTITY_FIELDS, *SUMMARY_FIELDS, "posted_at", "expires_at"}
 
 

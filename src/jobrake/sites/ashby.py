@@ -13,8 +13,8 @@ logger = logging.getLogger(__name__)
 
 API_URL = "https://api.ashbyhq.com/posting-api/job-board"
 
-# The Ashby pay intervals that match a JobDict period. Another interval
-# leaves the period out and keeps the amounts.
+# The Ashby pay intervals that match a JobDict period. Another interval leaves the period out and
+# keeps the amounts.
 _PERIODS = {f"1 {unit}": unit for unit in ("HOUR", "DAY", "WEEK", "MONTH", "YEAR")}
 
 
@@ -36,8 +36,8 @@ def _salary(compensation: dict[str, Any]) -> dict[str, Any]:
 def _place(source: dict[str, Any]) -> dict[str, Any]:
     """Read the place of a posting or of one of its ``secondaryLocations``."""
     address = as_dict(source.get("address"))
-    # A posting's address nests under postalAddress. Ashby documents a secondary
-    # location's address without it, though all 199 we measured nested it too.
+    # A posting's address nests under postalAddress. Ashby documents a secondary location's address
+    # without it, though all 199 we measured nested it too.
     address = as_dict(address.get("postalAddress")) or address
     # addressCountry is a name, such as USA, so no place carries a country code.
     return {
@@ -95,15 +95,14 @@ async def search(
     """
     List every published posting on one employer's Ashby board.
 
-    ``board`` is the token that ends the board's address, as in
-    ``jobs.ashbyhq.com/openai``. One request returns the whole board,
-    descriptions and compensation included, in Ashby's order. The result
-    includes postings the employer marked unlisted, which Ashby serves for
-    direct links. The request is neither paced nor retried.
+    ``board`` is the token that ends the board's address, as in ``jobs.ashbyhq.com/openai``.
+    One request returns the whole board, descriptions and compensation included, in Ashby's order.
+    The result includes postings the employer marked unlisted, which Ashby serves for direct links.
+    The request is neither paced nor retried.
 
     Raises:
-        Stopped: The request failed, Ashby has no such board, or it sent an
-            unreadable response. ``partial`` is empty.
+        Stopped: The request failed, Ashby has no such board, or it sent an unreadable response.
+            ``partial`` is empty.
         ValueError: ``board`` is blank.
     """
     token = board.strip()

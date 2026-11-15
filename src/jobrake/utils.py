@@ -16,9 +16,8 @@ lazy from bs4.element import Tag
 logger = logging.getLogger(__name__)
 
 _BLOCK_TAGS = ("p", "div", "li", "ul", "ol", "h1", "h2", "h3", "h4", "h5", "h6", "table", "tr", "br", )  # fmt: skip
-# Characters that render as nothing and can split a word or reverse a run of
-# text. ZWJ, ZWNJ, and the LRM and RLM marks stay, because Persian, Arabic,
-# and Indic text use them.
+# Characters that render as nothing and can split a word or reverse a run of text. ZWJ, ZWNJ,
+# and the LRM and RLM marks stay, because Persian, Arabic, and Indic text use them.
 _INVISIBLE = re.compile("[\u00ad\u200b\u2060\ufeff\u202a-\u202e\u2066-\u2069]")
 
 
@@ -44,8 +43,8 @@ def _hidden(tag: Tag) -> bool:
     style = _style(tag)
     if style.get("display") == "none" or _zero(style.get("opacity")):
         return True
-    # Visibility and font size inherit, and a descendant that sets either one
-    # again can show its text, so the element then stays.
+    # Visibility and font size inherit, and a descendant that sets either one again can show its
+    # text, so the element then stays.
     inherited = set()
     if style.get("visibility") in ("hidden", "collapse"):
         inherited.add("visibility")
@@ -59,10 +58,9 @@ def html_text(html: str) -> str:
     """
     Extract the text a reader sees from an HTML fragment.
 
-    Block tags become line breaks. Inline tags join without spaces. Style and
-    script bodies, elements hidden by the ``hidden`` attribute or an inline
-    style, invisible characters, and empty lines are omitted. A stylesheet's
-    classes are not resolved, so an element they hide stays.
+    Block tags become line breaks. Inline tags join without spaces. Style and script bodies,
+    elements hidden by the ``hidden`` attribute or an inline style, invisible characters, and empty
+    lines are omitted. A stylesheet's classes are not resolved, so an element they hide stays.
     """
     if not html:
         return ""
@@ -112,9 +110,8 @@ def site_options(function: Callable[..., object]) -> dict[str, Option]:
     Map each argument after the fetcher to its ``Annotated`` kind, help, and default, keeping signature order.
 
     Raises:
-        TypeError: An argument is not ``Annotated[kind, help]`` with a
-            supported kind and nonblank help, or a boolean option has a
-            default other than ``False``.
+        TypeError: An argument is not ``Annotated[kind, help]`` with a supported kind and nonblank
+            help, or a boolean option has a default other than ``False``.
     """
     where = f"{function.__module__}.{getattr(function, '__qualname__', function)}"
     _, *params = inspect.signature(function).parameters.values()
@@ -156,8 +153,8 @@ def _check(options: dict[str, Option], given: dict[str, object]) -> None:
         minimum = _MINIMUMS.get(name)
         if minimum is not None and isinstance(value, int) and value < minimum:
             raise ValueError(f"{name} ({value}) must be at least {minimum}")
-        # A required text, such as a lookup's name or a board, names what to
-        # read, so a blank one asks for nothing.
+        # A required text, such as a lookup's name or a board, names what to read,
+        # so a blank one asks for nothing.
         required = option.default is inspect.Parameter.empty
         if required and isinstance(value, str) and not value.strip():
             raise ValueError(f"{name} is blank. Pass the {option.help}")
@@ -170,16 +167,15 @@ def checked[**P, R](function: Callable[P, Awaitable[R]]) -> Callable[P, Awaitabl
     """
     Check every call of a site function against its annotations before the function runs.
 
-    The signature is read once, here, so a site function that breaks the
-    rules of ``site_options`` fails when its module is imported. Error
-    messages name the site after its module below ``jobrake.sites``.
+    The signature is read once, here, so a site function that breaks the rules of ``site_options``
+    fails when its module is imported. Error messages name the site after its module below
+    ``jobrake.sites``.
 
     Raises:
-        TypeError: At decoration, the signature breaks a rule of
-            ``site_options``. At a call, an argument is unknown, missing, or of
-            the wrong type.
-        ValueError: At a call, ``results``, ``radius``, or ``max_age_hours``
-            is below its minimum, or a required string or a list entry is blank.
+        TypeError: At decoration, the signature breaks a rule of ``site_options``. At a call,
+            an argument is unknown, missing, or of the wrong type.
+        ValueError: At a call, ``results``, ``radius``, or ``max_age_hours`` is below its minimum,
+            or a required string or a list entry is blank.
     """
     signature = inspect.signature(function)
     options = site_options(function)
@@ -208,8 +204,8 @@ def report_progress(logger: logging.Logger, label: str, done: int, total: int) -
 
 def finite(value: object) -> float | None:
     """Return a JSON number that fits a record field, or None for anything else."""
-    # json.loads admits NaN and the infinities, which strict JSON output
-    # forbids, and bool is an int subclass.
+    # json.loads admits NaN and the infinities, which strict JSON output forbids,
+    # and bool is an int subclass.
     if isinstance(value, bool) or not isinstance(value, int | float):
         return None
     try:
@@ -248,8 +244,8 @@ def iso_date(value: str | None) -> str | None:
     """
     Reduce an ISO 8601 date or timestamp to its calendar date.
 
-    Empty input returns ``None``. Unparseable text logs a warning and remains
-    visible as its first ten characters.
+    Empty input returns ``None``. Unparseable text logs a warning and remains visible as its first
+    ten characters.
     """
     if not value:
         return None
@@ -265,9 +261,8 @@ def epoch_ms_to_iso(ms: object) -> str | None:
     """
     Convert a site's epoch milliseconds to an ISO 8601 UTC timestamp.
 
-    ``None`` returns ``None``. A value that is no number, is out of range, or
-    resolves before the year 2000, as epoch seconds do, logs a warning and
-    returns ``None``.
+    ``None`` returns ``None``. A value that is no number, is out of range, or resolves before the
+    year 2000, as epoch seconds do, logs a warning and returns ``None``.
     """
     if ms is None:
         return None
