@@ -156,6 +156,7 @@ def test_a_posting_without_a_description_comes_from_the_first_language_that_has_
                         "2502124", lead, block("What you'll be up to", "<p>Close the books.</p>")
                     ),
                     minimal("1", "Accountant (m/f/d)"),
+                    minimal("9", "Only in English", block("Role", "A posting the default lacks.")),
                 )
             ),
             "language=de": ok(feed(minimal("1", "Buchhalter:in", block("Aufgaben", "Buchen.")))),
@@ -163,7 +164,8 @@ def test_a_posting_without_a_description_comes_from_the_first_language_that_has_
         }
     )
     jobs = asyncio.run(personio.search(fetcher, board="tado"))
-    # A posting the default feed describes keeps its own title and description.
+    # A posting the default feed describes keeps its own title and description, and the default
+    # feed alone decides which postings there are.
     assert [(job["id"], job["title"], job["description"]) for job in jobs] == [
         (
             "2840027",
