@@ -246,13 +246,14 @@ async def search(
     ``query=""`` lists every posting. Results keep Workday's order and stop at ``results``.
     Workday reports at most ``MAX_TOTAL`` postings per search, and a search that reaches that cap
     short of ``results`` warns. A card carries no description, so ``details`` hydrates each posting
-    with one more request. Requests are neither paced nor retried.
+    with one more request, which a cached posting skips. Requests are neither paced nor retried.
 
     Raises:
         Stopped: A request failed, Workday has no such career site, it sent an unreadable response,
             or an empty page came before the reported total. ``partial`` holds the postings
-            collected before it. With ``details``, a posting's details could not be fetched,
-            and ``partial`` holds every posting, with the details fetched so far.
+            collected before it. With ``details``, a posting's details could not be fetched.
+            ``partial`` then holds every posting, with the details fetched so far, and ``failed``
+            lists the URLs of the postings that missed theirs.
         ValueError: ``board`` is not a Workday career site URL.
     """
     # Reading the board here rejects a bad one before the first request.
@@ -292,7 +293,7 @@ async def postings(
     references: Annotated[list[str], "Workday posting URLs"],
 ) -> dict[str, JobDict | None]:
     """
-    Fetch known Workday postings by URL, one request each.
+    Fetch known Workday postings by URL, one request each, and none for a cached posting.
 
     The result is keyed by the references given. A reference is a record's ``url``,
     the posting's address on its career site, and references naming one posting share one request.

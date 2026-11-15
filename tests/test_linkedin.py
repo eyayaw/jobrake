@@ -816,6 +816,7 @@ def test_search_stops_when_a_posting_cannot_be_fetched():
             linkedin.search(fetcher, query="x", location="Seattle", results=1, details=True)
         )
     assert [job["title"] for job in stop.value.partial] == ["Economist"]
+    assert stop.value.failed == ["https://www.linkedin.com/jobs/view/111"]
 
 
 CANONICAL = "https://nl.linkedin.com/jobs/view/economist-at-acme-111"

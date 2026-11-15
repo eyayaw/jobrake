@@ -1,9 +1,10 @@
 """The posting loop of the sites that fill a card with one request per posting."""
 
 import logging
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Container
 from typing import Any
 
+from jobrake import cache
 from jobrake.models import JobDict, Stopped, make_job
 from jobrake.utils import report_progress
 
@@ -27,15 +28,46 @@ def _merge(card: JobDict, fields: dict[str, Any]) -> JobDict:
 async def _read_each(
     site: str, cards: list[JobDict], read: Reader
 ) -> dict[str, dict[str, Any] | None]:
-    """Map each card's ID to what ``read`` returns for it, logging and leaving out a failed read."""
-    found = {}
+    """
+    Map each card's ID to what ``read`` returns for it, logging and leaving out a failed read.
+
+    A cached posting costs no request. Each read's fields go to the cache as a record of their own,
+    so a later card merges with them as with a fresh read. A gone posting stays out of the cache.
+    """
+    cached = cache.CACHE.get(site, [card["id"] for card in cards])
+    found: dict[str, dict[str, Any] | None] = {
+        posting: dict(job) for posting, job in cached.items()
+    }
     for position, card in enumerate(cards, start=1):
         report_progress(logger, f"{site} details", position, len(cards))
+        if card["id"] in found:
+            continue
         try:
-            found[card["id"]] = await read(card)
+            fields = await read(card)
         except Stopped as stopped:
-            logger.warning("skipping posting %s: %s. A rerun retries it", card["url"], stopped)
+            logger.warning("skipping posting %s: %s", card["url"], stopped)
+            continue
+        found[card["id"]] = fields
+        if fields is not None:
+            cache.CACHE.put([_merge(make_job(site=site, id=card["id"], url=card["url"]), fields)])
     return found
+
+
+def stop_if_unread(site: str, jobs: list[JobDict], found: Container[str]) -> None:
+    """
+    End a details search unless every posting in ``jobs`` was read or reported gone.
+
+    Raises:
+        Stopped: A posting's ID is not in ``found``. ``partial`` holds ``jobs``, and ``failed`` the
+            URLs of the postings whose ID is missing.
+    """
+    if failed := [job["url"] for job in jobs if job["id"] not in found]:
+        raise Stopped(
+            f"{site} could not fetch the details of {len(failed)} of {len(jobs)} postings. "
+            "Pass their URLs to postings to retry them",
+            partial=jobs,
+            failed=failed,
+        )
 
 
 async def fill_details(site: str, cards: list[JobDict], read: Reader) -> list[JobDict]:
@@ -46,16 +78,11 @@ async def fill_details(site: str, cards: list[JobDict], read: Reader) -> list[Jo
 
     Raises:
         Stopped: A posting's fields could not be read. ``partial`` holds every card,
-            filled where its read succeeded.
+            filled where its read succeeded, and ``failed`` the URLs of the cards whose read failed.
     """
     found = await _read_each(site, cards, read)
     filled = [_merge(card, found.get(card["id"]) or {}) for card in cards]
-    if missing := len(cards) - len(found):
-        raise Stopped(
-            f"{site} could not fetch the details of {missing} of {len(cards)} postings. "
-            "A rerun retries them",
-            partial=filled,
-        )
+    stop_if_unread(site, filled, found)
     return filled
 
 

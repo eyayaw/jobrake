@@ -198,13 +198,15 @@ async def search(
     follow one another without pacing or retries until ``results``, the board's last match,
     or an empty page. A posting that a later page repeats is kept once. An unknown board answers
     like a board with no postings, so it returns ``[]`` and logs that the board may be misspelled.
-    A card carries no description, so ``details`` fetches each posting with one more request.
+    A card carries no description, so ``details`` fetches each posting with one more request,
+    which a cached posting skips.
 
     Raises:
         Stopped: A request failed, SmartRecruiters sent an unreadable response,
             or an empty page came before the reported total.
             ``partial`` holds the postings of the pages before it. With ``details``, a posting could
-            not be fetched, and ``partial`` holds every posting, filled where its fetch succeeded.
+            not be fetched, and ``partial`` holds every posting, filled where its fetch succeeded,
+            and ``failed`` the URLs of the postings whose fetch failed.
         ValueError: ``board`` is blank, or ``results`` or ``max_age_hours`` is below 1.
     """
     token = board.strip()
@@ -248,7 +250,7 @@ async def postings(
     references: Annotated[list[str], "SmartRecruiters posting URLs"],
 ) -> dict[str, JobDict | None]:
     """
-    Fetch known SmartRecruiters postings by URL, one request each.
+    Fetch known SmartRecruiters postings by URL, one request each, and none for a cached posting.
 
     The result is keyed by the references given. A reference is a record's ``url`` or the posting's
     ``postingUrl``, which adds a title slug, and references naming one posting share one request.

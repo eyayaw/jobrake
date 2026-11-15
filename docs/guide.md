@@ -381,14 +381,15 @@ In our measurements, a LinkedIn posting placed in a whole country,
 such as "United States" or "Netherlands", comes without its dates, coordinates, and requirements.
 
 Workday and SmartRecruiters searches also return cards without descriptions,
-and `--details` fetches each posting with one more request, one at a time.
+and `--details` fetches each uncached posting with one more request, one at a time.
 [Workday fields](reference.md#workday-fields)
 and [SmartRecruiters fields](reference.md#smartrecruiters-fields) list what it adds.
 On these two sites, a posting removed or withdrawn since the search keeps its search result.
 
 A posting whose details cannot be fetched also keeps its search result,
-and once the rest are fetched the search raises `Stopped` with every posting in `partial`.
-A rerun retries them.
+and once the rest are fetched the search raises `Stopped` with every posting in `partial`
+and the URLs of the unfetched ones in `failed`.
+The site's `postings` retries them by those URLs, and the CLI prints the command to run.
 See [LinkedIn requests](reference.md#linkedin-requests) for pacing and retries,
 and [cache settings](#cache-location-and-lifetimes) for reuse.
 
@@ -714,12 +715,13 @@ and leaves out a field it cannot read.
 
 ## Cache location and lifetimes
 
-jobrake keeps the LinkedIn postings it fetched in one SQLite file under your user cache directory:
-`~/Library/Caches/jobrake/` on macOS, `$XDG_CACHE_HOME/jobrake/` on Linux (`~/.cache/jobrake/` when
-that variable is unset), and `%LOCALAPPDATA%\jobrake\` on Windows. No other site is cached.
+jobrake keeps the LinkedIn, Workday, and SmartRecruiters postings it fetched in one SQLite file
+under your user cache directory: `~/Library/Caches/jobrake/` on macOS, `$XDG_CACHE_HOME/jobrake/`
+on Linux (`~/.cache/jobrake/` when that variable is unset), and `%LOCALAPPDATA%\jobrake\` on
+Windows. No other site is cached.
 
 A cached posting stays fresh for seven days and is fetched again after that.
-A posting that LinkedIn reports gone is not cached.
+A posting that its site reports gone is not cached.
 An upgrade keeps the cache.
 A cached posting keeps the fields the older version extracted until it expires,
 and is fetched again earlier only if its cached copy no longer fits the job fields.

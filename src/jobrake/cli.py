@@ -6,6 +6,7 @@ import inspect
 import json
 import logging
 import os
+import shlex
 import signal
 import sys
 import time
@@ -202,10 +203,15 @@ def _write_stdout(text: str) -> int | None:
 
 
 def _run(
-    parser: _ArgumentParser, function: Callable[..., Awaitable[Any]], options: dict[str, Any]
+    parser: _ArgumentParser,
+    site: str,
+    function: Callable[..., Awaitable[Any]],
+    options: dict[str, Any],
 ) -> tuple[Any, int | None]:
     """
     Call a site function with an ``HttpxFetcher`` of its own, closed afterward.
+
+    When a details search stops with failed postings, it also logs the command that retries them.
 
     Returns:
         What the function returned and ``None``, or the ``partial`` of a stopped one and ``1``.
@@ -221,6 +227,8 @@ def _run(
         parser.error(str(error))
     except Stopped as stop:
         logger.error("%s", stop)  # noqa: TRY400  the message says what failed
+        if stop.failed:
+            logger.info("retry with: %s", shlex.join(["jobrake", site, "postings", *stop.failed]))
         return stop.partial, 1
 
 
@@ -326,7 +334,7 @@ def main() -> int | None:
     command = args.command_parser
     fmt = _settle_output(command, args) if args.command in _WRITES_POSTINGS else None
     try:
-        found, status = _run(command, function, options)
+        found, status = _run(command, args.site, function, options)
     except KeyboardInterrupt:
         logger.warning("interrupted, so no output was written")
         if sys.platform != "win32":

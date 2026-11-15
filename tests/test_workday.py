@@ -220,6 +220,11 @@ def test_details_fill_each_card_and_stop_when_one_fails(today, caplog):
         "nvidia:JR1",
     ]
     assert stop.value.partial[:2] == [FILLED, two_places]
+    # The gone posting is not among the failed ones, which postings can retry.
+    assert stop.value.failed == [
+        f"{BOARD}/job/Remote/Engineer_JR0",
+        f"{BOARD}/job/Remote/Engineer_JR1",
+    ]
     assert caplog.text.count("skipping posting") == 2
 
 

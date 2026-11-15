@@ -9,6 +9,7 @@ lazy from bs4 import BeautifulSoup
 
 from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, Stopped, make_job
+from jobrake.sites.postings import stop_if_unread
 from jobrake.sites.responses import collect
 from jobrake.utils import checked
 
@@ -130,7 +131,8 @@ async def search(
 
     Raises:
         Stopped: A request failed after its retries, or a posting's details could not be fetched.
-            ``partial`` holds the postings collected, with the details fetched so far.
+            ``partial`` holds the postings collected, with the details fetched so far,
+            and ``failed`` the URLs of those whose read failed.
         ValueError: The location is missing or blank, or the geoid or a company ID uses characters
             other than digits 0-9.
     """
@@ -172,10 +174,5 @@ async def search(
         found = await fetch_pages(fetcher, {job["id"]: dict(job) for job in jobs})
         # A posting that is gone, or failed, keeps its card.
         jobs = [found.get(job["id"]) or job for job in jobs]
-        if missing := sum(job["id"] not in found for job in jobs):
-            raise Stopped(
-                f"linkedin could not fetch the details of {missing} of {len(jobs)} postings. "
-                "A rerun retries them",
-                partial=jobs,
-            )
+        stop_if_unread("linkedin", jobs, found)
     return jobs

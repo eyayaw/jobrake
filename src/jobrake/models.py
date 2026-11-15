@@ -215,12 +215,17 @@ class Stopped(Exception):
     A request failed, the site reported an error or has no such board, its response could not be
     read, a page ended a search short of the total the site reported, or a posting's details could
     not be fetched. ``partial`` holds the records the call collected, ``[]`` when there are none.
-    After a failed details fetch it holds every card, with details where their fetch succeeded.
+    After a failed details fetch it holds every card, filled where its posting was read, and
+    ``failed`` holds the URLs of the unread postings, for the site's ``postings`` to retry.
+    ``failed`` is ``[]`` after any other stop.
     """
 
-    def __init__(self, message: str, *, partial: list[JobDict] | None = None) -> None:
+    def __init__(
+        self, message: str, *, partial: list[JobDict] | None = None, failed: list[str] | None = None
+    ) -> None:
         super().__init__(message)
         self.partial = partial or []
+        self.failed = failed or []
 
 
 # schema.org says CONTRACTOR and INTERN, and Ashby says Intern, where the other boards say Contract

@@ -478,7 +478,7 @@ async def _read(
             candidate=urlsplit(url or "").hostname in _WWW_HOSTS,
         )
     except _Skip as skip:
-        logger.warning("skipping posting %s: %s. A rerun retries it", posting_id, skip)
+        logger.warning("skipping posting %s: %s", posting_id, skip)
         return {}
     if fields is None:
         return {posting_id: None}
