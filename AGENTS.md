@@ -9,11 +9,15 @@ systems, and it depends on `httpx` and `bs4`.
 
 ## Map
 
-- `sites/__init__.py`: `SITES`, the registry with one entry per site, and `scrape`,
-  which routes a search to its site.
+- `sites/__init__.py`: `SITES`, the registry with one entry per site, `scrape`,
+  which routes a search to its site, `check`, which runs a search's option checks alone,
+  and `identify`, which asks each site's `card` whose posting a link names.
 - `sites/<site>`: one module per site, or a package for LinkedIn and Indeed,
   which split into several modules. It exports `search` and any of `places`, `companies`,
   `attributes`, and `postings`, and the first line of its docstring is the site's CLI help.
+  A site whose links name a posting also defines `card(reference)`, outside `__all__`, which reads
+  one link as the card it names for `identify` and refuses anything else. Every site that exports
+  `postings` defines one and reads its references with the same parser.
   In the two packages, `search.py` builds requests and parses results, `client.py` holds the URLs
   and headers, plus LinkedIn's pacing, and `lookups.py` holds the lookups. The other sites need no
   headers or pacing. LinkedIn's `pages.py` reads posting pages for `postings` and `details=True`
@@ -26,11 +30,14 @@ systems, and it depends on `httpx` and `bs4`.
   pages from a generator and leaves the rest to `collect`.
 - `sites/postings.py`: the posting loop of the sites that fill a card with one request per posting.
   `fill_details` serves `details=True` and `fetch_postings` serves `postings`,
-  and each site supplies only the reader of one posting, which raises `Stopped` for a posting it
-  could not read. A field the posting leaves empty keeps the card's value.
+  and each site supplies only the reader of the posting at a URL, which raises `Stopped` for a
+  posting it could not read. A field the posting leaves empty keeps the card's value, the card
+  keeps its `site`, `id`, and `url`, and a cached posting costs no request. `stop_if_unread`
+  raises the `Stopped` of a details search, for LinkedIn too.
 - `utils.py`: `site_options`, which reads the `Annotated` arguments of a site function, `checked`,
-  which checks every call against them, `report_progress`, which `collect` and each posting loop
-  call to log their progress records, and the JSON value, text, number, and date helpers.
+  which wraps it in a `Checked` that runs those checks and the site's validator on every call,
+  or alone through `check`, `report_progress`, which `collect` and each posting loop call to log
+  their progress records, and the JSON value, text, number, and date helpers.
 - `models.py`: `JobDict`, its `Place`, `make_job`, `make_places`, and `Stopped`.
 - `fetchkit.py`: the `Fetcher` protocol, `FetchResult`, and `HttpxFetcher`.
 - `cache.py`: one SQLite table of `JobDict` records keyed by site and ID, and the shared `CACHE`.
@@ -80,12 +87,17 @@ and the contract test in `tests/test_scrape.py` need no edit.
   A name two sites share keeps one meaning and unit. Every function a site exports carries
   `@checked`, which raises `TypeError` for an unknown, missing, or wrongly typed argument and
   `ValueError` for a value out of range, a blank required string, or a blank list entry,
-  all before the first request. `site_options` rejects an annotation or a boolean default that
-  breaks these rules when the module is imported, and `test_a_site_meets_the_site_contract` checks
-  that `search` takes no positional option and that a shared name keeps its type.
+  all before the first request. A rule of the site's own on a `search` option, such as Indeed's
+  country editions, goes in the validator `search` passes as `@checked(validator=_validate)`,
+  so `check` raises everything `scrape` would, without a request. `site_options` rejects an
+  annotation or a boolean default that breaks these rules when the module is imported, and
+  `test_a_site_meets_the_site_contract` checks that `search` takes no positional option and that a
+  shared name keeps its type.
 - A caller can tell a cut-short result from a complete one. A failed request, or a page that ends a
   search short of the total the site reported, raises `Stopped`, whose `partial` holds what was
   collected. A site's own result cap warns and returns, because a rerun meets it again.
+  A details search that could not read every posting also puts the URLs of the unread ones in
+  `failed`, so the site's `postings` can retry them even when a later search drops them.
   `postings` never raises `Stopped` and leaves a failed reference out of its result.
 - A site whose search cards lack fields its posting endpoint serves takes `details` on `search` and
   exports `postings(fetcher, references)`, so a caller can fill cards in the same run or a later
@@ -97,12 +109,14 @@ and the contract test in `tests/test_scrape.py` need no edit.
   and retries a 429 up to five times. It follows redirects itself, to HTTPS LinkedIn addresses only,
   and paces each hop, so a caller's `Fetcher` must honor `follow_redirects=False`.
   Two workers per data center read posting pages, and concurrent calls each read their own.
-- The cache is transparent. It stores the whole `JobDict` of each fetched LinkedIn posting,
-  rows carry no version, and each row read passes through `make_job`, so a row whose keys no longer
-  fit `JobDict` or `Place` is a miss. `make_job` normalizes a row as it does a site's fields and
-  cannot redo a parser's work, so a parser fix reaches a cached posting when its row expires.
+- The cache is transparent. On LinkedIn, Workday, and SmartRecruiters it stores the fields of each
+  posting read as a `JobDict`. A reader sees only the posting's URL, so a later card merges with
+  the cached fields as with a fresh read. Rows carry no version, and each row read passes through
+  `make_job`, so a row whose keys no longer fit `JobDict` or `Place` is a miss. `make_job`
+  normalizes a row as it does a site's fields and cannot redo a parser's work, so a parser fix
+  reaches a cached posting when its row expires.
   `JOBRAKE_CACHE_PATH` and `JOBRAKE_CACHE_TTL` configure it, and no site function takes a cache
-  option. Only LinkedIn is paced and cached.
+  option. Only LinkedIn is paced.
 - Library code logs under the `jobrake` logger and prints nothing. The CLI sends logs to stderr and
   data to stdout. It exits 2 for a bad argument, and 1 when a search or lookup raises `Stopped`,
   a named posting could not be fetched, or the output cannot be written. A stopped search and a

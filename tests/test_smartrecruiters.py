@@ -261,28 +261,28 @@ POSTINGS = "https://api.smartrecruiters.com/v1/companies/BoschGroup/postings/"
 
 
 def test_details_fill_each_card_and_stop_when_one_fails(caplog):
+    # The posting leaves its name and place empty and names no department, so the card's stay.
+    bare = {**POSTING, "name": None, "location": {}}
     fetcher = StubFetcher(
         {
             "postings?": page(CARDS, 2),
-            "postings/744000158197889": ok(json.dumps(POSTING)),
+            "postings/744000158197889": ok(json.dumps(bare)),
             "postings/744000158108729": not_found(),  # closed since the search
         }
     )
     filled, gone = asyncio.run(smartrecruiters.search(fetcher, board="BoschGroup", details=True))
-    # The posting names no department, so the card's stays.
     assert filled == {**PRODUCT_EXPERT, "description": DESCRIPTION}
     assert gone["id"] == "744000158108729"
     assert "description" not in gone
     assert fetcher.requests[1:] == [f"{POSTINGS}744000158197889", f"{POSTINGS}744000158108729"]
-    # A field the posting leaves empty keeps the card's value.
-    bare = {**POSTING, "name": None, "location": {}}
-    fetcher.responses["postings/744000158197889"] = ok(json.dumps(bare))
-    filled_again, _ = asyncio.run(smartrecruiters.search(fetcher, board="BoschGroup", details=True))
-    assert filled_again == filled
     fetcher.responses["postings/744000158108729"] = network_down()
+    fetcher.requests.clear()
     with pytest.raises(Stopped, match="details of 1 of 2 postings") as stop:
         asyncio.run(smartrecruiters.search(fetcher, board="BoschGroup", details=True))
+    # The filled posting comes from the cache, so the rerun asks only about the other one.
+    assert fetcher.requests[1:] == [f"{POSTINGS}744000158108729"]
     assert stop.value.partial[0] == filled
+    assert stop.value.failed == ["https://jobs.smartrecruiters.com/BoschGroup/744000158108729"]
     assert "skipping posting" in caplog.text
 
 

@@ -99,9 +99,9 @@ def _parse_posting(posting: dict[str, Any]) -> dict[str, Any] | None:
     return {**_parse_card(posting), "description": _description(posting)}
 
 
-async def _posting_fields(fetcher: Fetcher, card: JobDict) -> dict[str, Any] | None:
+async def _posting_fields(fetcher: Fetcher, url: str) -> dict[str, Any] | None:
     """
-    Fetch the posting behind a card, or None when SmartRecruiters reports it gone.
+    Fetch the posting at a URL, or None when SmartRecruiters reports it gone.
 
     SmartRecruiters reports a posting gone with a 404, or by marking a posting it still
     serves inactive. A 400 stays a failure: it answers a malformed request,
@@ -110,7 +110,7 @@ async def _posting_fields(fetcher: Fetcher, card: JobDict) -> dict[str, Any] | N
     Raises:
         Stopped: The request failed, or the response is unreadable.
     """
-    company, posting_id = urlsplit(card["url"]).path.strip("/").split("/")
+    company, posting_id = urlsplit(url).path.strip("/").split("/")
     result = await fetcher.fetch(
         f"{API_URL}/{quote(company, safe='')}/postings/{quote(posting_id, safe='')}"
     )
@@ -198,13 +198,15 @@ async def search(
     follow one another without pacing or retries until ``results``, the board's last match,
     or an empty page. A posting that a later page repeats is kept once. An unknown board answers
     like a board with no postings, so it returns ``[]`` and logs that the board may be misspelled.
-    A card carries no description, so ``details`` fetches each posting with one more request.
+    A card carries no description, so ``details`` fetches each posting with one more request,
+    which a cached posting skips.
 
     Raises:
         Stopped: A request failed, SmartRecruiters sent an unreadable response,
             or an empty page came before the reported total.
             ``partial`` holds the postings of the pages before it. With ``details``, a posting could
-            not be fetched, and ``partial`` holds every posting, filled where its fetch succeeded.
+            not be fetched, and ``partial`` holds every posting, filled where its fetch succeeded,
+            and ``failed`` the URLs of the postings whose fetch failed.
         ValueError: ``board`` is blank, or ``results`` or ``max_age_hours`` is below 1.
     """
     token = board.strip()
@@ -218,9 +220,9 @@ async def search(
     return jobs
 
 
-def _card(reference: str) -> JobDict:
+def card(reference: str) -> JobDict:
     """
-    Read a SmartRecruiters posting URL as the card it names.
+    Read a SmartRecruiters posting URL as the card it names, for ``postings`` and ``identify``.
 
     Raises:
         ValueError: The reference is not a posting URL on jobs.smartrecruiters.com.
@@ -248,7 +250,7 @@ async def postings(
     references: Annotated[list[str], "SmartRecruiters posting URLs"],
 ) -> dict[str, JobDict | None]:
     """
-    Fetch known SmartRecruiters postings by URL, one request each.
+    Fetch known SmartRecruiters postings by URL, one request each, and none for a cached posting.
 
     The result is keyed by the references given. A reference is a record's ``url`` or the posting's
     ``postingUrl``, which adds a title slug, and references naming one posting share one request.
@@ -260,7 +262,7 @@ async def postings(
             Nothing is fetched in that case.
     """
     return await fetch_postings(
-        "smartrecruiters", references, _card, functools.partial(_posting_fields, fetcher)
+        "smartrecruiters", references, card, functools.partial(_posting_fields, fetcher)
     )
 
 

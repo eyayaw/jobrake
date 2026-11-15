@@ -359,7 +359,7 @@ LinkedIn refuses some requests whatever the pace, up to a quarter of them in our
 jobrake retries a 429 up to five times.
 If the 429 remains, the search raises `Stopped` with what it has collected so far.
 A `--details` search that could not fetch every posting's details raises `Stopped` too,
-holding every posting it found.
+holding every posting it found and, in `failed`, the URLs of the postings it could not fetch.
 
 On a data center IP, such as a VPS, LinkedIn refuses posting pages
 with [HTTP 999](https://http.dev/999).

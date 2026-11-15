@@ -256,6 +256,20 @@ def test_a_stopped_search_writes_what_it_collected_and_fails(run_cli, stub_searc
     assert capsys.readouterr().out == ""
 
 
+def test_a_stopped_details_search_names_the_command_that_retries(stub_search, monkeypatch, caplog):
+    failed = [
+        "https://www.linkedin.com/jobs/view/111",
+        "https://www.linkedin.com/jobs/view/222?x=1",
+    ]
+    stub_search("linkedin", Stopped("details failed", partial=JOBS[:1], failed=failed))
+    monkeypatch.setattr("sys.argv", ["jobrake", "linkedin", "search", "-l", "Berlin", "--details"])
+    assert cli.main() == 1
+    assert (
+        "retry with: jobrake linkedin postings https://www.linkedin.com/jobs/view/111 "
+        "'https://www.linkedin.com/jobs/view/222?x=1'"
+    ) in caplog.text
+
+
 def test_ctrl_c_ends_the_run_with_one_line_and_dies_of_sigint(
     run_cli, stub_search, monkeypatch, capsys, caplog
 ):

@@ -187,6 +187,17 @@ A list option takes several values after one flag, `--attributes CF3CP 6QC5F`, o
 > and lists LinkedIn's options,
 > and `jobrake linkedin search --remote` fails as an unrecognized argument.
 
+`jobrake.check` validates a search's options before any search starts,
+such as searches read from a config file.
+It takes the same arguments as `scrape()` without `fetcher`,
+raises the `TypeError` or `ValueError` the search would, and sends no request:
+
+```python
+import jobrake
+
+jobrake.check("indeed", query="economist", country="zz")  # ValueError: unknown Indeed country 'zz'
+```
+
 ### Companies
 
 Both sites filter by **employer identifier**, and both need a lookup to turn a name into one.
@@ -381,14 +392,15 @@ In our measurements, a LinkedIn posting placed in a whole country,
 such as "United States" or "Netherlands", comes without its dates, coordinates, and requirements.
 
 Workday and SmartRecruiters searches also return cards without descriptions,
-and `--details` fetches each posting with one more request, one at a time.
+and `--details` fetches each uncached posting with one more request, one at a time.
 [Workday fields](reference.md#workday-fields)
 and [SmartRecruiters fields](reference.md#smartrecruiters-fields) list what it adds.
 On these two sites, a posting removed or withdrawn since the search keeps its search result.
 
 A posting whose details cannot be fetched also keeps its search result,
-and once the rest are fetched the search raises `Stopped` with every posting in `partial`.
-A rerun retries them.
+and once the rest are fetched the search raises `Stopped` with every posting in `partial`
+and the URLs of the unfetched ones in `failed`.
+The site's `postings` retries them by those URLs, and the CLI prints the command to run.
 See [LinkedIn requests](reference.md#linkedin-requests) for pacing and retries,
 and [cache settings](#cache-location-and-lifetimes) for reuse.
 
@@ -422,6 +434,19 @@ or `jobrake.sites.smartrecruiters`, which never raises `Stopped`.
 It maps each ID or URL to its whole job, or to `None` when the site reports the posting gone.
 A reference whose request failed, or whose response jobrake cannot read, is absent from the result,
 and calling the function again retries it.
+
+To match a link someone sends you to a posting you already stored, `jobrake.identify` returns the
+`site` and `id` a search gives that posting, and sends no request:
+
+```python
+import jobrake
+
+jobrake.identify("https://nl.indeed.com/viewjob?jk=1a2b3c4d5e6f7a8b")
+# ('indeed', '1a2b3c4d5e6f7a8b')
+```
+
+It reads the posting URLs that `postings` takes, and Indeed links that carry the key in `jk`,
+or in `vjk` on a search page. Any other link, including a bare LinkedIn ID, gives `None`.
 
 ### Fetch selected results
 
@@ -714,12 +739,13 @@ and leaves out a field it cannot read.
 
 ## Cache location and lifetimes
 
-jobrake keeps the LinkedIn postings it fetched in one SQLite file under your user cache directory:
-`~/Library/Caches/jobrake/` on macOS, `$XDG_CACHE_HOME/jobrake/` on Linux (`~/.cache/jobrake/` when
-that variable is unset), and `%LOCALAPPDATA%\jobrake\` on Windows. No other site is cached.
+jobrake keeps the LinkedIn, Workday, and SmartRecruiters postings it fetched in one SQLite file
+under your user cache directory: `~/Library/Caches/jobrake/` on macOS, `$XDG_CACHE_HOME/jobrake/`
+on Linux (`~/.cache/jobrake/` when that variable is unset), and `%LOCALAPPDATA%\jobrake\` on
+Windows. No other site is cached.
 
 A cached posting stays fresh for seven days and is fetched again after that.
-A posting that LinkedIn reports gone is not cached.
+A posting that its site reports gone is not cached.
 An upgrade keeps the cache.
 A cached posting keeps the fields the older version extracted until it expires,
 and is fetched again earlier only if its cached copy no longer fits the job fields.

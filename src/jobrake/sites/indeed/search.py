@@ -6,6 +6,7 @@ import logging
 import re
 from collections.abc import AsyncGenerator, Callable
 from typing import Annotated, Any
+from urllib.parse import parse_qs, urlsplit
 
 from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, Stopped, WorkplaceType, employment_type, make_job
@@ -171,9 +172,36 @@ def _workplace_type(labels: list[str]) -> WorkplaceType | None:
     return "remote" if remote else "hybrid"
 
 
+# Indeed's job key is both the job ID and the URL's ``jk`` parameter.
+_VIEW_URL = "{base_url}/viewjob?jk={key}"
+
+
+def card(reference: str) -> JobDict:
+    """
+    Read an Indeed posting URL as the card it names, for ``identify``.
+
+    The posting's key is in ``jk``, or in ``vjk`` on a search page, on any edition's host.
+
+    Raises:
+        ValueError: The reference is not an Indeed URL that carries a posting key.
+    """
+    parts = urlsplit(reference.strip())
+    host = parts.hostname or ""
+    query = parse_qs(parts.query)
+    key = (query.get("jk") or query.get("vjk") or [""])[0].strip()
+    indeed = host == "indeed.com" or host.endswith(".indeed.com")
+    if not (parts.scheme in ("http", "https") and indeed and key):
+        raise ValueError(
+            f"{reference!r} is not an Indeed posting URL. Pass one with its key in jk, such as "
+            "https://www.indeed.com/viewjob?jk=1a2b3c4d5e6f7a8b"
+        )
+    return make_job(
+        site="indeed", id=key, url=_VIEW_URL.format(base_url=f"https://{host}", key=key)
+    )
+
+
 def _parse_job(job: dict[str, Any], base_url: str) -> JobDict:
     """Normalize one Indeed result into the shared job model."""
-    # Indeed's job key becomes both the job ID and the URL's ``jk`` parameter.
     key = (as_str(job.get("key")) or "").strip()
     loc = as_dict(job.get("location"))
     employer = as_dict(job.get("employer"))
@@ -195,7 +223,7 @@ def _parse_job(job: dict[str, Any], base_url: str) -> JobDict:
     return make_job(
         site="indeed",
         id=key,
-        url=f"{base_url}/viewjob?jk={key}",
+        url=_VIEW_URL.format(base_url=base_url, key=key),
         title=as_str(job.get("title")),
         language=as_str(job.get("language")),
         company=as_str(employer.get("name")),
@@ -316,7 +344,10 @@ async def _pages(
         )
 
 
-def _check_filters(company_ids: list[str] | None, language: str | None) -> None:
+def _validate(
+    *, country: str, company_ids: list[str] | None, language: str | None, **_: object
+) -> None:
+    indeed_domain(country)
     # Indeed intersects the employer keys it receives, so a search takes one.
     if len(company_ids or []) > 1:
         raise ValueError(
@@ -329,7 +360,7 @@ def _check_filters(company_ids: list[str] | None, language: str | None) -> None:
         )
 
 
-@checked
+@checked(validator=_validate)
 async def search(
     fetcher: Fetcher,
     *,
@@ -366,7 +397,6 @@ async def search(
             a list holds a blank entry, or ``language`` is not two ASCII letters.
     """
     subdomain, api_code = indeed_domain(country)
-    _check_filters(company_ids, language)
     base_url = f"https://{subdomain}.indeed.com"
     headers = {**API_HEADERS, "indeed-co": api_code}
     logger.info(

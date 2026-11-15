@@ -6,8 +6,10 @@ from typing import Annotated
 
 import pytest
 from fakes import StubFetcher, ok
+from hypothesis import given
+from hypothesis import strategies as st
 
-from jobrake import cli, scrape, sites
+from jobrake import check, cli, identify, scrape, sites
 from jobrake.sites import SITES
 from jobrake.utils import checked, site_options
 
@@ -18,9 +20,12 @@ def test_a_site_meets_the_site_contract(site):
     assert (module.__doc__ or "").splitlines()[0]  # the CLI help
     assert "search" in module.__all__
     assert set(module.__all__) <= set(cli.COMMANDS)  # the functions the CLI knows how to run
+    if "postings" in module.__all__:
+        assert callable(getattr(module, "card", None))  # the link reader identify shares
     for name in module.__all__:
         function = getattr(module, name)
         assert inspect.getdoc(function), name  # its command's CLI help
+        assert inspect.iscoroutinefunction(function), name
         options = site_options(function)
         positional = [option for option, spec in options.items() if spec.positional]
         assert len(positional) == (name != "search"), name
@@ -100,16 +105,77 @@ def test_a_site_function_the_cli_cannot_build_fails_when_decorated(function, mat
         ("linkedin", {"geoid": ""}, ValueError, "must use digits"),
         ("linkedin", {"location": "Seattle", "company_ids": ["Acme"]}, ValueError, "company ID"),
         ("linkedin", {"location": "Seattle", "company_ids": ["１２３"]}, ValueError, "company ID"),  # noqa: RUF001  fullwidth digits are the input under test
+        ("workday", {"board": "https://example.com/jobs"}, ValueError, "not a Workday career site"),
     ],
 )
-def test_scrape_rejects_bad_options_before_any_request(site, kwargs, error, match):
+def test_check_and_scrape_reject_bad_options_before_any_request(site, kwargs, error, match):
+    with pytest.raises(error, match=match):
+        check(site, query="x", **kwargs)
     fetcher = StubFetcher({})
     with pytest.raises(error, match=match):
         asyncio.run(scrape(site, query="x", fetcher=fetcher, **kwargs))
     assert fetcher.requests == []
 
 
-def test_scrape_accepts_an_explicit_zero_radius():
+@pytest.mark.parametrize(
+    ("link", "named"),
+    [
+        (
+            "https://nl.linkedin.com/jobs/view/economist-at-acme-4449382178?trk=x",
+            ("linkedin", "4449382178"),
+        ),
+        ("https://www.linkedin.com/comm/jobs/view/4449382178?trk=eml", ("linkedin", "4449382178")),
+        (
+            "https://www.linkedin.com/jobs/search/?currentJobId=4449382178",
+            ("linkedin", "4449382178"),
+        ),
+        (
+            "https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/4449382178",
+            ("linkedin", "4449382178"),
+        ),
+        (
+            "https://nl.indeed.com/viewjob?jk=1a2b3c4d5e6f7a8b&from=serp",
+            ("indeed", "1a2b3c4d5e6f7a8b"),
+        ),
+        (
+            "https://www.indeed.com/jobs?q=economist&vjk=1a2b3c4d5e6f7a8b",
+            ("indeed", "1a2b3c4d5e6f7a8b"),
+        ),
+        (
+            "https://NVIDIA.wd5.myworkdayjobs.com/en-US/NVIDIAExternalCareerSite"
+            "/job/US-CA-Santa-Clara/Networking-Architect_JR1996377/?source=email",
+            ("workday", "nvidia:JR1996377"),
+        ),
+        (
+            "https://jobs.smartrecruiters.com/BoschGroup/744000158197889-product-expert?trk=x",
+            ("smartrecruiters", "744000158197889"),
+        ),
+    ],
+)
+def test_identify_names_the_site_and_id_a_search_gives(link, named):
+    assert identify(link) == named
+
+
+@pytest.mark.parametrize(
+    "link",
+    [
+        "4449382178",  # a LinkedIn ID, but not a link
+        "https://boards.greenhouse.io/airbnb/jobs/7649441",
+        "https://www.indeed.com/viewjob",
+        "https://example.com/jobs/view/4449382178",
+    ],
+)
+def test_identify_gives_none_for_a_link_no_site_reads(link):
+    assert identify(link) is None
+
+
+@given(st.one_of(st.text(), st.text().map("https://".__add__)))
+def test_identify_never_raises(text):
+    identify(text)
+
+
+def test_check_and_scrape_accept_an_explicit_zero_radius():
+    check("linkedin", query="x", location="Seattle", radius=0)
     fetcher = StubFetcher({"seeMoreJobPostings": ok("")})
     asyncio.run(scrape("linkedin", query="x", location="Seattle", radius=0, fetcher=fetcher))
     assert len(fetcher.requests) == 1
