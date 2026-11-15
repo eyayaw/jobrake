@@ -1,7 +1,8 @@
-"""Reading a site's responses: one JSON body, its list of postings, and a search's pages."""
+"""Reading a site's responses: one JSON or XML body, its list of postings, and a search's pages."""
 
 import json
 import logging
+import xml.etree.ElementTree as ET
 from collections.abc import AsyncGenerator, Callable
 from gettext import ngettext
 from typing import Any
@@ -9,6 +10,20 @@ from typing import Any
 from jobrake.fetchkit import FetchResult
 from jobrake.models import JobDict, Stopped
 from jobrake.utils import finite, report_progress
+
+
+def _stop_if_failed(result: FetchResult, site: str, board: str | None, unknown: str | None) -> None:
+    if result.status == 404 and unknown:
+        raise Stopped(unknown)
+    if result.error:
+        where = f" for board {board!r}" if board else ""
+        raise Stopped(f"{site} request{where} failed: {result.error}")
+
+
+def _unreadable(site: str, error: Exception) -> Stopped:
+    return Stopped(
+        f"{site} sent a response this version cannot read ({error!r}), likely an API change"
+    )
 
 
 def read_json[T](
@@ -30,11 +45,7 @@ def read_json[T](
         Stopped: The site answered 404 and ``unknown`` is given, the request failed,
             or the body is unreadable.
     """
-    if result.status == 404 and unknown:
-        raise Stopped(unknown)
-    if result.error:
-        where = f" for board {board!r}" if board else ""
-        raise Stopped(f"{site} request{where} failed: {result.error}")
+    _stop_if_failed(result, site, board, unknown)
     # ValueError covers JSONDecodeError and an integer longer than Python reads.
     try:
         return unpack(json.loads(result.text))
@@ -46,9 +57,34 @@ def read_json[T](
                 f"{site} sent a web page where its API sends JSON, so the site may be "
                 "under maintenance. Try again later"
             ) from error
-        raise Stopped(
-            f"{site} sent a response this version cannot read ({error!r}), likely an API change"
-        ) from error
+        raise _unreadable(site, error) from error
+
+
+def read_xml[T](
+    result: FetchResult,
+    unpack: Callable[[ET.Element], T],
+    *,
+    site: str,
+    board: str | None = None,
+    unknown: str | None = None,
+) -> T:
+    """
+    Return what ``unpack`` takes from the root element of a site's XML response.
+
+    ``unpack`` raises ``TypeError`` for a document without what the site needs. ``board`` and
+    ``unknown`` work as in ``read_json``.
+
+    Raises:
+        Stopped: The site answered 404 and ``unknown`` is given, the request failed,
+            or the body is unreadable.
+    """
+    _stop_if_failed(result, site, board, unknown)
+    # Expat opens no file or connection, and Expat 2.7.2 and later limit entity expansion
+    # (https://docs.python.org/3/library/xml.html, 2026-11-15).
+    try:
+        return unpack(ET.fromstring(result.text))
+    except (ET.ParseError, TypeError) as error:
+        raise _unreadable(site, error) from error
 
 
 def json_list(payload: Any, key: str | None = None) -> list[Any]:  # noqa: ANN401  any decoded JSON, which json_list checks

@@ -478,15 +478,16 @@ postings = asyncio.run(main())
 ## Employer boards
 
 Many employers publish their openings on a board that their applicant tracking system (ATS) hosts.
-jobrake reads Ashby, Greenhouse, Lever, SmartRecruiters, Workable, and Workday boards.
+jobrake reads Ashby, Greenhouse, Lever, Personio, SmartRecruiters, Workable, and Workday boards.
 A search names one employer's board with `--board | -b`.
-An Ashby, Greenhouse, Lever, or Workable search returns every posting on the board:
+An Ashby, Greenhouse, Lever, Personio, or Workable search returns every posting on the board:
 
 ```sh
 jobrake greenhouse search -b airbnb
 jobrake greenhouse search -b anthropic -o anthropic.jsonl
 jobrake ashby search -b openai -o openai.csv
 jobrake lever search -b spotify
+jobrake personio search -b tado
 jobrake workable search -b huggingface
 ```
 
@@ -498,7 +499,8 @@ from jobrake import scrape
 jobs = asyncio.run(scrape("greenhouse", board="airbnb"))
 ```
 
-These searches take no query, result limit, or filters. Ashby, Greenhouse, and Workable apply none.
+These searches take no query, result limit, or filters.
+Ashby, Greenhouse, Personio, and Workable apply none.
 Lever filters only on the employer's own labels for location, team, department, and commitment,
 which must match exactly, so jobrake offers none of them.
 To narrow the postings, [pipe the results](#pipe-results) through `jq`
@@ -507,7 +509,7 @@ SmartRecruiters and Workday search on the server, as [Search a board](#search-a-
 
 ### Find a board
 
-The board token is the last part of the board's address:
+The board token is the part of the board's address that names the employer:
 
 - Greenhouse: `airbnb` in `boards.greenhouse.io/airbnb`,
   or `anthropic` in `job-boards.greenhouse.io/anthropic`.
@@ -515,6 +517,10 @@ The board token is the last part of the board's address:
 - Lever: `spotify` in `jobs.lever.co/spotify`.
   A board on Lever's EU host, `jobs.eu.lever.co/<token>`, works the same way.
 - Workable: `huggingface` in `apply.workable.com/huggingface`.
+- Personio: `tado` in `tado.jobs.personio.de`, the subdomain of the career site.
+  A career site at `<token>.jobs.personio.com` takes the same token.
+  An employer can switch off the feed jobrake reads, and Personio then answers as it does for a
+  token it does not know, so the error names both causes.
 - SmartRecruiters: `BoschGroup` in `jobs.smartrecruiters.com/BoschGroup`.
   In our tests, capitals did not matter.
 
