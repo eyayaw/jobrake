@@ -1,26 +1,29 @@
-"""The posting loop of the sites that fill a card with one request per posting."""
+"""The details loop of the sites that fill a card with one request per posting, and its stop."""
 
 import logging
 from collections.abc import Awaitable, Callable, Container
 from typing import Any
 
 from jobrake import cache
-from jobrake.models import JobDict, Stopped, make_job
+from jobrake.models import IDENTITY_FIELDS, JobDict, Stopped, make_job
 from jobrake.utils import report_progress
 
 logger = logging.getLogger(__name__)
 
-# A site's reader of one card's posting: the fields the posting adds, or None when the site reports
-# the posting gone. It raises Stopped for a failed request or an unreadable response.
-type Reader = Callable[[JobDict], Awaitable[dict[str, Any] | None]]
+# A site's reader of the posting at a card's URL: the fields the posting adds, or None when the site
+# reports the posting gone. It raises Stopped for a failed request or an unreadable response.
+# It sees only the URL, so its fields are the same for every card of the posting and can be cached.
+type Reader = Callable[[str], Awaitable[dict[str, Any] | None]]
 
 
 def _merge(card: JobDict, fields: dict[str, Any]) -> JobDict:
-    # A None, blank, or empty field leaves the card's value in place.
+    # The card keeps its identity. A None, blank, or empty field leaves the card's value in place.
     kept = {
         name: value
         for name, value in fields.items()
-        if value not in (None, []) and not (isinstance(value, str) and not value.strip())
+        if name not in IDENTITY_FIELDS
+        and value not in (None, [])
+        and not (isinstance(value, str) and not value.strip())
     }
     return make_job(**(card | kept))
 
@@ -32,7 +35,8 @@ async def _read_each(
     Map each card's ID to what ``read`` returns for it, logging and leaving out a failed read.
 
     A cached posting costs no request. Each read's fields go to the cache as a record of their own,
-    so a later card merges with them as with a fresh read. A gone posting stays out of the cache.
+    and a later card merges with them as with a fresh read, because a read sees only the URL.
+    A gone posting stays out of the cache.
     """
     cached = cache.CACHE.get(site, [card["id"] for card in cards])
     found: dict[str, dict[str, Any] | None] = {
@@ -43,7 +47,7 @@ async def _read_each(
         if card["id"] in found:
             continue
         try:
-            fields = await read(card)
+            fields = await read(card["url"])
         except Stopped as stopped:
             logger.warning("skipping posting %s: %s", card["url"], stopped)
             continue

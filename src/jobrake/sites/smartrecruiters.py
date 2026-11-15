@@ -99,9 +99,9 @@ def _parse_posting(posting: dict[str, Any]) -> dict[str, Any] | None:
     return {**_parse_card(posting), "description": _description(posting)}
 
 
-async def _posting_fields(fetcher: Fetcher, card: JobDict) -> dict[str, Any] | None:
+async def _posting_fields(fetcher: Fetcher, url: str) -> dict[str, Any] | None:
     """
-    Fetch the posting behind a card, or None when SmartRecruiters reports it gone.
+    Fetch the posting at a URL, or None when SmartRecruiters reports it gone.
 
     SmartRecruiters reports a posting gone with a 404, or by marking a posting it still
     serves inactive. A 400 stays a failure: it answers a malformed request,
@@ -110,7 +110,7 @@ async def _posting_fields(fetcher: Fetcher, card: JobDict) -> dict[str, Any] | N
     Raises:
         Stopped: The request failed, or the response is unreadable.
     """
-    company, posting_id = urlsplit(card["url"]).path.strip("/").split("/")
+    company, posting_id = urlsplit(url).path.strip("/").split("/")
     result = await fetcher.fetch(
         f"{API_URL}/{quote(company, safe='')}/postings/{quote(posting_id, safe='')}"
     )

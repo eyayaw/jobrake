@@ -184,9 +184,9 @@ def _withdrawn(text: str) -> bool:
         return False
 
 
-def _parse_details(payload: dict[str, Any], card: JobDict) -> dict[str, Any]:
+def _parse_details(payload: dict[str, Any]) -> dict[str, Any]:
     """
-    Return the detail fields of a card's posting from its ``jobPostingInfo``.
+    Return the detail fields of a posting from its ``jobPostingInfo``.
 
     A posting with a start date takes its ``date`` from it, because the card's date counts from
     today in UTC and can be a day past Workday's own.
@@ -195,13 +195,9 @@ def _parse_details(payload: dict[str, Any], card: JobDict) -> dict[str, Any]:
     country = as_dict(as_dict(info.get("jobRequisitionLocation")).get("country"))
     primary = (as_str(info.get("location")) or "").strip()
     others = info.get("additionalLocations")
-    # The requisition's country is the primary location's. Without one, the card's place leads.
+    # The requisition's country is the primary location's.
     locations = [
-        *(
-            [{"name": primary, "country_code": country.get("alpha2Code")}]
-            if primary
-            else card["locations"]
-        ),
+        *([{"name": primary, "country_code": country.get("alpha2Code")}] if primary else []),
         *({"name": name} for name in (others if isinstance(others, list) else [])),
     ]
     start = as_str(info.get("startDate"))
@@ -215,18 +211,18 @@ def _parse_details(payload: dict[str, Any], card: JobDict) -> dict[str, Any]:
     }
 
 
-async def _detail_fields(fetcher: Fetcher, card: JobDict) -> dict[str, Any] | None:
+async def _detail_fields(fetcher: Fetcher, url: str) -> dict[str, Any] | None:
     """
-    Fetch the detail fields of a card's posting, or None when Workday reports it gone or withdrawn.
+    Fetch a posting's detail fields by URL, or None when Workday reports it gone or withdrawn.
 
     Raises:
         Stopped: The request failed, or the response is unreadable.
     """
-    _, _, api_url, path = _career_site(card["url"])
+    _, _, api_url, path = _career_site(url)
     result = await fetcher.fetch(api_url + path)
     if result.status == 404 or (result.status == 403 and _withdrawn(result.text)):
         return None
-    return read_json(result, functools.partial(_parse_details, card=card), site="workday")
+    return read_json(result, _parse_details, site="workday")
 
 
 def _validate(*, board: str, **_: object) -> None:

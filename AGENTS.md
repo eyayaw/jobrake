@@ -30,9 +30,10 @@ systems, and it depends on `httpx` and `bs4`.
   pages from a generator and leaves the rest to `collect`.
 - `sites/postings.py`: the posting loop of the sites that fill a card with one request per posting.
   `fill_details` serves `details=True` and `fetch_postings` serves `postings`,
-  and each site supplies only the reader of one posting, which raises `Stopped` for a posting it
-  could not read. A field the posting leaves empty keeps the card's value, and a cached posting
-  costs no request. `stop_if_unread` raises the `Stopped` of a details search, for LinkedIn too.
+  and each site supplies only the reader of the posting at a URL, which raises `Stopped` for a
+  posting it could not read. A field the posting leaves empty keeps the card's value, the card
+  keeps its `site`, `id`, and `url`, and a cached posting costs no request. `stop_if_unread`
+  raises the `Stopped` of a details search, for LinkedIn too.
 - `utils.py`: `site_options`, which reads the `Annotated` arguments of a site function, `checked`,
   which wraps it in a `Checked` that runs those checks and the site's validator on every call,
   or alone through `check`, `report_progress`, which `collect` and each posting loop call to log
@@ -109,10 +110,11 @@ and the contract test in `tests/test_scrape.py` need no edit.
   and paces each hop, so a caller's `Fetcher` must honor `follow_redirects=False`.
   Two workers per data center read posting pages, and concurrent calls each read their own.
 - The cache is transparent. On LinkedIn, Workday, and SmartRecruiters it stores the fields of each
-  posting read as a `JobDict`, and a later card merges with them as with a fresh read. Rows carry
-  no version, and each row read passes through `make_job`, so a row whose keys no longer fit
-  `JobDict` or `Place` is a miss. `make_job` normalizes a row as it does a site's fields and cannot
-  redo a parser's work, so a parser fix reaches a cached posting when its row expires.
+  posting read as a `JobDict`. A reader sees only the posting's URL, so a later card merges with
+  the cached fields as with a fresh read. Rows carry no version, and each row read passes through
+  `make_job`, so a row whose keys no longer fit `JobDict` or `Place` is a miss. `make_job`
+  normalizes a row as it does a site's fields and cannot redo a parser's work, so a parser fix
+  reaches a cached posting when its row expires.
   `JOBRAKE_CACHE_PATH` and `JOBRAKE_CACHE_TTL` configure it, and no site function takes a cache
   option. Only LinkedIn is paced.
 - Library code logs under the `jobrake` logger and prints nothing. The CLI sends logs to stderr and
