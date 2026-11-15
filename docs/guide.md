@@ -187,9 +187,10 @@ A list option takes several values after one flag, `--attributes CF3CP 6QC5F`, o
 > and lists LinkedIn's options,
 > and `jobrake linkedin search --remote` fails as an unrecognized argument.
 
-To refuse a bad search before running any, such as one read from a config file,
-`jobrake.check` takes the same arguments as `scrape()` without `fetcher`.
-It raises the `TypeError` or `ValueError` the search would, and sends no request:
+`jobrake.check` validates a search's options before any search starts,
+such as searches read from a config file.
+It takes the same arguments as `scrape()` without `fetcher`,
+raises the `TypeError` or `ValueError` the search would, and sends no request:
 
 ```python
 import jobrake

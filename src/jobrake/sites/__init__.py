@@ -72,7 +72,7 @@ def check(site: str, **options: object) -> None:
 
 def identify(link: str) -> tuple[str, str] | None:
     """
-    Return the ``site`` and ``id`` a search gives the posting a link names, or None.
+    Return the ``site`` and ``id`` of the posting a link names, as a search returns them, or None.
 
     It sends no request. Each site that defines ``card`` reads its own links, and a link no site
     reads gives None.
