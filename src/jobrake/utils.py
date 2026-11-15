@@ -181,6 +181,8 @@ class Checked[**P, R]:
         self, function: Callable[P, Awaitable[R]], validator: Validator | None = None
     ) -> None:
         functools.update_wrapper(self, function)
+        # inspect reports a callable instance as sync, which misleads a caller dispatching on it.
+        inspect.markcoroutinefunction(self)
         self._function = function
         self._validator = validator
         self._signature = inspect.signature(function)

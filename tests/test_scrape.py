@@ -25,6 +25,7 @@ def test_a_site_meets_the_site_contract(site):
     for name in module.__all__:
         function = getattr(module, name)
         assert inspect.getdoc(function), name  # its command's CLI help
+        assert inspect.iscoroutinefunction(function), name
         options = site_options(function)
         positional = [option for option, spec in options.items() if spec.positional]
         assert len(positional) == (name != "search"), name
