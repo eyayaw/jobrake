@@ -179,21 +179,38 @@ def test_a_detail_without_a_location_or_title_keeps_the_cards(today):
     assert job["title"] == "Networking Architect"
 
 
-def test_a_cached_posting_fills_a_card_as_a_fresh_read_does(today, isolated_cache):
+PLACELESS = {
+    "jobPostingInfo": {
+        **{name: value for name, value in DETAIL["jobPostingInfo"].items() if name != "location"},
+        "additionalLocations": [""],
+    }
+}
+
+
+@pytest.mark.parametrize(
+    ("detail", "places"),
+    [
+        (DETAIL, [{"name": "US, CA, Santa Clara", "country_code": "US"}]),
+        (PLACELESS, [{"name": "US, CA, Santa Clara"}]),  # a blank place keeps the card's
+    ],
+)
+def test_a_cached_posting_fills_a_card_as_a_fresh_read_does(today, isolated_cache, detail, places):
     shared = (
         "https://wd5.myworkdaysite.com/recruiting/nvidia/NVIDIAExternalCareerSite"
         "/job/US-CA-Santa-Clara/Networking-Architect_JR1996377"
     )
     fetcher = StubFetcher(
-        {"/jobs": ok(page(CARDS[:1])), "Networking-Architect_JR1996377": ok(json.dumps(DETAIL))}
+        {"/jobs": ok(page(CARDS[:1])), "Networking-Architect_JR1996377": ok(json.dumps(detail))}
     )
     # Read first through its shared-host address, the posting fills the search card from the cache.
     asyncio.run(workday.postings(fetcher, [shared]))
-    cached = asyncio.run(workday.search(fetcher, board=BOARD, details=True))
+    (cached,) = asyncio.run(workday.search(fetcher, board=BOARD, details=True))
     assert len(fetcher.requests) == 2
     isolated_cache.close()
     isolated_cache.path.unlink()
-    assert cached == asyncio.run(workday.search(fetcher, board=BOARD, details=True))
+    (fresh,) = asyncio.run(workday.search(fetcher, board=BOARD, details=True))
+    assert cached == fresh
+    assert fresh["locations"] == places
 
 
 def test_details_fill_each_card_and_stop_when_one_fails(today, caplog):

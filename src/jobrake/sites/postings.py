@@ -34,9 +34,10 @@ async def _read_each(
     """
     Map each card's ID to what ``read`` returns for it, logging and leaving out a failed read.
 
-    A cached posting costs no request. Each read's fields go to the cache as a record of their own,
-    and a later card merges with them as with a fresh read, because a read sees only the URL.
-    A gone posting stays out of the cache.
+    A cached posting costs no request. Each read's fields become a normalized record of their own,
+    which fills this card and goes to the cache, so a later card merges with the same record.
+    A read sees only the URL, so that record suits any card of the posting. A gone posting stays
+    out of the cache.
     """
     cached = cache.CACHE.get(site, [card["id"] for card in cards])
     found: dict[str, dict[str, Any] | None] = {
@@ -51,9 +52,12 @@ async def _read_each(
         except Stopped as stopped:
             logger.warning("skipping posting %s: %s", card["url"], stopped)
             continue
-        found[card["id"]] = fields
-        if fields is not None:
-            cache.CACHE.put([_merge(make_job(site=site, id=card["id"], url=card["url"]), fields)])
+        if fields is None:
+            found[card["id"]] = None
+            continue
+        record = _merge(make_job(site=site, id=card["id"], url=card["url"]), fields)
+        cache.CACHE.put([record])
+        found[card["id"]] = dict(record)
     return found
 
 
