@@ -100,7 +100,7 @@ _SHORT_FLAGS = {
 }
 
 # The functions a site may export, each a command of that site, in help order.
-COMMANDS = ("search", "postings", "places", "companies", "attributes")
+COMMANDS = ("search", "postings", "places", "companies", "attributes", "filters")
 # The commands that write postings, and so take --output and --format. The lookups print their
 # candidates as JSON.
 _WRITES_POSTINGS = ("search", "postings")

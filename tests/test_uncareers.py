@@ -196,3 +196,20 @@ def test_a_search_sends_the_codes_its_filter_names_stand_for_and_refuses_what_th
         check("uncareers", query="economist", category=["CON"])
     with pytest.raises(ValueError, match="24, 168, or 720 hours only, not 48"):
         check("uncareers", max_age_hours=48)
+
+
+def test_filters_lists_the_values_a_search_option_takes():
+    families = asyncio.run(uncareers.filters(PagedFetcher([CATALOG]), " job-family "))
+    # The job family filter is empty in the catalog, so its values come from the job networks.
+    assert families == [
+        {"id": "STT", "name": "Statistics"},
+        {"id": "ECO", "name": "Economic Affairs (and Sustainable Development)"},
+    ]
+    with pytest.raises(Stopped, match="without department values"):
+        asyncio.run(uncareers.filters(PagedFetcher([CATALOG]), "department"))
+    fetcher = PagedFetcher([])
+    with pytest.raises(
+        ValueError, match=r"no 'country' list filter\. Use one of category, duty-station"
+    ):
+        asyncio.run(uncareers.filters(fetcher, "country"))
+    assert fetcher.requests == []

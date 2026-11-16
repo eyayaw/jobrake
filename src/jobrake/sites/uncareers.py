@@ -80,12 +80,12 @@ def _parse_opening(opening: dict[str, Any]) -> JobDict:
 
 
 async def _pages(
-    fetcher: Fetcher, filters: dict[str, object], size: int
+    fetcher: Fetcher, config: dict[str, object], size: int
 ) -> AsyncGenerator[tuple[list[JobDict], int]]:
     page = offset = total = 0
     while True:
         body = {
-            "filterConfig": filters,
+            "filterConfig": config,
             "pagination": {
                 "page": page,
                 "itemPerPage": size,
@@ -146,19 +146,37 @@ def _catalog(payload: Any) -> dict[str, list[tuple[str, str]]]:  # noqa: ANN401 
     return catalog
 
 
+async def _read_catalog(fetcher: Fetcher) -> dict[str, list[tuple[str, str]]]:
+    return read_json(await fetcher.fetch(CATALOG_URL), _catalog, site="uncareers")
+
+
+def _cli_name(option: str) -> str:
+    """Return a filter option as the CLI spells it, such as ``duty-station``."""
+    return option.replace("_", "-")
+
+
+def _values(catalog: dict[str, list[tuple[str, str]]], option: str) -> list[tuple[str, str]]:
+    """
+    Return the ``(code, name)`` entries the catalog lists for a filter option.
+
+    Raises:
+        Stopped: The catalog lists no entries for the filter.
+    """
+    if entries := catalog.get(FILTERS[option]):
+        return entries
+    raise Stopped(
+        f"UN Careers sent a filter catalog without {option.replace('_', ' ')} values, "
+        f"likely an API change, so jobrake cannot use the {_cli_name(option)} filter"
+    )
+
+
 def _codes(option: str, entries: list[tuple[str, str]], values: list[str]) -> list[str]:
     """
     Return the codes of the catalog entries whose code or name is one of ``values``, in any case.
 
     Raises:
-        Stopped: The catalog lists no entries for the filter.
         ValueError: A value names no entry. The message lists close names.
     """
-    if not entries:
-        raise Stopped(
-            f"UN Careers sent a filter catalog without {option.replace('_', ' ')} values, "
-            f"likely an API change. Search without the {option} filter"
-        )
     codes = set()
     for value in values:
         wanted = value.strip().casefold()
@@ -169,7 +187,7 @@ def _codes(option: str, entries: list[tuple[str, str]], values: list[str]) -> li
             hint = (
                 f"Did you mean {', '.join(map(repr, close))}?"
                 if close
-                else "Use a name from the filters of the site's search page"
+                else f"List them with 'jobrake uncareers filters {_cli_name(option)}'"
             )
             raise ValueError(f"unknown UN Careers {option.replace('_', ' ')} {value!r}. {hint}")
         codes |= found
@@ -241,19 +259,49 @@ async def search(
         }.items()
         if values
     }
-    filters: dict[str, object] = {}
+    config: dict[str, object] = {}
     if chosen:
-        catalog = read_json(await fetcher.fetch(CATALOG_URL), _catalog, site="uncareers")
-        filters |= {
-            FILTERS[option]: _codes(option, catalog.get(FILTERS[option], []), values)
+        catalog = await _read_catalog(fetcher)
+        config |= {
+            FILTERS[option]: _codes(option, _values(catalog, option), values)
             for option, values in chosen.items()
         }
     if keyword := query.strip():
-        filters["keyword"] = keyword
+        config["keyword"] = keyword
     if max_age_hours is not None:
-        filters["span"] = [SPANS[max_age_hours]]
-    logger.info("reading uncareers openings%s", f" with {filters}" if filters else "")
-    return await collect("uncareers", _pages(fetcher, filters, min(PAGE_SIZE, results)), results)
+        config["span"] = [SPANS[max_age_hours]]
+    logger.info("reading uncareers openings%s", f" with {config}" if config else "")
+    return await collect("uncareers", _pages(fetcher, config, min(PAGE_SIZE, results)), results)
 
 
-__all__ = ["search"]
+def _filter_option(option: str) -> str:
+    return option.strip().replace("-", "_")
+
+
+def _validate_filters(*, option: str) -> None:
+    if _filter_option(option) not in FILTERS:
+        names = ", ".join(map(_cli_name, FILTERS))
+        raise ValueError(f"UN Careers search has no {option!r} list filter. Use one of {names}")
+
+
+@checked(validator=_validate_filters)
+async def filters(
+    fetcher: Fetcher, option: Annotated[str, "list filter, e.g., duty-station"]
+) -> list[dict[str, str]]:
+    """
+    List the values a UN Careers list filter takes, in the order of the site's filter catalog.
+
+    ``option`` is a list option of ``search``, with ``-`` or ``_``. Each value is an
+    ``{"id", "name"}`` dict, and ``search`` takes either one. A code can carry two names,
+    such as level 300, NO-2 and NO-B.
+
+    Raises:
+        Stopped: The request failed, UN Careers sent an unreadable catalog,
+            or the catalog lists no values for the filter.
+        ValueError: ``option`` names no list option of ``search``.
+    """
+    entries = _values(await _read_catalog(fetcher), _filter_option(option))
+    return [{"id": code, "name": name} for code, name in entries]
+
+
+__all__ = ["filters", "search"]
