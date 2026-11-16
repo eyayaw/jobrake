@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.31.0](https://github.com/eyayaw/jobrake/releases/tag/v0.31.0) - 2026-11-17
+
+### Added
+
+- `jobrake uncareers filters <option>` and `jobrake.sites.uncareers.filters()` list the values a
+  UN Careers list filter takes, such as every duty station.
+
 ## [0.30.0](https://github.com/eyayaw/jobrake/releases/tag/v0.30.0) - 2026-11-16
 
 ### Added
