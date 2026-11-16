@@ -1,12 +1,29 @@
 [project]
 name = "jobrake"
 version = "0.30.0"
-description = "Read job postings from LinkedIn, Indeed, EconJobMarket, and ATS boards, all in one schema."
+description = "Read job postings from LinkedIn, Indeed, Greenhouse, and more, all in one schema."
 readme = "README.md"
 requires-python = ">=3.15"
 authors = [{ name = "Eyayaw Beze" }]
 license = "MIT"
 license-files = ["LICENSE", "THIRD_PARTY_NOTICES"]
+keywords = [
+    "job-search",
+    "jobs",
+    "cli",
+    "ats",
+    "linkedin",
+    "indeed",
+    "stepstone",
+    "econjobmarket",
+    "greenhouse",
+    "lever",
+    "workday",
+    "ashby",
+    "workable",
+    "smartrecruiters",
+    "personio",
+]
 dependencies = [
     "httpx>=0.27.0",
     "beautifulsoup4>=4.12",
