@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.30.0](https://github.com/eyayaw/jobrake/releases/tag/v0.30.0) - 2026-11-16
+
+### Added
+
+- `jobrake uncareers search` reads the openings on UN Careers, the United Nations Secretariat's
+  recruitment site, with their descriptions. `--query` is the site's keyword search, and
+  `--category`, `--duty-station`, `--level`, `--department`, `--job-network`, `--job-family`,
+  `--recruitment-type`, and `--max-age-hours` apply its filters by the names its search page shows.
+
 ## [0.29.0](https://github.com/eyayaw/jobrake/releases/tag/v0.29.0) - 2026-11-16
 
 ### Added
