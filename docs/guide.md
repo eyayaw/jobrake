@@ -158,8 +158,8 @@ returns such postings from the rest of the country, marked `regionalExtended` in
 
 ### Lookup commands
 
-The `places`, `companies`, and `attributes` commands print JSON lists of `{"id", "name"}` entries,
-and their library functions return the same lists.
+The `places`, `companies`, `attributes`, and `filters` commands print JSON lists of
+`{"id", "name"}` entries, and their library functions return the same lists.
 Each `id` is the value a search takes. An empty list means the lookup found no matches.
 A failed request or unreadable response raises `Stopped` in a library call.
 The CLI exits nonzero on failure.
@@ -171,6 +171,7 @@ The CLI exits nonzero on failure.
 | `jobrake indeed attributes <query> -c <code>` | `jobrake.sites.indeed.attributes(fetcher, query, country=...)` |
 | `jobrake linkedin places <name>`              | `jobrake.sites.linkedin.places(fetcher, name)`                 |
 | `jobrake linkedin companies <name>`           | `jobrake.sites.linkedin.companies(fetcher, name)`              |
+| `jobrake uncareers filters <option>`          | `jobrake.sites.uncareers.filters(fetcher, option)`             |
 
 ## Narrow the results
 
@@ -684,6 +685,9 @@ or the site's own codes:
 | `--job-network`      | `DEVNET` or `Economic, Social and Development`         |
 | `--job-family`       | `Statistics`, `ECO`, `Human Rights Affairs`            |
 | `--recruitment-type` | `Consultant`, `Intern`, `Temporary Opportunities`      |
+
+`jobrake uncareers filters <option>` lists every value an option takes.
+For example, `jobrake uncareers filters duty-station` lists the duty stations.
 
 An option given more than once keeps the openings that match any of its values,
 and different options all apply.

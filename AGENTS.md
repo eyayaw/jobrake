@@ -15,7 +15,7 @@ UN Careers web app's list API, and the board APIs of applicant tracking systems,
   and `identify`, which asks each site's `card` whose posting a link names.
 - `sites/<site>`: one module per site, or a package for LinkedIn and Indeed,
   which split into several modules. It exports `search` and any of `places`, `companies`,
-  `attributes`, and `postings`, and the first line of its docstring is the site's CLI help.
+  `attributes`, `filters`, and `postings`, and the first line of its docstring is the site's CLI help.
   A site that exports `postings` defines `card(reference)`, outside `__all__`, and a site may
   define one for `identify` alone, as Indeed does. `card` reads one posting URL as the card it
   names and raises `ValueError` for any other reference. `fetch_postings` reads every reference
