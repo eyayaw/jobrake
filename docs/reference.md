@@ -378,6 +378,33 @@ and the details `posted_at`, `expires_at`, `company_logo`, and, when present, `d
   Every one of the 319 ads listed both.
 - The feed carries no salary, employment type, or workplace type.
 
+### UN Careers fields
+
+A UN Careers record carries `title`, `company`, `locations`, `date`, and `description`,
+and the details `posted_at`, `expires_at`, and `site_data`.
+
+- `title` is the opening's posting title, which for a staff post ends in its grade,
+  such as `HUMANITARIAN AFFAIRS OFFICER (PROGRAMME), P3`.
+- `company` is the UN entity that hires,
+  such as `Office for the Coordination of Humanitarian Affairs`.
+- `locations` holds one place per duty station, named by the site's label,
+  such as `NEW YORK`, `Juba`, or `FO West Bank`, with no other part.
+  In our read of 448 openings on 2026-11-16, 8 listed more than one duty station.
+- `posted_at` is the opening's start and `expires_at` its deadline, as UTC timestamps such as
+  `2026-11-13T05:00:00.000Z` and `2026-11-20T04:59:59.000Z`, which fall at the start and the end of
+  a day in New York. `date` is the calendar date of `posted_at`.
+- `description` holds every section of the opening under its title, in the site's order.
+  A section such as `Work Location` can say the work is remote,
+  and the record carries no `workplace_type`.
+- `url` opens the opening on `careers.un.org`, where candidates apply,
+  so a record has no separate `apply_url`.
+- `site_data` holds the opening's `category` code, such as `PD` or `INT`, its `level`,
+  such as `P-3`, `I-1`, or `CON`, its `recruitment_type`, such as `Temporary Opportunities`,
+  and, when present, its `job_family` and `job_network`.
+  A `category` can be a code that `--category` does not take,
+  such as `RLG`, which 25 of the 448 openings carried.
+- The list carries no salary or employment type.
+
 ## Requests by site
 
 ### Ashby, EconJobMarket, Greenhouse, Lever, and Workable requests
@@ -466,3 +493,25 @@ one request per posting, which a cached posting skips.
 A failed request raises `Stopped` with the postings of the pages before it.
 So does an empty page that comes before the number of matches StepStone reported,
 because postings may have closed during the search and a rerun may find more.
+
+### UN Careers requests
+
+A search pages through the openings 100 at a time, highest job ID first, one request after another,
+without pacing, and each request gets a single attempt.
+Many openings share a start date, and the site orders those differently from one request to the
+next, so pages sorted by date repeated 11 of 448 openings and skipped 11 others in our test.
+Job IDs are unique, and in our test, pages sorted by them gave each of the 448 openings once.
+An opening that closes during a search still shifts the later pages, so one can be skipped,
+and an opening that appears repeats one, which jobrake keeps once.
+Job IDs follow the order the site created openings in: on 2026-11-16 the 20 highest IDs had start
+dates over five days.
+`--max-age-hours` bounds the age exactly.
+The 448 openings of 2026-11-16 took five requests.
+A search stops at `--results`, at the last opening, or at an empty page.
+A failed request raises `Stopped` with the openings of the pages before it.
+So does an empty page that comes before the number of openings UN Careers reported,
+because openings may have closed during the search and a rerun may find more.
+The list carries each opening whole, so jobrake makes no request per opening.
+A search that takes `--category`, `--duty-station`, `--level`, `--department`, `--job-network`,
+`--job-family`, or `--recruitment-type` first reads the site's list of filter values, about 330 KB,
+to turn names into the site's codes.
