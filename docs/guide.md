@@ -1,8 +1,8 @@
 # jobrake guide
 
-jobrake provides one interface for Indeed, LinkedIn, EconJobMarket, StepStone, and employers'
-boards on applicant tracking systems, but the sites differ in how they interpret geography,
-apply search filters, and fetch posting details.
+jobrake provides one interface for Indeed, LinkedIn, EconJobMarket, StepStone, UN Careers, and
+employers' boards on applicant tracking systems, but the sites differ in how they interpret
+geography, apply search filters, and fetch posting details.
 Run `jobrake -h` for the sites, `jobrake <site> -h` for a site's commands,
 and `jobrake <site> <command> -h` for their options.
 The [reference](reference.md) lists the fields each site returns and how its requests behave.
@@ -12,6 +12,7 @@ The [reference](reference.md) lists the fields each site returns and how its req
 - [Fetch posting details](#fetch-posting-details)
 - [Employer boards](#employer-boards)
 - [EconJobMarket](#econjobmarket)
+- [UN Careers](#un-careers)
 - [Read and save results](#read-and-save-results)
 - [Use the Python API](#use-the-python-api)
 - [Request limits and partial results](#request-limits-and-partial-results)
@@ -21,8 +22,8 @@ The [reference](reference.md) lists the fields each site returns and how its req
 ## Search for jobs
 
 The searches in this section run on Indeed, LinkedIn, and StepStone.
-To read one employer's board or EconJobMarket,
-go to [Employer boards](#employer-boards) or [EconJobMarket](#econjobmarket).
+To read one employer's board, EconJobMarket, or UN Careers, go to
+[Employer boards](#employer-boards), [EconJobMarket](#econjobmarket), or [UN Careers](#un-careers).
 
 Choose a site and supply a job title or keywords:
 
@@ -199,12 +200,15 @@ A list option takes several values after one flag, `--attributes CF3CP 6QC5F`, o
 `jobrake.check` validates a search's options before any search starts,
 such as searches read from a config file.
 It takes the same arguments as `scrape()` without `fetcher`,
-raises the `TypeError` or `ValueError` the search would, and sends no request:
+raises the `TypeError` or `ValueError` the search would, and sends no request.
+A value that only the site's live list can confirm, such as a UN Careers duty station,
+passes `check`, and the search refuses it after reading that list:
 
 ```python
 import jobrake
 
 jobrake.check("indeed", query="economist", country="zz")  # ValueError: unknown Indeed country 'zz'
+jobrake.check("uncareers", duty_station=["Genva"])  # passes, and the search raises ValueError
 ```
 
 ### Companies
@@ -639,6 +643,64 @@ To redisplay EJM ads on your own website, you must notify EJM and get EJM's appr
 Any use of the feed must follow EJM's Terms of Use, Privacy Policy, and Research Data Usage Policy.
 See [Accessing the EJM Ad Feed](https://backend.econjobmarket.org/docs/ad-redisplay/Ad-Redisplay.0.md).
 
+## UN Careers
+
+[UN Careers](https://careers.un.org) is the recruitment site of the United Nations Secretariat.
+It lists professional, general service, field service, consultant, and internship openings
+across the UN's departments, offices, and missions.
+A search returns the openings with the highest job IDs first, which the site created most recently,
+each with its description:
+
+```sh
+jobrake uncareers search -n 500 -o un.jsonl
+jobrake uncareers search -q economist --max-age-hours 168
+jobrake uncareers search --duty-station Geneva --duty-station "New York" --level P-3 --level P-4
+jobrake uncareers search --category INT
+```
+
+```python
+import asyncio
+
+from jobrake import scrape
+
+jobs = asyncio.run(scrape("uncareers", duty_station=["Geneva"], level=["P-3", "P-4"]))
+```
+
+`--query | -q` is the site's keyword search. It matches words, not parts of words,
+and other forms of a word as well: in our tests, `economics` matched 27 openings,
+three of them only through their job family, Economic Affairs.
+`--max-age-hours` takes 24, 168, or 720, the ages the site filters on.
+
+The other filters take the names that the filters on the site's
+[search page](https://careers.un.org/jobopening?language=en) show, in any case,
+or the site's own codes:
+
+| Option               | Example values                                         |
+| -------------------- | ------------------------------------------------------ |
+| `--category`         | `INT` or `Affiliate Personnel – Internships`, `PD`     |
+| `--duty-station`     | `Geneva`, `New York`, `Addis Ababa`                    |
+| `--level`            | `P-3`, `G-5`, `D-1`, `NO-B`                            |
+| `--department`       | `Economic Commission for Africa`                       |
+| `--job-network`      | `DEVNET` or `Economic, Social and Development`         |
+| `--job-family`       | `Statistics`, `ECO`, `Human Rights Affairs`            |
+| `--recruitment-type` | `Consultant`, `Intern`, `Temporary Opportunities`      |
+
+An option given more than once keeps the openings that match any of its values,
+and different options all apply.
+A search that takes one of these options first reads the site's list of filter values,
+because UN Careers ignores a value it does not know and then returns every opening.
+jobrake stops instead and names the closest values.
+A category makes the site drop the keyword, so a search takes `--query` or `--category`.
+To narrow the openings further, [pipe the results](#pipe-results) through `jq`.
+
+[UN Careers fields](reference.md#un-careers-fields) lists what a record carries.
+
+### UN Careers terms
+
+UN Careers links to the UN's [terms of use](https://www.un.org/en/about-us/terms-of-use).
+They permit copying the site's material for personal, non-commercial use,
+and they give no right to redistribute it or to compile works from it.
+
 ## Read and save results
 
 Every job is a dictionary. [Returned fields](reference.md#returned-fields) describes its keys,
@@ -752,8 +814,8 @@ The CLI writes those jobs and exits 1. When there are none it writes nothing,
 so empty output such as `[]` always comes from a search that completed.
 Reaching a site's own result cap is not a failure.
 jobrake warns on stderr and returns what the site served.
-On Indeed, EconJobMarket, StepStone, and the employer boards, jobrake skips a posting it cannot
-read and leaves out a field it cannot read.
+On Indeed, EconJobMarket, StepStone, UN Careers, and the employer boards, jobrake skips a posting
+it cannot read and leaves out a field it cannot read.
 
 [Requests by site](reference.md#requests-by-site) gives each site's result cap, pacing, and retries.
 

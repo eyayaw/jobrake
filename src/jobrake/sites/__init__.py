@@ -17,6 +17,7 @@ from . import (
     personio,
     smartrecruiters,
     stepstone,
+    uncareers,
     workable,
     workday,
 )
@@ -32,6 +33,7 @@ SITES: dict[str, ModuleType] = {
     "personio": personio,
     "smartrecruiters": smartrecruiters,
     "stepstone": stepstone,
+    "uncareers": uncareers,
     "workable": workable,
     "workday": workday,
 }
@@ -66,10 +68,11 @@ async def scrape(site: str, *, fetcher: Fetcher | None = None, **options: object
 
 def check(site: str, **options: object) -> None:
     """
-    Raise the ``TypeError`` or ``ValueError`` that ``scrape`` would raise for these options.
+    Raise the ``TypeError`` or ``ValueError`` that ``scrape`` would raise before its first request.
 
     It sends no request and needs no event loop, so a caller can check every planned search
-    before the first one runs.
+    before the first one runs. A value that only the site's live catalog can confirm, such as a UN
+    Careers duty station, passes, and the search refuses it after reading that catalog.
     """
     _search(site).check(**options)
 

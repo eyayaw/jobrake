@@ -9,7 +9,8 @@
 ___The job boards shed new postings every day. Bring a rake.___
 
 jobrake is a Python package and CLI tool for fetching job postings from LinkedIn, Indeed, StepStone,
-EconJobMarket, and employers' boards on [major](#supported-job-boards) applicant tracking systems.
+EconJobMarket, UN Careers, and employers' boards on [major](#supported-job-boards) applicant
+tracking systems.
 It returns each posting as a record with the same fields, whichever site it came from.
 
 > Read it as "**job-rake**".
@@ -190,6 +191,7 @@ jobs = asyncio.run(main())
 | <a href="https://www.personio.com"><img src="https://assets.cdn.personio.de/rebrand/favicon.svg" alt="" height="16"> `personio`</a> | Public XML feed, one employer's career site | Included in search results |
 | <a href="https://www.smartrecruiters.com"><img src="https://www.smartrecruiters.com/wp-content/uploads/cropped-web-app-manifest-192x192-1-192x192.png" alt="" height="16"> `smartrecruiters`</a> | Public Posting API, one employer's board | Optional and cached, one request per posting |
 | <a href="https://www.stepstone.de"><img src="https://www.stepstone.de/favicon.ico" alt="" height="16"> `stepstone`</a> | Mobile-app listings API, German job board | Optional and cached, one request per posting |
+| <a href="https://careers.un.org"><img src="https://www.un.org/sites/un2.un.org/themes/bootstrap_un2/favicon.ico" alt="" height="16"> `uncareers`</a> | Web app's list API, every UN Secretariat opening | Included in search results |
 | <a href="https://www.workable.com"><img src="https://www.workable.com/static/apple-touch-icon.png" alt="" height="16"> `workable`</a> | Public widget API, one employer's board | Included in search results |
 | <a href="https://www.workday.com"><img src="https://www.workday.com/favicon.ico" alt="" height="16"> `workday`</a> | Career site JSON API, one employer's career site | Optional and cached, one request per posting |
 
@@ -222,6 +224,7 @@ installed, as CI does.
 > Scraping may violate their ToS, and any of them may rate-limit or block your IP address.
 > EconJobMarket offers its ad feed for personal use and academic research,
 > and redisplaying its ads on your own website needs its approval.
+> The UN's terms of use permit copying its sites' material only for personal, non-commercial use.
 > You are responsible for checking and complying with their terms.
 
 ---

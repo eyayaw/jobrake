@@ -4,8 +4,9 @@
 
 jobrake reads the postings a job board publishes and returns each one as a record with the same
 fields, whichever board it came from. It is an async Python package and CLI that reads LinkedIn's
-guest API, Indeed's GraphQL API, EconJobMarket's ad feed, StepStone's mobile listings API, and the
-board APIs of applicant tracking systems, and it depends on `httpx` and `bs4`.
+guest API, Indeed's GraphQL API, EconJobMarket's ad feed, StepStone's mobile listings API, the
+UN Careers web app's list API, and the board APIs of applicant tracking systems, and it depends on
+`httpx` and `bs4`.
 
 ## Map
 
@@ -15,9 +16,11 @@ board APIs of applicant tracking systems, and it depends on `httpx` and `bs4`.
 - `sites/<site>`: one module per site, or a package for LinkedIn and Indeed,
   which split into several modules. It exports `search` and any of `places`, `companies`,
   `attributes`, and `postings`, and the first line of its docstring is the site's CLI help.
-  A site whose links name a posting also defines `card(reference)`, outside `__all__`, which reads
-  one link as the card it names for `identify` and refuses anything else. Every site that exports
-  `postings` defines one and reads its references with the same parser.
+  A site that exports `postings` defines `card(reference)`, outside `__all__`, and a site may
+  define one for `identify` alone, as Indeed does. `card` reads one posting URL as the card it
+  names and raises `ValueError` for any other reference. `fetch_postings` reads every reference
+  with `card` before its first request, and LinkedIn's `postings` parses references as its `card`
+  does and also takes a bare posting ID.
   In the two packages, `search.py` builds requests and parses results, `client.py` holds the URLs
   and headers, plus LinkedIn's pacing, and `lookups.py` holds the lookups. The other sites need no
   pacing, and of them only StepStone sends headers of its own. LinkedIn's `pages.py` reads posting
@@ -91,8 +94,10 @@ and the contract test in `tests/test_scrape.py` need no edit.
   `ValueError` for a value out of range, a blank required string, or a blank list entry,
   all before the first request. A rule of the site's own on a `search` option, such as Indeed's
   country editions, goes in the validator `search` passes as `@checked(validator=_validate)`,
-  so `check` raises everything `scrape` would, without a request. `site_options` rejects an
-  annotation or a boolean default that breaks these rules when the module is imported, and
+  so `check` raises everything `scrape` would, without a request. The exception is a value only
+  the site's live catalog can confirm, such as a UN Careers duty station, which `search` checks
+  after reading that catalog. `site_options` rejects an annotation or a boolean default that breaks
+  these rules when the module is imported, and
   `test_a_site_meets_the_site_contract` checks that `search` takes no positional option and that a
   shared name keeps its type.
 - A caller can tell a cut-short result from a complete one. A failed request, or a page that ends a
