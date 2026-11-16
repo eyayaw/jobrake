@@ -16,6 +16,7 @@ from . import (
     linkedin,
     personio,
     smartrecruiters,
+    stepstone,
     workable,
     workday,
 )
@@ -30,6 +31,7 @@ SITES: dict[str, ModuleType] = {
     "linkedin": linkedin,
     "personio": personio,
     "smartrecruiters": smartrecruiters,
+    "stepstone": stepstone,
     "workable": workable,
     "workday": workday,
 }

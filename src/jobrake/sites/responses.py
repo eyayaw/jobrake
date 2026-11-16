@@ -103,7 +103,7 @@ def json_list(payload: Any, key: str | None = None) -> list[Any]:  # noqa: ANN40
 
 def json_page(payload: Any, key: str, total: str) -> tuple[list[Any], int]:  # noqa: ANN401  any decoded JSON, which json_page checks
     """
-    Return a page's ``payload[key]`` list and the count of all matches that ``payload[total]`` reports.
+    Return a page's ``payload[key]`` list and the count of all matches in ``payload[total]``.
 
     Raises:
         KeyError: ``payload`` lacks ``key`` or ``total``.
@@ -114,6 +114,19 @@ def json_page(payload: Any, key: str, total: str) -> tuple[list[Any], int]:  # n
     if count is None:
         raise TypeError(f"{total} {payload[total]!r} is not a number")
     return json_list(payload, key), int(count)
+
+
+def cut_short(where: str, total: int, offset: int) -> Stopped:
+    """
+    Return the ``Stopped`` for an empty page that came before the ``total`` a search reported.
+
+    ``where`` names the site, and the board when it has one. ``offset`` counts the cards sent.
+    """
+    return Stopped(
+        f"{where} reported {total} postings but sent an empty page after {offset}, so the result "
+        "may be incomplete. Postings may have closed during the search. A rerun reads the "
+        "current list"
+    )
 
 
 def parse_postings(

@@ -4,8 +4,8 @@
 
 jobrake reads the postings a job board publishes and returns each one as a record with the same
 fields, whichever board it came from. It is an async Python package and CLI that reads LinkedIn's
-guest API, Indeed's GraphQL API, EconJobMarket's ad feed, and the board APIs of applicant tracking
-systems, and it depends on `httpx` and `bs4`.
+guest API, Indeed's GraphQL API, EconJobMarket's ad feed, StepStone's mobile listings API, and the
+board APIs of applicant tracking systems, and it depends on `httpx` and `bs4`.
 
 ## Map
 
@@ -20,14 +20,16 @@ systems, and it depends on `httpx` and `bs4`.
   `postings` defines one and reads its references with the same parser.
   In the two packages, `search.py` builds requests and parses results, `client.py` holds the URLs
   and headers, plus LinkedIn's pacing, and `lookups.py` holds the lookups. The other sites need no
-  headers or pacing. LinkedIn's `pages.py` reads posting pages for `postings` and `details=True`
-  with a fixed pool of workers, and Indeed's `countries.py` maps ISO country codes to editions.
+  pacing, and of them only StepStone sends headers of its own. LinkedIn's `pages.py` reads posting
+  pages for `postings` and `details=True` with a fixed pool of workers, and Indeed's `countries.py`
+  maps ISO country codes to editions.
 - `sites/responses.py`: the response reading the sites share. `read_json` and `read_xml` raise
   `Stopped` for an unknown board, a failed request, or an unreadable response, `json_list` checks
-  the posting list, `json_page` checks a page's list and its total, and `parse_postings` skips a
-  malformed posting with a warning. `collect` gathers the pages a paged search yields: it drops a
-  repeated posting, logs progress, stops at `results`, and keeps the pages before a failure. A paged
-  site yields its pages from a generator and leaves the rest to `collect`.
+  the posting list, `json_page` checks a page's list and its total, `cut_short` builds the `Stopped`
+  of an empty page before that total, and `parse_postings` skips a malformed posting with a warning.
+  `collect` gathers the pages a paged search yields: it drops a repeated posting, logs progress,
+  stops at `results`, and keeps the pages before a failure. A paged site yields its pages from a
+  generator and leaves the rest to `collect`.
 - `sites/postings.py`: the posting loop of the sites that fill a card with one request per posting.
   `fill_details` serves `details=True` and `fetch_postings` serves `postings`,
   and each site supplies only the reader of the posting at a URL, which raises `Stopped` for a
@@ -109,12 +111,12 @@ and the contract test in `tests/test_scrape.py` need no edit.
   and retries a 429 up to five times. It follows redirects itself, to HTTPS LinkedIn addresses only,
   and paces each hop, so a caller's `Fetcher` must honor `follow_redirects=False`.
   Two workers per data center read posting pages, and concurrent calls each read their own.
-- The cache is transparent. On LinkedIn, Workday, and SmartRecruiters it stores the fields of each
-  posting read as a `JobDict`. A reader sees only the posting's URL, so a later card merges with
-  the cached fields as with a fresh read. Rows carry no version, and each row read passes through
-  `make_job`, so a row whose keys no longer fit `JobDict` or `Place` is a miss. `make_job`
-  normalizes a row as it does a site's fields and cannot redo a parser's work, so a parser fix
-  reaches a cached posting when its row expires.
+- The cache is transparent. On LinkedIn, Workday, SmartRecruiters, and StepStone it stores the
+  fields of each posting read as a `JobDict`. A reader sees only the posting's URL, so a later card
+  merges with the cached fields as with a fresh read. Rows carry no version, and each row read
+  passes through `make_job`, so a row whose keys no longer fit `JobDict` or `Place` is a miss.
+  `make_job` normalizes a row as it does a site's fields and cannot redo a parser's work, so a
+  parser fix reaches a cached posting when its row expires.
   `JOBRAKE_CACHE_PATH` and `JOBRAKE_CACHE_TTL` configure it, and no site function takes a cache
   option. Only LinkedIn is paced.
 - Library code logs under the `jobrake` logger and prints nothing. The CLI sends logs to stderr and

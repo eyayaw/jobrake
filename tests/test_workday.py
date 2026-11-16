@@ -395,7 +395,7 @@ def test_paging_ends_at_results_or_the_first_total_and_stops_at_an_early_empty_p
     fetcher = PagedFetcher([page(numbered(20), total=25), page(numbered(5, 20), total=25)])
     assert len(asyncio.run(workday.search(fetcher, board=BOARD, results=100))) == 25
     assert "at most" not in caplog.text
-    # Later pages are reported to say total 0, so the first page's total stands.
+    # A career site can report total 0 on later pages, so the first page's total stands.
     monkeypatch.setattr(workday, "MAX_TOTAL", 43)
     pages = [page(numbered(20), total=43), page(numbered(20, 20), total=0)]
     fetcher = PagedFetcher([*pages, page(numbered(3, 40), total=0)])

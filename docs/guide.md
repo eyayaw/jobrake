@@ -1,7 +1,7 @@
 # jobrake guide
 
-jobrake provides one interface for Indeed, LinkedIn, EconJobMarket, and employers' boards on
-applicant tracking systems, but the sites differ in how they interpret geography,
+jobrake provides one interface for Indeed, LinkedIn, EconJobMarket, StepStone, and employers'
+boards on applicant tracking systems, but the sites differ in how they interpret geography,
 apply search filters, and fetch posting details.
 Run `jobrake -h` for the sites, `jobrake <site> -h` for a site's commands,
 and `jobrake <site> <command> -h` for their options.
@@ -20,7 +20,7 @@ The [reference](reference.md) lists the fields each site returns and how its req
 
 ## Search for jobs
 
-The searches in this section run on Indeed and LinkedIn.
+The searches in this section run on Indeed, LinkedIn, and StepStone.
 To read one employer's board or EconJobMarket,
 go to [Employer boards](#employer-boards) or [EconJobMarket](#econjobmarket).
 
@@ -39,7 +39,8 @@ LinkedIn has no editions: pass the place as text to `--location`, or its ID to `
 and leave `--country` out.
 
 Three more options bound a search by count, age, and distance.
-By default, a search returns **10 jobs** with **no age limit**.
+By default, an Indeed or LinkedIn search returns **10 jobs** and a StepStone search 100,
+all with **no age limit**.
 
 | Option               | CLI                     | Library         | Accepted values                                  |
 | -------------------- | ----------------------- | --------------- | ------------------------------------------------ |
@@ -118,7 +119,7 @@ jobs for an **ambiguous place name**. Include the region and country whenever po
 
 `--geoid | -g` takes a geoId, such as `--geoid 102011674`. This sends that ID straight to LinkedIn
 and `location` becomes optional. The library call equivalent is `geoid="102011674"`.
-Note that leaving the geoid option out is fine, jobrake just searches by location text.
+Without a geoId, jobrake searches by the location text.
 
 If you want to know the geoId of a place name, you can use `jobrake linkedin places <name>`,
 which prints LinkedIn's candidates as JSON, best match first.
@@ -146,6 +147,14 @@ jobrake linkedin search -q "data scientist" -l "Birmingham, England, United King
 jobrake linkedin search -q "data scientist" -g 100356971
 ```
 
+#### StepStone locations
+
+StepStone searches Germany. `--location` is a German city or postal code, such as `Mannheim` or
+`68159`, and `--radius` widens the search around it, 30 km by default. Without a location the search
+covers the whole country.
+`--remote` keeps the postings StepStone lists as fully remote. With a location, it still
+returns such postings from the rest of the country, marked `regionalExtended` in `site_data`.
+
 ### Lookup commands
 
 The `places`, `companies`, and `attributes` commands print JSON lists of `{"id", "name"}` entries,
@@ -169,14 +178,14 @@ Search filters apply on every page, alongside keywords and geography,
 Each one has a CLI option and a library argument of the same name.
 Pass the library argument to `scrape()` or the site's `search()` function.
 
-| Filter           | CLI                 | Library                | Site                    | Unset   |
-| ---------------- | ------------------- | ---------------------- | ----------------------- | ------- |
-| Employers        | `--company-ids`     | `company_ids=[...]`    | LinkedIn, Indeed        | `None`  |
-| Posting language | `--language`        | `language="en"`        | Indeed                  | `None`  |
-| Job attributes   | `--attributes`      | `attributes=[...]`     | Indeed                  | `None`  |
-| Remote           | `--remote`          | `remote=True`          | Indeed, SmartRecruiters | `False` |
-| Easy Apply       | `--easy-apply`      | `easy_apply=True`      | LinkedIn                | `False` |
-| Early applicant  | `--early-applicant` | `early_applicant=True` | LinkedIn                | `False` |
+| Filter           | CLI                 | Library                | Site                               | Unset   |
+| ---------------- | ------------------- | ---------------------- | ---------------------------------- | ------- |
+| Employers        | `--company-ids`     | `company_ids=[...]`    | LinkedIn, Indeed                   | `None`  |
+| Posting language | `--language`        | `language="en"`        | Indeed                             | `None`  |
+| Job attributes   | `--attributes`      | `attributes=[...]`     | Indeed                             | `None`  |
+| Remote           | `--remote`          | `remote=True`          | Indeed, SmartRecruiters, StepStone | `False` |
+| Easy Apply       | `--easy-apply`      | `easy_apply=True`      | LinkedIn                           | `False` |
+| Early applicant  | `--early-applicant` | `early_applicant=True` | LinkedIn                           | `False` |
 
 An option left at its **unset** value (or an empty list) stays out of the search.
 A list option takes several values after one flag, `--attributes CF3CP 6QC5F`, or across repeats.
@@ -241,7 +250,7 @@ jobrake indeed search -c nl --company-ids 8e8f030e53ea29e4
 This key selects _Booking.com_. Without `-q`, the search covers its postings without keywords.
 
 > [!TIP]
-> Leave out `-q` to search without keywords, works for both Indeed and LinkedIn.
+> Leave out `-q` to search without keywords, on any site that takes a query.
 > One good use case is searching for openings from a certain company.
 
 Indeed intersects the keys it receives, so a search takes one employer key and rejects more.
@@ -391,11 +400,12 @@ That costs one paced request for most uncached postings and up to three for the 
 In our measurements, a LinkedIn posting placed in a whole country,
 such as "United States" or "Netherlands", comes without its dates, coordinates, and requirements.
 
-Workday and SmartRecruiters searches also return cards without descriptions,
+Workday, SmartRecruiters, and StepStone searches also return cards without descriptions,
 and `--details` fetches each uncached posting with one more request, one at a time.
-[Workday fields](reference.md#workday-fields)
-and [SmartRecruiters fields](reference.md#smartrecruiters-fields) list what it adds.
-On these two sites, a posting removed or withdrawn since the search keeps its search result.
+[Workday fields](reference.md#workday-fields),
+[SmartRecruiters fields](reference.md#smartrecruiters-fields),
+and [StepStone fields](reference.md#stepstone-fields) list what it adds.
+On these three sites, a posting removed or withdrawn since the search keeps its search result.
 
 A posting whose details cannot be fetched also keeps its search result,
 and once the rest are fetched the search raises `Stopped` with every posting in `partial`
@@ -406,13 +416,15 @@ and [cache settings](#cache-location-and-lifetimes) for reuse.
 
 ### Fetch known postings
 
-Fetch postings you already know on LinkedIn, Workday, or SmartRecruiters without repeating a search:
+Fetch postings you already know on LinkedIn, Workday, SmartRecruiters, or StepStone without repeating
+a search:
 
 ```sh
 jobrake linkedin postings 4449382178
 jobrake linkedin postings https://nl.linkedin.com/jobs/view/data-scientist-at-acme-4449382178
 jobrake workday postings https://zillow.wd5.myworkdayjobs.com/Zillow_Group_External/job/Remote-USA/Applied-Scientist_P751481-1
 jobrake smartrecruiters postings https://jobs.smartrecruiters.com/BoschGroup/744000158197889
+jobrake stepstone postings https://www.stepstone.de/job/14569042
 ```
 
 Sites take postings down over time, so the examples above may be gone.
@@ -427,10 +439,12 @@ When one was unreachable, the command writes the others and exits nonzero.
 A LinkedIn reference is a numeric ID or an HTTPS posting URL,
 including the link in a LinkedIn job alert email and a search page address with `currentJobId=`.
 A Workday or SmartRecruiters reference is a search result's `url`, and SmartRecruiters also takes
-the posting's address with its title slug. Any other reference is an error, and nothing is fetched.
+the posting's address with its title slug. A StepStone reference is a search result's `url`,
+its `stepstone.de/job/<id>` page, or the posting's longer address that ends in `--<id>-inline.html`.
+Any other reference is an error, and nothing is fetched.
 
 Library callers use the `postings` function of `jobrake.sites.linkedin`, `jobrake.sites.workday`,
-or `jobrake.sites.smartrecruiters`, which never raises `Stopped`.
+`jobrake.sites.smartrecruiters`, or `jobrake.sites.stepstone`, which never raises `Stopped`.
 It maps each ID or URL to its whole job, or to `None` when the site reports the posting gone.
 A reference whose request failed, or whose response jobrake cannot read, is absent from the result,
 and calling the function again retries it.
@@ -738,17 +752,17 @@ The CLI writes those jobs and exits 1. When there are none it writes nothing,
 so empty output such as `[]` always comes from a search that completed.
 Reaching a site's own result cap is not a failure.
 jobrake warns on stderr and returns what the site served.
-On Indeed, EconJobMarket, and the employer boards, jobrake skips a posting it cannot read
-and leaves out a field it cannot read.
+On Indeed, EconJobMarket, StepStone, and the employer boards, jobrake skips a posting it cannot
+read and leaves out a field it cannot read.
 
 [Requests by site](reference.md#requests-by-site) gives each site's result cap, pacing, and retries.
 
 ## Cache location and lifetimes
 
-jobrake keeps the LinkedIn, Workday, and SmartRecruiters postings it fetched in one SQLite file
-under your user cache directory: `~/Library/Caches/jobrake/` on macOS, `$XDG_CACHE_HOME/jobrake/`
-on Linux (`~/.cache/jobrake/` when that variable is unset), and `%LOCALAPPDATA%\jobrake\` on
-Windows. No other site is cached.
+jobrake keeps the LinkedIn, Workday, SmartRecruiters, and StepStone postings it fetched in one
+SQLite file under your user cache directory: `~/Library/Caches/jobrake/` on macOS,
+`$XDG_CACHE_HOME/jobrake/` on Linux (`~/.cache/jobrake/` when that variable is unset), and
+`%LOCALAPPDATA%\jobrake\` on Windows. No other site is cached.
 
 A cached posting stays fresh for seven days and is fetched again after that.
 A posting that its site reports gone is not cached.

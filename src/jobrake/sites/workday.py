@@ -10,9 +10,9 @@ from typing import Annotated, Any
 from urllib.parse import urlsplit
 
 from jobrake.fetchkit import Fetcher
-from jobrake.models import JobDict, Stopped, employment_type, make_job
+from jobrake.models import JobDict, employment_type, make_job
 from jobrake.sites.postings import fetch_postings, fill_details
-from jobrake.sites.responses import collect, json_page, parse_postings, read_json
+from jobrake.sites.responses import collect, cut_short, json_page, parse_postings, read_json
 from jobrake.utils import as_dict, as_str, checked, html_text
 
 logger = logging.getLogger(__name__)
@@ -28,14 +28,14 @@ EXAMPLE_BOARD = "https://zillow.wd5.myworkdayjobs.com/Zillow_Group_External"
 # or a path on a shared one, wd<n>.myworkdaysite.com/recruiting/<tenant>/<site>.
 # Both serve the API at /wday/cxs/<tenant>/<site> on the same host, and a posting's path below the
 # site is the same on both (measured 2026-11-14 on one career site of each kind).
-_OWN_HOST = re.compile(r"([a-z0-9-]+)\.wd\d+\.myworkdayjobs\.com")
-_SHARED_HOST = re.compile(r"wd\d+\.myworkdaysite\.com")
+_OWN_HOST = re.compile(r"([a-z0-9-]+)\.wd[0-9]+\.myworkdayjobs\.com")
+_SHARED_HOST = re.compile(r"wd[0-9]+\.myworkdaysite\.com")
 _LOCALE = re.compile(r"[a-z]{2}-[A-Z]{2}")
 _POSTED = re.compile(r"Posted (?:Today|(Yesterday)|(\d{1,4}) Days Ago)")
 # The requisition ID follows the first underscore of the path's last segment,
 # because title slugs join words with hyphens, so an ID such as JR_2024_00123 stays whole.
 # An ID holds a digit, and a title word such as Scientist in /job/Remote/Data_Scientist does not.
-_REQUISITION = re.compile(r"/(?:[^/]+/)*[^/_]*_([^/]*\d[^/]*)")
+_REQUISITION = re.compile(r"/(?:[^/]+/)*[^/_]*_([^/]*[0-9][^/]*)")
 _LOCATION_COUNT = re.compile(r"\d+ Locations")
 
 
@@ -156,11 +156,7 @@ async def _pages(
         # so the first page's total stands.
         total = page_total if total is None else total
         if not cards and offset < total:
-            raise Stopped(
-                f"workday site {site_url} reported {total} postings but sent an empty page "
-                f"after {offset}, so the result may be incomplete. Postings may have closed "
-                "during the search. A rerun reads the current list"
-            )
+            raise cut_short(f"workday site {site_url}", total, offset)
         if not cards:
             break
         offset += len(cards)

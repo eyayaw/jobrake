@@ -107,7 +107,9 @@ _MINIMUMS = {"results": 1, "radius": 0, "max_age_hours": 1}
 
 def site_options(function: Callable[..., object]) -> dict[str, Option]:
     """
-    Map each argument after the fetcher to its ``Annotated`` kind, help, and default, keeping signature order.
+    Map each argument after the fetcher to its ``Annotated`` kind, help, and default.
+
+    The mapping keeps the signature's order.
 
     Raises:
         TypeError: An argument is not ``Annotated[kind, help]`` with a supported kind and nonblank
@@ -275,7 +277,7 @@ def as_str(value: object) -> str | None:
 
 
 def as_dict(value: object) -> dict[str, Any]:
-    """Return a JSON value unchanged when it is an object, or ``{}`` for anything else, so a ``.get`` can follow."""
+    """Return a JSON object unchanged, or ``{}`` for any other value, so a ``.get`` can follow."""
     return value if isinstance(value, dict) else {}
 
 
@@ -291,7 +293,6 @@ def iso_date(value: str | None) -> str | None:
     try:
         return datetime.fromisoformat(value).date().isoformat()
     except ValueError:
-        # Non-ISO input stays visible in the value rather than vanishing.
         logger.warning("not an ISO 8601 date: %r", value)
         return value[:10]
 
