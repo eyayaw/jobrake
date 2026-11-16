@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.29.0](https://github.com/eyayaw/jobrake/releases/tag/v0.29.0) - 2026-11-16
+
+### Added
+
+- `jobrake stepstone search` reads StepStone's German job board through its mobile-app listings API.
+  `--location` takes a German city or postal code and `--radius` widens the search around it.
+  `--remote` keeps the postings StepStone lists as fully remote.
+  A card lacks the description, the employment type, and the company URL, which `--details` and
+  `jobrake stepstone postings` fetch from the posting's page.
+- `jobrake personio search` reads an employer's Personio career site through its public XML feed.
+  A posting that the board's default-language feed leaves without a description comes whole, title
+  included, from the feed in the first other language that describes it.
+
+### Fixed
+
+- `jobrake.identify` and `postings` reject a SmartRecruiters or Workday URL whose ID is written in
+  digits other than 0-9, such as fullwidth ones. They read it as a posting and asked the site for
+  an ID it never issues.
+
 ## [0.28.0](https://github.com/eyayaw/jobrake/releases/tag/v0.28.0) - 2026-11-15
 
 ### Added
