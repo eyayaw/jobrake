@@ -647,6 +647,8 @@ jobs = asyncio.run(scrape("aea", section=["1", "3"], jel=["J"]))
 | `5`  | Full-Time Nonacademic                                                     |
 | `6`  | Other Nonacademic (Temporary, Part-Time, Non-Salaried, Consulting, Etc.)  |
 
+JOE files each listing under a subsection, so the heading `2` or `4` selects its subsections too.
+
 `--jel` takes a JEL field by its letter, such as `J` for labor and demographic economics,
 or `00` for listings open to any field.
 An option given more than once keeps the listings that match any of its values,

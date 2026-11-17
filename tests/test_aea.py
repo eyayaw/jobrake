@@ -73,7 +73,9 @@ Energy &amp;amp; Environment Economics
 def test_a_search_reads_the_page_for_dates_and_the_export_for_the_rest(caplog):
     fetcher = PagedFetcher([PAGE, EXPORT])
     jobs = asyncio.run(
-        aea.search(fetcher, query=" labor ", section=["full-time nonacademic", "2A"])
+        aea.search(
+            fetcher, query=" labor ", section=["full-time nonacademic", "2A", "4", "4b", "5"]
+        )
     )
     assert jobs == [
         {
@@ -129,6 +131,11 @@ def test_a_search_reads_the_page_for_dates_and_the_export_for_the_rest(caplog):
         "ListingsForm[keyword_search]": ["labor"],
         "ListingsForm[section][0]": ["5"],
         "ListingsForm[section][1]": ["2a"],
+        # The heading 4 brings its subsections and 2a only itself, and 4b and 5, each selected
+        # twice, go once.
+        "ListingsForm[section][2]": ["4"],
+        "ListingsForm[section][3]": ["4a"],
+        "ListingsForm[section][4]": ["4b"],
     }
     assert export == "https://www.aeaweb.org/joe/resultset_output.php?mode=full_xml&q=eNplj0EKwkAM"
 

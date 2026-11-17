@@ -5,6 +5,7 @@ import logging
 import xml.etree.ElementTree as ET
 from datetime import UTC, datetime, timedelta
 from functools import partial
+from string import ascii_lowercase
 from typing import Annotated
 from urllib.parse import urlencode, urljoin
 
@@ -174,10 +175,11 @@ async def search(
     """
     List the active listings on JOE, newest first, each with its full text.
 
-    ``section`` takes a code or a name of the site's Section/Type menu and ``jel`` a JEL field code,
-    in any case. Each keeps the listings that match any of its values, and different filters all
-    apply. JOE dates a listing by day, so ``max_age_hours`` keeps those posted on or after the UTC
-    date that many hours ago, and JOE compares it with its own calendar.
+    ``section`` takes a code or a name of the site's Section/Type menu, where the heading 2 or 4
+    also selects its subsections, and ``jel`` a JEL field code, in any case. Each keeps the
+    listings that match any of its values, and different filters all apply. JOE dates a listing by
+    day, so ``max_age_hours`` keeps those posted on or after the UTC date that many hours ago, and
+    JOE compares it with its own calendar.
     One request reads the listings page with the search's filters, for each listing's posted date
     and the link to the page's export, and a second reads that export. Neither is paced or retried.
 
@@ -189,11 +191,18 @@ async def search(
     fields = {"ListingsForm[lpp]": PAGE_SIZE, "ListingsForm[listings_order_by]": "date_posted_a"}
     if keyword := query.strip():
         fields["ListingsForm[keyword_search]"] = keyword
-    for name, codes in (
-        ("section", _codes("section", _SECTION_CODES, section or [])),
-        ("jel", _codes("JEL field", _JEL_CODES, jel or [])),
-    ):
-        fields |= {f"ListingsForm[{name}][{i}]": code for i, code in enumerate(codes)}
+    # JOE files each listing under a subsection such as 2a and answers the heading 2 alone with no
+    # listings (measured 2026-11-17), so a heading also sends its subsections.
+    sections = [
+        sub
+        for code in _codes("section", _SECTION_CODES, section or [])
+        for sub in SECTIONS
+        if code in (sub, sub.rstrip(ascii_lowercase))
+    ]
+    for name, codes in (("section", sections), ("jel", _codes("JEL field", _JEL_CODES, jel or []))):
+        fields |= {
+            f"ListingsForm[{name}][{i}]": code for i, code in enumerate(dict.fromkeys(codes))
+        }
     if max_age_hours is not None:
         now = datetime.now(UTC)
         since = now - timedelta(hours=max_age_hours)

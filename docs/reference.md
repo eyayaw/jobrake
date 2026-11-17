@@ -453,6 +453,8 @@ The second reads the XML export that the page links for the same listings,
 A failed request raises `Stopped` with an empty `partial`, and so does a page that shows listings
 without both their posted dates and an export link.
 A search that matches nothing gets a page without listings and makes no second request.
+A section heading, `2` or `4`, is sent with its subsections, because JOE files each listing under a
+subsection: on 2026-11-17, `2` alone matched no listing, while `2a` and `2b` held 115.
 
 ### Personio requests
 
