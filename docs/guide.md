@@ -656,7 +656,7 @@ JOE files each listing under a subsection, so the heading `2` or `4` selects its
 
 `--jel` takes a JEL field by its letter, such as `J` for labor and demographic economics,
 or `00` for listings open to any field.
-An option given more than once keeps the listings that match any of its values,
+`--section` and `--jel`, given more than once, keep the listings that match any of their values,
 and different options all apply.
 JOE answers a section or field it does not know with no listings, so jobrake refuses one instead.
 JOE dates a listing by day, so `--max-age-hours` keeps the listings posted on or after the day that
@@ -814,7 +814,7 @@ or the site's own codes:
 `jobrake uncareers filters <option>` lists every value an option takes.
 For example, `jobrake uncareers filters duty-station` lists the duty stations.
 
-An option given more than once keeps the openings that match any of its values,
+Each option in the table, given more than once, keeps the openings that match any of its values,
 and different options all apply.
 A search that takes one of these options first reads the site's list of filter values,
 because UN Careers ignores a value it does not know and then returns every opening.
