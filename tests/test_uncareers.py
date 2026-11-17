@@ -167,7 +167,7 @@ def test_a_search_sends_the_codes_its_filter_names_stand_for_and_refuses_what_th
             duty_station=["new york", " Geneva "],
             level=["P-3"],
             job_family=["statistics"],
-            max_age_hours=168,
+            max_age_hours=169,
         )
     )
     assert fetcher.bodies[1]["filterConfig"] == {
@@ -175,14 +175,14 @@ def test_a_search_sends_the_codes_its_filter_names_stand_for_and_refuses_what_th
         "ds": ["Geneva", "NEWYORK"],
         "jle": ["100"],
         "jf": ["STT"],
-        "span": ["7"],
+        "span": ["8"],
     }
     # A search without a list filter reads no catalog.
     fetcher = PagedFetcher([page([], total=0)])
     asyncio.run(uncareers.search(fetcher, query=" economist "))
     assert [body["filterConfig"] for body in fetcher.bodies] == [{"keyword": "economist"}]
-    # The site ignores a code it does not know, a category drops the keyword, and the site has three
-    # posting ages, so each of these would return openings the caller excluded.
+    # The site ignores a code it does not know, and a category drops the keyword, so each of these
+    # would return openings the caller excluded.
     fetcher = PagedFetcher([CATALOG])
     with pytest.raises(
         ValueError, match=r"unknown UN Careers duty station 'Genva'\. Did you mean 'Geneva'"
@@ -194,8 +194,6 @@ def test_a_search_sends_the_codes_its_filter_names_stand_for_and_refuses_what_th
         asyncio.run(uncareers.search(PagedFetcher([CATALOG]), department=["ECA"]))
     with pytest.raises(ValueError, match="ignores query when category is given"):
         check("uncareers", query="economist", category=["CON"])
-    with pytest.raises(ValueError, match="24, 168, or 720 hours only, not 48"):
-        check("uncareers", max_age_hours=48)
 
 
 def test_filters_lists_the_values_a_search_option_takes():

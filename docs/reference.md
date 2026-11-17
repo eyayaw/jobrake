@@ -628,7 +628,10 @@ An opening that closes during a search still shifts the later pages, so one can 
 and an opening that appears repeats one, which jobrake keeps once.
 Job IDs follow the order the site created openings in: on 2026-11-16 the 20 highest IDs had start
 dates over five days.
-`--max-age-hours` bounds the age exactly.
+`--max-age-hours` sends the site's posting age filter, which keeps the openings whose start date lies
+within a whole number of days, with the hours rounded up to days. A multiple of 24 bounds the age
+exactly. The site's menu offers 1, 7, and 30 days, and on 2026-11-17 the filter applied 2, 3, 14,
+45, and 365 days as well, while it cut 6.9 days to 6.
 The 448 openings of 2026-11-16 took five requests.
 A search stops at `--results`, at the last opening, or at an empty page.
 A failed request raises `Stopped` with the openings of the pages before it.

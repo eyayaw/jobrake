@@ -36,10 +36,6 @@ FILTERS = {
     "job_family": "jf",
     "recruitment_type": "recrtype",
 }
-# The posting ages the site filters on, in hours, and its span code in days.
-SPANS = {24: "1", 168: "7", 720: "30"}
-*_FIRST_AGES, _LAST_AGE = SPANS
-_AGES = f"{', '.join(map(str, _FIRST_AGES))}, or {_LAST_AGE}"
 
 
 def _parse_opening(opening: dict[str, Any]) -> JobDict:
@@ -194,19 +190,13 @@ def _codes(option: str, entries: list[tuple[str, str]], values: list[str]) -> li
     return sorted(codes)
 
 
-def _validate(
-    *, query: str, category: list[str] | None, max_age_hours: int | None, **_: object
-) -> None:
+def _validate(*, query: str, category: list[str] | None, **_: object) -> None:
     # A category makes the site drop the keyword, though every other filter combines with it
     # (measured 2026-11-16).
     if query.strip() and category:
         raise ValueError(
             "UN Careers ignores query when category is given, so pass one of them and filter the "
             "results on the other"
-        )
-    if max_age_hours is not None and max_age_hours not in SPANS:
-        raise ValueError(
-            f"UN Careers filters posting age by {_AGES} hours only, not {max_age_hours}"
         )
 
 
@@ -216,7 +206,7 @@ async def search(
     *,
     query: Annotated[str, "job title or keywords"] = "",
     results: Annotated[int, "maximum number of postings"] = 100,
-    max_age_hours: Annotated[int | None, f"maximum posting age in hours: {_AGES}"] = None,
+    max_age_hours: Annotated[int | None, "maximum posting age in hours, rounded up to days"] = None,
     category: Annotated[list[str] | None, "job category, e.g., PD or INT"] = None,
     duty_station: Annotated[list[str] | None, "duty station, e.g., Geneva"] = None,
     level: Annotated[list[str] | None, "grade, e.g., P-3"] = None,
@@ -234,7 +224,9 @@ async def search(
     that match any of its values, given by the name or the code the site's search page uses,
     in any case, and different filters all apply. A search with a list filter first reads the
     site's filter catalog, to turn names into codes, so ``check`` confirms those values' types
-    only. ``query`` cannot be combined with ``category``.
+    only. ``query`` cannot be combined with ``category``. UN Careers filters posting age in whole
+    days, so ``max_age_hours`` keeps the openings whose start date falls within that many hours
+    rounded up to whole days.
     Pages of up to 100 openings follow one another without pacing or retries until ``results``,
     the last opening, or an empty page. An opening that a later page repeats is kept once.
 
@@ -242,9 +234,8 @@ async def search(
         Stopped: A request failed, UN Careers sent an unreadable response,
             or an empty page came before the reported total.
             ``partial`` holds the postings of the pages before it.
-        ValueError: ``query`` and ``category`` are both given, ``max_age_hours`` is not one of the
-            ages the site filters on, a filter value is not in the catalog,
-            or ``results`` is below 1.
+        ValueError: ``query`` and ``category`` are both given, a filter value is not in the
+            catalog, or ``results`` or ``max_age_hours`` is below 1.
     """
     chosen = {
         option: values
@@ -269,7 +260,10 @@ async def search(
     if keyword := query.strip():
         config["keyword"] = keyword
     if max_age_hours is not None:
-        config["span"] = [SPANS[max_age_hours]]
+        # The site's Date Posted filter keeps the openings whose startDate lies within span days of
+        # now. Its menu offers 1, 7, and 30, but it takes any whole number and truncates a fraction
+        # (measured 2026-11-17), so the hours round up to whole days in integer arithmetic.
+        config["span"] = [str(-(-max_age_hours // 24))]
     logger.info("reading uncareers openings%s", f" with {config}" if config else "")
     return await collect("uncareers", _pages(fetcher, config, min(PAGE_SIZE, results)), results)
 

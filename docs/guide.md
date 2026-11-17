@@ -831,7 +831,7 @@ jobs = asyncio.run(scrape("uncareers", duty_station=["Geneva"], level=["P-3", "P
 `--query | -q` is the site's keyword search. It matches words, not parts of words,
 and other forms of a word as well: in our tests, `economics` matched 27 openings,
 three of them only through their job family, Economic Affairs.
-`--max-age-hours` takes 24, 168, or 720, the ages the site filters on.
+The site filters posting age in whole days, so `--max-age-hours` rounds up to whole days.
 
 The other filters take the names that the filters on the site's
 [search page](https://careers.un.org/jobopening?language=en) show, in any case,
