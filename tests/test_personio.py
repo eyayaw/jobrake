@@ -108,11 +108,11 @@ def test_a_feed_parses_into_records():
             "department": "Finance",
             "employment_type": "internship",
             "posted_at": "2026-10-13T09:59:49+00:00",
+            "keywords": ["Werkstudent:in", "Accounting"],
             "site_data": {
                 "recruitingCategory": "People & Culture",
                 "seniority": "student",
                 "schedule": "part-time",
-                "keywords": "Werkstudent:in,Accounting",
                 "occupation": "bookkeeping",
                 "occupationCategory": "accounting_and_finance",
             },

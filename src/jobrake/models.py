@@ -67,6 +67,7 @@ class JobDict(TypedDict, closed=True):
     applicants: NotRequired[int]
     experience_months: NotRequired[int]
     education: NotRequired[str]
+    keywords: NotRequired[list[str]]
     site_data: NotRequired[dict[str, Any]]
 
 
@@ -162,6 +163,20 @@ def _site_data(value: object) -> dict[str, Any] | None:
     return {key: entry for key, entry in fields.items() if entry not in (None, "", [])} or None
 
 
+def _keywords(value: object) -> list[str] | None:
+    """
+    Return the nonblank keywords, stripped, in the site's order, or None if there are none.
+
+    Raises:
+        TypeError: ``value`` is not a list of strings, so a cache row of another shape is a miss.
+    """
+    if value is None:
+        return None
+    if not isinstance(value, list) or not all(isinstance(entry, str) for entry in value):
+        raise TypeError(f"job field keywords must be a list of strings, got {value!r}")
+    return [entry.strip() for entry in value if entry.strip()] or None
+
+
 def _detail(name: str, value: object) -> object:
     """Normalize one detail value, or return None to leave its key out."""
     if isinstance(value, str):
@@ -170,6 +185,8 @@ def _detail(name: str, value: object) -> object:
         return value if value in WORKPLACE_TYPES else None
     if name == "site_data":
         return _site_data(value)
+    if name == "keywords":
+        return _keywords(value)
     return value
 
 

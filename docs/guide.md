@@ -728,6 +728,7 @@ The formats represent unavailable fields differently.
 - JSONL writes one job per line with the same keys as JSON.
 - CSV writes every field as a column and leaves unavailable cells empty.
   Its `locations` column holds the place names, separated by `; `, without their parts,
+  its `keywords` column the keywords, separated the same way,
   and its `site_data` column holds the site's fields as JSON.
   A place name can itself contain `; `, such as Greenhouse's
   `Remote, Canada; Remote, United States`,

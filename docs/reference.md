@@ -48,6 +48,7 @@ It does not say the posting has no place, nor that it is remote.
 | `applicants` | integer | The applicant count LinkedIn's page shows |
 | `experience_months` | integer | The experience the posting asks for, in whole months |
 | `education` | string | The credential the posting asks for, as the site words it |
+| `keywords` | list of strings | The terms the employer tagged the posting with, in the site's order |
 | `site_data` | object | Fields only this site carries, under the site's own names |
 
 The keys from `description` down are the detail keys.
@@ -327,7 +328,7 @@ A StepStone search result carries `title`, `company`, `locations`, and `date`, a
 
 A Personio record carries `title`, `locations`, and `date`, and the details `posted_at`,
 `employment_type`, `site_data`, and, when present, `company`, `description`, `department`,
-and the salary fields.
+`keywords`, and the salary fields.
 
 - `company` is the posting's subcompany, such as `tado GmbH`,
   which Personio names when the employer has set up subcompanies.
@@ -348,9 +349,9 @@ and the salary fields.
   such as `permanent`, `internship`, `fixed_term`, or `working_student`.
 - `salary_period` is `YEAR`, `MONTH`, or `HOUR`, and a salary without a maximum carries
   `salary_min` alone. In the same test, 62 of 742 postings published a salary.
+- `keywords` splits the feed's comma-separated keywords, such as `Werkstudent:in,Accounting`.
 - `site_data` holds `seniority`, `schedule`, `occupation`, `occupationCategory`, and,
-  when present, `recruitingCategory`, `yearsOfExperience`, and `keywords`,
-  as the feed names them.
+  when present, `recruitingCategory` and `yearsOfExperience`, as the feed names them.
 - `url` is the posting on `<board>.jobs.personio.de`.
 
 A Personio record has no workplace type or application link.
