@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.32.0](https://github.com/eyayaw/jobrake/releases/tag/v0.32.0) - 2026-11-17
+
+### Added
+
+- Records carry the employer's `keywords` as a list where the site gives them,
+  on Personio and AEA JOE.
+- `jobrake aea search` reads the active listings on AEA JOE, the American Economic Association's Job
+  Openings for Economists, with their full text. `--query`, `--section`, `--jel`, and
+  `--max-age-hours` apply the site's own filters.
+- `jobrake inomics search` reads the jobs for economists on INOMICS, filtered by `--query`,
+  `--country`, `--category`, and `--jel`, and `jobrake inomics postings` fetches known jobs by URL.
+  `--details` adds each job's description and deadline.
+
+### Changed
+
+- **Breaking:** A Personio record carries its keywords in `keywords`, a list,
+  instead of `site_data["keywords"]`, a comma-separated string.
+
 ## [0.31.0](https://github.com/eyayaw/jobrake/releases/tag/v0.31.0) - 2026-11-17
 
 ### Added
