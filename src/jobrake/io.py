@@ -11,7 +11,8 @@ def _csv(jobs: list[JobDict]) -> str:
     """
     Serialize jobs with a header and one column per ``JobDict`` field, in the model's order.
 
-    ``locations`` holds the place names, and ``site_data`` the site's fields as JSON.
+    ``locations`` holds the place names and ``keywords`` the keywords, each joined by ``; ``,
+    and ``site_data`` holds the site's fields as JSON.
     """
     buf = io.StringIO()
     # A missing detail field leaves its cell empty.
@@ -21,6 +22,7 @@ def _csv(jobs: list[JobDict]) -> str:
         {
             **job,
             "locations": "; ".join(place["name"] for place in job["locations"]),
+            "keywords": "; ".join(job.get("keywords", [])),
             **(
                 {"site_data": json.dumps(job["site_data"], ensure_ascii=False)}
                 if "site_data" in job

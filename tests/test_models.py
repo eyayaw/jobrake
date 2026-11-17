@@ -80,6 +80,19 @@ def test_site_data_keeps_the_fields_with_a_value_and_rejects_another_shape():
             make_job(site="x", id="1", url="u", site_data=malformed)
 
 
+def test_keywords_drop_blank_entries_and_reject_another_shape():
+    # Personio employers type "finance ,mittelstand", and a trailing comma leaves an empty entry.
+    keywords = ["finance ", "mittelstand", ""]
+    assert make_job(site="x", id="1", url="u", keywords=keywords)["keywords"] == [
+        "finance",
+        "mittelstand",
+    ]
+    assert "keywords" not in make_job(site="x", id="1", url="u", keywords=[" "])
+    for malformed in ("finance,mittelstand", [1]):
+        with pytest.raises(TypeError):
+            make_job(site="x", id="1", url="u", keywords=malformed)
+
+
 def test_job_dict_keeps_summary_keys_and_omits_unavailable_detail():
     job = make_job(
         site="linkedin",

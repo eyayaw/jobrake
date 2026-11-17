@@ -1,7 +1,7 @@
 # jobrake guide
 
-jobrake provides one interface for Indeed, LinkedIn, EconJobMarket, StepStone, UN Careers, and
-employers' boards on applicant tracking systems, but the sites differ in how they interpret
+jobrake provides one interface for Indeed, LinkedIn, AEA JOE, EconJobMarket, StepStone, UN Careers,
+and employers' boards on applicant tracking systems, but the sites differ in how they interpret
 geography, apply search filters, and fetch posting details.
 Run `jobrake -h` for the sites, `jobrake <site> -h` for a site's commands,
 and `jobrake <site> <command> -h` for their options.
@@ -11,6 +11,7 @@ The [reference](reference.md) lists the fields each site returns and how its req
 - [Narrow the results](#narrow-the-results)
 - [Fetch posting details](#fetch-posting-details)
 - [Employer boards](#employer-boards)
+- [AEA JOE](#aea-joe)
 - [EconJobMarket](#econjobmarket)
 - [UN Careers](#un-careers)
 - [Read and save results](#read-and-save-results)
@@ -22,8 +23,9 @@ The [reference](reference.md) lists the fields each site returns and how its req
 ## Search for jobs
 
 The searches in this section run on Indeed, LinkedIn, and StepStone.
-To read one employer's board, EconJobMarket, or UN Careers, go to
-[Employer boards](#employer-boards), [EconJobMarket](#econjobmarket), or [UN Careers](#un-careers).
+To read one employer's board, AEA JOE, EconJobMarket, or UN Careers, go to
+[Employer boards](#employer-boards), [AEA JOE](#aea-joe), [EconJobMarket](#econjobmarket),
+or [UN Careers](#un-careers).
 
 Choose a site and supply a job title or keywords:
 
@@ -608,6 +610,61 @@ and another employer's site may differ.
 
 [Fields by site](reference.md#fields-by-site) lists what a record from each board carries.
 
+## AEA JOE
+
+[JOE](https://www.aeaweb.org/joe/listings), Job Openings for Economists, is the American Economic
+Association's listing of academic, government, and private-sector openings for economists.
+The site is `aea`. A search returns the listings JOE shows as active, newest first,
+each with its full text:
+
+```sh
+jobrake aea search -o joe.jsonl
+jobrake aea search --jel J --jel H --max-age-hours 168
+jobrake aea search -q "labor economics" --section "Full-Time Nonacademic"
+```
+
+```python
+import asyncio
+
+from jobrake import scrape
+
+jobs = asyncio.run(scrape("aea", section=["1", "3"], jel=["J"]))
+```
+
+`--query | -q` is the site's keyword search.
+`--section` takes a section of JOE's Section/Type menu, by its name or its code:
+
+| Code | Section                                                                   |
+| ---- | ------------------------------------------------------------------------- |
+| `1`  | US: Full-Time Academic (Permanent, Tenure Track or Tenured)               |
+| `2`  | US: Other Academic (Temporary, Adjunct, Visiting, Part-Time)              |
+| `2a` | US: Other Academic (Visiting or Temporary)                                |
+| `2b` | US: Other Academic (Part-time or Adjunct)                                 |
+| `3`  | International: Full-Time Academic (Permanent, Tenure Track or Tenured)    |
+| `4`  | International: Other Academic (Temporary, Adjunct, Visiting, Part-Time)   |
+| `4a` | International: Other Academic (Visiting or Temporary)                     |
+| `4b` | International: Other Academic (Part-time or Adjunct)                      |
+| `5`  | Full-Time Nonacademic                                                     |
+| `6`  | Other Nonacademic (Temporary, Part-Time, Non-Salaried, Consulting, Etc.)  |
+
+JOE files each listing under a subsection, so the heading `2` or `4` selects its subsections too.
+
+`--jel` takes a JEL field by its letter, such as `J` for labor and demographic economics,
+or `00` for listings open to any field.
+An option given more than once keeps the listings that match any of its values,
+and different options all apply.
+JOE answers a section or field it does not know with no listings, so jobrake refuses one instead.
+JOE dates a listing by day, so `--max-age-hours` keeps the listings posted on or after the day that
+many hours ago.
+
+[AEA JOE fields](reference.md#aea-joe-fields) lists what a record carries.
+
+### AEA JOE terms
+
+The JOE listings page states that its content is for personal use only and that you may not
+scrape, collect, or otherwise use it without the American Economic Association's express written
+permission. The page offers its own XML and Excel downloads of a search.
+
 ## EconJobMarket
 
 [EconJobMarket](https://econjobmarket.org) (EJM) is the job market site for economists:
@@ -728,6 +785,7 @@ The formats represent unavailable fields differently.
 - JSONL writes one job per line with the same keys as JSON.
 - CSV writes every field as a column and leaves unavailable cells empty.
   Its `locations` column holds the place names, separated by `; `, without their parts,
+  its `keywords` column the keywords, separated the same way,
   and its `site_data` column holds the site's fields as JSON.
   A place name can itself contain `; `, such as Greenhouse's
   `Remote, Canada; Remote, United States`,
@@ -818,8 +876,8 @@ The CLI writes those jobs and exits 1. When there are none it writes nothing,
 so empty output such as `[]` always comes from a search that completed.
 Reaching a site's own result cap is not a failure.
 jobrake warns on stderr and returns what the site served.
-On Indeed, EconJobMarket, StepStone, UN Careers, and the employer boards, jobrake skips a posting
-it cannot read and leaves out a field it cannot read.
+On Indeed, AEA JOE, EconJobMarket, StepStone, UN Careers, and the employer boards,
+jobrake skips a posting it cannot read and leaves out a field it cannot read.
 
 [Requests by site](reference.md#requests-by-site) gives each site's result cap, pacing, and retries.
 
@@ -859,8 +917,5 @@ A storage failure disables the cache with a warning, and scraping carries on wit
 
 Glassdoor is not planned because it is now
 [part of Indeed](https://web.archive.org/web/20260704043638/https://www.glassdoor.com/about/).
-AEA JOE is not planned because its [listings](https://www.aeaweb.org/joe/listings)
-forbid scraping or collecting them without the American Economic Association's written permission.
-Its listings page offers its own XML and Excel downloads.
 Wellfound is not planned because it has no public API,
 and its job data sits behind a Cloudflare challenge that only a browser passes.

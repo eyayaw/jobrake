@@ -35,7 +35,6 @@ _SITE_FIELDS = (
     "seniority",
     "schedule",
     "yearsOfExperience",
-    "keywords",
     "occupation",
     "occupationCategory",
 )
@@ -106,6 +105,9 @@ def _parse_position(position: ET.Element, board: str) -> JobDict:
         department=position.findtext("department"),
         employment_type=employment_type(position.findtext("employmentType")),
         posted_at=position.findtext("createdAt"),
+        # The feed separates keywords with commas: 1,089 of the 1,153 keyword fields in 200 feeds
+        # read on 2026-11-15 held several, and the other 64 held one keyword or phrase.
+        keywords=(position.findtext("keywords") or "").split(","),
         **_salary(position),
         # Employers type some of these with a trailing space, which make_job leaves in site_data.
         site_data={name: (position.findtext(name) or "").strip() for name in _SITE_FIELDS},

@@ -9,8 +9,8 @@
 ___The job boards shed new postings every day. Bring a rake.___
 
 jobrake is a Python package and CLI tool for fetching job postings from LinkedIn, Indeed, StepStone,
-EconJobMarket, UN Careers, and employers' boards on [major](#supported-job-boards) applicant
-tracking systems.
+AEA JOE, EconJobMarket, UN Careers, and employers' boards on [major](#supported-job-boards)
+applicant tracking systems.
 It returns each posting as a record with the same fields, whichever site it came from.
 
 > Read it as "**job-rake**".
@@ -149,6 +149,10 @@ jobrake greenhouse search -b airbnb -o airbnb.csv
 # EconJobMarket ----
 ## Every open ad
 jobrake econjobmarket search -o ejm.csv
+
+# AEA JOE ----
+## Labor economics listings posted this week
+jobrake aea search --jel J --max-age-hours 168
 ```
 
 The CLI writes JSON to stdout by default.
@@ -182,6 +186,7 @@ jobs = asyncio.run(main())
 
 | Site | Search | Posting details |
 | --- | --- | --- |
+| <a href="https://www.aeaweb.org/joe/listings"><img src="https://www.aeaweb.org/favicon.ico" alt="" height="16"> `aea`</a> | JOE listings page and its XML export, every active listing | Included in search results |
 | <a href="https://www.ashbyhq.com"><img src="https://www.ashbyhq.com/favicon.png" alt="" height="16"> `ashby`</a> | Public Job Posting API, one employer's board | Included in search results |
 | <a href="https://econjobmarket.org"><img src="https://econjobmarket.org/images/ejm_logo.png" alt="" height="16"> `econjobmarket`</a> | Public ad feed, every open ad | Included in search results |
 | <a href="https://www.greenhouse.com"><img src="https://cdn.simpleicons.org/greenhouse" alt="" height="16"> `greenhouse`</a> | Public Job Board API, one employer's board | Included in search results |
@@ -225,6 +230,8 @@ installed, as CI does.
 > EconJobMarket offers its ad feed for personal use and academic research,
 > and redisplaying its ads on your own website needs its approval.
 > The UN's terms of use permit copying its sites' material only for personal, non-commercial use.
+> The AEA's JOE listings page limits its content to personal use and forbids scraping or
+> collecting it without the AEA's written permission.
 > You are responsible for checking and complying with their terms.
 
 ---

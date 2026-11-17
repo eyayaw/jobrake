@@ -107,6 +107,7 @@ def test_a_site_function_the_cli_cannot_build_fails_when_decorated(function, mat
         ("linkedin", {"location": "Seattle", "company_ids": ["Acme"]}, ValueError, "company ID"),
         ("linkedin", {"location": "Seattle", "company_ids": ["１２３"]}, ValueError, "company ID"),  # noqa: RUF001  fullwidth digits are the input under test
         ("workday", {"board": "https://example.com/jobs"}, ValueError, "not a Workday career site"),
+        ("aea", {"jel": ["Labor"]}, ValueError, "unknown JOE JEL field 'Labor'"),
     ],
 )
 def test_check_and_scrape_reject_bad_options_before_any_request(site, kwargs, error, match):
