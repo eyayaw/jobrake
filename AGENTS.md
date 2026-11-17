@@ -4,10 +4,10 @@
 
 jobrake reads the postings a job board publishes and returns each one as a record with the same
 fields, whichever board it came from. It is an async Python package and CLI that reads LinkedIn's
-guest API, Indeed's GraphQL API, the AEA JOE listings page and its XML export, EconJobMarket's ad
-feed, the INOMICS search page's results endpoint and job pages, StepStone's mobile listings API,
-the UN Careers web app's list API, and the board APIs of applicant tracking systems, and it depends
-on `httpx` and `bs4`.
+guest API, Indeed's GraphQL API, the AcademicTransfer jobs page's list API, the AEA JOE listings
+page and its XML export, EconJobMarket's ad feed, the INOMICS search page's results endpoint and job
+pages, StepStone's mobile listings API, the UN Careers web app's list API, and the board APIs of
+applicant tracking systems, and it depends on `httpx` and `bs4`.
 
 ## Map
 
@@ -23,8 +23,9 @@ on `httpx` and `bs4`.
   with `card` before its first request, and LinkedIn's `postings` parses references as its `card`
   does and also takes a bare posting ID.
   In the two packages, `search.py` builds requests and parses results, `client.py` holds the URLs
-  and headers, plus LinkedIn's pacing, and `lookups.py` holds the lookups. The other sites need no
-  pacing, and of them only StepStone and INOMICS send headers of their own. LinkedIn's `pages.py`
+  and headers, plus LinkedIn's pacing, and `lookups.py` holds the lookups. Of the other sites,
+  only AcademicTransfer paces its requests, waiting the crawl delay its robots.txt asks for before
+  each one, and only it, StepStone, and INOMICS send headers of their own. LinkedIn's `pages.py`
   reads posting pages for `postings` and `details=True` with a fixed pool of workers, and Indeed's
   `countries.py` maps ISO country codes to editions.
 - `sites/responses.py`: the response reading the sites share. `read_json`, `read_xml`, and
@@ -127,7 +128,7 @@ and the contract test in `tests/test_scrape.py` need no edit.
   `make_job` normalizes a row as it does a site's fields and cannot redo a parser's work, so a
   parser fix reaches a cached posting when its row expires.
   `JOBRAKE_CACHE_PATH` and `JOBRAKE_CACHE_TTL` configure it, and no site function takes a cache
-  option. Only LinkedIn is paced.
+  option. Only LinkedIn and AcademicTransfer are paced.
 - Library code logs under the `jobrake` logger and prints nothing. The CLI sends logs to stderr and
   data to stdout. It exits 2 for a bad argument, and 1 when a search or lookup raises `Stopped`,
   a named posting could not be fetched, or the output cannot be written. A stopped search and a
