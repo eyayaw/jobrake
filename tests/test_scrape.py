@@ -107,9 +107,16 @@ def test_a_site_function_the_cli_cannot_build_fails_when_decorated(function, mat
         ("linkedin", {"location": "Seattle", "company_ids": ["Acme"]}, ValueError, "company ID"),
         ("linkedin", {"location": "Seattle", "company_ids": ["１２３"]}, ValueError, "company ID"),  # noqa: RUF001  fullwidth digits are the input under test
         ("workday", {"board": "https://example.com/jobs"}, ValueError, "not a Workday career site"),
-        ("aea", {"jel": ["Labor"]}, ValueError, "unknown JOE JEL field 'Labor'"),
+        (
+            "aea",
+            {"jel": ["Labor"]},
+            ValueError,
+            "unknown JOE JEL field 'Labor'. Use one of 00, A, B",
+        ),
         ("inomics", {"category": ["Dean"]}, ValueError, "unknown INOMICS category 'Dean'"),
-        ("inomics", {"jel": ["Y"]}, ValueError, "unknown INOMICS JEL field 'Y'"),
+        ("inomics", {"jel": ["Y"]}, ValueError, "unknown INOMICS JEL field 'Y'. Use one of A, B"),
+        # The slug INOMICS's search takes for a JEL field is not a value --jel accepts.
+        ("inomics", {"jel": ["laweconomics"]}, ValueError, "unknown INOMICS JEL field"),
         ("inomics", {"country": "deu"}, ValueError, "not an ISO 3166-1 alpha-2 code"),
     ],
 )

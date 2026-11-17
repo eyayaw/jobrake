@@ -90,7 +90,7 @@ def test_a_search_reads_every_block_of_cards_and_sends_its_filters():
             fetcher,
             query=" labor ",
             country="de",
-            category=["Postdoc", "PROFESSOR", "postdoc"],
+            category=["Postdoc", "PROFESSOR", " postdoc "],
             jel=["j", "E", "J"],
             results=21,
         )
