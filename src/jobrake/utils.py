@@ -5,7 +5,7 @@ import inspect
 import logging
 import math
 import re
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Collection, Mapping
 from datetime import UTC, datetime
 from types import NoneType
 from typing import Annotated, Any, NamedTuple, Union, get_args, get_origin, overload
@@ -234,6 +234,28 @@ def checked[**P, R](
     if function is None:
         return functools.partial(Checked, validator=validator)
     return Checked(function)
+
+
+def menu_codes(
+    site: str, option: str, menu: Mapping[str, str] | Collection[str], values: list[str] | None
+) -> list[str]:
+    """
+    Return the code of each value in a site's menu, matched by its code or its label in any case.
+
+    ``menu`` maps each code to its label, or holds the codes alone when only a code matches.
+    Space around a value is ignored.
+
+    Raises:
+        ValueError: A value names no entry. The message lists the codes in the menu's order.
+    """
+    pairs = menu.items() if isinstance(menu, Mapping) else ((code, code) for code in menu)
+    spellings = {key.casefold(): code for code, label in pairs for key in (code, label)}
+    codes = []
+    for value in values or []:
+        if (code := spellings.get(value.strip().casefold())) is None:
+            raise ValueError(f"unknown {site} {option} {value!r}. Use one of {', '.join(menu)}")
+        codes.append(code)
+    return codes
 
 
 def report_progress(logger: logging.Logger, label: str, done: int, total: int) -> None:

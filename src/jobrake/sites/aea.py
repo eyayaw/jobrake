@@ -14,7 +14,7 @@ lazy from bs4 import BeautifulSoup
 from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, make_job
 from jobrake.sites.responses import parse_postings, read_html, read_xml
-from jobrake.utils import checked, iso_date
+from jobrake.utils import checked, iso_date, menu_codes
 
 logger = logging.getLogger(__name__)
 
@@ -41,32 +41,13 @@ SECTIONS = {
 }
 # The JEL Classifications menu takes 00 for a listing open to any field, and the JEL letters.
 JEL_FIELDS = ("00", *"ABCDEFGHIJKLMNOPQRYZ")
-# Each spelling a filter value can take, in lower case, and its code.
-_SECTION_CODES: dict[str, str] = {
-    key.casefold(): code for code, name in SECTIONS.items() for key in (code, name)
-}
-_JEL_CODES: dict[str, str] = {code.casefold(): code for code in JEL_FIELDS}
-
-
-def _codes(option: str, accepted: dict[str, str], values: list[str]) -> list[str]:
-    """
-    Return the code of each value, looked up in ``accepted`` by its lower-case spelling.
-
-    Raises:
-        ValueError: A value names no entry. JOE answers an unknown code with no listings.
-    """
-    codes = []
-    for value in values:
-        if (code := accepted.get(value.strip().casefold())) is None:
-            choices = ", ".join(dict.fromkeys(accepted.values()))
-            raise ValueError(f"unknown JOE {option} {value!r}. Use one of {choices}")
-        codes.append(code)
-    return codes
+# JOE answers an unknown code with no listings, so a search refuses one before its request.
+_codes = partial(menu_codes, "JOE")
 
 
 def _validate(*, section: list[str] | None, jel: list[str] | None, **_: object) -> None:
-    _codes("section", _SECTION_CODES, section or [])
-    _codes("JEL field", _JEL_CODES, jel or [])
+    _codes("section", SECTIONS, section)
+    _codes("JEL field", JEL_FIELDS, jel)
 
 
 def _listings(page: BeautifulSoup) -> tuple[str | None, dict[str, str]]:
@@ -195,11 +176,11 @@ async def search(
     # listings (measured 2026-11-17), so a heading also sends its subsections.
     sections = [
         sub
-        for code in _codes("section", _SECTION_CODES, section or [])
+        for code in _codes("section", SECTIONS, section)
         for sub in SECTIONS
         if code in (sub, sub.rstrip(ascii_lowercase))
     ]
-    for name, codes in (("section", sections), ("jel", _codes("JEL field", _JEL_CODES, jel or []))):
+    for name, codes in (("section", sections), ("jel", _codes("JEL field", JEL_FIELDS, jel))):
         fields |= {
             f"ListingsForm[{name}][{i}]": code for i, code in enumerate(dict.fromkeys(codes))
         }

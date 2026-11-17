@@ -14,7 +14,7 @@ from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, Stopped, make_job, workplace_type
 from jobrake.sites.postings import fetch_postings, fill_details
 from jobrake.sites.responses import parse_postings, read_html, read_json
-from jobrake.utils import as_dict, as_str, checked, html_text
+from jobrake.utils import as_dict, as_str, checked, html_text, menu_codes
 
 logger = logging.getLogger(__name__)
 
@@ -71,33 +71,15 @@ JEL_FIELDS = {
     "R": "urbanruraltransportationeconomics",
     "Z": "othereconomics",
 }
-# Each spelling a filter value can take, in lower case, and its code.
-_CATEGORY_CODES = {
-    key.casefold(): code for code, name in CATEGORIES.items() for key in (code, name)
-}
-_JEL_CODES = {letter.casefold(): letter for letter in JEL_FIELDS}
 # A posting page's schema.org blocks: JobPosting, or EducationalOccupationalProgram for a posting
 # INOMICS also lists as a scholarship.
 _POSTING_TYPES = {"JobPosting", "EducationalOccupationalProgram"}
 _JOB_PATH = re.compile(r"/job/(?:[^/]*-)?([0-9]+)/?")
 _DAY = re.compile(r"^\d\d-\d\d-\d{4}$")  # a card's posted day, such as 16-11-2026
 _HOSTS = {"inomics.com", "www.inomics.com"}
-
-
-def _codes(option: str, accepted: dict[str, str], values: list[str]) -> list[str]:
-    """
-    Return the code of each value, looked up in ``accepted`` by its lower-case spelling.
-
-    Raises:
-        ValueError: A value names no entry. INOMICS answers an unknown value with no results.
-    """
-    codes = []
-    for value in values:
-        if (code := accepted.get(value.strip().casefold())) is None:
-            choices = ", ".join(dict.fromkeys(accepted.values()))
-            raise ValueError(f"unknown INOMICS {option} {value!r}. Use one of {choices}")
-        codes.append(code)
-    return codes
+# INOMICS answers an unknown value with no results, so a search refuses one before its request.
+# JEL_FIELDS maps each letter to the site's slug, so its keys alone are the spellings to match.
+_codes = functools.partial(menu_codes, "INOMICS")
 
 
 def _validate(
@@ -107,8 +89,8 @@ def _validate(
         raise ValueError(
             f"country {country!r} is not an ISO 3166-1 alpha-2 code. Pass one such as de"
         )
-    _codes("category", _CATEGORY_CODES, category or [])
-    _codes("JEL field", _JEL_CODES, jel or [])
+    _codes("category", CATEGORIES, category)
+    _codes("JEL field", JEL_FIELDS.keys(), jel)
 
 
 def _cards(commands: list[dict[str, Any]]) -> tuple[list[Tag], int]:
@@ -278,8 +260,8 @@ async def search(
         ValueError: ``country`` is not an alpha-2 code, a ``category`` or ``jel`` value names no
             entry of the site's menus, or ``results`` is below 1.
     """
-    categories = [f"job-{code}" for code in _codes("category", _CATEGORY_CODES, category or [])]
-    fields = [JEL_FIELDS[letter] for letter in _codes("JEL field", _JEL_CODES, jel or [])]
+    categories = [f"job-{code}" for code in _codes("category", CATEGORIES, category)]
+    fields = [JEL_FIELDS[letter] for letter in _codes("JEL field", JEL_FIELDS.keys(), jel)]
     params: dict[str, Any] = {
         # job=job asks for every category.
         "job": ",".join(dict.fromkeys(categories)) or "job",

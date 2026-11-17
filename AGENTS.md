@@ -43,8 +43,9 @@ on `httpx` and `bs4`.
   raises the `Stopped` of a details search, for LinkedIn too.
 - `utils.py`: `site_options`, which reads the `Annotated` arguments of a site function, `checked`,
   which wraps it in a `Checked` that runs those checks and the site's validator on every call,
-  or alone through `check`, `report_progress`, which `collect` and each posting loop call to log
-  their progress records, and the JSON value, text, number, and date helpers.
+  or alone through `check`, `menu_codes`, which maps filter values to codes of a site's fixed menu,
+  `report_progress`, which `collect` and each posting loop call to log their progress records,
+  and the JSON value, text, number, and date helpers.
 - `models.py`: `JobDict`, its `Place`, `make_job`, `make_places`, and `Stopped`.
 - `fetchkit.py`: the `Fetcher` protocol, `FetchResult`, and `HttpxFetcher`.
 - `cache.py`: one SQLite table of `JobDict` records keyed by site and ID, and the shared `CACHE`.
