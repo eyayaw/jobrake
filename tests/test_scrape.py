@@ -108,6 +108,9 @@ def test_a_site_function_the_cli_cannot_build_fails_when_decorated(function, mat
         ("linkedin", {"location": "Seattle", "company_ids": ["１２３"]}, ValueError, "company ID"),  # noqa: RUF001  fullwidth digits are the input under test
         ("workday", {"board": "https://example.com/jobs"}, ValueError, "not a Workday career site"),
         ("aea", {"jel": ["Labor"]}, ValueError, "unknown JOE JEL field 'Labor'"),
+        ("inomics", {"category": ["Dean"]}, ValueError, "unknown INOMICS category 'Dean'"),
+        ("inomics", {"jel": ["Y"]}, ValueError, "unknown INOMICS JEL field 'Y'"),
+        ("inomics", {"country": "deu"}, ValueError, "not an ISO 3166-1 alpha-2 code"),
     ],
 )
 def test_check_and_scrape_reject_bad_options_before_any_request(site, kwargs, error, match):
@@ -165,6 +168,7 @@ def test_identify_names_the_site_and_id_a_search_gives(link, named):
         "https://boards.greenhouse.io/airbnb/jobs/7649441",
         "https://www.indeed.com/viewjob",
         "https://example.com/jobs/view/4449382178",
+        "https://inomics.com/scholarship/postdoctoral-scholarship-1555359",
         # A posting ID holds digits 0-9, and \d also matches other scripts' digits.
         "https://www.stepstone.de/job/１４５６９０４２",  # noqa: RUF001  fullwidth digits are the input under test
         "https://jobs.smartrecruiters.com/BoschGroup/７４４０００１５８１９７８８９",  # noqa: RUF001  fullwidth digits are the input under test

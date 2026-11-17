@@ -9,7 +9,7 @@
 ___The job boards shed new postings every day. Bring a rake.___
 
 jobrake is a Python package and CLI tool for fetching job postings from LinkedIn, Indeed, StepStone,
-AEA JOE, EconJobMarket, UN Careers, and employers' boards on [major](#supported-job-boards)
+AEA JOE, EconJobMarket, INOMICS, UN Careers, and employers' boards on [major](#supported-job-boards)
 applicant tracking systems.
 It returns each posting as a record with the same fields, whichever site it came from.
 
@@ -153,6 +153,10 @@ jobrake econjobmarket search -o ejm.csv
 # AEA JOE ----
 ## Labor economics listings posted this week
 jobrake aea search --jel J --max-age-hours 168
+
+# INOMICS ----
+## Postdocs in Germany, each with its description
+jobrake inomics search -c de --category postdoc -d
 ```
 
 The CLI writes JSON to stdout by default.
@@ -191,6 +195,7 @@ jobs = asyncio.run(main())
 | <a href="https://econjobmarket.org"><img src="https://econjobmarket.org/images/ejm_logo.png" alt="" height="16"> `econjobmarket`</a> | Public ad feed, every open ad | Included in search results |
 | <a href="https://www.greenhouse.com"><img src="https://cdn.simpleicons.org/greenhouse" alt="" height="16"> `greenhouse`</a> | Public Job Board API, one employer's board | Included in search results |
 | <a href="https://www.indeed.com"><picture><source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/eyayaw/jobrake/refs/heads/main/docs/assets/sites/indeed-light.svg"><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/eyayaw/jobrake/refs/heads/main/docs/assets/sites/indeed-dark.svg"><img src="https://raw.githubusercontent.com/eyayaw/jobrake/refs/heads/main/docs/assets/sites/indeed-light.svg" alt="" height="16"></picture> `indeed`</a> | Mobile-app GraphQL API | Included in search results |
+| <a href="https://inomics.com"><img src="https://inomics.com/themes/custom/venice/images/favicons/inomics_favicon.ico" alt="" height="16"> `inomics`</a> | The search page's results endpoint, jobs for economists | Optional and cached, one request per posting |
 | <a href="https://www.lever.co"><img src="https://www.lever.co/images/favicon-lever.png" alt="" height="16"> `lever`</a> | Public Postings API, one employer's board | Included in search results |
 | <a href="https://www.linkedin.com/jobs"><picture><source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/eyayaw/jobrake/refs/heads/main/docs/assets/sites/linkedin-light.svg"><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/eyayaw/jobrake/refs/heads/main/docs/assets/sites/linkedin-dark.svg"><img src="https://raw.githubusercontent.com/eyayaw/jobrake/refs/heads/main/docs/assets/sites/linkedin-light.svg" alt="" height="16"></picture> `linkedin`</a> | Login-free guest API | Optional, paced, and cached |
 | <a href="https://www.personio.com"><img src="https://assets.cdn.personio.de/rebrand/favicon.svg" alt="" height="16"> `personio`</a> | Public XML feed, one employer's career site | Included in search results |
@@ -232,6 +237,7 @@ installed, as CI does.
 > The UN's terms of use permit copying its sites' material only for personal, non-commercial use.
 > The AEA's JOE listings page limits its content to personal use and forbids scraping or
 > collecting it without the AEA's written permission.
+> The INOMICS terms forbid accessing its sites by automated means without its permission.
 > You are responsible for checking and complying with their terms.
 
 ---

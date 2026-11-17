@@ -5,8 +5,9 @@
 jobrake reads the postings a job board publishes and returns each one as a record with the same
 fields, whichever board it came from. It is an async Python package and CLI that reads LinkedIn's
 guest API, Indeed's GraphQL API, the AEA JOE listings page and its XML export, EconJobMarket's ad
-feed, StepStone's mobile listings API, the UN Careers web app's list API, and the board APIs of
-applicant tracking systems, and it depends on `httpx` and `bs4`.
+feed, the INOMICS search page's results endpoint and job pages, StepStone's mobile listings API,
+the UN Careers web app's list API, and the board APIs of applicant tracking systems, and it depends
+on `httpx` and `bs4`.
 
 ## Map
 
@@ -23,9 +24,9 @@ applicant tracking systems, and it depends on `httpx` and `bs4`.
   does and also takes a bare posting ID.
   In the two packages, `search.py` builds requests and parses results, `client.py` holds the URLs
   and headers, plus LinkedIn's pacing, and `lookups.py` holds the lookups. The other sites need no
-  pacing, and of them only StepStone sends headers of its own. LinkedIn's `pages.py` reads posting
-  pages for `postings` and `details=True` with a fixed pool of workers, and Indeed's `countries.py`
-  maps ISO country codes to editions.
+  pacing, and of them only StepStone and INOMICS send headers of their own. LinkedIn's `pages.py`
+  reads posting pages for `postings` and `details=True` with a fixed pool of workers, and Indeed's
+  `countries.py` maps ISO country codes to editions.
 - `sites/responses.py`: the response reading the sites share. `read_json`, `read_xml`, and
   `read_html` raise `Stopped` for a failed request or an unreadable response, and the first two for
   an unknown board. `json_list` checks the posting list, `json_page` checks a page's list and its
@@ -117,10 +118,11 @@ and the contract test in `tests/test_scrape.py` need no edit.
   and retries a 429 up to five times. It follows redirects itself, to HTTPS LinkedIn addresses only,
   and paces each hop, so a caller's `Fetcher` must honor `follow_redirects=False`.
   Two workers per data center read posting pages, and concurrent calls each read their own.
-- The cache is transparent. On LinkedIn, Workday, SmartRecruiters, and StepStone it stores the
-  fields of each posting read as a `JobDict`. A reader sees only the posting's URL, so a later card
-  merges with the cached fields as with a fresh read. Rows carry no version, and each row read
-  passes through `make_job`, so a row whose keys no longer fit `JobDict` or `Place` is a miss.
+- The cache is transparent. On LinkedIn, Workday, SmartRecruiters, StepStone, and INOMICS it
+  stores the fields of each posting read as a `JobDict`. A reader sees only the posting's URL, so a
+  later card merges with the cached fields as with a fresh read. Rows carry no version, and each
+  row read passes through `make_job`, so a row whose keys no longer fit `JobDict` or `Place` is a
+  miss.
   `make_job` normalizes a row as it does a site's fields and cannot redo a parser's work, so a
   parser fix reaches a cached posting when its row expires.
   `JOBRAKE_CACHE_PATH` and `JOBRAKE_CACHE_TTL` configure it, and no site function takes a cache
