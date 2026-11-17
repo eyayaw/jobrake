@@ -74,7 +74,7 @@ def test_a_search_reads_the_page_for_dates_and_the_export_for_the_rest(caplog):
     fetcher = PagedFetcher([PAGE, EXPORT])
     jobs = asyncio.run(
         aea.search(
-            fetcher, query=" labor ", section=["full-time nonacademic", "2A", "4", "4b", "5"]
+            fetcher, query=" labor ", section=["full-time nonacademic", "2A", "4", "4b", " 5 "]
         )
     )
     assert jobs == [
