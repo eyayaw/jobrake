@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.34.0](https://github.com/eyayaw/jobrake/releases/tag/v0.34.0) - 2026-11-18
+
+### Changed
+
+- `jobrake uncareers search --max-age-hours` takes any positive number of hours and rounds it up
+  to whole days, where it took only 24, 168, or 720.
+
 ## [0.33.0](https://github.com/eyayaw/jobrake/releases/tag/v0.33.0) - 2026-11-17
 
 ### Added
