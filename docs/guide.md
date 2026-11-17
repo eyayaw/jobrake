@@ -1,8 +1,9 @@
 # jobrake guide
 
-jobrake provides one interface for Indeed, LinkedIn, AEA JOE, EconJobMarket, INOMICS, StepStone,
-UN Careers, and employers' boards on applicant tracking systems, but the sites differ in how they
-interpret geography, apply search filters, and fetch posting details.
+jobrake provides one interface for Indeed, LinkedIn, AcademicTransfer, AEA JOE, EconJobMarket,
+INOMICS, StepStone, UN Careers, and employers' boards on applicant tracking systems,
+but the sites differ in how they interpret geography, apply search filters, and fetch posting
+details.
 Run `jobrake -h` for the sites, `jobrake <site> -h` for a site's commands,
 and `jobrake <site> <command> -h` for their options.
 The [reference](reference.md) lists the fields each site returns and how its requests behave.
@@ -11,6 +12,7 @@ The [reference](reference.md) lists the fields each site returns and how its req
 - [Narrow the results](#narrow-the-results)
 - [Fetch posting details](#fetch-posting-details)
 - [Employer boards](#employer-boards)
+- [AcademicTransfer](#academictransfer)
 - [AEA JOE](#aea-joe)
 - [EconJobMarket](#econjobmarket)
 - [INOMICS](#inomics)
@@ -24,9 +26,10 @@ The [reference](reference.md) lists the fields each site returns and how its req
 ## Search for jobs
 
 The searches in this section run on Indeed, LinkedIn, and StepStone.
-To read one employer's board, AEA JOE, EconJobMarket, INOMICS, or UN Careers, go to
-[Employer boards](#employer-boards), [AEA JOE](#aea-joe), [EconJobMarket](#econjobmarket),
-[INOMICS](#inomics), or [UN Careers](#un-careers).
+To read one employer's board, AcademicTransfer, AEA JOE, EconJobMarket, INOMICS, or UN Careers,
+go to [Employer boards](#employer-boards), [AcademicTransfer](#academictransfer),
+[AEA JOE](#aea-joe), [EconJobMarket](#econjobmarket), [INOMICS](#inomics), or
+[UN Careers](#un-careers).
 
 Choose a site and supply a job title or keywords:
 
@@ -615,6 +618,39 @@ and another employer's site may differ.
 
 [Fields by site](reference.md#fields-by-site) lists what a record from each board carries.
 
+## AcademicTransfer
+
+[AcademicTransfer](https://www.academictransfer.com) lists academic and research vacancies at
+universities, medical centers, and research institutes, most of them in the Netherlands.
+The site is `academictransfer`. A search returns the active vacancies, newest first,
+each with its description:
+
+```sh
+jobrake academictransfer search -n 1000 -o academictransfer.jsonl
+jobrake academictransfer search -q economics --vacancy-type scientific
+```
+
+```python
+import asyncio
+
+from jobrake import scrape
+
+jobs = asyncio.run(scrape("academictransfer", query="economics", vacancy_type="scientific"))
+```
+
+`--query | -q` is the site's keyword search. `--vacancy-type` takes a tab of the site's jobs page:
+`scientific` for academic vacancies, `non_scientific` for the others, or `all`, the default.
+A vacancy is written in Dutch or English, as its `language` says.
+jobrake waits 10 seconds before each request to the site's API, as its robots.txt asks,
+so a search of 500 vacancies waits 100 seconds in all.
+[AcademicTransfer fields](reference.md#academictransfer-fields) lists what a record carries.
+
+### AcademicTransfer robots.txt
+
+The robots.txt of `www.academictransfer.com` allows its public pages with a crawl delay of
+10 seconds. The robots.txt of `api.academictransfer.com`, which serves the list the jobs page shows,
+disallows every path.
+
 ## AEA JOE
 
 [JOE](https://www.aeaweb.org/joe/listings), Job Openings for Economists, is the American Economic
@@ -944,7 +980,8 @@ The CLI writes those jobs and exits 1. When there are none it writes nothing,
 so empty output such as `[]` always comes from a search that completed.
 Reaching a site's own result cap is not a failure.
 jobrake warns on stderr and returns what the site served.
-On Indeed, AEA JOE, EconJobMarket, INOMICS, StepStone, UN Careers, and the employer boards,
+On Indeed, AcademicTransfer, AEA JOE, EconJobMarket, INOMICS, StepStone, UN Careers, and the
+employer boards,
 jobrake skips a posting it cannot read and leaves out a field it cannot read.
 
 [Requests by site](reference.md#requests-by-site) gives each site's result cap, pacing, and retries.

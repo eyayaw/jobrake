@@ -9,8 +9,8 @@
 ___The job boards shed new postings every day. Bring a rake.___
 
 jobrake is a Python package and CLI tool for fetching job postings from LinkedIn, Indeed, StepStone,
-AEA JOE, EconJobMarket, INOMICS, UN Careers, and employers' boards on [major](#supported-job-boards)
-applicant tracking systems.
+AEA JOE, AcademicTransfer, EconJobMarket, INOMICS, UN Careers, and employers' boards on
+[major](#supported-job-boards) applicant tracking systems.
 It returns each posting as a record with the same fields, whichever site it came from.
 
 > Read it as "**job-rake**".
@@ -157,6 +157,10 @@ jobrake aea search --jel J --max-age-hours 168
 # INOMICS ----
 ## Postdocs in Germany, each with its description
 jobrake inomics search -c de --category postdoc -d
+
+# AcademicTransfer ----
+## Academic vacancies in economics in the Netherlands, newest first
+jobrake academictransfer search -q economics --vacancy-type scientific
 ```
 
 The CLI writes JSON to stdout by default.
@@ -190,6 +194,7 @@ jobs = asyncio.run(main())
 
 | Site | Search | Posting details |
 | --- | --- | --- |
+| <a href="https://www.academictransfer.com"><img src="https://www.academictransfer.com/favicon.ico" alt="" height="16"> `academictransfer`</a> | The jobs page's list API, Dutch academic and research vacancies | Included in search results |
 | <a href="https://www.aeaweb.org/joe/listings"><img src="https://www.aeaweb.org/favicon.ico" alt="" height="16"> `aea`</a> | JOE listings page and its XML export, every active listing | Included in search results |
 | <a href="https://www.ashbyhq.com"><img src="https://www.ashbyhq.com/favicon.png" alt="" height="16"> `ashby`</a> | Public Job Posting API, one employer's board | Included in search results |
 | <a href="https://econjobmarket.org"><img src="https://econjobmarket.org/images/ejm_logo.png" alt="" height="16"> `econjobmarket`</a> | Public ad feed, every open ad | Included in search results |
@@ -238,6 +243,7 @@ installed, as CI does.
 > The AEA's JOE listings page limits its content to personal use and forbids scraping or
 > collecting it without the AEA's written permission.
 > The INOMICS terms forbid accessing its sites by automated means without its permission.
+> The robots.txt of AcademicTransfer's API host disallows every path.
 > You are responsible for checking and complying with their terms.
 
 ---

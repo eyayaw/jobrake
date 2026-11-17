@@ -8,6 +8,7 @@ from jobrake.models import JobDict
 from jobrake.utils import Checked
 
 from . import (
+    academictransfer,
     aea,
     ashby,
     econjobmarket,
@@ -26,6 +27,7 @@ from . import (
 
 # One entry per site. A site exports search() and any of the lookups and postings().
 SITES: dict[str, ModuleType] = {
+    "academictransfer": academictransfer,
     "aea": aea,
     "ashby": ashby,
     "econjobmarket": econjobmarket,
