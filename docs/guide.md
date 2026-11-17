@@ -1,8 +1,8 @@
 # jobrake guide
 
-jobrake provides one interface for Indeed, LinkedIn, AEA JOE, EconJobMarket, StepStone, UN Careers,
-and employers' boards on applicant tracking systems, but the sites differ in how they interpret
-geography, apply search filters, and fetch posting details.
+jobrake provides one interface for Indeed, LinkedIn, AEA JOE, EconJobMarket, INOMICS, StepStone,
+UN Careers, and employers' boards on applicant tracking systems, but the sites differ in how they
+interpret geography, apply search filters, and fetch posting details.
 Run `jobrake -h` for the sites, `jobrake <site> -h` for a site's commands,
 and `jobrake <site> <command> -h` for their options.
 The [reference](reference.md) lists the fields each site returns and how its requests behave.
@@ -13,6 +13,7 @@ The [reference](reference.md) lists the fields each site returns and how its req
 - [Employer boards](#employer-boards)
 - [AEA JOE](#aea-joe)
 - [EconJobMarket](#econjobmarket)
+- [INOMICS](#inomics)
 - [UN Careers](#un-careers)
 - [Read and save results](#read-and-save-results)
 - [Use the Python API](#use-the-python-api)
@@ -23,9 +24,9 @@ The [reference](reference.md) lists the fields each site returns and how its req
 ## Search for jobs
 
 The searches in this section run on Indeed, LinkedIn, and StepStone.
-To read one employer's board, AEA JOE, EconJobMarket, or UN Careers, go to
+To read one employer's board, AEA JOE, EconJobMarket, INOMICS, or UN Careers, go to
 [Employer boards](#employer-boards), [AEA JOE](#aea-joe), [EconJobMarket](#econjobmarket),
-or [UN Careers](#un-careers).
+[INOMICS](#inomics), or [UN Careers](#un-careers).
 
 Choose a site and supply a job title or keywords:
 
@@ -407,12 +408,13 @@ That costs one paced request for most uncached postings and up to three for the 
 In our measurements, a LinkedIn posting placed in a whole country,
 such as "United States" or "Netherlands", comes without its dates, coordinates, and requirements.
 
-Workday, SmartRecruiters, and StepStone searches also return cards without descriptions,
+Workday, SmartRecruiters, StepStone, and INOMICS searches also return cards without descriptions,
 and `--details` fetches each uncached posting with one more request, one at a time.
 [Workday fields](reference.md#workday-fields),
 [SmartRecruiters fields](reference.md#smartrecruiters-fields),
-and [StepStone fields](reference.md#stepstone-fields) list what it adds.
-On these three sites, a posting removed or withdrawn since the search keeps its search result.
+[StepStone fields](reference.md#stepstone-fields),
+and [INOMICS fields](reference.md#inomics-fields) list what it adds.
+On these four sites, a posting removed or withdrawn since the search keeps its search result.
 
 A posting whose details cannot be fetched also keeps its search result,
 and once the rest are fetched the search raises `Stopped` with every posting in `partial`
@@ -423,8 +425,8 @@ and [cache settings](#cache-location-and-lifetimes) for reuse.
 
 ### Fetch known postings
 
-Fetch postings you already know on LinkedIn, Workday, SmartRecruiters, or StepStone without repeating
-a search:
+Fetch postings you already know on LinkedIn, Workday, SmartRecruiters, StepStone, or INOMICS without
+repeating a search:
 
 ```sh
 jobrake linkedin postings 4449382178
@@ -432,6 +434,7 @@ jobrake linkedin postings https://nl.linkedin.com/jobs/view/data-scientist-at-ac
 jobrake workday postings https://zillow.wd5.myworkdayjobs.com/Zillow_Group_External/job/Remote-USA/Applied-Scientist_P751481-1
 jobrake smartrecruiters postings https://jobs.smartrecruiters.com/BoschGroup/744000158197889
 jobrake stepstone postings https://www.stepstone.de/job/14569042
+jobrake inomics postings https://inomics.com/job/1555749
 ```
 
 Sites take postings down over time, so the examples above may be gone.
@@ -448,10 +451,12 @@ including the link in a LinkedIn job alert email and a search page address with 
 A Workday or SmartRecruiters reference is a search result's `url`, and SmartRecruiters also takes
 the posting's address with its title slug. A StepStone reference is a search result's `url`,
 its `stepstone.de/job/<id>` page, or the posting's longer address that ends in `--<id>-inline.html`.
+An INOMICS reference is a search result's `url` or the job's address with its title slug.
 Any other reference is an error, and nothing is fetched.
 
 Library callers use the `postings` function of `jobrake.sites.linkedin`, `jobrake.sites.workday`,
-`jobrake.sites.smartrecruiters`, or `jobrake.sites.stepstone`, which never raises `Stopped`.
+`jobrake.sites.smartrecruiters`, `jobrake.sites.stepstone`, or `jobrake.sites.inomics`, which never
+raises `Stopped`.
 It maps each ID or URL to its whole job, or to `None` when the site reports the posting gone.
 A reference whose request failed, or whose response jobrake cannot read, is absent from the result,
 and calling the function again retries it.
@@ -701,6 +706,69 @@ To redisplay EJM ads on your own website, you must notify EJM and get EJM's appr
 Any use of the feed must follow EJM's Terms of Use, Privacy Policy, and Research Data Usage Policy.
 See [Accessing the EJM Ad Feed](https://backend.econjobmarket.org/docs/ad-redisplay/Ad-Redisplay.0.md).
 
+## INOMICS
+
+[INOMICS](https://inomics.com) lists jobs for economists in academia, research, and industry,
+from PhD positions to professorships. The site is `inomics`.
+A search returns the jobs in INOMICS's order of relevance, 100 by default:
+
+```sh
+jobrake inomics search -n 500 -o inomics.jsonl
+jobrake inomics search -q labor -c de
+jobrake inomics search --category postdoc --category professor --jel J --jel E -d
+```
+
+```python
+import asyncio
+
+from jobrake import scrape
+
+jobs = asyncio.run(scrape("inomics", country="de", category=["postdoc"], details=True))
+```
+
+`--query | -q` is the site's keyword search, and `--country | -c` keeps the jobs in one country,
+given by its ISO 3166-1 alpha-2 code, such as `de`.
+`--category` takes a category of the site's Job Type menu, by its name or its code:
+
+| Code                 | Category                             |
+| -------------------- | ------------------------------------ |
+| `administration`     | Administration                       |
+| `asst-prof-lecturer` | Assistant Professor / Lecturer       |
+| `graduate`           | Graduate / Traineeship               |
+| `internship`         | Internship                           |
+| `junior-industry`    | Junior Industry Position             |
+| `mid-level-industry` | Mid-Level Industry Position          |
+| `other`              | Other Jobs                           |
+| `phd-candidate`      | PhD Candidate                        |
+| `postdoc`            | Postdoc                              |
+| `practicioner`       | Practitioner / Consultant            |
+| `professor`          | Professor                            |
+| `research-assistant` | Research Assistant / Technician      |
+| `researcher`         | Researcher / Analyst                 |
+| `senior-industry`    | Executive / Senior Industry Position |
+| `senior-reasercher`  | Senior Researcher / Group Leader     |
+
+The codes keep the site's spelling, so `practicioner` and `senior-reasercher` stay as INOMICS
+writes them.
+`--jel` takes a JEL field of the site's Disciplines menu by its letter, from `A` to `R` or `Z`,
+such as `J` for labor and demographic economics.
+`--category` and `--jel`, given more than once, keep the jobs that match any of their values,
+and different options all apply.
+INOMICS answers a category or field it does not know with no jobs, so jobrake refuses one instead.
+INOMICS has no date filter, so a search takes no `--max-age-hours`.
+To keep the recent jobs, [pipe the results](#pipe-results) through `jq` on `date`.
+
+A search result lacks the description and the deadline,
+and `--details | -d` [fetches each job's page](#fetch-posting-details) for them.
+[INOMICS fields](reference.md#inomics-fields) lists what a record carries.
+
+### INOMICS terms
+
+The INOMICS [terms and conditions](https://inomics.com/terms-and-conditions), in section C.3.b,
+forbid collecting users' content or information, or otherwise accessing the INOMICS sites,
+"using automated means (such as harvesting bots, robots, spiders, or scrapers) without our
+permission".
+
 ## UN Careers
 
 [UN Careers](https://careers.un.org) is the recruitment site of the United Nations Secretariat.
@@ -876,15 +944,15 @@ The CLI writes those jobs and exits 1. When there are none it writes nothing,
 so empty output such as `[]` always comes from a search that completed.
 Reaching a site's own result cap is not a failure.
 jobrake warns on stderr and returns what the site served.
-On Indeed, AEA JOE, EconJobMarket, StepStone, UN Careers, and the employer boards,
+On Indeed, AEA JOE, EconJobMarket, INOMICS, StepStone, UN Careers, and the employer boards,
 jobrake skips a posting it cannot read and leaves out a field it cannot read.
 
 [Requests by site](reference.md#requests-by-site) gives each site's result cap, pacing, and retries.
 
 ## Cache location and lifetimes
 
-jobrake keeps the LinkedIn, Workday, SmartRecruiters, and StepStone postings it fetched in one
-SQLite file under your user cache directory: `~/Library/Caches/jobrake/` on macOS,
+jobrake keeps the LinkedIn, Workday, SmartRecruiters, StepStone, and INOMICS postings it fetched
+in one SQLite file under your user cache directory: `~/Library/Caches/jobrake/` on macOS,
 `$XDG_CACHE_HOME/jobrake/` on Linux (`~/.cache/jobrake/` when that variable is unset), and
 `%LOCALAPPDATA%\jobrake\` on Windows. No other site is cached.
 

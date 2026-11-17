@@ -91,8 +91,8 @@ and `posted_at` holds the full timestamp when the site gives one,
 such as `2026-09-19T05:00:00+00:00`, and the calendar date otherwise.
 jobrake prefers the date a search result states and falls back to the calendar portion
 of `posted_at`.
-The exceptions are Workday and StepStone with `--details`, where `date` is the calendar date of the
-`posted_at` that the posting page gives.
+The exceptions are Workday, StepStone, and INOMICS with `--details`, where `date` is the calendar
+date of the `posted_at` that the posting page gives.
 Compare on `date`, and read `posted_at` for a time of day.
 
 ## Fields by site
@@ -403,6 +403,34 @@ and the details `posted_at`, `expires_at`, `company_logo`, and, when present, `d
   Every one of the 319 ads listed both.
 - The feed carries no salary, employment type, or workplace type.
 
+### INOMICS fields
+
+An INOMICS search result carries `title`, `company`, `locations`, and `date`, and the details
+`posted_at`, `site_data`, and `workplace_type` when the card states one.
+`--details | -d` adds `description` and, when the job's page gives them, `expires_at` and the
+place's `region` and `country_code`.
+
+- `url` opens the job at `inomics.com/job/<id>`.
+- `company` is the first employer the card names. 2 of the 112 jobs of 2026-11-17 named none,
+  and 2 named more than one. `--details` takes the hiring organization the job's page names.
+- `locations` holds one place, named as the card writes it, such as `Saarbrücken, Germany`, with
+  its `city`, or the country alone, as 7 of the 112 gave. One of the 112 named no place.
+  The card names the country in words. `--details` takes the place from the job's page when the
+  page gives the country's code, with the same name and its `region` and `country_code`,
+  as all 15 jobs in Germany did, and keeps the card's place otherwise.
+  That place has a `city` only when the page's other schema.org block names it, so a page
+  without that block drops the city the card gave, as job 1555182's did earlier that day.
+- `date` and `posted_at` are the day the card shows as posted, which INOMICS moves to the day it
+  reposts a job. The job's page dates a job the same way: on 2026-11-17, 17 of 17 pages that
+  carried that date matched their card. A job INOMICS also lists as a scholarship dates it by the
+  day it was entered instead, so `--details` can move that job's `date`.
+- `expires_at` is the application deadline, which 9 of the 15 jobs in Germany lacked.
+- `workplace_type` is `hybrid` or `remote` when the card says so, as 9 and 6 of the 112 did.
+- `description` is the text of the job's page. The page's schema.org blocks carry an excerpt.
+- `site_data` holds the card's `types`, such as `Postdoc Job` or `Assistant Professor / Lecturer
+  Job`. A job can also carry the type of a program, scholarship, or course, such as `PhD Program`.
+- A record has no salary, employment type, or application link.
+
 ### UN Careers fields
 
 A UN Careers record carries `title`, `company`, `locations`, `date`, and `description`,
@@ -532,6 +560,19 @@ one request per posting, which a cached posting skips.
 A failed request raises `Stopped` with the postings of the pages before it.
 So does an empty page that comes before the number of matches StepStone reported,
 because postings may have closed during the search and a rerun may find more.
+
+### INOMICS requests
+
+A search is one request, without pacing and with a single attempt, to the endpoint INOMICS's search
+page reads its results from. It asks for the first `--results` jobs in the site's order of
+relevance, rounded up to a multiple of 20, as the page's "load more" button does.
+The site's numbered pages are unreliable: on the afternoon of 2026-11-17, pages sorted by date all
+repeated the first, and unsorted pages reached 92 of the 112 jobs.
+All 112 jobs of that day came in one answer of 391 KB.
+A failed request, or an answer without the count, raises `Stopped` with no postings.
+An answer with fewer jobs than it counts raises `Stopped` with the jobs it holds.
+`--details` and `jobrake inomics postings` fetch each job's page, one request per job,
+which a cached posting skips. A page answering 404 or 410 counts as a job gone.
 
 ### UN Careers requests
 
