@@ -356,6 +356,30 @@ A Personio record carries `title`, `locations`, and `date`, and the details `pos
 
 A Personio record has no workplace type or application link.
 
+### AEA JOE fields
+
+An AEA JOE record carries `title`, `company`, `locations`, `date`, and `description`,
+and the details `posted_at`, `site_data`, and, when present, `department`, `expires_at`,
+and `keywords`, one per line of the listing's keywords, which 542 of the 774 listings gave.
+
+- `id` is the JOE ID: the year and issue that list the listing, and its number,
+  such as `2026-02_111477855`. `url` opens the listing on `aeaweb.org`.
+- `company` is the institution, such as `Ahmedabad University`, and `department` the unit that
+  hires within it, which 520 of the 774 listings of 2026-11-17 named.
+- `locations` holds each place the listing names, with its `city` and `region`,
+  named from them and the country, such as `Cergy, Ile de France, FRANCE`.
+  JOE names the country in words, so a place has no `country_code`.
+  35 of the 774 listings named more than one place.
+- `posted_at` and `date` are the calendar date the listings page shows for the listing.
+- `expires_at` is the application deadline, a calendar date, which 18 of the 774 listings lacked.
+  JOE keeps a listing active past its deadline: 232 of the 774 were.
+- `description` is the listing's full text as JOE stores it, with line breaks and no markup.
+- `site_data` holds the listing's `section`, such as `Full-Time Nonacademic`,
+  its `jel` codes, such as `J2` or `F`, and, when present, the `division` of the institution,
+  its `salary_range` as free text, such as `Competitive` or
+  `$145,000/year`, which 330 listings gave, and a `status` such as `Position has been filled`,
+  which JOE sets when the employer closes the search.
+
 ### EconJobMarket fields
 
 An EconJobMarket record carries `title`, `company`, `locations`, `date`, and `description`,
@@ -417,6 +441,18 @@ and a failure on Lever's global host other than "not found" stops the search wit
 asking the EU host.
 Each request gets a single attempt and no pacing.
 A failed request raises `Stopped` with an empty `partial`.
+
+### AEA JOE requests
+
+A search is two requests, each with a single attempt and no pacing.
+The first reads the JOE listings page with the search's filters and 5,000 listings to a page,
+which shows every listing of the search with its posted date.
+On 2026-11-17 the page of all 774 active listings was 2.4 MB.
+The second reads the XML export that the page links for the same listings,
+2.6 MB for all 774, which holds every other field, so jobrake makes no request per listing.
+A failed request raises `Stopped` with an empty `partial`, and so does a page that shows listings
+without both their posted dates and an export link.
+A search that matches nothing gets a page without listings and makes no second request.
 
 ### Personio requests
 

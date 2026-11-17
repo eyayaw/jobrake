@@ -1,4 +1,4 @@
-"""Reading a site's responses: one JSON or XML body, its list of postings, and a search's pages."""
+"""Reading a site's responses: one JSON, XML, or HTML body, its postings, and a search's pages."""
 
 import json
 import logging
@@ -6,6 +6,8 @@ import xml.etree.ElementTree as ET
 from collections.abc import AsyncGenerator, Callable
 from gettext import ngettext
 from typing import Any
+
+lazy from bs4 import BeautifulSoup
 
 from jobrake.fetchkit import FetchResult
 from jobrake.models import JobDict, Stopped
@@ -84,6 +86,22 @@ def read_xml[T](
     try:
         return unpack(ET.fromstring(result.text))
     except (ET.ParseError, TypeError) as error:
+        raise _unreadable(site, error) from error
+
+
+def read_html[T](result: FetchResult, unpack: Callable[[BeautifulSoup], T], *, site: str) -> T:
+    """
+    Return what ``unpack`` takes from the HTML page of a site's response.
+
+    ``unpack`` raises ``TypeError`` for a page without what the site needs.
+
+    Raises:
+        Stopped: The request failed or the page is unreadable.
+    """
+    _stop_if_failed(result, site, None, None)
+    try:
+        return unpack(BeautifulSoup(result.text, "html.parser"))
+    except TypeError as error:
         raise _unreadable(site, error) from error
 
 

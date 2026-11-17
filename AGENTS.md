@@ -4,9 +4,9 @@
 
 jobrake reads the postings a job board publishes and returns each one as a record with the same
 fields, whichever board it came from. It is an async Python package and CLI that reads LinkedIn's
-guest API, Indeed's GraphQL API, EconJobMarket's ad feed, StepStone's mobile listings API, the
-UN Careers web app's list API, and the board APIs of applicant tracking systems, and it depends on
-`httpx` and `bs4`.
+guest API, Indeed's GraphQL API, the AEA JOE listings page and its XML export, EconJobMarket's ad
+feed, StepStone's mobile listings API, the UN Careers web app's list API, and the board APIs of
+applicant tracking systems, and it depends on `httpx` and `bs4`.
 
 ## Map
 
@@ -26,10 +26,11 @@ UN Careers web app's list API, and the board APIs of applicant tracking systems,
   pacing, and of them only StepStone sends headers of its own. LinkedIn's `pages.py` reads posting
   pages for `postings` and `details=True` with a fixed pool of workers, and Indeed's `countries.py`
   maps ISO country codes to editions.
-- `sites/responses.py`: the response reading the sites share. `read_json` and `read_xml` raise
-  `Stopped` for an unknown board, a failed request, or an unreadable response, `json_list` checks
-  the posting list, `json_page` checks a page's list and its total, `cut_short` builds the `Stopped`
-  of an empty page before that total, and `parse_postings` skips a malformed posting with a warning.
+- `sites/responses.py`: the response reading the sites share. `read_json`, `read_xml`, and
+  `read_html` raise `Stopped` for a failed request or an unreadable response, and the first two for
+  an unknown board. `json_list` checks the posting list, `json_page` checks a page's list and its
+  total, `cut_short` builds the `Stopped` of an empty page before that total, and `parse_postings`
+  skips a malformed posting with a warning.
   `collect` gathers the pages a paged search yields: it drops a repeated posting, logs progress,
   stops at `results`, and keeps the pages before a failure. A paged site yields its pages from a
   generator and leaves the rest to `collect`.
