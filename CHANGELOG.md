@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.33.0](https://github.com/eyayaw/jobrake/releases/tag/v0.33.0) - 2026-11-17
+
+### Added
+
+- `jobrake academictransfer search` reads the active vacancies on AcademicTransfer, a Dutch job
+  board for academic and research jobs, with their descriptions. `--query` and `--vacancy-type`
+  apply the site's own filters.
+
 ## [0.32.0](https://github.com/eyayaw/jobrake/releases/tag/v0.32.0) - 2026-11-17
 
 ### Added
