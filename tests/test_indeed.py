@@ -156,13 +156,13 @@ def test_indeed_parses_and_paginates():
 
 
 def test_indeed_stops_a_repeated_cursor_keeping_the_jobs_it_read():
-    page = ok(json.dumps(indeed_payload(["a"], cursor="same")))
-    fetcher = StubFetcher({"apis.indeed.com": page})
+    # The second page repeats the first one's cursor, and its own job is kept.
+    fetcher = PagedFetcher([json.dumps(indeed_payload([key], cursor="same")) for key in "ab"])
 
     with pytest.raises(Stopped, match="cursor of an earlier page") as stop:
         asyncio.run(indeed.search(fetcher, query="x", country="us", results=10))
 
-    assert [job["id"] for job in stop.value.partial] == ["a"]
+    assert [job["id"] for job in stop.value.partial] == ["a", "b"]
     assert len(fetcher.requests) == 2
 
 
