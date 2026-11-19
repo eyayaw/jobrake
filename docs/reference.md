@@ -549,6 +549,8 @@ the same date `--max-age-hours` filters on.
 A reposted job counts as new, so a 24-hour window can include postings published weeks earlier.
 
 Pages follow one another without delay, and each request gets a single attempt.
+A failed request raises `Stopped` with the jobs of the pages before it, and a page that
+repeats an earlier page's cursor raises it with the jobs read so far, its own included.
 
 ### LinkedIn requests
 
