@@ -52,11 +52,12 @@ def _validate(*, section: list[str] | None, jel: list[str] | None, **_: object) 
 
 def _listings(page: BeautifulSoup) -> tuple[str | None, dict[str, str]]:
     """
-    Return the export link of a listings page and each listing's posted date, newest first.
+    Return a listings page's absolute export link and each listing's posted date, newest first.
 
     Raises:
         TypeError: The page is not a listings page, or it shows postings without both their dates
             and an export link.
+        ValueError: The export link is not an address urlsplit can read.
     """
     if page.select_one("form#ListingsForm") is None:
         raise TypeError("the page holds no listings form")
@@ -77,7 +78,7 @@ def _listings(page: BeautifulSoup) -> tuple[str | None, dict[str, str]]:
         raise TypeError("the page lists postings but links no export")
     if export is not None and not dates:
         raise TypeError("the page links an export but shows no posted dates")
-    return (str(export["href"]) if export else None), dates
+    return (urljoin(SEARCH_URL, str(export["href"])) if export else None), dates
 
 
 def _positions(root: ET.Element) -> list[tuple[str, ET.Element]]:
@@ -196,7 +197,7 @@ async def search(
     if export is None:
         return []
     logger.info("reading the aea export of %d listings", len(dates))
-    positions = read_xml(await fetcher.fetch(urljoin(SEARCH_URL, export)), _positions, site="aea")
+    positions = read_xml(await fetcher.fetch(export), _positions, site="aea")
     jobs = parse_postings(positions, partial(_parse_position, dates=dates), site="aea")
     if undated := sum(job["date"] is None for job in jobs):
         logger.warning("%d aea listings of the export are missing from the listings page", undated)
