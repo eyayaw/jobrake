@@ -5,7 +5,6 @@ import logging
 import re
 import uuid
 from collections.abc import AsyncGenerator
-from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any
 from urllib.parse import urlencode, urlsplit
 
@@ -15,7 +14,7 @@ from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, Stopped, employment_type, make_job
 from jobrake.sites.postings import fill_details, postings_of
 from jobrake.sites.responses import collect, cut_short, json_page, parse_postings, read_json
-from jobrake.utils import as_dict, as_str, checked, epoch_ms_to_iso, finite, html_text
+from jobrake.utils import as_dict, as_str, checked, cutoff, epoch_ms_to_iso, finite, html_text
 
 logger = logging.getLogger(__name__)
 
@@ -199,13 +198,8 @@ def _params(
         params["what"] = query
     if location:
         params["where"] = location
-    if max_age_hours:
-        try:
-            cutoff = datetime.now(UTC) - timedelta(hours=max_age_hours)
-        except OverflowError:
-            pass  # A cutoff before year 1 excludes no posting, so the option stays out.
-        else:
-            params["sinceDate"] = int(cutoff.timestamp() * 1000)
+    if max_age_hours and (since := cutoff(max_age_hours)):
+        params["sinceDate"] = int(since.timestamp() * 1000)
     if remote:
         # The web search's "Nur Home-Office" filter, applied by the API too (measured 2026-11-15).
         params["workFromHome"] = 1

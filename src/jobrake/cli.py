@@ -141,7 +141,7 @@ def _add_arguments(parser: argparse.ArgumentParser, function: Callable[..., obje
         if option.kind is bool:
             settings["action"] = "store_true"
         elif option.kind == list[str]:
-            settings |= {"action": "extend", "nargs": "+", "metavar": "ID"}
+            settings |= {"action": "extend", "nargs": "+", "metavar": "VALUE"}
         elif option.kind is int:
             settings["type"] = int
         parser.add_argument(*flags, dest=name, required=required, **settings)

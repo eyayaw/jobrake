@@ -93,7 +93,8 @@ def read_html[T](result: FetchResult, unpack: Callable[[BeautifulSoup], T], *, s
     """
     Return what ``unpack`` takes from the HTML page of a site's response.
 
-    ``unpack`` raises ``TypeError`` for a page without what the site needs.
+    ``unpack`` raises ``TypeError`` for a page without what the site needs, and ``ValueError``
+    or ``LookupError`` for JSON the page embeds that does not parse or lacks an entry.
 
     Raises:
         Stopped: The request failed or the page is unreadable.
@@ -101,7 +102,7 @@ def read_html[T](result: FetchResult, unpack: Callable[[BeautifulSoup], T], *, s
     _stop_if_failed(result, site, None, None)
     try:
         return unpack(BeautifulSoup(result.text, "html.parser"))
-    except TypeError as error:
+    except (TypeError, ValueError, LookupError) as error:
         raise _unreadable(site, error) from error
 
 

@@ -511,7 +511,7 @@ each with a single attempt. jobrake waits 10 seconds before each request to the 
 the crawl delay the robots.txt of `www.academictransfer.com` asks for.
 The robots.txt of `api.academictransfer.com` disallows every path.
 On 2026-11-17 the API counted 728 active vacancies, and a page of 50 was about 580 KB.
-A failed request, a jobs page without the token, or an empty page before the count the API
+A failed request, a jobs page without a readable token, or an empty page before the count the API
 reported raises `Stopped`, and its `partial` holds the vacancies of the pages before it.
 A search reads the token once, at its start. How long a token stays valid was not measured,
 and the longest search tested, two pages, took 22 seconds.
@@ -549,6 +549,8 @@ the same date `--max-age-hours` filters on.
 A reposted job counts as new, so a 24-hour window can include postings published weeks earlier.
 
 Pages follow one another without delay, and each request gets a single attempt.
+A failed request raises `Stopped` with the jobs of the pages before it, and a page that
+repeats an earlier page's cursor raises it with the jobs read so far, its own included.
 
 ### LinkedIn requests
 
@@ -568,6 +570,8 @@ the limit sooner.
 LinkedIn refuses some requests whatever the pace, up to a quarter of them in our tests.
 jobrake retries a 429 up to five times.
 If the 429 remains, the search raises `Stopped` with what it has collected so far.
+So does a results page that is not the search endpoint's HTTP 200, as a sign-in wall would be.
+No search in our tests met one.
 A `--details` search that could not fetch every posting's details raises `Stopped` too,
 holding every posting it found and, in `failed`, the URLs of the postings it could not fetch.
 

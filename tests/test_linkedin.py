@@ -51,6 +51,7 @@ def test_linkedin_parses_cards_and_dedups_by_posting_id():
         + linkedin_card("search")
         # details=True would request a card's link, so a link off LinkedIn is no card.
         + linkedin_card("role-333").replace("www.linkedin.com", "jobs.example.net")
+        + linkedin_card("role-444").replace("https://www.linkedin.com", "https://[broken")
     )
     fetcher = StubFetcher({"seeMoreJobPostings": ok(html)})
     jobs = asyncio.run(linkedin.search(fetcher, query="economist", location="Seattle", results=3))
@@ -94,6 +95,20 @@ def test_a_failed_page_stops_the_search_keeping_the_earlier_pages():
         asyncio.run(linkedin.search(fetcher, query="x", location="Seattle", results=5))
     assert [job["id"] for job in stop.value.partial] == ["111", "222"]
     assert len(fetcher.requests) == 1 + (1 + client.RETRIES)  # the second page's retries
+
+
+@pytest.mark.parametrize(
+    "answer",
+    [
+        FetchResult("https://www.linkedin.com/login", 200, "<form></form>"),
+        FetchResult("stub", 204),  # the endpoint's own path, without its 200
+    ],
+)
+def test_an_answer_other_than_the_endpoints_200_stops_the_search_keeping_the_earlier_pages(answer):
+    fetcher = PagedFetcher([linkedin_card("111"), answer])
+    with pytest.raises(Stopped, match="not a results page") as stop:
+        asyncio.run(linkedin.search(fetcher, query="x", location="Seattle", results=5))
+    assert [job["id"] for job in stop.value.partial] == ["111"]
 
 
 def paced(fetcher, name="x"):

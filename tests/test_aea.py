@@ -167,6 +167,10 @@ def test_a_search_returns_nothing_for_no_match_and_stops_on_a_changed_page():
         (PAGE.replace("listing-item-header-title", "renamed"), "shows no posted dates"),
         (PAGE.replace('id="ListingsForm"', 'id="Maintenance"'), "holds no listings form"),
         (PAGE.replace("11/16/2026", "November 16"), "is not MM/DD/YYYY"),
+        (
+            PAGE.replace('href="/joe/resultset', 'href="https://[broken/joe/resultset'),
+            "Invalid IPv6",
+        ),
     ):
         with pytest.raises(Stopped, match=reason):
             asyncio.run(aea.search(PagedFetcher([page])))

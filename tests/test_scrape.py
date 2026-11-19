@@ -9,7 +9,7 @@ from fakes import StubFetcher, ok
 from hypothesis import given
 from hypothesis import strategies as st
 
-from jobrake import check, cli, identify, scrape, sites
+from jobrake import Stopped, check, cli, identify, scrape, sites
 from jobrake.sites import SITES
 from jobrake.utils import checked, site_options
 
@@ -195,6 +195,20 @@ def test_identify_gives_none_for_a_link_no_site_reads(link):
 @given(st.one_of(st.text(), st.text().map("https://".__add__)))
 def test_identify_never_raises(text):
     identify(text)
+
+
+@pytest.mark.parametrize("site", SITES)
+def test_an_integer_option_beyond_float_range_reaches_the_first_request(site):
+    # check accepts an integer beyond float range, so a search's own arithmetic must accept it too.
+    options = site_options(SITES[site].search)
+    board = "https://acme.wd1.myworkdayjobs.com/External" if site == "workday" else "acme"
+    required = {"board": board, "country": "us", "location": "Seattle"}
+    needed = {name: value for name, value in required.items() if name in options}
+    for name in (name for name, option in options.items() if option.kind is int):
+        fetcher = StubFetcher({})  # every request fails
+        with pytest.raises(Stopped):
+            asyncio.run(SITES[site].search(fetcher, **needed, **{name: 10**400}))
+        assert fetcher.requests, name
 
 
 def test_check_and_scrape_accept_an_explicit_zero_radius():

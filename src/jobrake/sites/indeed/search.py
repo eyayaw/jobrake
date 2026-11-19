@@ -317,7 +317,8 @@ async def _pages(
     ``query`` builds the GraphQL query for a cursor.
 
     Raises:
-        Stopped: A request failed, or Indeed answered with an error or an unreadable response.
+        Stopped: A request failed, Indeed answered with an error or an unreadable response,
+            or a page repeated an earlier page's cursor.
     """
     cursor: str | None = None
     cursors: set[str] = set()
@@ -333,8 +334,13 @@ async def _pages(
             break
         served += raw
         yield page, MAX_RESULTS
-        if not cursor or cursor in cursors:
+        if not cursor:
             break
+        if cursor in cursors:
+            raise Stopped(
+                f"indeed sent the cursor of an earlier page again after {served} results, so the "
+                "search cannot reach the rest. Rerun it to start a new cursor chain"
+            )
         cursors.add(cursor)
     if served >= MAX_RESULTS:
         logger.warning(
@@ -391,8 +397,9 @@ async def search(
     that cap short of ``results`` warns. Requests are neither paced nor retried.
 
     Raises:
-        Stopped: A request failed, or Indeed answered with an error or an unreadable response.
-            ``partial`` holds the jobs collected before it.
+        Stopped: A request failed, Indeed answered with an error or an unreadable response,
+            or a page repeated an earlier page's cursor. ``partial`` holds the jobs collected
+            before it.
         ValueError: The country is unknown, ``company_ids`` holds more than one ID,
             a list holds a blank entry, or ``language`` is not two ASCII letters.
     """

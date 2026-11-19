@@ -3,7 +3,7 @@
 import html
 import logging
 import xml.etree.ElementTree as ET
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from functools import partial
 from string import ascii_lowercase
 from typing import Annotated
@@ -14,7 +14,7 @@ lazy from bs4 import BeautifulSoup
 from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, make_job
 from jobrake.sites.responses import parse_postings, read_html, read_xml
-from jobrake.utils import checked, iso_date, menu_codes
+from jobrake.utils import checked, cutoff, iso_date, menu_codes
 
 logger = logging.getLogger(__name__)
 
@@ -52,11 +52,12 @@ def _validate(*, section: list[str] | None, jel: list[str] | None, **_: object) 
 
 def _listings(page: BeautifulSoup) -> tuple[str | None, dict[str, str]]:
     """
-    Return the export link of a listings page and each listing's posted date, newest first.
+    Return a listings page's absolute export link and each listing's posted date, newest first.
 
     Raises:
         TypeError: The page is not a listings page, or it shows postings without both their dates
             and an export link.
+        ValueError: The export link is not an address urlsplit can read.
     """
     if page.select_one("form#ListingsForm") is None:
         raise TypeError("the page holds no listings form")
@@ -77,7 +78,7 @@ def _listings(page: BeautifulSoup) -> tuple[str | None, dict[str, str]]:
         raise TypeError("the page lists postings but links no export")
     if export is not None and not dates:
         raise TypeError("the page links an export but shows no posted dates")
-    return (str(export["href"]) if export else None), dates
+    return (urljoin(SEARCH_URL, str(export["href"])) if export else None), dates
 
 
 def _positions(root: ET.Element) -> list[tuple[str, ET.Element]]:
@@ -184,13 +185,11 @@ async def search(
         fields |= {
             f"ListingsForm[{name}][{i}]": code for i, code in enumerate(dict.fromkeys(codes))
         }
-    if max_age_hours is not None:
-        now = datetime.now(UTC)
-        since = now - timedelta(hours=max_age_hours)
+    if max_age_hours and (since := cutoff(max_age_hours)):
         fields |= {
             "ListingsForm[recent_only][0][option]": "date_range",
             "ListingsForm[recent_only][0][from]": f"{since:%m/%d/%Y}",
-            "ListingsForm[recent_only][0][to]": f"{now:%m/%d/%Y}",
+            "ListingsForm[recent_only][0][to]": f"{datetime.now(UTC):%m/%d/%Y}",
         }
     logger.info("reading the aea listings page")
     page = await fetcher.fetch(f"{SEARCH_URL}?{urlencode(fields)}")
@@ -198,7 +197,7 @@ async def search(
     if export is None:
         return []
     logger.info("reading the aea export of %d listings", len(dates))
-    positions = read_xml(await fetcher.fetch(urljoin(SEARCH_URL, export)), _positions, site="aea")
+    positions = read_xml(await fetcher.fetch(export), _positions, site="aea")
     jobs = parse_postings(positions, partial(_parse_position, dates=dates), site="aea")
     if undated := sum(job["date"] is None for job in jobs):
         logger.warning("%d aea listings of the export are missing from the listings page", undated)

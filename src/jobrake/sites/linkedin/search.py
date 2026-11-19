@@ -2,8 +2,9 @@
 
 import logging
 from collections.abc import AsyncGenerator
+from fractions import Fraction
 from typing import Annotated
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlsplit
 
 lazy from bs4 import BeautifulSoup
 
@@ -19,7 +20,8 @@ from .pages import WORKERS, posting_fields
 logger = logging.getLogger(__name__)
 
 MAX_START = 1000  # the guest API stops serving past this offset
-KM_PER_MILE = 1.609344
+# Exact, so a radius beyond float range converts without overflowing.
+KM_PER_MILE = Fraction("1.609344")
 
 
 def _parse_page(html: str) -> tuple[list[JobDict], int]:
@@ -34,9 +36,9 @@ def _parse_page(html: str) -> tuple[list[JobDict], int]:
         if link is None or not link.get("href"):
             continue
         url = str(link["href"]).split("?")[0]
-        posting_id = job_id(url)
-        # details=True requests this address, so it must be LinkedIn's.
-        if not (posting_id and on_linkedin(url)):
+        # details=True requests this address, so it must be LinkedIn's. on_linkedin goes first:
+        # it rejects a link urlsplit cannot read, for which job_id raises ValueError.
+        if not (on_linkedin(url) and (posting_id := job_id(url))):
             continue
 
         title_tag = card.find("span", class_="sr-only")
@@ -65,7 +67,8 @@ async def _pages(
     Yield each page's cards until an empty page, or until ``MAX_START``, which warns.
 
     Raises:
-        Stopped: A page request failed after its retries.
+        Stopped: A page request failed after its retries, or its answer was not the search
+            endpoint's HTTP 200.
     """
     start = 0
     while start < MAX_START:
@@ -73,6 +76,13 @@ async def _pages(
         result = await paced_fetch(fetcher, f"{SEARCH_URL}?{urlencode(page)}")
         if result.error:
             raise Stopped(f"linkedin request failed: {result.error}")
+        # Only the search endpoint's HTTP 200 is a results page, and only one without cards ends
+        # a search.
+        if result.status != 200 or urlsplit(result.url).path != urlsplit(SEARCH_URL).path:
+            raise Stopped(
+                f"linkedin sent HTTP {result.status} from {result.url} for the page at offset "
+                f"{start}, not a results page. Wait a while, then rerun"
+            )
         cards, raw = _parse_page(result.text)
         if not raw and start == 0 and params["geoId"]:
             logger.warning("linkedin returned no postings for geoId=%s", params["geoId"])
@@ -150,7 +160,8 @@ async def search(
     Results retain guest-search order and stop at ``results``.
 
     Raises:
-        Stopped: A request failed after its retries, or a posting's details could not be fetched.
+        Stopped: A request failed after its retries, a results page was not the search endpoint's
+            HTTP 200, or a posting's details could not be fetched.
             ``partial`` holds the postings collected, with the details fetched so far,
             and ``failed`` the URLs of those whose read failed.
         ValueError: The location is missing or blank, or the geoid or a company ID uses characters
