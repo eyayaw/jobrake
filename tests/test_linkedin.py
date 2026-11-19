@@ -97,6 +97,14 @@ def test_a_failed_page_stops_the_search_keeping_the_earlier_pages():
     assert len(fetcher.requests) == 1 + (1 + client.RETRIES)  # the second page's retries
 
 
+def test_a_page_from_outside_the_search_endpoint_stops_the_search_keeping_the_earlier_pages():
+    login = FetchResult("https://www.linkedin.com/login", 200, "<form></form>")
+    fetcher = PagedFetcher([linkedin_card("111"), login])
+    with pytest.raises(Stopped, match=r"from https://www\.linkedin\.com/login, outside") as stop:
+        asyncio.run(linkedin.search(fetcher, query="x", location="Seattle", results=5))
+    assert [job["id"] for job in stop.value.partial] == ["111"]
+
+
 def paced(fetcher, name="x"):
     """Send one paced request through the company lookup, which reads ``[]`` as no match."""
     return linkedin.companies(fetcher, name)

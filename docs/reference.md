@@ -568,6 +568,8 @@ the limit sooner.
 LinkedIn refuses some requests whatever the pace, up to a quarter of them in our tests.
 jobrake retries a 429 up to five times.
 If the 429 remains, the search raises `Stopped` with what it has collected so far.
+So does a results page from an address outside the search endpoint, such as a login page.
+No search in our tests met one.
 A `--details` search that could not fetch every posting's details raises `Stopped` too,
 holding every posting it found and, in `failed`, the URLs of the postings it could not fetch.
 
