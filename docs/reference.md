@@ -265,13 +265,15 @@ and `workplace_type`.
   `--remote` keeps the postings SmartRecruiters files as remote,
   which can include ones whose `workplace_type` is `hybrid`.
 - SmartRecruiters serves a description only with each posting, so a search result has none.
-  `--details | -d` fetches each posting and adds `description`.
+  `--details | -d` fetches each posting and adds `description` and, when present, `apply_url`.
   It holds every section of the ad under its title, in SmartRecruiters' order:
   the company description, the job description, the qualifications, and additional information.
 - [`jobrake smartrecruiters postings`](guide.md#fetch-known-postings) builds the same record
   from a search result's `url` in a later run, without the `department`,
   which only the search result carries.
-- A record has no apply link. It has no salary either, because SmartRecruiters does not publish one.
+- `apply_url` is the application link the posting gives. In five postings read on 2026-11-18,
+  it was the posting page's address with `?oga=true`.
+- A record has no salary, because SmartRecruiters does not publish one.
 
 ### Workday fields
 

@@ -92,10 +92,14 @@ def _description(posting: dict[str, Any]) -> str:
 
 
 def _parse_posting(posting: dict[str, Any]) -> dict[str, Any] | None:
-    """Return a posting's card fields with its ad as ``description``, or None if it is inactive."""
+    """Return a posting's card fields, ``description``, and ``apply_url``, or None if inactive."""
     if posting.get("active") is False:
         return None
-    return {**_parse_card(posting), "description": _description(posting)}
+    return {
+        **_parse_card(posting),
+        "description": _description(posting),
+        "apply_url": as_str(posting.get("applyUrl")),
+    }
 
 
 async def _posting_fields(fetcher: Fetcher, url: str) -> dict[str, Any] | None:
@@ -164,7 +168,9 @@ async def _pages(
             return
     if offset < total:
         raise cut_short(f"smartrecruiters board {token!r}", total, offset)
-    if offset == 0:
+    # An unknown board and a filter that matches nothing both answer with no postings,
+    # so only a search without filters hints at a misspelling.
+    if offset == 0 and params.keys() == {"limit"}:
         logger.info(
             "smartrecruiters board %r returned no postings. SmartRecruiters answers the same "
             "for an unknown board, so check the identifier that follows "
@@ -192,7 +198,8 @@ async def search(
     and ``max_age_hours`` keeps postings released within that many hours. Pages of up to 100 cards
     follow one another without pacing or retries until ``results``, the board's last match,
     or an empty page. A posting that a later page repeats is kept once. An unknown board answers
-    like a board with no postings, so it returns ``[]`` and logs that the board may be misspelled.
+    like a board with no postings, so it returns ``[]``, and a search without filters also logs
+    that the board may be misspelled.
     A card carries no description, so ``details`` fetches each posting with one more request,
     which a cached posting skips.
 

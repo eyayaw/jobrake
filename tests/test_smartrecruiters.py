@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 from datetime import UTC, datetime, timedelta
+from typing import Any
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
@@ -185,6 +186,12 @@ def test_an_empty_board_returns_nothing_and_names_a_misspelling(caplog):
     assert asyncio.run(smartrecruiters.search(fetcher, board="BoshGroup")) == []
     assert "board 'BoshGroup' returned no postings" in caplog.text
     assert "check the identifier" in caplog.text
+    # A filter that matches nothing explains the empty answer, so no hint follows.
+    filters: list[dict[str, Any]] = [{"query": "x"}, {"max_age_hours": 24}, {"remote": True}]
+    for options in filters:
+        caplog.clear()
+        assert asyncio.run(smartrecruiters.search(fetcher, board="BoshGroup", **options)) == []
+        assert "check the identifier" not in caplog.text
 
 
 def test_a_failed_or_early_empty_page_stops_with_the_pages_before_it():
@@ -243,7 +250,10 @@ POSTING = {
             "additionalInformation": {"title": "Additional Information", "text": ""},
         }
     },
+    # Five BoschGroup postings served on 2026-11-18 each gave their postingUrl with ?oga=true.
+    "applyUrl": f"{PRODUCT_EXPERT_URL}-product-industrialization-expert-ps-rbcw?oga=true",
 }
+APPLY_URL = POSTING["applyUrl"]
 DESCRIPTION = (
     "Company Description\n"
     "To better support the fast development of automotive industry and technology of China, "
@@ -261,8 +271,10 @@ POSTINGS = "https://api.smartrecruiters.com/v1/companies/BoschGroup/postings/"
 
 
 def test_details_fill_each_card_and_stop_when_one_fails(caplog):
-    # The posting leaves its name and place empty and names no department, so the card's stay.
+    # The posting leaves its name and place empty and names no department, so the card's stay,
+    # and it gives no applyUrl, so the record has no apply_url.
     bare = {**POSTING, "name": None, "location": {}}
+    del bare["applyUrl"]
     fetcher = StubFetcher(
         {
             "postings?": page(CARDS, 2),
@@ -310,7 +322,7 @@ def test_postings_fetch_each_posting_once_and_key_it_by_reference():
     # Without a card, the record is the posting's alone, which names no department and spells
     # its url as SmartRecruiters does, whatever the reference's spelling.
     # A 400 fails like a dropped connection, so its reference has no key.
-    record = {**PRODUCT_EXPERT, "description": DESCRIPTION}
+    record = {**PRODUCT_EXPERT, "description": DESCRIPTION, "apply_url": APPLY_URL}
     del record["department"]
     assert got == {
         lowered: record,
