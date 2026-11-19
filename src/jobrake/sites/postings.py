@@ -13,7 +13,8 @@ from jobrake.utils import Checked, checked, report_progress
 # A site's reader of the posting at a card's URL: the posting's fields, or None when the site
 # reports the posting gone. It raises Stopped for a posting it could not read, and Halt when no
 # posting can be read for now. It sees only the URL, so its fields are the same for every card of
-# the posting and can be cached. A url among them is the posting's own address.
+# the posting and can be cached. A url among them is the posting's own address, and a field it
+# gives as None is one the posting lacks.
 type Reader = Callable[[Fetcher, str], Awaitable[dict[str, Any] | None]]
 
 
@@ -40,14 +41,15 @@ async def _posting(fetcher: Fetcher, card: JobDict, read: Reader) -> JobDict | N
     """
     Read a card's posting as a record of its own and cache it, or return None for a gone posting.
 
-    The card gives the record its identity and nothing else, so a cached record and a fresh one
-    are the same, and each suits any card of the posting.
+    The card gives the record its ``site`` and ``id``, and its ``url`` when the reader gives none.
+    Every other field is the posting's, so a cached record and a fresh one are the same.
     """
     fields = await read(fetcher, card["url"])
     if fields is None:
         return None
+    given = {name: value for name, value in fields.items() if value is not None}
     identity = {"site": card["site"], "id": card["id"]}
-    record = make_job(**({"url": card["url"]} | fields | identity))
+    record = make_job(**({"url": card["url"]} | given | identity))
     cache.CACHE.put([record])
     return record
 

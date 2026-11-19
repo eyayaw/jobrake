@@ -198,6 +198,7 @@ def _parse_details(payload: dict[str, Any]) -> dict[str, Any]:
     ]
     start = as_str(info.get("startDate"))
     return {
+        "url": as_str(info.get("externalUrl")),
         "title": as_str(info.get("title")),
         "description": html_text(as_str(info.get("jobDescription")) or ""),
         "date": start,
