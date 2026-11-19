@@ -297,13 +297,25 @@ def _write_jobs(args: argparse.Namespace, jobs: list[JobDict], fmt: str) -> int 
     if not jobs:
         logger.warning("no jobs found, so %s was not created", args.output)
         return None
+    text = RENDERERS[fmt](jobs)
+    created = False
     try:
         with args.output.open("x", encoding="utf-8") as output:
-            output.write(RENDERERS[fmt](jobs))
+            created = True
+            output.write(text)
     except OSError as error:
         logger.error(  # noqa: TRY400  the message says what failed
             "could not write %s: %s", args.output, error
         )
+        if created:
+            # A partial document would block the rerun and pass for a finished one. Only a file
+            # this open created is removed, never one that open refused.
+            try:
+                args.output.unlink()
+            except OSError as stuck:
+                logger.warning(
+                    "could not remove %s: %s. Delete it before a rerun", args.output, stuck
+                )
         return 1
     logger.info(ngettext("wrote %d job to %s", "wrote %d jobs to %s", count), count, args.output)
     return None

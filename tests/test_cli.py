@@ -427,11 +427,44 @@ def test_status_handler_progress():
     assert "finished" in plain.getvalue()
 
 
-def test_output_write_error_reports_and_fails(run_cli, monkeypatch, tmp_path, caplog):
-    def deny_write(*args, **kwargs):
-        raise PermissionError("permission denied")
-
-    monkeypatch.setattr(Path, "open", deny_write)
+def test_an_output_file_that_open_refused_stays(run_cli, monkeypatch, tmp_path, caplog):
     out = tmp_path / "jobs.json"
+
+    def taken(path, *args, **kwargs):
+        # Another process creates the file between the command's check and its open.
+        with open(path, "wb") as other:  # noqa: PTH123  Path.open is patched
+            other.write(b"another run")
+        raise FileExistsError(f"[Errno 17] File exists: '{path}'")
+
+    monkeypatch.setattr(Path, "open", taken)
     assert run_cli("-o", str(out)) == 1
-    assert f"could not write {out}: permission denied" in caplog.text
+    assert f"could not write {out}: [Errno 17] File exists" in caplog.text
+    with open(out, "rb") as kept:  # noqa: PTH123  Path.open is patched
+        assert kept.read() == b"another run"
+
+
+def test_an_output_write_error_removes_the_file_it_created(run_cli, monkeypatch, tmp_path, caplog):
+    real_open = Path.open
+    out = tmp_path / "jobs.json"
+
+    class FullDisk:
+        """Take the first bytes of a write, then report a full disk."""
+
+        def __init__(self, file):
+            self.file = file
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_):
+            self.file.close()
+
+        def write(self, text):
+            self.file.write(text[:10])
+            self.file.flush()
+            raise OSError(28, "No space left on device")
+
+    monkeypatch.setattr(Path, "open", lambda path, *a, **k: FullDisk(real_open(path, *a, **k)))
+    assert run_cli("-o", str(out)) == 1
+    assert f"could not write {out}: [Errno 28] No space left on device" in caplog.text
+    assert not out.exists()
