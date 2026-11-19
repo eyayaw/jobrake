@@ -198,8 +198,8 @@ def test_identify_never_raises(text):
 
 
 @pytest.mark.parametrize("site", SITES)
-def test_an_integer_option_of_any_size_reaches_the_first_request(site):
-    # check accepts an integer of any size, so a search's own arithmetic must accept it too.
+def test_an_integer_option_beyond_float_range_reaches_the_first_request(site):
+    # check accepts an integer beyond float range, so a search's own arithmetic must accept it too.
     options = site_options(SITES[site].search)
     board = "https://acme.wd1.myworkdayjobs.com/External" if site == "workday" else "acme"
     required = {"board": board, "country": "us", "location": "Seattle"}

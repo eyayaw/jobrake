@@ -20,7 +20,7 @@ from .pages import WORKERS, posting_fields
 logger = logging.getLogger(__name__)
 
 MAX_START = 1000  # the guest API stops serving past this offset
-# Exact, so a radius of any size converts without overflowing a float.
+# Exact, so a radius beyond float range converts without overflowing.
 KM_PER_MILE = Fraction("1.609344")
 
 

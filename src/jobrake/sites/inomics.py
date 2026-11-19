@@ -267,7 +267,7 @@ async def search(
         # job=job asks for every category.
         "job": ",".join(dict.fromkeys(categories)) or "job",
         "orderBy": "relevance",
-        # Ceiling division in integers, exact for a ``results`` of any size.
+        # Ceiling division in integers, so a ``results`` beyond float range does not overflow.
         "trendingPage": -(-results // CARDS_PER_PAGE),
     }
     if keyword := query.strip():
