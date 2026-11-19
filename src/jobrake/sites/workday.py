@@ -11,7 +11,7 @@ from urllib.parse import urlsplit
 
 from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, employment_type, make_job
-from jobrake.sites.postings import fetch_postings, fill_details
+from jobrake.sites.postings import fill_details, postings_of
 from jobrake.sites.responses import collect, cut_short, json_page, parse_postings, read_json
 from jobrake.utils import as_dict, as_str, checked, html_text
 
@@ -255,9 +255,7 @@ async def search(
     logger.info("searching workday site %s for %r", _career_site(board)[1], query)
     pages = _pages(fetcher, board, query, min(PAGE_SIZE, results))
     jobs = await collect("workday", pages, results)
-    if details:
-        return await fill_details("workday", jobs, functools.partial(_detail_fields, fetcher))
-    return jobs
+    return await fill_details(fetcher, jobs, _detail_fields) if details else jobs
 
 
 def card(reference: str) -> JobDict:
@@ -282,25 +280,7 @@ def card(reference: str) -> JobDict:
     return make_job(site="workday", id=f"{tenant}:{match.group(1)}", url=site_url + path)
 
 
-@checked
-async def postings(
-    fetcher: Fetcher,
-    references: Annotated[list[str], "Workday posting URLs"],
-) -> dict[str, JobDict | None]:
-    """
-    Fetch known Workday postings by URL, one request each, and none for a cached posting.
-
-    The result is keyed by the references given. A reference is a record's ``url``,
-    the posting's address on its career site, and references naming one posting share one request.
-    A reference maps to ``None`` when Workday reports its posting gone. After a failed request or an
-    unreadable response it has no key, and a warning names its posting.
-
-    Raises:
-        ValueError: A reference is not a Workday posting URL. Nothing is fetched in that case.
-    """
-    return await fetch_postings(
-        "workday", references, card, functools.partial(_detail_fields, fetcher)
-    )
+postings = postings_of(card, _detail_fields)
 
 
 __all__ = ["postings", "search"]

@@ -12,7 +12,7 @@ lazy from bs4 import BeautifulSoup, Tag
 
 from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, Stopped, make_job, workplace_type
-from jobrake.sites.postings import fetch_postings, fill_details
+from jobrake.sites.postings import fill_details, postings_of
 from jobrake.sites.responses import parse_postings, read_html, read_json
 from jobrake.utils import as_dict, as_str, checked, html_text, menu_codes
 
@@ -285,9 +285,7 @@ async def search(
             "incomplete. A rerun reads the current list",
             partial=jobs,
         )
-    if details:
-        return await fill_details("inomics", jobs, functools.partial(_posting_fields, fetcher))
-    return jobs
+    return await fill_details(fetcher, jobs, _posting_fields) if details else jobs
 
 
 def card(reference: str) -> JobDict:
@@ -307,24 +305,7 @@ def card(reference: str) -> JobDict:
     return make_job(site="inomics", id=match[1], url=POSTING_URL.format(id=match[1]))
 
 
-@checked
-async def postings(
-    fetcher: Fetcher,
-    references: Annotated[list[str], "INOMICS posting URLs"],
-) -> dict[str, JobDict | None]:
-    """
-    Fetch known INOMICS postings by URL, one request each, and none for a cached posting.
-
-    The result is keyed by the references given, and references naming one posting share one
-    request. A reference maps to ``None`` when INOMICS reports its posting gone. After a failed
-    request or an unreadable page it has no key, and a warning names its posting.
-
-    Raises:
-        ValueError: A reference is not an INOMICS posting URL. Nothing is fetched in that case.
-    """
-    return await fetch_postings(
-        "inomics", references, card, functools.partial(_posting_fields, fetcher)
-    )
+postings = postings_of(card, _posting_fields)
 
 
 __all__ = ["postings", "search"]

@@ -1,6 +1,5 @@
 """Read an employer's SmartRecruiters job board through its public Posting API."""
 
-import functools
 import logging
 import re
 from collections.abc import AsyncGenerator
@@ -11,7 +10,7 @@ from urllib.parse import quote, urlencode, urlsplit
 
 from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, employment_type, make_job
-from jobrake.sites.postings import fetch_postings, fill_details
+from jobrake.sites.postings import fill_details, postings_of
 from jobrake.sites.responses import collect, cut_short, json_page, parse_postings, read_json
 from jobrake.utils import as_dict, as_str, checked, finite, html_text
 
@@ -209,11 +208,7 @@ async def search(
     logger.info("reading smartrecruiters board %r", token)
     params = _filters(query, max_age_hours, remote=remote) | {"limit": min(PAGE_SIZE, results)}
     jobs = await collect("smartrecruiters", _pages(fetcher, token, params), results)
-    if details:
-        return await fill_details(
-            "smartrecruiters", jobs, functools.partial(_posting_fields, fetcher)
-        )
-    return jobs
+    return await fill_details(fetcher, jobs, _posting_fields) if details else jobs
 
 
 def card(reference: str) -> JobDict:
@@ -240,26 +235,7 @@ def card(reference: str) -> JobDict:
     )
 
 
-@checked
-async def postings(
-    fetcher: Fetcher,
-    references: Annotated[list[str], "SmartRecruiters posting URLs"],
-) -> dict[str, JobDict | None]:
-    """
-    Fetch known SmartRecruiters postings by URL, one request each, and none for a cached posting.
-
-    The result is keyed by the references given. A reference is a record's ``url`` or the posting's
-    ``postingUrl``, which adds a title slug, and references naming one posting share one request.
-    A reference maps to ``None`` when SmartRecruiters reports its posting gone.
-    After a failed request or an unreadable response it has no key, and a warning names its posting.
-
-    Raises:
-        ValueError: A reference is not a SmartRecruiters posting URL.
-            Nothing is fetched in that case.
-    """
-    return await fetch_postings(
-        "smartrecruiters", references, card, functools.partial(_posting_fields, fetcher)
-    )
+postings = postings_of(card, _posting_fields)
 
 
 __all__ = ["postings", "search"]

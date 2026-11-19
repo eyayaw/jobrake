@@ -179,5 +179,5 @@ async def search(
         found = await fetch_pages(fetcher, {job["id"]: dict(job) for job in jobs})
         # A posting that is gone, or failed, keeps its card.
         jobs = [found.get(job["id"]) or job for job in jobs]
-        stop_if_unread("linkedin", jobs, found)
+        stop_if_unread(jobs, found)
     return jobs
