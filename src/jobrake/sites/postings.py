@@ -1,4 +1,4 @@
-"""The posting loop of the sites that fetch each posting on its own, and their ``postings``."""
+"""The posting loop of the sites that fetch each posting on its own, and ``postings_of``."""
 
 import asyncio
 import logging
@@ -152,7 +152,7 @@ def postings_of(
         fetcher: Fetcher, references: Annotated[list[str], help_text]
     ) -> dict[str, JobDict | None]:
         """
-        Fetch known postings by reference, with no request for a cached posting.
+        Fetch known postings, with no request for a cached posting.
 
         The result is keyed by the references given, and references naming one posting share one
         record, read from the first of them. The site's ``card`` reads each reference as the card

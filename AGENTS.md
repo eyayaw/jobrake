@@ -20,7 +20,8 @@ applicant tracking systems, and it depends on `httpx` and `bs4`.
   A site that exports `postings` defines `card(reference)`, outside `__all__`, and a site may
   define one for `identify` alone, as Indeed does. `card` reads one posting URL as the card it
   names and raises `ValueError` for any other reference. `postings_of` builds a site's `postings`
-  from its `card` and its reader, and reads every reference with `card` before the first request.
+  from its `card` and its reader, and that `postings` reads every reference with `card` before the
+  first request.
   LinkedIn's `postings` reads references as its `card` does and also takes a bare posting ID.
   In the two packages, `search.py` builds requests and parses results, `client.py` holds the URLs
   and headers, plus LinkedIn's pacing, and `lookups.py` holds the lookups. Of the other sites,
@@ -40,9 +41,10 @@ applicant tracking systems, and it depends on `httpx` and `bs4`.
   LinkedIn among them. `fill_details` serves `details=True` and `postings_of` builds `postings`,
   and each site supplies only the reader of the posting at a URL, which raises `Stopped` for a
   posting it could not read and `Halt` when no posting can be read for now. Each posting read
-  becomes a record of its own, which the cache stores and every card of the posting merges with.
-  The record wins wherever it has a value, the card keeps its `site`, `id`, and `url`,
-  and a cached posting costs no request.
+  becomes a record of its own, with the posting's own `url` when the reader gives one. The cache
+  stores it, `postings` returns it, and a details search merges it into each card of the posting:
+  the record wins wherever it has a value, and the card keeps its `site`, `id`, and `url`.
+  A cached posting costs no request.
 - `utils.py`: `site_options`, which reads the `Annotated` arguments of a site function, `checked`,
   which wraps it in a `Checked` that runs those checks and the site's validator on every call,
   or alone through `check`, `menu_codes`, which maps filter values to codes of a site's fixed menu,
@@ -116,7 +118,7 @@ and the contract test in `tests/test_scrape.py` need no edit.
   one. A reference is at least a record's `url`. `postings` keys its result by the references given
   and maps a posting the site reports gone to `None`.
   The posting outranks its card: with `details`, every field the posting has a value for replaces
-  the card's, `date` and `locations` among them.
+  the card's, `date` and `locations` among them, and only `site`, `id`, and `url` stay the card's.
 - The transport is the caller's. Code takes a `Fetcher` and leaves it open,
   and the caller that created it closes it. LinkedIn requests go through `paced_fetch`,
   which pins requests to LinkedIn's data centers in turn, paces them once per process,
