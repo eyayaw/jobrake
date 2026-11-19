@@ -92,10 +92,14 @@ def _description(posting: dict[str, Any]) -> str:
 
 
 def _parse_posting(posting: dict[str, Any]) -> dict[str, Any] | None:
-    """Return a posting's card fields with its ad as ``description``, or None if it is inactive."""
+    """Return a posting's card fields, ``description``, and ``apply_url``, or None if inactive."""
     if posting.get("active") is False:
         return None
-    return {**_parse_card(posting), "description": _description(posting)}
+    return {
+        **_parse_card(posting),
+        "description": _description(posting),
+        "apply_url": as_str(posting.get("applyUrl")),
+    }
 
 
 async def _posting_fields(fetcher: Fetcher, url: str) -> dict[str, Any] | None:

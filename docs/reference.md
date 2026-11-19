@@ -252,8 +252,8 @@ and, when present, `workplace_type` and `education`.
 ### SmartRecruiters fields
 
 A SmartRecruiters record carries `title`, `company`, `locations`, and `date`,
-and the details `posted_at`, `employment_type`, `language`, and, when present, `department`
-and `workplace_type`.
+and the details `posted_at`, `employment_type`, `language`, and, when present, `department`,
+`workplace_type`, and `apply_url`.
 
 - `locations` holds one place, named as SmartRecruiters writes it, such as `Wuxi, Jiangsu, China`,
   with its `city`, `country_code`, and, when present, `region`, `latitude`, and `longitude`.
@@ -271,7 +271,8 @@ and `workplace_type`.
 - [`jobrake smartrecruiters postings`](guide.md#fetch-known-postings) builds the same record
   from a search result's `url` in a later run, without the `department`,
   which only the search result carries.
-- A record has no apply link. It has no salary either, because SmartRecruiters does not publish one.
+- `apply_url` is the application link the posting gives. In our tests it opened the posting's page.
+  A record has no salary, because SmartRecruiters does not publish one.
 
 ### Workday fields
 
