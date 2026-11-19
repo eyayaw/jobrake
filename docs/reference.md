@@ -511,7 +511,7 @@ each with a single attempt. jobrake waits 10 seconds before each request to the 
 the crawl delay the robots.txt of `www.academictransfer.com` asks for.
 The robots.txt of `api.academictransfer.com` disallows every path.
 On 2026-11-17 the API counted 728 active vacancies, and a page of 50 was about 580 KB.
-A failed request, a jobs page without the token, or an empty page before the count the API
+A failed request, a jobs page without a readable token, or an empty page before the count the API
 reported raises `Stopped`, and its `partial` holds the vacancies of the pages before it.
 A search reads the token once, at its start. How long a token stays valid was not measured,
 and the longest search tested, two pages, took 22 seconds.

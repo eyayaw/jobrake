@@ -65,6 +65,8 @@ def _token(page: BeautifulSoup) -> str:
 
     Raises:
         TypeError: The page holds no Nuxt payload or no token in it.
+        ValueError: The payload is not JSON.
+        IndexError: The token entry points past the payload's end.
     """
     script = page.find("script", id="__NUXT_DATA__")
     if script is None:

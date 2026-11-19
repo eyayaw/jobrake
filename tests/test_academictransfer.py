@@ -187,8 +187,17 @@ def test_an_empty_page_before_the_count_stops_the_search_with_the_pages_before_i
     assert query["limit"] == ["50"]
 
 
-def test_a_jobs_page_without_the_token_stops_the_search_before_the_api():
-    fetcher = PagedFetcher(['<script type="application/json" id="__NUXT_DATA__">[{}]</script>'])
-    with pytest.raises(Stopped, match="no public API token"):
+@pytest.mark.parametrize(
+    "payload",
+    [
+        "[{}]",
+        "{",  # not JSON
+        '[{"$satDataApiPublicAccessToken": 5}]',  # an index past the payload's end
+    ],
+)
+def test_a_jobs_page_without_a_readable_token_stops_the_search_before_the_api(payload):
+    page = f'<script type="application/json" id="__NUXT_DATA__">{payload}</script>'
+    fetcher = PagedFetcher([page])
+    with pytest.raises(Stopped, match="academictransfer sent a response this version cannot read"):
         asyncio.run(academictransfer.search(fetcher))
     assert len(fetcher.requests) == 1

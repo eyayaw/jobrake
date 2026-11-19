@@ -169,12 +169,14 @@ def _parse_page(page: BeautifulSoup) -> dict[str, Any]:
     """
     # JSON-LD allows an array at the top level, which holds no block read here (JSON-LD 1.1, sec. 9,
     # checked 2026-11-17).
-    blocks = [
-        data
-        for script in page.find_all("script", type="application/ld+json")
-        if isinstance(data := json.loads(script.get_text()), dict)
-        and data.get("@type") in _POSTING_TYPES
-    ]
+    blocks = []
+    for script in page.find_all("script", type="application/ld+json"):
+        try:
+            data = json.loads(script.get_text())
+        except ValueError:
+            continue  # a script that does not parse leaves the page's other blocks readable
+        if isinstance(data, dict) and data.get("@type") in _POSTING_TYPES:
+            blocks.append(data)
     description = page.select_one("div.post-description")
     if not blocks or description is None:
         raise TypeError("the page holds no posting block or no description")
