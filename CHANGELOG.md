@@ -1,5 +1,42 @@
 # Changelog
 
+## [0.35.0](https://github.com/eyayaw/jobrake/releases/tag/v0.35.0) - 2026-11-19
+
+### Added
+
+- A SmartRecruiters search with `--details`, and `jobrake smartrecruiters postings`, fill
+  `apply_url` with the application link the posting gives. A posting the cache already holds
+  gains it when its row expires.
+
+### Changed
+
+- **Breaking:** A LinkedIn search with `--details` takes `date` from the posting page, as Workday,
+  StepStone, and INOMICS do. It kept the search result's date.
+- `postings` reads the first of several references to one posting. LinkedIn read a title-slug
+  address when one was among them, a country subdomain's before one on `www`, and the other sites
+  read the last reference. A call that names one LinkedIn posting first by its ID, a slugless URL,
+  or its `www` page, and then by its country page, costs one more request.
+- `postings` on SmartRecruiters and Workday returns the `url` the posting gives, as a search does,
+  where it kept the reference's address. A posting the cache already holds keeps the address it
+  was stored with until its row expires.
+- A details fetch on Workday, SmartRecruiters, StepStone, and INOMICS reports progress as
+  LinkedIn's does: the cached postings at the start, then each read as it finishes.
+- `jobrake <site> postings --help` reads the same on every site.
+- The posting loop logs under `jobrake.sites.<site>`, the parent of the site's other loggers.
+  LinkedIn's warning for a posting it skips names the URL it requested, as the other sites' do,
+  and its INFO lines that counted the pages before and after the fetch are gone.
+
+### Fixed
+
+- A LinkedIn search with `--details` returns the same record for a posting read from the cache
+  as for one read fresh. A page with a blank title gave no `title` on the first search
+  and the search result's title on the next.
+- A SmartRecruiters search whose filters match nothing logs no hint that the board may be
+  misspelled. The hint stays for an empty search without filters, because an unknown board
+  answers it as an empty board does.
+- A `date` that is not ISO 8601 becomes `None`, as the reference promises, and such an AEA
+  `expires_at` is left out, each with a warning. Both kept their first ten characters.
+
 ## [0.34.0](https://github.com/eyayaw/jobrake/releases/tag/v0.34.0) - 2026-11-18
 
 ### Changed
