@@ -1,121 +1,175 @@
-"""The details loop of the sites that fill a card with one request per posting, and its stop."""
+"""The posting loop of the sites that fetch each posting on its own, and ``postings_of``."""
 
+import asyncio
 import logging
-from collections.abc import Awaitable, Callable, Container
-from typing import Any
+from collections.abc import Awaitable, Callable
+from typing import Annotated, Any
 
 from jobrake import cache
+from jobrake.fetchkit import Fetcher
 from jobrake.models import IDENTITY_FIELDS, JobDict, Stopped, make_job
-from jobrake.utils import report_progress
+from jobrake.utils import Checked, checked, report_progress
 
-logger = logging.getLogger(__name__)
+# A site's reader of the posting at a card's URL: the posting's fields, or None when the site
+# reports the posting gone. It raises Stopped for a posting it could not read, and Halt when no
+# posting can be read for now. It sees only the URL, so its fields are the same for every card of
+# the posting and can be cached. A url among them is the posting's own address, and a field it
+# gives as None is one the posting lacks.
+type Reader = Callable[[Fetcher, str], Awaitable[dict[str, Any] | None]]
 
-# A site's reader of the posting at a card's URL: the fields the posting adds, or None when the site
-# reports the posting gone. It raises Stopped for a failed request or an unreadable response.
-# It sees only the URL, so its fields are the same for every card of the posting and can be cached.
-type Reader = Callable[[str], Awaitable[dict[str, Any] | None]]
+
+class Halt(Exception):
+    """
+    Raised by a reader when no posting can be read for now, as after a persistent HTTP 429.
+
+    The message says why and what to do next. The loop ends, and the postings read by then stay.
+    """
 
 
-def _merge(card: JobDict, fields: dict[str, Any]) -> JobDict:
-    # The card keeps its identity. A None, blank, or empty field leaves the card's value in place.
+def _merge(card: JobDict, record: JobDict) -> JobDict:
+    # The card keeps its identity, and the posting's record wins wherever it has a value.
+    # make_job left a field the posting lacks as None or [], or out of the record.
     kept = {
         name: value
-        for name, value in fields.items()
-        if name not in IDENTITY_FIELDS
-        and value not in (None, [])
-        and not (isinstance(value, str) and not value.strip())
+        for name, value in record.items()
+        if name not in IDENTITY_FIELDS and value not in (None, [])
     }
     return make_job(**(card | kept))
 
 
-async def _read_each(
-    site: str, cards: list[JobDict], read: Reader
-) -> dict[str, dict[str, Any] | None]:
+async def _posting(fetcher: Fetcher, card: JobDict, read: Reader) -> JobDict | None:
     """
-    Map each card's ID to what ``read`` returns for it, logging and leaving out a failed read.
+    Read a card's posting as a record of its own and cache it, or return None for a gone posting.
 
-    A cached posting costs no request. Each read's fields become a normalized record of their own,
-    which fills this card and goes to the cache, so a later card merges with the same record.
-    A read sees only the URL, so that record suits any card of the posting. A gone posting stays
-    out of the cache.
+    The card gives the record its ``site`` and ``id``, and its ``url`` when the reader gives none.
+    Every other field is the posting's, so a cached record and a fresh one are the same.
     """
-    cached = cache.CACHE.get(site, [card["id"] for card in cards])
-    found: dict[str, dict[str, Any] | None] = {
-        posting: dict(job) for posting, job in cached.items()
-    }
-    for position, card in enumerate(cards, start=1):
-        report_progress(logger, f"{site} details", position, len(cards))
-        if card["id"] in found:
-            continue
-        try:
-            fields = await read(card["url"])
-        except Stopped as stopped:
-            logger.warning("skipping posting %s: %s", card["url"], stopped)
-            continue
-        if fields is None:
-            found[card["id"]] = None
-            continue
-        record = _merge(make_job(site=site, id=card["id"], url=card["url"]), fields)
-        cache.CACHE.put([record])
-        found[card["id"]] = dict(record)
+    fields = await read(fetcher, card["url"])
+    if fields is None:
+        return None
+    given = {name: value for name, value in fields.items() if value is not None}
+    identity = {"site": card["site"], "id": card["id"]}
+    record = make_job(**({"url": card["url"]} | given | identity))
+    cache.CACHE.put([record])
+    return record
+
+
+async def _read_each(
+    fetcher: Fetcher, cards: list[JobDict], read: Reader, workers: int
+) -> dict[str, JobDict | None]:
+    """
+    Map each card's ID to its posting's record, or to None for a gone posting.
+
+    The cards are one site's. Cards of one posting share the read of the first, and a cached
+    posting costs no request. A failed read is logged and left out, and a ``Halt`` ends the reads
+    with a warning.
+    ``workers`` postings are read at a time, in the cards' order.
+    """
+    if not cards:
+        return {}
+    site = cards[0]["site"]
+    logger = logging.getLogger(f"jobrake.sites.{site}")
+    unique: dict[str, JobDict] = {}
+    for card in cards:
+        unique.setdefault(card["id"], card)
+    found: dict[str, JobDict | None] = dict(cache.CACHE.get(site, unique))
+    done = len(found)
+    report_progress(logger, f"{site} details", done, len(unique))
+    # Every worker takes from one iterator, so each posting is read once.
+    pending = iter([card for posting, card in unique.items() if posting not in found])
+
+    async def work() -> None:
+        nonlocal done
+        for card in pending:
+            try:
+                found[card["id"]] = await _posting(fetcher, card, read)
+            except Stopped as stopped:
+                logger.warning("skipping posting %s: %s", card["url"], stopped)
+            done += 1
+            report_progress(logger, f"{site} details", done, len(unique))
+
+    try:
+        # The group cancels the other workers on the first error and awaits them all,
+        # through a repeated cancellation, so none outlives the caller's transport.
+        async with asyncio.TaskGroup() as group:
+            for _ in range(workers):
+                group.create_task(work())
+    except ExceptionGroup as errors:
+        # A fetcher's own exception leaves as itself and outranks a Halt.
+        for error in errors.exceptions:
+            if not isinstance(error, Halt):
+                raise error from None
+        logger.warning(
+            "reading %s postings stopped at %d of %d: %s",
+            site,
+            len(found),
+            len(unique),
+            errors.exceptions[0],
+        )
     return found
 
 
-def stop_if_unread(site: str, jobs: list[JobDict], found: Container[str]) -> None:
+async def fill_details(
+    fetcher: Fetcher, cards: list[JobDict], read: Reader, *, workers: int = 1
+) -> list[JobDict]:
     """
-    End a details search unless every posting in ``jobs`` was read or reported gone.
+    Fill each card with its posting's record, reading ``workers`` postings at a time.
 
-    Raises:
-        Stopped: A posting's ID is not in ``found``. ``partial`` holds ``jobs``, and ``failed`` the
-            URLs of the postings whose ID is missing.
-    """
-    if failed := [job["url"] for job in jobs if job["id"] not in found]:
-        raise Stopped(
-            f"{site} could not fetch the details of {len(failed)} of {len(jobs)} postings. "
-            "Pass their URLs to postings to retry them",
-            partial=jobs,
-            failed=failed,
-        )
-
-
-async def fill_details(site: str, cards: list[JobDict], read: Reader) -> list[JobDict]:
-    """
-    Fill each card with its posting's fields, one request after another.
-
+    The record wins wherever it has a value, and the card keeps its ``site``, ``id``, and ``url``.
     A posting the site reports gone keeps its card.
 
     Raises:
-        Stopped: A posting's fields could not be read. ``partial`` holds every card,
-            filled where its read succeeded, and ``failed`` the URLs of the cards whose read failed.
+        Stopped: A posting could not be read. ``partial`` holds every card, filled where its read
+            succeeded, and ``failed`` the URLs of the cards whose read failed.
     """
-    found = await _read_each(site, cards, read)
-    filled = [_merge(card, found.get(card["id"]) or {}) for card in cards]
-    stop_if_unread(site, filled, found)
+    found = await _read_each(fetcher, cards, read, workers)
+    filled = [_merge(card, record) if (record := found.get(card["id"])) else card for card in cards]
+    if failed := [card["url"] for card in cards if card["id"] not in found]:
+        raise Stopped(
+            f"{cards[0]['site']} could not fetch the details of {len(failed)} of {len(cards)} "
+            "postings. Pass their URLs to postings to retry them",
+            partial=filled,
+            failed=failed,
+        )
     return filled
 
 
-async def fetch_postings(
-    site: str, references: list[str], card: Callable[[str], JobDict], read: Reader
-) -> dict[str, JobDict | None]:
+def postings_of(
+    card: Callable[[str], JobDict],
+    read: Reader,
+    *,
+    workers: int = 1,
+    help_text: str = "posting URLs",
+) -> Checked[[Fetcher, list[str]], dict[str, JobDict | None]]:
     """
-    Fetch the posting each reference names, keyed by the references given.
+    Build a site's ``postings`` from its ``card`` and its reader.
 
-    ``card`` reads a reference as the card it names, so every reference is checked before the first
-    request. References naming one posting share one request. A posting the site reports gone maps
-    to None, and a reference whose read failed has no key.
-
-    Raises:
-        ValueError: ``card`` rejected a reference.
+    ``workers`` postings are read at a time, and ``help_text`` names the references in the CLI
+    help.
     """
-    cards = {reference: card(reference) for reference in references}
-    unique = {named["id"]: named for named in cards.values()}
-    found = await _read_each(site, list(unique.values()), read)
-    records = {
-        posting: None if fields is None else _merge(unique[posting], fields)
-        for posting, fields in found.items()
-    }
-    return {
-        reference: records[named["id"]]
-        for reference, named in cards.items()
-        if named["id"] in records
-    }
+
+    async def postings(
+        fetcher: Fetcher, references: Annotated[list[str], help_text]
+    ) -> dict[str, JobDict | None]:
+        """
+        Fetch known postings, with no request for a cached posting.
+
+        The result is keyed by the references given, and references naming one posting share one
+        record, read from the first of them. The site's ``card`` reads each reference as the card
+        it names, before the first request. A reference maps to ``None`` when the site reports its
+        posting gone. A posting that was not read has no key, and a warning says why.
+
+        Raises:
+            ValueError: ``card`` refused a reference. Nothing is fetched in that case.
+        """
+        cards = {reference: card(reference) for reference in references}
+        found = await _read_each(fetcher, list(cards.values()), read, workers)
+        return {
+            reference: found[named["id"]]
+            for reference, named in cards.items()
+            if named["id"] in found
+        }
+
+    # Checked names a function's site after its module.
+    postings.__module__ = card.__module__
+    return checked(postings)

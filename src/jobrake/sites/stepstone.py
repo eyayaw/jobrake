@@ -1,6 +1,5 @@
 """Search StepStone's German job board through its mobile app's listings API."""
 
-import functools
 import json
 import logging
 import re
@@ -14,7 +13,7 @@ lazy from bs4 import BeautifulSoup
 
 from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, Stopped, employment_type, make_job
-from jobrake.sites.postings import fetch_postings, fill_details
+from jobrake.sites.postings import fill_details, postings_of
 from jobrake.sites.responses import collect, cut_short, json_page, parse_postings, read_json
 from jobrake.utils import as_dict, as_str, checked, epoch_ms_to_iso, finite, html_text
 
@@ -276,9 +275,7 @@ async def search(
     logger.info("searching stepstone for %r in %r", query, location or "Germany")
     shared = _params(query, location, radius, max_age_hours, str(uuid.uuid4()), remote=remote)
     jobs = await collect("stepstone", _pages(fetcher, shared, min(PAGE_SIZE, results)), results)
-    if details:
-        return await fill_details("stepstone", jobs, functools.partial(_posting_fields, fetcher))
-    return jobs
+    return await fill_details(fetcher, jobs, _posting_fields) if details else jobs
 
 
 def card(reference: str) -> JobDict:
@@ -300,24 +297,7 @@ def card(reference: str) -> JobDict:
     return make_job(site="stepstone", id=posting_id, url=POSTING_URL.format(id=posting_id))
 
 
-@checked
-async def postings(
-    fetcher: Fetcher,
-    references: Annotated[list[str], "StepStone posting URLs"],
-) -> dict[str, JobDict | None]:
-    """
-    Fetch known StepStone postings by URL, one request each, and none for a cached posting.
-
-    The result is keyed by the references given, and references naming one posting share one
-    request. A reference maps to ``None`` when StepStone reports its posting gone. After a failed
-    request or an unreadable page it has no key, and a warning names its posting.
-
-    Raises:
-        ValueError: A reference is not a StepStone posting URL. Nothing is fetched in that case.
-    """
-    return await fetch_postings(
-        "stepstone", references, card, functools.partial(_posting_fields, fetcher)
-    )
+postings = postings_of(card, _posting_fields)
 
 
 __all__ = ["postings", "search"]

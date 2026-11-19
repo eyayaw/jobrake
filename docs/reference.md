@@ -91,8 +91,9 @@ and `posted_at` holds the full timestamp when the site gives one,
 such as `2026-09-19T05:00:00+00:00`, and the calendar date otherwise.
 jobrake prefers the date a search result states and falls back to the calendar portion
 of `posted_at`.
-The exceptions are Workday, StepStone, and INOMICS with `--details`, where `date` is the calendar
-date of the `posted_at` that the posting page gives.
+The exceptions are LinkedIn, Workday, StepStone, and INOMICS with `--details`, where `date` is the
+calendar date of the `posted_at` that the posting page gives.
+A page without one leaves the search result's date.
 Compare on `date`, and read `posted_at` for a time of day.
 
 ## Fields by site

@@ -9,12 +9,12 @@ lazy from bs4 import BeautifulSoup
 
 from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, Stopped, make_job
-from jobrake.sites.postings import stop_if_unread
+from jobrake.sites.postings import fill_details
 from jobrake.sites.responses import collect
 from jobrake.utils import checked
 
 from .client import SEARCH_URL, job_id, numeric, on_linkedin, paced_fetch
-from .pages import fetch_pages
+from .pages import WORKERS, posting_fields
 
 logger = logging.getLogger(__name__)
 
@@ -24,8 +24,8 @@ KM_PER_MILE = 1.609344
 
 def _parse_page(html: str) -> tuple[list[JobDict], int]:
     """Parse card summaries, and count every card LinkedIn served, parsable or not."""
-    # Search cards contain only summary fields. fetch_pages() reads the detail fields from each
-    # posting page.
+    # Search cards contain only summary fields. posting_fields() reads the detail fields from
+    # each posting page.
     soup = BeautifulSoup(html, "html.parser")
     cards = soup.find_all("div", class_="base-search-card")
     jobs = []
@@ -176,8 +176,5 @@ async def search(
     }
     jobs = await collect("linkedin", _pages(fetcher, params), results)
     if details:
-        found = await fetch_pages(fetcher, {job["id"]: dict(job) for job in jobs})
-        # A posting that is gone, or failed, keeps its card.
-        jobs = [found.get(job["id"]) or job for job in jobs]
-        stop_if_unread("linkedin", jobs, found)
+        return await fill_details(fetcher, jobs, posting_fields, workers=WORKERS)
     return jobs

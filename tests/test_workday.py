@@ -202,8 +202,10 @@ def test_a_cached_posting_fills_a_card_as_a_fresh_read_does(today, isolated_cach
     fetcher = StubFetcher(
         {"/jobs": ok(page(CARDS[:1])), "Networking-Architect_JR1996377": ok(json.dumps(detail))}
     )
-    # Read first through its shared-host address, the posting fills the search card from the cache.
-    asyncio.run(workday.postings(fetcher, [shared]))
+    # Read first through its shared-host address, the posting fills the search card from the cache,
+    # and its record keeps the posting's own address.
+    posting = asyncio.run(workday.postings(fetcher, [shared]))[shared]
+    assert posting is not None and posting["url"] == POSTING
     (cached,) = asyncio.run(workday.search(fetcher, board=BOARD, details=True))
     assert len(fetcher.requests) == 2
     isolated_cache.close()
@@ -291,6 +293,14 @@ def test_postings_fetch_each_posting_once_and_key_it_by_reference(caplog):
         *(f"{API}/job/Remote/Engineer_JR{n}" for n in range(4)),
     ]
     assert "skipping posting" in caplog.text
+
+
+def test_a_posting_without_its_own_address_keeps_the_reference():
+    info = {
+        name: value for name, value in DETAIL["jobPostingInfo"].items() if name != "externalUrl"
+    }
+    fetcher = StubFetcher({"JR1996377": ok(json.dumps({"jobPostingInfo": info}))})
+    assert asyncio.run(workday.postings(fetcher, [POSTING])) == {POSTING: FILLED}
 
 
 @pytest.mark.parametrize(

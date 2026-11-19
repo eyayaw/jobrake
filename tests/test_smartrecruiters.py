@@ -288,6 +288,7 @@ def test_details_fill_each_card_and_stop_when_one_fails(caplog):
 
 def test_postings_fetch_each_posting_once_and_key_it_by_reference():
     url = PRODUCT_EXPERT_URL
+    lowered = url.replace("BoschGroup", "boschgroup")
     slugged = f"{url}-product-industrialization-expert-ps-rbcw?trk=x"  # the posting's postingUrl
     shouted = "https://JOBS.SMARTRECRUITERS.COM/BoschGroup/744000158197889"
     board = "https://jobs.smartrecruiters.com/BoschGroup/"
@@ -304,13 +305,15 @@ def test_postings_fetch_each_posting_once_and_key_it_by_reference():
             "postings/4": network_down(),
         }
     )
-    references = [url, slugged, shouted, gone, malformed, closed, failed]
+    references = [lowered, url, slugged, shouted, gone, malformed, closed, failed]
     got = asyncio.run(smartrecruiters.postings(fetcher, references))
-    # Without a card, the record is the posting's alone, which names no department.
+    # Without a card, the record is the posting's alone, which names no department and spells
+    # its url as SmartRecruiters does, whatever the reference's spelling.
     # A 400 fails like a dropped connection, so its reference has no key.
     record = {**PRODUCT_EXPERT, "description": DESCRIPTION}
     del record["department"]
     assert got == {
+        lowered: record,
         url: record,
         slugged: record,
         shouted: record,
