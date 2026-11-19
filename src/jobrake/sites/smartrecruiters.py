@@ -3,7 +3,6 @@
 import logging
 import re
 from collections.abc import AsyncGenerator
-from datetime import UTC, datetime, timedelta
 from html import escape
 from typing import Annotated, Any
 from urllib.parse import quote, urlencode, urlsplit
@@ -12,7 +11,7 @@ from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, employment_type, make_job
 from jobrake.sites.postings import fill_details, postings_of
 from jobrake.sites.responses import collect, cut_short, json_page, parse_postings, read_json
-from jobrake.utils import as_dict, as_str, checked, finite, html_text
+from jobrake.utils import as_dict, as_str, checked, cutoff, finite, html_text
 
 logger = logging.getLogger(__name__)
 
@@ -127,13 +126,8 @@ def _filters(query: str, max_age_hours: int | None, *, remote: bool) -> dict[str
     params = {}
     if query:
         params["q"] = query
-    if max_age_hours:
-        try:
-            released_after = datetime.now(UTC) - timedelta(hours=max_age_hours)
-        except OverflowError:
-            pass  # A cutoff before year 1 excludes no posting, so the option stays out.
-        else:
-            params["releasedAfter"] = released_after.strftime("%Y-%m-%dT%H:%M:%SZ")
+    if max_age_hours and (released_after := cutoff(max_age_hours)):
+        params["releasedAfter"] = released_after.strftime("%Y-%m-%dT%H:%M:%SZ")
     if remote:
         params["locationType"] = "REMOTE"
     return params

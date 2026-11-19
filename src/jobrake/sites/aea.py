@@ -3,7 +3,7 @@
 import html
 import logging
 import xml.etree.ElementTree as ET
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from functools import partial
 from string import ascii_lowercase
 from typing import Annotated
@@ -14,7 +14,7 @@ lazy from bs4 import BeautifulSoup
 from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, make_job
 from jobrake.sites.responses import parse_postings, read_html, read_xml
-from jobrake.utils import checked, iso_date, menu_codes
+from jobrake.utils import checked, cutoff, iso_date, menu_codes
 
 logger = logging.getLogger(__name__)
 
@@ -184,13 +184,11 @@ async def search(
         fields |= {
             f"ListingsForm[{name}][{i}]": code for i, code in enumerate(dict.fromkeys(codes))
         }
-    if max_age_hours is not None:
-        now = datetime.now(UTC)
-        since = now - timedelta(hours=max_age_hours)
+    if max_age_hours and (since := cutoff(max_age_hours)):
         fields |= {
             "ListingsForm[recent_only][0][option]": "date_range",
             "ListingsForm[recent_only][0][from]": f"{since:%m/%d/%Y}",
-            "ListingsForm[recent_only][0][to]": f"{now:%m/%d/%Y}",
+            "ListingsForm[recent_only][0][to]": f"{datetime.now(UTC):%m/%d/%Y}",
         }
     logger.info("reading the aea listings page")
     page = await fetcher.fetch(f"{SEARCH_URL}?{urlencode(fields)}")

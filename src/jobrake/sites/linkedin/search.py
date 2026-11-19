@@ -2,6 +2,7 @@
 
 import logging
 from collections.abc import AsyncGenerator
+from fractions import Fraction
 from typing import Annotated
 from urllib.parse import urlencode, urlsplit
 
@@ -19,7 +20,8 @@ from .pages import WORKERS, posting_fields
 logger = logging.getLogger(__name__)
 
 MAX_START = 1000  # the guest API stops serving past this offset
-KM_PER_MILE = 1.609344
+# Exact, so a radius of any size converts without overflowing a float.
+KM_PER_MILE = Fraction("1.609344")
 
 
 def _parse_page(html: str) -> tuple[list[JobDict], int]:

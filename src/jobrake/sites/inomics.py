@@ -3,7 +3,6 @@
 import functools
 import json
 import logging
-import math
 import re
 from typing import Annotated, Any
 from urllib.parse import urlencode, urlsplit
@@ -268,7 +267,8 @@ async def search(
         # job=job asks for every category.
         "job": ",".join(dict.fromkeys(categories)) or "job",
         "orderBy": "relevance",
-        "trendingPage": math.ceil(results / CARDS_PER_PAGE),
+        # Ceiling division in integers, exact for a ``results`` of any size.
+        "trendingPage": -(-results // CARDS_PER_PAGE),
     }
     if keyword := query.strip():
         params["textsearch"] = keyword

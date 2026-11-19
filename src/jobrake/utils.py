@@ -6,7 +6,7 @@ import logging
 import math
 import re
 from collections.abc import Awaitable, Callable, Collection, Mapping
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from types import NoneType
 from typing import Annotated, Any, NamedTuple, Union, get_args, get_origin, overload
 
@@ -315,6 +315,18 @@ def iso_date(value: str | None) -> str | None:
         return datetime.fromisoformat(value).date().isoformat()
     except ValueError:
         logger.warning("not an ISO 8601 date: %r", value)
+        return None
+
+
+def cutoff(max_age_hours: int) -> datetime | None:
+    """
+    Return the UTC moment ``max_age_hours`` before now, the earliest a posting may date from.
+
+    Return ``None`` for an age that reaches back before the year 1, which excludes no posting.
+    """
+    try:
+        return datetime.now(UTC) - timedelta(hours=max_age_hours)
+    except OverflowError:
         return None
 
 
