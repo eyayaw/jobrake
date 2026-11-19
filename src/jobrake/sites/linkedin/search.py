@@ -67,8 +67,8 @@ async def _pages(
     Yield each page's cards until an empty page, or until ``MAX_START``, which warns.
 
     Raises:
-        Stopped: A page request failed after its retries, or its answer came from an address
-            outside the search endpoint.
+        Stopped: A page request failed after its retries, or its answer was not the search
+            endpoint's HTTP 200.
     """
     start = 0
     while start < MAX_START:
@@ -76,12 +76,12 @@ async def _pages(
         result = await paced_fetch(fetcher, f"{SEARCH_URL}?{urlencode(page)}")
         if result.error:
             raise Stopped(f"linkedin request failed: {result.error}")
-        # The search endpoint ends a search with an empty page, so a page from any other address
-        # stops it.
-        if urlsplit(result.url).path != urlsplit(SEARCH_URL).path:
+        # Only the search endpoint's HTTP 200 is a results page, and only one without cards ends
+        # a search.
+        if result.status != 200 or urlsplit(result.url).path != urlsplit(SEARCH_URL).path:
             raise Stopped(
-                f"linkedin answered the page at offset {start} from {result.url}, outside its "
-                "search endpoint, such as a login page. Wait a while, then rerun"
+                f"linkedin sent HTTP {result.status} from {result.url} for the page at offset "
+                f"{start}, not a results page. Wait a while, then rerun"
             )
         cards, raw = _parse_page(result.text)
         if not raw and start == 0 and params["geoId"]:
@@ -160,8 +160,8 @@ async def search(
     Results retain guest-search order and stop at ``results``.
 
     Raises:
-        Stopped: A request failed after its retries, a results page came from outside the search
-            endpoint, or a posting's details could not be fetched.
+        Stopped: A request failed after its retries, a results page was not the search endpoint's
+            HTTP 200, or a posting's details could not be fetched.
             ``partial`` holds the postings collected, with the details fetched so far,
             and ``failed`` the URLs of those whose read failed.
         ValueError: The location is missing or blank, or the geoid or a company ID uses characters

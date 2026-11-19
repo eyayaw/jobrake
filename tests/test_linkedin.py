@@ -97,10 +97,16 @@ def test_a_failed_page_stops_the_search_keeping_the_earlier_pages():
     assert len(fetcher.requests) == 1 + (1 + client.RETRIES)  # the second page's retries
 
 
-def test_a_page_from_outside_the_search_endpoint_stops_the_search_keeping_the_earlier_pages():
-    login = FetchResult("https://www.linkedin.com/login", 200, "<form></form>")
-    fetcher = PagedFetcher([linkedin_card("111"), login])
-    with pytest.raises(Stopped, match=r"from https://www\.linkedin\.com/login, outside") as stop:
+@pytest.mark.parametrize(
+    "answer",
+    [
+        FetchResult("https://www.linkedin.com/login", 200, "<form></form>"),
+        FetchResult("stub", 204),  # the endpoint's own path, without its 200
+    ],
+)
+def test_an_answer_other_than_the_endpoints_200_stops_the_search_keeping_the_earlier_pages(answer):
+    fetcher = PagedFetcher([linkedin_card("111"), answer])
+    with pytest.raises(Stopped, match="not a results page") as stop:
         asyncio.run(linkedin.search(fetcher, query="x", location="Seattle", results=5))
     assert [job["id"] for job in stop.value.partial] == ["111"]
 
