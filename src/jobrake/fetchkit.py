@@ -87,11 +87,10 @@ class HttpxFetcher:
         timeout = float(timeout)
         if not math.isfinite(timeout) or timeout <= 0:
             raise ValueError("timeout must be finite and positive")
-        self._client = httpx.AsyncClient(
-            timeout=timeout,
-            headers=_HEADERS | (headers or {}),
-            transport=transport,
-        )
+        self._client = httpx.AsyncClient(timeout=timeout, headers=_HEADERS, transport=transport)
+        # httpx.Headers matches names in any case, as HTTP does (RFC 9110, section 5.1, checked
+        # 2026-11-19), so a caller's "user-agent" replaces the default "User-Agent".
+        self._client.headers.update(headers or {})
 
     async def fetch(
         self,

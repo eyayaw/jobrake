@@ -47,6 +47,18 @@ def test_httpx_fetcher_gets_and_posts_json():
     assert (post.error, post.status, post.text) == ("HTTP 503", 503, "posted")
 
 
+def test_a_callers_header_replaces_the_default_whatever_its_case():
+    def respond(request):
+        return httpx.Response(200, text=json.dumps(request.headers.get_list("user-agent")))
+
+    async def run():
+        transport = httpx.MockTransport(respond)
+        async with HttpxFetcher(headers={"user-agent": "probe"}, transport=transport) as fetcher:
+            return await fetcher.fetch("https://example.test/")
+
+    assert json.loads(asyncio.run(run()).text) == ["probe"]
+
+
 @pytest.mark.parametrize(("payload", "method"), [(None, "GET"), ({"q": "x"}, "POST")])
 def test_redirect_following_can_be_disabled_for_one_request(payload, method):
     requests = []
