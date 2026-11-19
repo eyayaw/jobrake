@@ -342,7 +342,7 @@ def test_no_jobs_does_not_create_output(run_cli, stub_search, tmp_path):
     assert not out.exists()
 
 
-def test_closed_pipe_ends_quietly(run_cli, fake_site, monkeypatch):
+def test_closed_pipe_ends_quietly(run_cli, fake_site, monkeypatch, caplog):
     read_end, write_end = os.pipe()
     os.close(read_end)
     with os.fdopen(write_end, "w") as stdout:
@@ -355,6 +355,17 @@ def test_closed_pipe_ends_quietly(run_cli, fake_site, monkeypatch):
     with os.fdopen(write_end, "w") as stdout:
         monkeypatch.setattr(sys, "stdout", stdout)
         assert cli.main() == 1
+    assert "could not write" not in caplog.text
+
+
+def test_a_stdout_write_error_reports_and_fails(run_cli, monkeypatch, caplog):
+    class FullDisk(io.StringIO):
+        def write(self, text):
+            raise OSError(28, "No space left on device")
+
+    monkeypatch.setattr(sys, "stdout", FullDisk())
+    assert run_cli() == 1
+    assert "could not write stdout: [Errno 28] No space left on device" in caplog.text
 
 
 def test_invalid_output_fails_before_scraping(run_cli, stub_search, tmp_path, capsys):
