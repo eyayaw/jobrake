@@ -17,8 +17,9 @@ def column(value: str | None, width: int) -> str:
     return f"{(value or '?')[:width]:<{width + 1}}"
 
 
-async def main() -> None:
-    """Print a count and sample fields from each configured search."""
+async def main() -> int:
+    """Print a count and sample fields from each configured search, and return how many failed."""
+    failed = 0
     for site, place in PLACES.items():
         try:
             jobs = await scrape(site, query="economist", results=10, max_age_hours=168, **place)
@@ -31,7 +32,10 @@ async def main() -> None:
                 )
         except Exception as e:  # noqa: BLE001  a smoke run reports each site's failure and goes on
             print(f"{site}: FAILED {type(e).__name__}: {e}")
+            failed += 1
         await asyncio.sleep(3)
+    return failed
 
 
-asyncio.run(main())
+# A failed search makes the exit status nonzero, so a shell or scheduler sees it.
+raise SystemExit(1 if asyncio.run(main()) else 0)
