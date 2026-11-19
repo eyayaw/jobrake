@@ -1157,7 +1157,11 @@ def test_postings_overlap_page_reads_and_keep_reference_order(caplog):
     assert all(fetched(got, ref)["applicants"] == 200 for ref in references)
     progress = [record.progress for record in caplog.records if hasattr(record, "progress")]
     assert progress == [(n, 8) for n in range(9)]
-    assert asyncio.run(linkedin.postings(StubFetcher({}), references)) == got
+    caplog.clear()
+    with caplog.at_level(logging.INFO, logger="jobrake.sites.linkedin"):
+        assert asyncio.run(linkedin.postings(StubFetcher({}), references)) == got
+    # Progress counts the cached postings at the start.
+    assert [record.progress for record in caplog.records if hasattr(record, "progress")] == [(8, 8)]
 
 
 def test_a_persistent_429_cancels_unfinished_reads_and_keeps_completed_pages():
@@ -1457,16 +1461,13 @@ def test_postings_distrust_a_lookup_that_names_another_page():
 
 
 def test_postings_collapse_the_addresses_of_one_posting():
-    fetcher = StubFetcher({"economist-at-acme-111": ok(job_page(title="Economist"))})
-    references = [
-        CANONICAL,
-        "https://www.linkedin.com/jobs/view/economist-at-acme-111",
-        "https://uk.linkedin.com/jobs/view/economist-at-acme-111",
-        "111",
-    ]
+    page = f'<link rel="canonical" href="{CANONICAL}">' + job_page(title="Economist")
+    fetcher = StubFetcher({"economist-at-acme-111": ok(page)})
+    www = "https://www.linkedin.com/jobs/view/economist-at-acme-111"
+    references = [www, CANONICAL, "https://uk.linkedin.com/jobs/view/economist-at-acme-111", "111"]
     got = asyncio.run(linkedin.postings(fetcher, references))
-    # one posting, fetched once from the first reference
-    assert fetcher.requests == [in_en_us(CANONICAL)]
+    # One posting, read once from the first reference: the www page names the canonical one.
+    assert fetcher.requests == [in_en_us(www), in_en_us(CANONICAL)]
     assert list(got) == references
     assert all(job == got[CANONICAL] for job in got.values())
     assert fetched(got, "111")["url"] == CANONICAL
