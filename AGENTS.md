@@ -26,9 +26,9 @@ applicant tracking systems, and it depends on `httpx` and `bs4`.
   In the two packages, `search.py` builds requests and parses results, `client.py` holds the URLs
   and headers, plus LinkedIn's pacing, and `lookups.py` holds the lookups. Of the other sites,
   only AcademicTransfer paces its requests, waiting the crawl delay its robots.txt asks for before
-  each one, and only it, StepStone, and INOMICS send headers of their own. LinkedIn's `pages.py`
-  holds its reader of posting pages, which the posting loop runs with a fixed pool of workers,
-  and Indeed's `countries.py` maps ISO country codes to editions.
+  each request to its list API, and only it, StepStone, and INOMICS send headers of their own.
+  LinkedIn's `pages.py` holds its reader of posting pages, which the posting loop runs with a
+  fixed pool of workers, and Indeed's `countries.py` maps ISO country codes to editions.
 - `sites/responses.py`: the response reading the sites share. `read_json`, `read_xml`, and
   `read_html` raise `Stopped` for a failed request or an unreadable response, and the first two for
   an unknown board. `json_list` checks the posting list, `json_page` checks a page's list and its

@@ -159,7 +159,7 @@ jobrake aea search --jel J --max-age-hours 168
 jobrake inomics search -c de --category postdoc -d
 
 # AcademicTransfer ----
-## Academic vacancies in economics in the Netherlands, newest first
+## Scientific vacancies in economics, newest first
 jobrake academictransfer search -q economics --vacancy-type scientific
 ```
 

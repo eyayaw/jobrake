@@ -855,7 +855,7 @@ Each option in the table, given more than once, keeps the openings that match an
 and different options all apply.
 A search that takes one of these options first reads the site's list of filter values,
 because UN Careers ignores a value it does not know and then returns every opening.
-jobrake stops instead and names the closest values.
+jobrake stops instead and names the closest values, or the command that lists them all.
 A category makes the site drop the keyword, so a search takes `--query` or `--category`.
 To narrow the openings further, [pipe the results](#pipe-results) through `jq`.
 
