@@ -925,8 +925,8 @@ jobrake logs INFO records whose `progress` attribute holds `(done, total)`
 while a paged search reads its pages and while it fetches posting details.
 A search counts its postings toward `results`, or toward the site's own limit when that is smaller,
 and stops below `total` when the site runs out first.
-While it fetches LinkedIn details, jobrake reads posting pages concurrently,
-counts cached pages at the start, and advances progress as each read finishes.
+While it fetches details, jobrake counts cached postings at the start and advances progress as
+each read finishes. On LinkedIn it reads posting pages concurrently.
 The CLI draws its progress line from these records, and a handler of your own can do the same:
 
 ```python

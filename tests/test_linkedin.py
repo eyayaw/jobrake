@@ -1292,21 +1292,22 @@ def test_postings_reduce_a_url_to_its_page(suffix):
 
 
 def test_a_details_search_caches_the_page_without_its_card():
-    responses = {"seeMoreJobPostings": ok(linkedin_card("111")), "jobs/view/111": ok(job_page())}
+    page = job_page(title=" ")
+    responses = {"seeMoreJobPostings": ok(linkedin_card("111")), "jobs/view/111": ok(page)}
     jobs = asyncio.run(
         linkedin.search(
             StubFetcher(responses), query="x", location="Seattle", results=1, details=True
         )
     )
-    assert jobs[0]["date"] == "2026-08-01"  # the search keeps its card's date
+    # the page's date wins over the card's, and its blank title leaves the card's
+    assert (jobs[0]["date"], jobs[0]["title"]) == ("2026-08-05", "Economist")
     got = asyncio.run(linkedin.postings(StubFetcher({}), ["111"]))
-    assert fetched(got, "111")["date"] == "2026-08-05"  # the page's, as a cold fetch reads it
+    assert fetched(got, "111")["title"] is None  # the cached page holds no card value
     cards = StubFetcher({"seeMoreJobPostings": ok(linkedin_card("111"))})
     again = asyncio.run(
         linkedin.search(cards, query="x", location="Seattle", results=1, details=True)
     )
-    assert again[0]["date"] == "2026-08-01"  # a cached page keeps the card's date too
-    assert again[0]["locations"] == jobs[0]["locations"]  # and names its place as the card does
+    assert again == jobs  # a cached page fills the card as a fresh one does
 
 
 def test_postings_attempt_each_posting_once(caplog):
@@ -1458,13 +1459,13 @@ def test_postings_distrust_a_lookup_that_names_another_page():
 def test_postings_collapse_the_addresses_of_one_posting():
     fetcher = StubFetcher({"economist-at-acme-111": ok(job_page(title="Economist"))})
     references = [
-        "https://www.linkedin.com/jobs/view/economist-at-acme-111",
         CANONICAL,
+        "https://www.linkedin.com/jobs/view/economist-at-acme-111",
         "https://uk.linkedin.com/jobs/view/economist-at-acme-111",
         "111",
     ]
     got = asyncio.run(linkedin.postings(fetcher, references))
-    # one posting, fetched once from the first canonical address
+    # one posting, fetched once from the first reference
     assert fetcher.requests == [in_en_us(CANONICAL)]
     assert list(got) == references
     assert all(job == got[CANONICAL] for job in got.values())
@@ -1499,8 +1500,8 @@ def test_postings_keep_what_they_resolved_in_reference_order(caplog):
     assert list(got) == ["444", "222", "111"]  # reference order, the failure left out
     assert got["222"] is None
     assert [fetched(got, ref)["title"] for ref in ("444", "111")] == ["Other", "Economist"]
-    assert [record.message.split(".")[0] for record in caplog.records] == [
-        "skipping posting 333: connection reset",
+    assert [record.message for record in caplog.records] == [
+        f"skipping posting {FRAGMENT}/333: connection reset",
     ]
     # a rerun asks only about the postings it did not fetch: 444 and 111 come from the cache
     # with their URLs
@@ -1567,7 +1568,7 @@ def test_a_page_whose_canonical_link_names_another_posting_is_skipped_with_the_r
     fetcher = StubFetcher({CANONICAL: ok(f'<link rel="canonical" href="{OTHER}">' + job_page())})
     with caplog.at_level(logging.WARNING, logger="jobrake.sites.linkedin"):
         assert asyncio.run(linkedin.postings(fetcher, [CANONICAL])) == {}
-    assert f"skipping posting 111: its page names {OTHER} as canonical" in caplog.text
+    assert f"skipping posting {CANONICAL}: its page names {OTHER} as canonical" in caplog.text
 
 
 @pytest.mark.parametrize(
