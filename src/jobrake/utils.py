@@ -307,8 +307,7 @@ def iso_date(value: str | None) -> str | None:
     """
     Reduce an ISO 8601 date or timestamp to its calendar date.
 
-    Empty input returns ``None``. Unparseable text logs a warning and remains visible as its first
-    ten characters.
+    Empty input returns ``None``. Unparseable text logs a warning and returns ``None``.
     """
     if not value:
         return None
@@ -316,7 +315,7 @@ def iso_date(value: str | None) -> str | None:
         return datetime.fromisoformat(value).date().isoformat()
     except ValueError:
         logger.warning("not an ISO 8601 date: %r", value)
-        return value[:10]
+        return None
 
 
 def epoch_ms_to_iso(ms: object) -> str | None:

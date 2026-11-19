@@ -95,7 +95,7 @@ def test_epoch_ms_to_iso_drops_with_a_warning_what_cannot_be_milliseconds(caplog
         assert message in caplog.text
 
 
-def test_iso_date_passes_junk_through_with_a_warning(caplog):
+def test_iso_date_drops_junk_with_a_warning(caplog):
     with caplog.at_level(logging.WARNING, logger="jobrake.utils"):
-        assert iso_date("posted yesterday, allegedly") == "posted yes"
+        assert iso_date("posted yesterday, allegedly") is None
     assert any("ISO" in record.message for record in caplog.records)
