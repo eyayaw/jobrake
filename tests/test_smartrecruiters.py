@@ -185,6 +185,10 @@ def test_an_empty_board_returns_nothing_and_names_a_misspelling(caplog):
     assert asyncio.run(smartrecruiters.search(fetcher, board="BoshGroup")) == []
     assert "board 'BoshGroup' returned no postings" in caplog.text
     assert "check the identifier" in caplog.text
+    # A filter that matches nothing explains the empty answer.
+    caplog.clear()
+    assert asyncio.run(smartrecruiters.search(fetcher, board="BoshGroup", query="x")) == []
+    assert "check the identifier" not in caplog.text
 
 
 def test_a_failed_or_early_empty_page_stops_with_the_pages_before_it():

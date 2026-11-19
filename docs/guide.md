@@ -557,7 +557,8 @@ A token the site does not know stops the search with an error that says so,
 except on SmartRecruiters.
 SmartRecruiters answers a token it does not know as it answers a board with no postings,
 so jobrake cannot tell the two apart.
-Either way the search returns no postings and logs that the token may be misspelled.
+Either way the search returns no postings, and without a filter it logs that the token may be
+misspelled.
 Check the token against the board's address before you conclude that the employer has no openings.
 
 Workday has no board token. Pass the address of the employer's job search page instead,
