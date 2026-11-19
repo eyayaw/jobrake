@@ -19,15 +19,15 @@ applicant tracking systems, and it depends on `httpx` and `bs4`.
   `attributes`, `filters`, and `postings`, and the first line of its docstring is the site's CLI help.
   A site that exports `postings` defines `card(reference)`, outside `__all__`, and a site may
   define one for `identify` alone, as Indeed does. `card` reads one posting URL as the card it
-  names and raises `ValueError` for any other reference. `fetch_postings` reads every reference
-  with `card` before its first request, and LinkedIn's `postings` parses references as its `card`
-  does and also takes a bare posting ID.
+  names and raises `ValueError` for any other reference. `postings_of` builds a site's `postings`
+  from its `card` and its reader, and reads every reference with `card` before the first request.
+  LinkedIn's `postings` reads references as its `card` does and also takes a bare posting ID.
   In the two packages, `search.py` builds requests and parses results, `client.py` holds the URLs
   and headers, plus LinkedIn's pacing, and `lookups.py` holds the lookups. Of the other sites,
   only AcademicTransfer paces its requests, waiting the crawl delay its robots.txt asks for before
   each one, and only it, StepStone, and INOMICS send headers of their own. LinkedIn's `pages.py`
-  reads posting pages for `postings` and `details=True` with a fixed pool of workers, and Indeed's
-  `countries.py` maps ISO country codes to editions.
+  holds its reader of posting pages, which the posting loop runs with a fixed pool of workers,
+  and Indeed's `countries.py` maps ISO country codes to editions.
 - `sites/responses.py`: the response reading the sites share. `read_json`, `read_xml`, and
   `read_html` raise `Stopped` for a failed request or an unreadable response, and the first two for
   an unknown board. `json_list` checks the posting list, `json_page` checks a page's list and its
@@ -36,16 +36,17 @@ applicant tracking systems, and it depends on `httpx` and `bs4`.
   `collect` gathers the pages a paged search yields: it drops a repeated posting, logs progress,
   stops at `results`, and keeps the pages before a failure. A paged site yields its pages from a
   generator and leaves the rest to `collect`.
-- `sites/postings.py`: the posting loop of the sites that fill a card with one request per posting.
-  `fill_details` serves `details=True` and `fetch_postings` serves `postings`,
+- `sites/postings.py`: the posting loop of the sites that fetch each posting on its own,
+  LinkedIn among them. `fill_details` serves `details=True` and `postings_of` builds `postings`,
   and each site supplies only the reader of the posting at a URL, which raises `Stopped` for a
-  posting it could not read. A field the posting leaves empty keeps the card's value, the card
-  keeps its `site`, `id`, and `url`, and a cached posting costs no request. `stop_if_unread`
-  raises the `Stopped` of a details search, for LinkedIn too.
+  posting it could not read and `Halt` when no posting can be read for now. Each posting read
+  becomes a record of its own, which the cache stores and every card of the posting merges with.
+  The record wins wherever it has a value, the card keeps its `site`, `id`, and `url`,
+  and a cached posting costs no request.
 - `utils.py`: `site_options`, which reads the `Annotated` arguments of a site function, `checked`,
   which wraps it in a `Checked` that runs those checks and the site's validator on every call,
   or alone through `check`, `menu_codes`, which maps filter values to codes of a site's fixed menu,
-  `report_progress`, which `collect` and each posting loop call to log their progress records,
+  `report_progress`, which `collect` and the posting loop call to log their progress records,
   and the JSON value, text, number, and date helpers.
 - `models.py`: `JobDict`, its `Place`, `make_job`, `make_places`, and `Stopped`.
 - `fetchkit.py`: the `Fetcher` protocol, `FetchResult`, and `HttpxFetcher`.
@@ -114,6 +115,8 @@ and the contract test in `tests/test_scrape.py` need no edit.
   exports `postings(fetcher, references)`, so a caller can fill cards in the same run or a later
   one. A reference is at least a record's `url`. `postings` keys its result by the references given
   and maps a posting the site reports gone to `None`.
+  The posting outranks its card: with `details`, every field the posting has a value for replaces
+  the card's, `date` and `locations` among them.
 - The transport is the caller's. Code takes a `Fetcher` and leaves it open,
   and the caller that created it closes it. LinkedIn requests go through `paced_fetch`,
   which pins requests to LinkedIn's data centers in turn, paces them once per process,
