@@ -168,7 +168,8 @@ async def _pages(
             return
     if offset < total:
         raise cut_short(f"smartrecruiters board {token!r}", total, offset)
-    # A filter that matches nothing gets the same answer, so only a search without one hints.
+    # An unknown board and a filter that matches nothing both answer with no postings,
+    # so only a search without filters hints at a misspelling.
     if offset == 0 and params.keys() == {"limit"}:
         logger.info(
             "smartrecruiters board %r returned no postings. SmartRecruiters answers the same "

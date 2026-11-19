@@ -37,5 +37,4 @@ async def main() -> int:
     return failed
 
 
-# A failed search makes the exit status nonzero, so a shell or scheduler sees it.
 raise SystemExit(1 if asyncio.run(main()) else 0)
