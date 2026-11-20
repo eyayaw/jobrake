@@ -982,9 +982,7 @@ The CLI writes those jobs and exits 1. When there are none it writes nothing,
 so empty output such as `[]` always comes from a search that completed.
 Reaching a site's own result cap is not a failure.
 jobrake warns on stderr and returns what the site served.
-On Indeed, AcademicTransfer, AEA JOE, EconJobMarket, INOMICS, StepStone, UN Careers, and the
-employer boards,
-jobrake skips a posting it cannot read and leaves out a field it cannot read.
+On every site, jobrake skips a posting it cannot read and leaves out a field it cannot read.
 
 [Requests by site](reference.md#requests-by-site) gives each site's result cap, pacing, and retries.
 
