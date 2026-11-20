@@ -8,6 +8,7 @@ import logging
 import os
 import shlex
 import signal
+import subprocess
 import sys
 import types
 from pathlib import Path
@@ -115,6 +116,14 @@ def test_a_registered_site_gets_every_command_without_a_cli_change(
         {"name": "Utrecht", "region": "NL"},
         {"references": ["7"]},
     ]
+
+
+def test_a_list_option_shows_value_in_its_help(fake_site, monkeypatch, capsys):
+    # A list option takes names, codes, or IDs, depending on the site.
+    monkeypatch.setattr(sys, "argv", ["jobrake", "fakesite", "search", "-h"])
+    with pytest.raises(SystemExit):
+        cli.main()
+    assert "--tags VALUE [VALUE ...]" in capsys.readouterr().out
 
 
 @pytest.mark.parametrize(
@@ -283,7 +292,7 @@ def test_ctrl_c_ends_the_run_with_one_line_and_dies_of_sigint(
     assert sent[-2:] == [(signal.SIGINT, signal.SIG_DFL), (os.getpid(), signal.SIGINT)]
     assert capsys.readouterr().out == ""
     assert [record.getMessage() for record in caplog.records] == [
-        "interrupted, so no output was written"
+        "interrupted, so the output is missing or cut short"
     ]
 
 
@@ -358,14 +367,47 @@ def test_closed_pipe_ends_quietly(run_cli, fake_site, monkeypatch, caplog):
     assert "could not write" not in caplog.text
 
 
-def test_a_stdout_write_error_reports_and_fails(run_cli, monkeypatch, caplog):
-    class FullDisk(io.StringIO):
-        def write(self, text):
-            raise OSError(28, "No space left on device")
+class _FullDisk(io.StringIO):
+    def write(self, text):
+        raise OSError(28, "No space left on device")
 
-    monkeypatch.setattr(sys, "stdout", FullDisk())
+
+@pytest.mark.parametrize(
+    ("stdout", "error"),
+    [
+        (_FullDisk, "[Errno 28] No space left on device"),
+        # PYTHONIOENCODING=ascii sets such a stdout, which cannot encode the É in JOBS.
+        (lambda: io.TextIOWrapper(io.BytesIO(), encoding="ascii"), "'ascii' codec can't encode"),
+    ],
+)
+def test_a_stdout_write_error_reports_and_fails(stdout, error, run_cli, monkeypatch, caplog):
+    monkeypatch.setattr(sys, "stdout", stdout())
     assert run_cli() == 1
-    assert "could not write stdout: [Errno 28] No space left on device" in caplog.text
+    assert f"could not write stdout: {error}" in caplog.text
+
+
+def test_a_closed_stderr_leaves_a_finished_run_successful(tmp_path):
+    # A real process, because a failed stderr write surfaces in the flush at interpreter exit.
+    code = (
+        "import fakesite, sys\n"
+        "from jobrake import cli, sites\n"
+        "sites.SITES['fakesite'] = fakesite\n"
+        "sys.argv = ['jobrake', 'fakesite', 'search', '-q', 'x', '-n', '3']\n"
+        "raise SystemExit(cli.main())\n"
+    )
+    env = os.environ | {
+        "PYTHONPATH": str(Path(__file__).parent),
+        "JOBRAKE_CACHE_PATH": str(tmp_path / "jobrake.sqlite3"),
+    }
+    read_end, write_end = os.pipe()
+    os.close(read_end)
+    with (tmp_path / "jobs.json").open("w") as stdout:
+        done = subprocess.run(
+            [sys.executable, "-c", code], env=env, stdout=stdout, stderr=write_end, check=False
+        )
+    os.close(write_end)
+    assert done.returncode == 0
+    assert len(json.loads((tmp_path / "jobs.json").read_text(encoding="utf-8"))) == 3
 
 
 def test_invalid_output_fails_before_scraping(run_cli, stub_search, tmp_path, capsys):
@@ -454,28 +496,60 @@ def test_an_output_file_that_open_refused_stays(run_cli, monkeypatch, tmp_path, 
         assert kept.read() == b"another run"
 
 
-def test_an_output_write_error_removes_the_file_it_created(run_cli, monkeypatch, tmp_path, caplog):
+@pytest.fixture
+def cut_write(monkeypatch):
+    """Make an ``--output`` write take its first bytes and then raise the given exception."""
     real_open = Path.open
+
+    def cut(error):
+        class Cut:
+            def __init__(self, file):
+                self.file = file
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_):
+                self.file.close()
+
+            def write(self, text):
+                self.file.write(text[:10])
+                self.file.flush()
+                raise error
+
+        monkeypatch.setattr(Path, "open", lambda path, *a, **k: Cut(real_open(path, *a, **k)))
+
+    return cut
+
+
+@pytest.mark.parametrize(
+    ("error", "status", "message"),
+    [
+        (OSError(28, "No space left on device"), 1, "could not write {out}: [Errno 28] No space"),
+        (KeyboardInterrupt(), 130, "interrupted, so the output is missing or cut short"),
+    ],
+)
+def test_a_write_cut_short_removes_the_file_it_created(
+    error, status, message, run_cli, cut_write, monkeypatch, tmp_path, caplog
+):
+    monkeypatch.setattr(signal, "signal", lambda *_: None)
+    monkeypatch.setattr(os, "kill", lambda *_: None)
     out = tmp_path / "jobs.json"
-
-    class FullDisk:
-        """Take the first bytes of a write, then report a full disk."""
-
-        def __init__(self, file):
-            self.file = file
-
-        def __enter__(self):
-            return self
-
-        def __exit__(self, *_):
-            self.file.close()
-
-        def write(self, text):
-            self.file.write(text[:10])
-            self.file.flush()
-            raise OSError(28, "No space left on device")
-
-    monkeypatch.setattr(Path, "open", lambda path, *a, **k: FullDisk(real_open(path, *a, **k)))
-    assert run_cli("-o", str(out)) == 1
-    assert f"could not write {out}: [Errno 28] No space left on device" in caplog.text
+    cut_write(error)
+    assert run_cli("-o", str(out)) == status
+    assert message.format(out=out) in caplog.text
     assert not out.exists()
+
+
+def test_a_cut_short_file_that_cannot_be_removed_stays_with_a_warning(
+    run_cli, cut_write, monkeypatch, tmp_path, caplog
+):
+    def refuse(*_):
+        raise PermissionError(13, "Permission denied")
+
+    out = tmp_path / "jobs.json"
+    cut_write(OSError(28, "No space left on device"))
+    monkeypatch.setattr(Path, "unlink", refuse)
+    assert run_cli("-o", str(out)) == 1
+    assert out.exists()
+    assert f"could not remove {out}: [Errno 13] Permission denied. Delete it" in caplog.text

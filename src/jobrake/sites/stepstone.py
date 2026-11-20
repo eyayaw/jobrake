@@ -13,7 +13,14 @@ lazy from bs4 import BeautifulSoup
 from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, Stopped, employment_type, make_job
 from jobrake.sites.postings import fill_details, postings_of
-from jobrake.sites.responses import collect, cut_short, json_page, parse_postings, read_json
+from jobrake.sites.responses import (
+    collect,
+    cut_short,
+    json_ld,
+    json_page,
+    parse_postings,
+    read_json,
+)
 from jobrake.utils import as_dict, as_str, checked, cutoff, epoch_ms_to_iso, finite, html_text
 
 logger = logging.getLogger(__name__)
@@ -71,19 +78,6 @@ def _parse_card(card: dict[str, Any]) -> JobDict:
         expires_at=epoch_ms_to_iso(card.get("dateExpire")),
         site_data={"section": card.get("section"), "labels": card.get("listingLabels") or None},
     )
-
-
-def _job_posting(html: str) -> dict[str, Any] | None:
-    """Find the first schema.org ``JobPosting`` block on a posting page."""
-    soup = BeautifulSoup(html, "html.parser")
-    for block in soup.find_all("script", type="application/ld+json"):
-        try:
-            data = json.loads(block.string or "")
-        except ValueError:
-            continue
-        if isinstance(data, dict) and data.get("@type") == "JobPosting":
-            return data
-    return None
 
 
 # JobAdContent, a JS literal elsewhere on the page, carries what the schema.org block omits: the
@@ -166,7 +160,8 @@ async def _posting_fields(fetcher: Fetcher, url: str) -> dict[str, Any] | None:
         return None
     if result.error:
         raise Stopped(f"stepstone request for {url} failed: {result.error}")
-    posting = _job_posting(result.text)
+    page = BeautifulSoup(result.text, "html.parser")
+    posting = next(iter(json_ld(page, {"JobPosting"})), None)
     if posting is None:
         raise Stopped(
             f"stepstone served {url} without its posting data, so the site may be under "
@@ -198,7 +193,7 @@ def _params(
         params["what"] = query
     if location:
         params["where"] = location
-    if max_age_hours and (since := cutoff(max_age_hours)):
+    if since := cutoff(max_age_hours):
         params["sinceDate"] = int(since.timestamp() * 1000)
     if remote:
         # The web search's "Nur Home-Office" filter, applied by the API too (measured 2026-11-15).

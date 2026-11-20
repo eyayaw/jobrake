@@ -2,7 +2,6 @@
 
 import contextlib
 import functools
-import json
 import logging
 import re
 from html import unescape
@@ -14,6 +13,7 @@ lazy from bs4 import BeautifulSoup
 from jobrake.fetchkit import Fetcher, FetchResult
 from jobrake.models import JobDict, Place, Stopped, employment_type, make_job, make_places
 from jobrake.sites.postings import Halt, postings_of
+from jobrake.sites.responses import json_ld
 from jobrake.utils import as_dict, finite, html_text
 
 from .client import (
@@ -52,28 +52,6 @@ def _text_value(value: object) -> str | None:
 
 def _number_value(value: object) -> float | None:
     return finite(_first(value))
-
-
-def _job_posting(soup: BeautifulSoup) -> dict[str, Any]:
-    """Find the first ``JobPosting`` in page JSON-LD or an ``@graph``."""
-    for block in soup.find_all("script", type="application/ld+json"):
-        try:
-            data = json.loads(block.string or "")
-        except ValueError:
-            continue
-        queue = data if isinstance(data, list) else [data]
-        for item in queue:
-            if not isinstance(item, dict):
-                continue
-            kind = item.get("@type")
-            if kind == "JobPosting" or (isinstance(kind, list) and "JobPosting" in kind):
-                return item
-            graph = item.get("@graph")
-            if isinstance(graph, list):
-                queue.extend(graph)
-            elif graph:
-                queue.append(graph)
-    return {}
 
 
 def _tag_text(soup: BeautifulSoup, selector: str) -> str | None:
@@ -190,7 +168,7 @@ def _parse_posting(soup: BeautifulSoup) -> dict[str, Any]:
     which LinkedIn omits for country-level postings on every subdomain. Structured values win when
     both sources provide a field. Unsupported or malformed values are omitted.
     """
-    posting = _job_posting(soup)
+    posting = next(iter(json_ld(soup, {"JobPosting"})), {})
     org = _obj(posting.get("hiringOrganization"))
     pay = _obj(posting.get("baseSalary"))
     amount = _obj(pay.get("value"))

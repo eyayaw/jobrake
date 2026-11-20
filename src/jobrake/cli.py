@@ -76,6 +76,15 @@ class _StatusHandler(logging.StreamHandler[TextIO]):
         except Exception:  # noqa: BLE001  Handler.emit must not raise; handleError reports it
             self.handleError(record)
 
+    @override
+    def handleError(self, record: logging.LogRecord) -> None:
+        # A stderr whose reader is gone, as in `jobrake ... 2>&1 | head`, would fail again at exit
+        # and turn a finished run into exit status 120.
+        if isinstance(sys.exc_info()[1], OSError):
+            _silence(self.stream)
+        else:
+            super().handleError(record)
+
     def clear(self) -> None:
         """Erase the status line so a traceback starts on its own line."""
         if self._showing_progress:
@@ -191,7 +200,8 @@ def _write_stdout(text: str) -> int | None:
         # Flush now: when the output fits the pipe buffer, a closed pipe would otherwise surface at
         # interpreter exit, past this handler.
         sys.stdout.flush()
-    except OSError as error:
+    # A UnicodeEncodeError comes from a stdout encoding a user set, as PYTHONIOENCODING=ascii does.
+    except (OSError, UnicodeEncodeError) as error:
         # A closed pipe means the downstream reader (e.g. `jobrake ... | head`) stopped early, which
         # needs no message. Restoring the default SIGPIPE action would work only on Unix and would
         # change signal handling for the whole process, so the handling stays here.
@@ -199,13 +209,19 @@ def _write_stdout(text: str) -> int | None:
             logger.error(  # noqa: TRY400  the message says what failed
                 "could not write stdout: %s", error
             )
-        # Pointing stdout at /dev/null lets the exit-time flush discard what is still buffered.
-        # A stdout without a file descriptor, such as one a program embedding the CLI sets, has
-        # nothing to redirect.
-        with suppress(OSError), Path(os.devnull).open("w") as devnull:
-            os.dup2(devnull.fileno(), sys.stdout.fileno())
+        _silence(sys.stdout)
         return 1
     return None
+
+
+def _silence(stream: TextIO) -> None:
+    """
+    Point a stream that cannot be written at /dev/null, so the exit-time flush discards its buffer.
+
+    A stream without a file descriptor, such as one a program embedding the CLI sets, stays as is.
+    """
+    with suppress(OSError), Path(os.devnull).open("w") as devnull:
+        os.dup2(devnull.fileno(), stream.fileno())
 
 
 def _run(
@@ -304,25 +320,27 @@ def _write_jobs(args: argparse.Namespace, jobs: list[JobDict], fmt: str) -> int 
         logger.warning("no jobs found, so %s was not created", args.output)
         return None
     text = RENDERERS[fmt](jobs)
-    created = False
+    created = written = False
     try:
         with args.output.open("x", encoding="utf-8") as output:
             created = True
             output.write(text)
+        written = True
     except OSError as error:
         logger.error(  # noqa: TRY400  the message says what failed
             "could not write %s: %s", args.output, error
         )
-        if created:
-            # A partial document would block the rerun and pass for a finished one. Only a file
-            # this open created is removed, never one that open refused.
+        return 1
+    finally:
+        # A partial document, cut short by a write error or Ctrl-C, would block the rerun and pass
+        # for a finished one. Only a file this open created is removed, never one that open refused.
+        if created and not written:
             try:
                 args.output.unlink()
             except OSError as stuck:
                 logger.warning(
                     "could not remove %s: %s. Delete it before a rerun", args.output, stuck
                 )
-        return 1
     logger.info(ngettext("wrote %d job to %s", "wrote %d jobs to %s", count), count, args.output)
     return None
 
@@ -354,8 +372,17 @@ def main() -> int | None:
     fmt = _settle_output(command, args) if args.command in _WRITES_POSTINGS else None
     try:
         found, status = _run(command, args.site, function, options)
+        if fmt is None:
+            # A stopped lookup prints nothing.
+            return status or _write_hits(args.command, next(iter(options.values())), found)
+        if args.command == "postings":
+            found, status = _fetched(args, found)
+        if status and not found:
+            # An empty document would pass for a search that completed and found nothing.
+            return status
+        return _write_jobs(args, found, fmt) or status
     except KeyboardInterrupt:
-        logger.warning("interrupted, so no output was written")
+        logger.warning("interrupted, so the output is missing or cut short")
         if sys.platform != "win32":
             # Die of SIGINT, as CPython does for an uncaught KeyboardInterrupt
             # (https://bugs.python.org/issue1054041, checked 2026-11-14). A shell stops a loop only
@@ -366,15 +393,6 @@ def main() -> int | None:
     finally:
         # An exceptional exit would otherwise start its traceback beside the progress line.
         handler.clear()
-    if fmt is None:
-        # A stopped lookup prints nothing.
-        return status or _write_hits(args.command, next(iter(options.values())), found)
-    if args.command == "postings":
-        found, status = _fetched(args, found)
-    if status and not found:
-        # An empty document would pass for a search that completed and found nothing.
-        return status
-    return _write_jobs(args, found, fmt) or status
 
 
 if __name__ == "__main__":

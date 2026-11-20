@@ -126,7 +126,7 @@ def _filters(query: str, max_age_hours: int | None, *, remote: bool) -> dict[str
     params = {}
     if query:
         params["q"] = query
-    if max_age_hours and (released_after := cutoff(max_age_hours)):
+    if released_after := cutoff(max_age_hours):
         params["releasedAfter"] = released_after.strftime("%Y-%m-%dT%H:%M:%SZ")
     if remote:
         params["locationType"] = "REMOTE"

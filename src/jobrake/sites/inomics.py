@@ -1,7 +1,6 @@
 """Search the economics postings on INOMICS."""
 
 import functools
-import json
 import logging
 import re
 from typing import Annotated, Any
@@ -12,7 +11,7 @@ lazy from bs4 import BeautifulSoup, Tag
 from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, Stopped, make_job, workplace_type
 from jobrake.sites.postings import fill_details, postings_of
-from jobrake.sites.responses import parse_postings, read_html, read_json
+from jobrake.sites.responses import json_ld, parse_postings, read_html, read_json
 from jobrake.utils import as_dict, as_str, checked, html_text, menu_codes
 
 logger = logging.getLogger(__name__)
@@ -154,11 +153,11 @@ def _parse_card(card: Tag) -> JobDict:
 
 def _place(blocks: list[dict[str, Any]]) -> dict[str, Any]:
     """
-    Read the place a posting page's schema.org blocks give, which may have no part.
+    Read the place a posting page's schema.org blocks name, with every part None when none is named.
 
-    The block dated 2026/11/13 names the place as "city, country" with the country's ISO code, and
-    the other names the city and region. A page without the first gives the city and region of the
-    second, and a page without the second gives a place without its city.
+    The block with an ``addressCountry`` gives the place's label, "city, country", and the country's
+    ISO code, and the other block gives the city and region. Without the first, the place has no
+    label, so ``make_places`` names it from its city and region. Without the second, it has no city.
     """
     addresses = [as_dict(as_dict(block.get("jobLocation")).get("address")) for block in blocks]
     labeled = next((a for a in addresses if as_str(a.get("addressCountry"))), {})
@@ -168,7 +167,7 @@ def _place(blocks: list[dict[str, Any]]) -> dict[str, Any]:
 
     city = part("addressLocality", [a for a in addresses if a is not labeled])
     return {
-        "name": as_str(labeled.get("addressLocality")) or city,
+        "name": as_str(labeled.get("addressLocality")),
         "city": city,
         "region": part("addressRegion", addresses),
         "country_code": as_str(labeled.get("addressCountry")),
@@ -186,16 +185,7 @@ def _parse_page(page: BeautifulSoup) -> dict[str, Any]:
     Raises:
         TypeError: The page holds no posting block or no description.
     """
-    # JSON-LD allows an array at the top level, which holds no block read here (JSON-LD 1.1, sec. 9,
-    # checked 2026-11-17).
-    blocks = []
-    for script in page.find_all("script", type="application/ld+json"):
-        try:
-            data = json.loads(script.get_text())
-        except ValueError:
-            continue  # a script that does not parse leaves the page's other blocks readable
-        if isinstance(data, dict) and data.get("@type") in _POSTING_TYPES:
-            blocks.append(data)
+    blocks = json_ld(page, _POSTING_TYPES)
     description = page.select_one("div.post-description")
     if not blocks or description is None:
         raise TypeError("the page holds no posting block or no description")

@@ -95,8 +95,11 @@ The exceptions are LinkedIn, Workday, StepStone, and INOMICS with `--details`, w
 calendar date of the `posted_at` that the posting page gives.
 A page without one leaves the search result's date.
 Compare on `date`, and read `posted_at` for a time of day.
-A value a site gives that is not ISO 8601 logs a warning: `date` becomes `None`,
-and `posted_at` or `expires_at` is left out.
+jobrake reads a date or timestamp in the forms Python's `datetime.fromisoformat` takes, and keeps
+`posted_at` and `expires_at` as the site wrote them. Those forms are ISO 8601 without ordinal
+dates such as `2026-324` or reduced precision such as `2026-11`, and they take any one character
+in place of the `T`. Any other value logs a warning: `date` becomes `None`, and `posted_at` or
+`expires_at` is left out.
 
 ## Fields by site
 
@@ -450,13 +453,14 @@ place's `region` and `country_code`.
   and 2 named more than one. `--details` takes the hiring organization the job's page names.
 - `locations` holds one place, named as the card writes it, such as `Saarbrücken, Germany`, with
   its `city`, or the country alone, as 7 of the 112 gave. One of the 112 named no place.
-  The card names the country in words. `--details` takes the place from the job's page.
+  The card names the country in words. `--details` takes the place from the job's page when the
+  page names one.
   When the page gives the country's code, as all 15 jobs in Germany did, the place takes the
   page's label, which matched the card's, and adds its `region` and `country_code`.
   It has a `city` only when the page's other schema.org block names it, so a page without that
   block drops the city the card gave, as job 1555182's did earlier that day.
-  A page without the country's code gives its city and region and no country, such as `Umeå`
-  in `Västerbotten` where the card named `Umeå, Sweden`.
+  A page without the country's code gives its city and region and no country, named from both,
+  such as `Umeå, Västerbotten` where the card named `Umeå, Sweden`.
   Of 20 pages read on 2026-11-18, the 2 such pages were a scholarship and a program.
 - `date` and `posted_at` are the day the card shows as posted, which INOMICS moves to the day it
   reposts a job. The job's page dates a job the same way: on 2026-11-17, 17 of 17 pages that
@@ -575,7 +579,8 @@ the limit sooner.
 LinkedIn refuses some requests whatever the pace, up to a quarter of them in our tests.
 jobrake retries a 429 up to five times.
 If the 429 remains, the search raises `Stopped` with what it has collected so far.
-So does a results page that is not the search endpoint's HTTP 200, as a sign-in wall would be.
+So does an answer to a results request other than the search endpoint's HTTP 200, such as a
+sign-in page.
 No search in our tests met one.
 A `--details` search that could not fetch every posting's details raises `Stopped` too,
 holding every posting it found and, in `failed`, the URLs of the postings it could not fetch.

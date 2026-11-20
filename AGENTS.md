@@ -31,9 +31,11 @@ applicant tracking systems, and it depends on `httpx` and `bs4`.
   fixed pool of workers, and Indeed's `countries.py` maps ISO country codes to editions.
 - `sites/responses.py`: the response reading the sites share. `read_json`, `read_xml`, and
   `read_html` raise `Stopped` for a failed request or an unreadable response, and the first two for
-  an unknown board. `json_list` checks the posting list, `json_page` checks a page's list and its
-  total, `cut_short` builds the `Stopped` of an empty page before that total, and `parse_postings`
-  skips a malformed posting with a warning.
+  an unknown board. `UNREADABLE` holds the exceptions a parser raises for data it cannot read,
+  which those readers and `parse_postings` catch, and `json_ld` reads a page's schema.org nodes.
+  `json_list` checks the posting list, `json_page` checks a page's list and its total, `cut_short`
+  builds the `Stopped` of an empty page before that total, and `parse_postings` skips a malformed
+  posting with a warning.
   `collect` gathers the pages a paged search yields: it drops a repeated posting, logs progress,
   stops at `results`, and keeps the pages before a failure. A paged site yields its pages from a
   generator and leaves the rest to `collect`.
@@ -139,8 +141,9 @@ and the contract test in `tests/test_scrape.py` need no edit.
   a named posting could not be fetched, or the output cannot be written. A stopped search and a
   postings fetch with a failed reference still write the postings they got.
   With none they write nothing, so an empty document comes only from a command that completed.
-  Ctrl-C ends a command with one line and no output. The process then dies of SIGINT,
-  so a shell reports 130 and stops a loop that ran it.
+  A stderr that cannot be written, as when its reader closed the pipe, leaves the status as it was.
+  Ctrl-C ends a command with one line and removes an output file the command started.
+  The process then dies of SIGINT, so a shell reports 130 and stops a loop that ran it.
 
 ## Style
 

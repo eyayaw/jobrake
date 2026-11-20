@@ -125,10 +125,11 @@ def test_date_falls_back_to_the_posting_timestamp():
 
 
 def test_a_timestamp_that_is_not_iso_8601_is_left_out_with_a_warning(caplog):
-    job = make_job(site="x", id="1", url="u", posted_at="unknown", expires_at="next spring")
+    job = make_job(site="x", id="1", url="u", posted_at=1763000000, expires_at="next spring")
     assert "posted_at" not in job
     assert "expires_at" not in job
-    assert "not an ISO 8601 date: 'next spring'" in caplog.text
+    assert "jobrake reads: 1763000000" in caplog.text
+    assert "jobrake reads: 'next spring'" in caplog.text
 
 
 def test_a_lone_surrogate_in_any_text_becomes_the_replacement_character():

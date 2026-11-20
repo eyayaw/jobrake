@@ -188,9 +188,9 @@ def _detail(name: str, value: object) -> object:
     if name == "keywords":
         return _keywords(value)
     if name in ("posted_at", "expires_at"):
-        # An ISO 8601 timestamp or calendar date stays as given. Other text logs a warning and is
-        # left out.
-        return value if isinstance(value, str) and iso_date(value) else None
+        # A date or timestamp iso_date reads stays as given. iso_date logs a warning for any other
+        # value, which is left out.
+        return value if iso_date(value) else None
     return value
 
 
@@ -201,8 +201,8 @@ def make_job(**fields: Any) -> JobDict:
     Identity strings are stripped. A blank or missing summary value becomes ``None``,
     a missing ``locations`` becomes ``[]``, and a blank or ``None`` detail value is left out.
     ``date`` keeps the calendar date of the given ``date``, falling back to ``posted_at``.
-    A ``date``, ``posted_at``, or ``expires_at`` that is not ISO 8601 logs a warning and becomes
-    ``None`` or is left out.
+    A ``date``, ``posted_at``, or ``expires_at`` that ``iso_date`` cannot read logs a warning and
+    becomes ``None`` or is left out.
     A lone surrogate, which JSON can carry as an escape and UTF-8 cannot encode, becomes U+FFFD.
 
     Raises:

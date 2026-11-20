@@ -1,6 +1,7 @@
 """The JSON response reading the sites share, and how each board site names an unknown board."""
 
 import asyncio
+from urllib.parse import urlsplit
 
 import pytest
 from fakes import StubFetcher, network_down, not_found, ok
@@ -48,12 +49,18 @@ def test_a_failed_page_keeps_and_counts_the_postings_before_it():
 
 def test_a_malformed_posting_is_skipped_with_a_warning(caplog):
     def parse(posting):
-        return make_job(site="acme", id=posting.get("id"), url=posting.get("url"))
+        url = urlsplit(posting.get("url", "")).geturl()  # ValueError for a link it cannot read
+        return make_job(site="acme", id=posting.get("id"), url=url)
 
-    items = [{"id": None}, "not a posting", {"id": "1", "url": "https://acme.test/1"}]
+    items = [
+        {"id": None},
+        "not a posting",
+        {"id": "2", "url": "https://[broken/2"},
+        {"id": "1", "url": "https://acme.test/1"},
+    ]
     assert [job["id"] for job in parse_postings(items, parse, site="acme")] == ["1"]
     skipped = [r.name for r in caplog.records if "malformed acme posting" in r.getMessage()]
-    assert skipped == ["jobrake.sites.acme"] * 2
+    assert skipped == ["jobrake.sites.acme"] * 3
 
 
 @pytest.mark.parametrize("site", ["ashby", "greenhouse", "lever", "workable"])

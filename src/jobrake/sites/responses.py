@@ -3,7 +3,8 @@
 import json
 import logging
 import xml.etree.ElementTree as ET
-from collections.abc import AsyncGenerator, Callable
+from collections.abc import AsyncGenerator, Callable, Set
+from contextlib import suppress
 from gettext import ngettext
 from typing import Any
 
@@ -12,6 +13,11 @@ lazy from bs4 import BeautifulSoup
 from jobrake.fetchkit import FetchResult
 from jobrake.models import JobDict, Stopped
 from jobrake.utils import finite, report_progress
+
+# What a parser raises for site data it cannot read: a missing key or index, a value of the wrong
+# type, text that does not parse, such as JSON, a number, a date, or a URL, or JSON nested deeper
+# than Python's recursion limit.
+UNREADABLE = (TypeError, ValueError, LookupError, AttributeError, RecursionError)
 
 
 def _stop_if_failed(result: FetchResult, site: str, board: str | None, unknown: str | None) -> None:
@@ -39,8 +45,8 @@ def read_json[T](
     """
     Return what ``unpack`` takes from the JSON body of a site's response.
 
-    ``unpack`` raises ``KeyError``, ``TypeError``, or ``AttributeError`` for a body without what the
-    site needs. ``board`` names the board in the message of a failed request.
+    ``unpack`` raises one of ``UNREADABLE`` for a body without what the site needs.
+    ``board`` names the board in the message of a failed request.
     ``unknown`` is the message for a 404, which without it counts as a failed request.
 
     Raises:
@@ -48,10 +54,9 @@ def read_json[T](
             or the body is unreadable.
     """
     _stop_if_failed(result, site, board, unknown)
-    # ValueError covers JSONDecodeError and an integer longer than Python reads.
     try:
         return unpack(json.loads(result.text))
-    except (ValueError, KeyError, TypeError, AttributeError) as error:
+    except UNREADABLE as error:
         # Workday answers 200 with its maintenance page while a data center is down (measured
         # 2026-11-14 on two career sites).
         if result.text.lstrip().startswith("<"):
@@ -73,8 +78,8 @@ def read_xml[T](
     """
     Return what ``unpack`` takes from the root element of a site's XML response.
 
-    ``unpack`` raises ``TypeError`` for a document without what the site needs. ``board`` and
-    ``unknown`` work as in ``read_json``.
+    ``unpack`` raises one of ``UNREADABLE`` for a document without what the site needs.
+    ``board`` and ``unknown`` work as in ``read_json``.
 
     Raises:
         Stopped: The site answered 404 and ``unknown`` is given, the request failed,
@@ -85,7 +90,7 @@ def read_xml[T](
     # (https://docs.python.org/3/library/xml.html, 2026-11-15).
     try:
         return unpack(ET.fromstring(result.text))
-    except (ET.ParseError, TypeError) as error:
+    except (ET.ParseError, *UNREADABLE) as error:
         raise _unreadable(site, error) from error
 
 
@@ -93,8 +98,7 @@ def read_html[T](result: FetchResult, unpack: Callable[[BeautifulSoup], T], *, s
     """
     Return what ``unpack`` takes from the HTML page of a site's response.
 
-    ``unpack`` raises ``TypeError`` for a page without what the site needs, and ``ValueError``
-    or ``LookupError`` for JSON the page embeds that does not parse or lacks an entry.
+    ``unpack`` raises one of ``UNREADABLE`` for a page without what the site needs.
 
     Raises:
         Stopped: The request failed or the page is unreadable.
@@ -102,8 +106,35 @@ def read_html[T](result: FetchResult, unpack: Callable[[BeautifulSoup], T], *, s
     _stop_if_failed(result, site, None, None)
     try:
         return unpack(BeautifulSoup(result.text, "html.parser"))
-    except (TypeError, ValueError, LookupError) as error:
+    except UNREADABLE as error:
         raise _unreadable(site, error) from error
+
+
+def json_ld(page: BeautifulSoup, types: Set[str]) -> list[dict[str, Any]]:
+    """
+    Return the page's JSON-LD nodes whose ``@type`` names one of ``types``, in page order.
+
+    A node may head a script, sit in a top-level array, or sit in an ``@graph``, and its ``@type``
+    may be a list (JSON-LD 1.1, sections 3.5, 4.9, and 9, checked 2026-11-20). A script that does
+    not parse is skipped, so the page's other nodes stay readable.
+    """
+    # A stack, so the nodes come out in document order without recursing into the page's nesting.
+    stack: list[Any] = []
+    for script in reversed(page.find_all("script", type="application/ld+json")):
+        with suppress(ValueError, RecursionError):
+            stack.append(json.loads(script.get_text()))
+    nodes = []
+    while stack:
+        node = stack.pop()
+        if isinstance(node, list):
+            stack.extend(reversed(node))
+        elif isinstance(node, dict):
+            kind = node.get("@type")
+            kinds = kind if isinstance(kind, list) else [kind]
+            if not types.isdisjoint(k for k in kinds if isinstance(k, str)):
+                nodes.append(node)
+            stack.append(node.get("@graph"))
+    return nodes
 
 
 def json_list(payload: Any, key: str | None = None) -> list[Any]:  # noqa: ANN401  any decoded JSON, which json_list checks
@@ -154,8 +185,8 @@ def parse_postings(
     """
     Parse each item of a site's posting list, skipping one that ``parse`` rejects.
 
-    ``parse`` raises ``TypeError`` or ``AttributeError`` for a malformed item,
-    which is left out of the result and logged as a warning.
+    ``parse`` raises one of ``UNREADABLE`` for a malformed item, which is left out of the result
+    and logged as a warning.
     """
     # The site's own logger, so a handler set on one site still sees its warnings.
     logger = logging.getLogger(f"jobrake.sites.{site}")
@@ -163,7 +194,7 @@ def parse_postings(
     for item in items:
         try:
             jobs.append(parse(item))
-        except (TypeError, AttributeError) as error:
+        except UNREADABLE as error:
             logger.warning("skipping malformed %s posting: %r", site, error)
     return jobs
 

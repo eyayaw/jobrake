@@ -6,6 +6,7 @@ import logging
 import math
 import re
 from collections.abc import Awaitable, Callable, Collection, Mapping
+from contextlib import suppress
 from datetime import UTC, datetime, timedelta
 from types import NoneType
 from typing import Annotated, Any, NamedTuple, Union, get_args, get_origin, overload
@@ -152,6 +153,12 @@ def _check(options: dict[str, Option], given: dict[str, object]) -> None:
         if not accepts(value):
             expected = description + (" or None" if option.optional else "")
             raise TypeError(f"{name} must be {expected}, got {value!r}")
+        # A request carries a number as text, which Python refuses past 4,300 digits by default.
+        if isinstance(value, int):
+            try:
+                str(value)
+            except ValueError:
+                raise ValueError(f"{name} is too large to send in a request") from None
         minimum = _MINIMUMS.get(name)
         if minimum is not None and isinstance(value, int) and value < minimum:
             raise ValueError(f"{name} ({value}) must be at least {minimum}")
@@ -303,27 +310,31 @@ def as_dict(value: object) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
 
-def iso_date(value: str | None) -> str | None:
+def iso_date(value: object) -> str | None:
     """
     Reduce an ISO 8601 date or timestamp to its calendar date.
 
-    Empty input returns ``None``. Unparseable text logs a warning and returns ``None``.
+    ``None`` and empty text return ``None``. Any other value that ``datetime.fromisoformat`` cannot
+    read, an ordinal date among them, logs a warning and returns ``None``.
     """
-    if not value:
+    if value is None or value == "":
         return None
-    try:
-        return datetime.fromisoformat(value).date().isoformat()
-    except ValueError:
-        logger.warning("not an ISO 8601 date: %r", value)
-        return None
+    if isinstance(value, str):
+        with suppress(ValueError):
+            return datetime.fromisoformat(value).date().isoformat()
+    logger.warning("not an ISO 8601 date or timestamp jobrake reads: %r", value)
+    return None
 
 
-def cutoff(max_age_hours: int) -> datetime | None:
+def cutoff(max_age_hours: int | None) -> datetime | None:
     """
     Return the UTC moment ``max_age_hours`` before now, the earliest a posting may date from.
 
-    Return ``None`` for an age that reaches back before the year 1, which excludes no posting.
+    Return ``None`` for no age, or for one that reaches back before the year 1, as neither
+    excludes a posting.
     """
+    if max_age_hours is None:
+        return None
     try:
         return datetime.now(UTC) - timedelta(hours=max_age_hours)
     except OverflowError:
