@@ -314,15 +314,12 @@ def iso_date(value: object) -> str | None:
     """
     Reduce an ISO 8601 date or timestamp to its calendar date.
 
-    ``None`` and empty text return ``None``. Any other value that ``datetime.fromisoformat`` cannot
-    read, an ordinal date among them, logs a warning and returns ``None``.
+    Any value that ``datetime.fromisoformat`` cannot read, an ordinal date among them, gives
+    ``None``.
     """
-    if value is None or value == "":
-        return None
     if isinstance(value, str):
         with suppress(ValueError):
             return datetime.fromisoformat(value).date().isoformat()
-    logger.warning("not an ISO 8601 date or timestamp jobrake reads: %r", value)
     return None
 
 
