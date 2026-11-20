@@ -184,19 +184,25 @@ def _write_stdout(text: str) -> int | None:
     Write a command's data output to stdout.
 
     Returns:
-        ``1`` when the downstream reader has closed the pipe. ``None`` otherwise.
+        ``1`` when the write fails, a closed pipe included. ``None`` otherwise.
     """
     try:
         sys.stdout.write(text)
         # Flush now: when the output fits the pipe buffer, a closed pipe would otherwise surface at
         # interpreter exit, past this handler.
         sys.stdout.flush()
-    except BrokenPipeError:
-        # The downstream reader (e.g. `jobrake ... | head`) stopped early. Restoring the default
-        # SIGPIPE action would work only on Unix and would change signal handling for the whole
-        # process, so the handling stays here. Pointing stdout at /dev/null keeps the exit-time
-        # flush quiet.
-        with Path(os.devnull).open("w") as devnull:
+    except OSError as error:
+        # A closed pipe means the downstream reader (e.g. `jobrake ... | head`) stopped early, which
+        # needs no message. Restoring the default SIGPIPE action would work only on Unix and would
+        # change signal handling for the whole process, so the handling stays here.
+        if not isinstance(error, BrokenPipeError):
+            logger.error(  # noqa: TRY400  the message says what failed
+                "could not write stdout: %s", error
+            )
+        # Pointing stdout at /dev/null lets the exit-time flush discard what is still buffered.
+        # A stdout without a file descriptor, such as one a program embedding the CLI sets, has
+        # nothing to redirect.
+        with suppress(OSError), Path(os.devnull).open("w") as devnull:
             os.dup2(devnull.fileno(), sys.stdout.fileno())
         return 1
     return None
@@ -288,7 +294,7 @@ def _write_jobs(args: argparse.Namespace, jobs: list[JobDict], fmt: str) -> int 
     Render jobs to stdout or to the output file.
 
     Returns:
-        ``1`` when stdout closes early or the file cannot be written. ``None`` otherwise.
+        ``1`` when stdout or the file cannot be written. ``None`` otherwise.
     """
     count = len(jobs)
     if args.output is None:
@@ -297,13 +303,25 @@ def _write_jobs(args: argparse.Namespace, jobs: list[JobDict], fmt: str) -> int 
     if not jobs:
         logger.warning("no jobs found, so %s was not created", args.output)
         return None
+    text = RENDERERS[fmt](jobs)
+    created = False
     try:
         with args.output.open("x", encoding="utf-8") as output:
-            output.write(RENDERERS[fmt](jobs))
+            created = True
+            output.write(text)
     except OSError as error:
         logger.error(  # noqa: TRY400  the message says what failed
             "could not write %s: %s", args.output, error
         )
+        if created:
+            # A partial document would block the rerun and pass for a finished one. Only a file
+            # this open created is removed, never one that open refused.
+            try:
+                args.output.unlink()
+            except OSError as stuck:
+                logger.warning(
+                    "could not remove %s: %s. Delete it before a rerun", args.output, stuck
+                )
         return 1
     logger.info(ngettext("wrote %d job to %s", "wrote %d jobs to %s", count), count, args.output)
     return None
@@ -315,7 +333,7 @@ def main() -> int | None:
 
     Returns:
         ``1`` when a search or lookup stops on a failed request, a named posting could not be
-        fetched, stdout closes early, or the output file cannot be written.
+        fetched, or stdout or the output file cannot be written.
         ``130`` when Ctrl-C interrupts the run on Windows. Elsewhere the process dies of SIGINT
         instead. Normal completion returns ``None``.
     """
