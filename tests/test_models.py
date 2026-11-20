@@ -124,6 +124,13 @@ def test_date_falls_back_to_the_posting_timestamp():
     assert job["posted_at"] == "2026-08-05T08:04:27.000Z"  # kept whole
 
 
+def test_a_timestamp_that_is_not_iso_8601_is_left_out_with_a_warning(caplog):
+    job = make_job(site="x", id="1", url="u", posted_at="unknown", expires_at="next spring")
+    assert "posted_at" not in job
+    assert "expires_at" not in job
+    assert "not an ISO 8601 date: 'next spring'" in caplog.text
+
+
 def test_a_lone_surrogate_in_any_text_becomes_the_replacement_character():
     # JSON can carry half of a surrogate pair as an escape, and UTF-8 cannot encode it.
     half = json.loads('"Engineer \\ud83d"')
