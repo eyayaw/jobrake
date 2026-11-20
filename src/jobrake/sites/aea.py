@@ -185,7 +185,7 @@ async def search(
         fields |= {
             f"ListingsForm[{name}][{i}]": code for i, code in enumerate(dict.fromkeys(codes))
         }
-    if max_age_hours and (since := cutoff(max_age_hours)):
+    if since := cutoff(max_age_hours):
         fields |= {
             "ListingsForm[recent_only][0][option]": "date_range",
             "ListingsForm[recent_only][0][from]": f"{since:%m/%d/%Y}",

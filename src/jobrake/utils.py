@@ -326,12 +326,15 @@ def iso_date(value: object) -> str | None:
     return None
 
 
-def cutoff(max_age_hours: int) -> datetime | None:
+def cutoff(max_age_hours: int | None) -> datetime | None:
     """
     Return the UTC moment ``max_age_hours`` before now, the earliest a posting may date from.
 
-    Return ``None`` for an age that reaches back before the year 1, which excludes no posting.
+    Return ``None`` for no age, or for one that reaches back before the year 1, as neither
+    excludes a posting.
     """
+    if max_age_hours is None:
+        return None
     try:
         return datetime.now(UTC) - timedelta(hours=max_age_hours)
     except OverflowError:

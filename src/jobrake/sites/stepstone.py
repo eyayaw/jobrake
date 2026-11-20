@@ -193,7 +193,7 @@ def _params(
         params["what"] = query
     if location:
         params["where"] = location
-    if max_age_hours and (since := cutoff(max_age_hours)):
+    if since := cutoff(max_age_hours):
         params["sinceDate"] = int(since.timestamp() * 1000)
     if remote:
         # The web search's "Nur Home-Office" filter, applied by the API too (measured 2026-11-15).
