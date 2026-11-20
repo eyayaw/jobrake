@@ -177,10 +177,12 @@ def test_details_date_a_posting_by_its_slash_dated_block_and_fill_the_card_from_
 
 
 def test_postings_reads_both_page_types_and_leaves_out_a_page_it_cannot_read():
-    # JSON-LD allows a block to be an array, as this page's RegisterAction is here, and a script
-    # that does not parse leaves the page's posting blocks readable.
-    arrayed = f"{_LD}{{</script>" + PAGE.replace(
-        '{"@type": "RegisterAction"}', '[{"@type": "RegisterAction"}]'
+    # JSON-LD allows a block to be an array and a type to be a list, as this page's RegisterAction
+    # has here. A script that does not parse, or that nests deeper than Python reads, leaves the
+    # page's posting blocks readable.
+    deep = "[" * 100_000 + "]" * 100_000
+    arrayed = f"{_LD}{{</script>{_LD}{deep}</script>" + PAGE.replace(
+        '{"@type": "RegisterAction"}', '[{"@type": ["RegisterAction", "Thing"]}]'
     )
     fetcher = StubFetcher(
         {

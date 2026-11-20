@@ -1,7 +1,6 @@
 """Search the economics postings on INOMICS."""
 
 import functools
-import json
 import logging
 import re
 from typing import Annotated, Any
@@ -12,7 +11,7 @@ lazy from bs4 import BeautifulSoup, Tag
 from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, Stopped, make_job, workplace_type
 from jobrake.sites.postings import fill_details, postings_of
-from jobrake.sites.responses import parse_postings, read_html, read_json
+from jobrake.sites.responses import json_ld, parse_postings, read_html, read_json
 from jobrake.utils import as_dict, as_str, checked, html_text, menu_codes
 
 logger = logging.getLogger(__name__)
@@ -186,16 +185,7 @@ def _parse_page(page: BeautifulSoup) -> dict[str, Any]:
     Raises:
         TypeError: The page holds no posting block or no description.
     """
-    # JSON-LD allows an array at the top level, which holds no block read here (JSON-LD 1.1, sec. 9,
-    # checked 2026-11-17).
-    blocks = []
-    for script in page.find_all("script", type="application/ld+json"):
-        try:
-            data = json.loads(script.get_text())
-        except ValueError:
-            continue  # a script that does not parse leaves the page's other blocks readable
-        if isinstance(data, dict) and data.get("@type") in _POSTING_TYPES:
-            blocks.append(data)
+    blocks = json_ld(page, _POSTING_TYPES)
     description = page.select_one("div.post-description")
     if not blocks or description is None:
         raise TypeError("the page holds no posting block or no description")

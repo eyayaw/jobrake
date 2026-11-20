@@ -32,7 +32,7 @@ applicant tracking systems, and it depends on `httpx` and `bs4`.
 - `sites/responses.py`: the response reading the sites share. `read_json`, `read_xml`, and
   `read_html` raise `Stopped` for a failed request or an unreadable response, and the first two for
   an unknown board. `UNREADABLE` holds the exceptions a parser raises for data it cannot read,
-  which those readers and `parse_postings` catch.
+  which those readers and `parse_postings` catch, and `json_ld` reads a page's schema.org nodes.
   `json_list` checks the posting list, `json_page` checks a page's list and its total, `cut_short`
   builds the `Stopped` of an empty page before that total, and `parse_postings` skips a malformed
   posting with a warning.

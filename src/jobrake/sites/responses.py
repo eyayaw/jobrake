@@ -3,7 +3,8 @@
 import json
 import logging
 import xml.etree.ElementTree as ET
-from collections.abc import AsyncGenerator, Callable
+from collections.abc import AsyncGenerator, Callable, Set
+from contextlib import suppress
 from gettext import ngettext
 from typing import Any
 
@@ -107,6 +108,33 @@ def read_html[T](result: FetchResult, unpack: Callable[[BeautifulSoup], T], *, s
         return unpack(BeautifulSoup(result.text, "html.parser"))
     except UNREADABLE as error:
         raise _unreadable(site, error) from error
+
+
+def json_ld(page: BeautifulSoup, types: Set[str]) -> list[dict[str, Any]]:
+    """
+    Return the page's JSON-LD nodes whose ``@type`` names one of ``types``, in page order.
+
+    A node may head a script, sit in a top-level array, or sit in an ``@graph``, and its ``@type``
+    may be a list (JSON-LD 1.1, sections 3.5, 4.9, and 9, checked 2026-11-20). A script that does
+    not parse is skipped, so the page's other nodes stay readable.
+    """
+    # A stack, so the nodes come out in document order without recursing into the page's nesting.
+    stack: list[Any] = []
+    for script in reversed(page.find_all("script", type="application/ld+json")):
+        with suppress(ValueError, RecursionError):
+            stack.append(json.loads(script.get_text()))
+    nodes = []
+    while stack:
+        node = stack.pop()
+        if isinstance(node, list):
+            stack.extend(reversed(node))
+        elif isinstance(node, dict):
+            kind = node.get("@type")
+            kinds = kind if isinstance(kind, list) else [kind]
+            if not types.isdisjoint(k for k in kinds if isinstance(k, str)):
+                nodes.append(node)
+            stack.append(node.get("@graph"))
+    return nodes
 
 
 def json_list(payload: Any, key: str | None = None) -> list[Any]:  # noqa: ANN401  any decoded JSON, which json_list checks
