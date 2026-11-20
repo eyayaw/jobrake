@@ -386,12 +386,16 @@ def test_a_stdout_write_error_reports_and_fails(stdout, error, run_cli, monkeypa
     assert f"could not write stdout: {error}" in caplog.text
 
 
-def test_a_closed_stderr_leaves_a_finished_run_successful(tmp_path):
+@pytest.mark.parametrize(("crash", "status", "written"), [(False, 0, 3), (True, 1, 0)])
+def test_a_closed_stderr_leaves_the_exit_status_of_a_run_or_a_crash(
+    tmp_path, crash, status, written
+):
     # A real process, because a failed stderr write surfaces in the flush at interpreter exit.
     code = (
         "import fakesite, sys\n"
         "from jobrake import cli, sites\n"
         "sites.SITES['fakesite'] = fakesite\n"
+        f"cli.HttpxFetcher = {'None' if crash else 'cli.HttpxFetcher'}\n"
         "sys.argv = ['jobrake', 'fakesite', 'search', '-q', 'x', '-n', '3']\n"
         "raise SystemExit(cli.main())\n"
     )
@@ -406,8 +410,38 @@ def test_a_closed_stderr_leaves_a_finished_run_successful(tmp_path):
             [sys.executable, "-c", code], env=env, stdout=stdout, stderr=write_end, check=False
         )
     os.close(write_end)
-    assert done.returncode == 0
-    assert len(json.loads((tmp_path / "jobs.json").read_text(encoding="utf-8"))) == 3
+    assert done.returncode == status
+    output = (tmp_path / "jobs.json").read_text(encoding="utf-8")
+    assert len(json.loads(output or "[]")) == written
+
+
+_CLI = [sys.executable, "-m", "jobrake.cli"]
+_CLOSED_BY_CALLER = (
+    "import sys\nfrom jobrake import cli\nsys.argv = ['jobrake', '--version']\n"
+    "try:\n    cli.main()\nexcept SystemExit:\n    sys.stdout.close()\n"
+)
+
+
+@pytest.mark.parametrize(
+    ("command", "dead_pipe", "status"),
+    [
+        ([*_CLI, "-h"], "stdout", 0),
+        ([*_CLI, "bogus"], "stderr", 2),
+        (["sh", "-c", 'exec "$@" >&-', "sh", *_CLI, "-h"], None, 0),  # Python makes stdout None
+        ([sys.executable, "-c", _CLOSED_BY_CALLER], None, 0),  # a program embedding the CLI
+    ],
+)
+def test_a_closed_stream_leaves_the_exit_status_and_stderr_clean(command, dead_pipe, status):
+    # A real process, because argparse's output fails in the flush at interpreter exit, and an
+    # error in an exit hook shows only on stderr.
+    read_end, write_end = os.pipe()
+    os.close(read_end)
+    stdout = write_end if dead_pipe == "stdout" else subprocess.DEVNULL
+    stderr = write_end if dead_pipe == "stderr" else subprocess.PIPE
+    done = subprocess.run(command, stdout=stdout, stderr=stderr, check=False)
+    os.close(write_end)
+    assert done.returncode == status
+    assert b"Exception ignored" not in (done.stderr or b"")
 
 
 def test_invalid_output_fails_before_scraping(run_cli, stub_search, tmp_path, capsys):

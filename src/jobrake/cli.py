@@ -2,6 +2,7 @@
 
 import argparse
 import asyncio
+import atexit
 import inspect
 import json
 import logging
@@ -75,15 +76,6 @@ class _StatusHandler(logging.StreamHandler[TextIO]):
                 self.flush()
         except Exception:  # noqa: BLE001  Handler.emit must not raise; handleError reports it
             self.handleError(record)
-
-    @override
-    def handleError(self, record: logging.LogRecord) -> None:
-        # A stderr whose reader is gone, as in `jobrake ... 2>&1 | head`, would fail again at exit
-        # and turn a finished run into exit status 120.
-        if isinstance(sys.exc_info()[1], OSError):
-            _silence(self.stream)
-        else:
-            super().handleError(record)
 
     def clear(self) -> None:
         """Erase the status line so a traceback starts on its own line."""
@@ -209,6 +201,7 @@ def _write_stdout(text: str) -> int | None:
             logger.error(  # noqa: TRY400  the message says what failed
                 "could not write stdout: %s", error
             )
+        # Discard the unwritten rest, so the flush at exit cannot fail on it again and exit 120.
         _silence(sys.stdout)
         return 1
     return None
@@ -216,12 +209,32 @@ def _write_stdout(text: str) -> int | None:
 
 def _silence(stream: TextIO) -> None:
     """
-    Point a stream that cannot be written at /dev/null, so the exit-time flush discards its buffer.
+    Point a stream at /dev/null, so a later flush discards what it could not write.
 
     A stream without a file descriptor, such as one a program embedding the CLI sets, stays as is.
     """
     with suppress(OSError), Path(os.devnull).open("w") as devnull:
         os.dup2(devnull.fileno(), stream.fileno())
+
+
+def _settle_streams() -> None:
+    """
+    Flush stdout and stderr before the interpreter's own flush, silencing a closed pipe.
+
+    A closed pipe would fail the interpreter's flush, after help, an error, a traceback, or data
+    alike, and turn the exit status into 120. On stdout only a closed pipe is silenced, so another
+    failure, such as a full disk under help, still shows. A stderr failure has nowhere to show.
+    """
+    for stream, quiet in ((sys.stdout, BrokenPipeError), (sys.stderr, OSError)):
+        # A stream closed at startup is None, and the interpreter skips one a caller closed.
+        if stream is None or stream.closed:
+            continue
+        try:
+            stream.flush()
+        except OSError as error:
+            # The interpreter's flush reports any other failure.
+            if isinstance(error, quiet):
+                _silence(stream)
 
 
 def _run(
@@ -355,6 +368,9 @@ def main() -> int | None:
         ``130`` when Ctrl-C interrupts the run on Windows. Elsewhere the process dies of SIGINT
         instead. Normal completion returns ``None``.
     """
+    # Once per process, however often a test calls main.
+    atexit.unregister(_settle_streams)
+    atexit.register(_settle_streams)
     parser = _build_parser()
     args = parser.parse_args()
     # Progress and warnings go to stderr, so stdout carries only data for piping.

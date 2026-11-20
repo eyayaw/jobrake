@@ -141,7 +141,8 @@ and the contract test in `tests/test_scrape.py` need no edit.
   a named posting could not be fetched, or the output cannot be written. A stopped search and a
   postings fetch with a failed reference still write the postings they got.
   With none they write nothing, so an empty document comes only from a command that completed.
-  A stderr that cannot be written, as when its reader closed the pipe, leaves the status as it was.
+  A stderr that cannot be written, as when its reader closed the pipe, leaves the status as it was,
+  and so does a closed stdout under `-h` or `--version`.
   Ctrl-C ends a command with one line and removes an output file the command started.
   The process then dies of SIGINT, so a shell reports 130 and stops a loop that ran it.
 
