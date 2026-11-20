@@ -1,5 +1,60 @@
 # Changelog
 
+## [0.36.0](https://github.com/eyayaw/jobrake/releases/tag/v0.36.0) - 2026-11-20
+
+### Changed
+
+- **Breaking:** With `--details`, an INOMICS posting whose page names a city and region but no
+  country code takes that place over the card's, named from both, so `Umeå, Sweden` becomes
+  `Umeå, Västerbotten`. Of 20 pages read on 2026-11-18, 2 had no country code, a scholarship and a
+  program. `postings` gave no place for such a page. A posting the cache already holds gains its
+  place when its row expires.
+
+### Fixed
+
+- A LinkedIn search skips a card whose link `urlsplit` cannot read, and an AEA JOE search raises
+  `Stopped` for such an export link. Both raised `ValueError`, and LinkedIn lost every posting read
+  so far.
+- A LinkedIn search raises `Stopped` when a results request gets an answer other than the search
+  endpoint's HTTP 200, such as a sign-in page, and an Indeed search for a page that repeats an
+  earlier page's cursor. Each ended as a complete search.
+- An INOMICS posting page is read from its schema.org blocks when another script on it does not
+  parse or gives its `@type` as a list. INOMICS raised `JSONDecodeError` for the first, so
+  `inomics.postings` requested none of the references after that page, and skipped the posting for
+  the second. A posting block inside an array or an `@graph` is read too, where INOMICS ignored it.
+- A StepStone posting page is read when its `JobPosting` block sits in an array or an `@graph` or
+  gives its `@type` as a list. StepStone reported it as a page without posting data.
+- An AcademicTransfer search raises `Stopped` when its jobs page's payload does not parse or its
+  token entry names no entry of the payload. It raised `JSONDecodeError` or `IndexError`, and for
+  the index -1, which the payload uses for an undefined value, sent the payload's last string as
+  the API token.
+- A response nested deeper than jobrake can read raises `Stopped`, and `postings` or a details
+  search skips a posting whose fields nest that deep. A page script nested that deep leaves the
+  rest of an INOMICS, StepStone, or LinkedIn posting page readable, and a Workday 403 body nested
+  that deep counts as a failed request. Each raised `RecursionError`.
+- A search takes an integer option beyond float range. AEA JOE's `max_age_hours`, INOMICS's
+  `results`, and LinkedIn's `radius` raised `OverflowError` before the first request.
+  On AEA JOE, an age that reaches back before the year 1 excludes no listing, as on StepStone and
+  SmartRecruiters. `check` raises `ValueError` for an integer of more than 4,300 digits, which
+  Python cannot write into a request. The search raised after `check` passed.
+- `HttpxFetcher(headers=...)` replaces a default header whatever the case of its name.
+  A name in another case sent the default value as well.
+- A CLI command whose `--output` write fails or meets Ctrl-C removes the file it started, so a
+  rerun can write it. The partial file stayed and made the rerun exit 2 with
+  "output file already exists".
+- A CLI command whose stdout write fails, as on a full disk or in an encoding that cannot hold the
+  output, such as `PYTHONIOENCODING=ascii`, logs `could not write stdout` and exits 1.
+  It ended in a traceback, with exit status 120 on a full disk.
+- A CLI command whose stderr reader closed the pipe, as in `jobrake ... 2>&1 | head`, exits with
+  the status of its run. It could exit 120.
+- A `posted_at` or `expires_at` that `datetime.fromisoformat` cannot read, or that is not text, is
+  left out with a warning. They kept the site's value.
+- A `postings` call or a `--details` search with more postings than SQLite takes as parameters of
+  one statement reads the cache. It turned the cache off for the rest of the process and fetched
+  every posting again.
+- `--help` shows `VALUE` for an option that takes several values. It showed `ID` for every one,
+  including the options that take names or codes.
+
 ## [0.35.0](https://github.com/eyayaw/jobrake/releases/tag/v0.35.0) - 2026-11-19
 
 ### Added
