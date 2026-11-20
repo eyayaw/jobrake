@@ -47,6 +47,16 @@ def test_a_record_comes_back_under_its_own_site(make_cache):
     assert cache.get("indeed", ["111"]) == {}
 
 
+def test_a_lookup_past_sqlites_parameter_limit_finds_its_records_and_keeps_the_cache(make_cache):
+    cache = make_cache()
+    cache.put([JOB])
+    with contextlib.closing(sqlite3.connect(":memory:")) as conn:
+        limit = conn.getlimit(sqlite3.SQLITE_LIMIT_VARIABLE_NUMBER)
+    # The cached ID comes last, past the limit, so a lookup that reads only the first IDs misses it.
+    assert cache.get("linkedin", [f"x{n}" for n in range(limit)] + ["111"]) == {"111": JOB}
+    assert cache.get("linkedin", ["111"]) == {"111": JOB}
+
+
 def test_the_table_refuses_a_value_of_the_wrong_type(make_cache):
     # A text stored_at would sort after every cutoff and stay fresh forever,
     # and a BLOB job would fail to decode outside the cache's error handling.

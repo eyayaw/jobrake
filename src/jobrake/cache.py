@@ -138,11 +138,13 @@ class Cache:
         if conn is None or not ids:
             return {}
         try:
-            placeholders = ", ".join("?" for _ in ids)
+            # One JSON parameter holds every ID, so no call reaches SQLite's limit on parameters.
+            # json_each is built in from SQLite 3.38.0, and the STRICT table needs 3.37.0
+            # (https://sqlite.org/json1.html, checked 2026-11-20).
             rows = conn.execute(
                 "SELECT id, job FROM jobs"
-                f" WHERE site = ? AND id IN ({placeholders}) AND stored_at >= ?",
-                [site, *ids, time.time() - self.ttl],
+                " WHERE site = ? AND id IN (SELECT value FROM json_each(?)) AND stored_at >= ?",
+                [site, json.dumps(ids), time.time() - self.ttl],
             ).fetchall()
             found: dict[str, JobDict] = {}
             rejected = 0
