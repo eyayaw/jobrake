@@ -66,15 +66,16 @@ def _token(page: BeautifulSoup) -> str:
     Raises:
         TypeError: The page holds no Nuxt payload or no token in it.
         ValueError: The payload is not JSON.
-        IndexError: The token entry points past the payload's end.
     """
     script = page.find("script", id="__NUXT_DATA__")
     if script is None:
         raise TypeError("the jobs page holds no Nuxt payload")
-    # The payload is a flat array whose objects point at their values by index.
+    # The payload is a flat array whose objects point at their values by index. A negative index
+    # stands for a value such as undefined (devalue's src/constants.js, checked 2026-11-20).
     data = json.loads(script.get_text())
-    holder = next((o for o in data if isinstance(o, dict) and _TOKEN_KEY in o), None)
-    if holder is None or not (token := as_str(data[holder[_TOKEN_KEY]])):
+    holder = next((o for o in data if isinstance(o, dict) and _TOKEN_KEY in o), {})
+    index = holder.get(_TOKEN_KEY)
+    if not (type(index) is int and 0 <= index < len(data) and (token := as_str(data[index]))):
         raise TypeError("the jobs page holds no public API token")
     return token
 
