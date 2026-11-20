@@ -6,6 +6,7 @@ import logging
 import math
 import re
 from collections.abc import Awaitable, Callable, Collection, Mapping
+from contextlib import suppress
 from datetime import UTC, datetime, timedelta
 from types import NoneType
 from typing import Annotated, Any, NamedTuple, Union, get_args, get_origin, overload
@@ -309,19 +310,20 @@ def as_dict(value: object) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
 
-def iso_date(value: str | None) -> str | None:
+def iso_date(value: object) -> str | None:
     """
     Reduce an ISO 8601 date or timestamp to its calendar date.
 
-    Empty input returns ``None``. Unparseable text logs a warning and returns ``None``.
+    ``None`` and empty text return ``None``. Any other value that ``datetime.fromisoformat`` cannot
+    read, an ordinal date among them, logs a warning and returns ``None``.
     """
-    if not value:
+    if value is None or value == "":
         return None
-    try:
-        return datetime.fromisoformat(value).date().isoformat()
-    except ValueError:
-        logger.warning("not an ISO 8601 date: %r", value)
-        return None
+    if isinstance(value, str):
+        with suppress(ValueError):
+            return datetime.fromisoformat(value).date().isoformat()
+    logger.warning("not an ISO 8601 date or timestamp jobrake reads: %r", value)
+    return None
 
 
 def cutoff(max_age_hours: int) -> datetime | None:
