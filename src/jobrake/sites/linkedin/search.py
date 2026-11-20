@@ -76,8 +76,8 @@ async def _pages(
         result = await paced_fetch(fetcher, f"{SEARCH_URL}?{urlencode(page)}")
         if result.error:
             raise Stopped(f"linkedin request failed: {result.error}")
-        # Only the search endpoint's HTTP 200 is a results page, and only one without cards ends
-        # a search.
+        # A page without cards ends the search as complete, so only the search endpoint's HTTP 200
+        # counts as a results page.
         if result.status != 200 or urlsplit(result.url).path != urlsplit(SEARCH_URL).path:
             raise Stopped(
                 f"linkedin sent HTTP {result.status} from {result.url} for the page at offset "
@@ -160,8 +160,8 @@ async def search(
     Results retain guest-search order and stop at ``results``.
 
     Raises:
-        Stopped: A request failed after its retries, a results page was not the search endpoint's
-            HTTP 200, or a posting's details could not be fetched.
+        Stopped: A request failed after its retries, a results request got an answer other than
+            the search endpoint's HTTP 200, or a posting's details could not be fetched.
             ``partial`` holds the postings collected, with the details fetched so far,
             and ``failed`` the URLs of those whose read failed.
         ValueError: The location is missing or blank, or the geoid or a company ID uses characters
