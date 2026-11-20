@@ -8,6 +8,7 @@ import logging
 import os
 import shlex
 import signal
+import subprocess
 import sys
 import types
 from pathlib import Path
@@ -366,6 +367,30 @@ def test_a_stdout_write_error_reports_and_fails(run_cli, monkeypatch, caplog):
     monkeypatch.setattr(sys, "stdout", FullDisk())
     assert run_cli() == 1
     assert "could not write stdout: [Errno 28] No space left on device" in caplog.text
+
+
+def test_a_closed_stderr_leaves_a_finished_run_successful(tmp_path):
+    # A real process, because a failed stderr write surfaces in the flush at interpreter exit.
+    code = (
+        "import fakesite, sys\n"
+        "from jobrake import cli, sites\n"
+        "sites.SITES['fakesite'] = fakesite\n"
+        "sys.argv = ['jobrake', 'fakesite', 'search', '-q', 'x', '-n', '3']\n"
+        "raise SystemExit(cli.main())\n"
+    )
+    env = os.environ | {
+        "PYTHONPATH": str(Path(__file__).parent),
+        "JOBRAKE_CACHE_PATH": str(tmp_path / "jobrake.sqlite3"),
+    }
+    read_end, write_end = os.pipe()
+    os.close(read_end)
+    with (tmp_path / "jobs.json").open("w") as stdout:
+        done = subprocess.run(
+            [sys.executable, "-c", code], env=env, stdout=stdout, stderr=write_end, check=False
+        )
+    os.close(write_end)
+    assert done.returncode == 0
+    assert len(json.loads((tmp_path / "jobs.json").read_text(encoding="utf-8"))) == 3
 
 
 def test_invalid_output_fails_before_scraping(run_cli, stub_search, tmp_path, capsys):

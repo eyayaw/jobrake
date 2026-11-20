@@ -76,6 +76,15 @@ class _StatusHandler(logging.StreamHandler[TextIO]):
         except Exception:  # noqa: BLE001  Handler.emit must not raise; handleError reports it
             self.handleError(record)
 
+    @override
+    def handleError(self, record: logging.LogRecord) -> None:
+        # A stderr whose reader is gone, as in `jobrake ... 2>&1 | head`, would fail again at exit
+        # and turn a finished run into exit status 120.
+        if isinstance(sys.exc_info()[1], OSError):
+            _silence(self.stream)
+        else:
+            super().handleError(record)
+
     def clear(self) -> None:
         """Erase the status line so a traceback starts on its own line."""
         if self._showing_progress:
@@ -199,13 +208,19 @@ def _write_stdout(text: str) -> int | None:
             logger.error(  # noqa: TRY400  the message says what failed
                 "could not write stdout: %s", error
             )
-        # Pointing stdout at /dev/null lets the exit-time flush discard what is still buffered.
-        # A stdout without a file descriptor, such as one a program embedding the CLI sets, has
-        # nothing to redirect.
-        with suppress(OSError), Path(os.devnull).open("w") as devnull:
-            os.dup2(devnull.fileno(), sys.stdout.fileno())
+        _silence(sys.stdout)
         return 1
     return None
+
+
+def _silence(stream: TextIO) -> None:
+    """
+    Point a stream that cannot be written at /dev/null, so the exit-time flush discards its buffer.
+
+    A stream without a file descriptor, such as one a program embedding the CLI sets, stays as is.
+    """
+    with suppress(OSError), Path(os.devnull).open("w") as devnull:
+        os.dup2(devnull.fileno(), stream.fileno())
 
 
 def _run(
