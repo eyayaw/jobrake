@@ -36,9 +36,9 @@ def _parse_page(html: str) -> tuple[list[JobDict], int]:
         if link is None or not link.get("href"):
             continue
         url = str(link["href"]).split("?")[0]
-        # details=True requests this address, so it must be LinkedIn's. on_linkedin goes first:
-        # it rejects a link urlsplit cannot read, for which job_id raises ValueError.
-        if not (on_linkedin(url) and (posting_id := job_id(url))):
+        posting_id = job_id(url)
+        # details=True requests this address, so it must be LinkedIn's.
+        if not (posting_id and on_linkedin(url)):
             continue
 
         title_tag = card.find("span", class_="sr-only")

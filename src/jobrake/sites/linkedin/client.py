@@ -275,7 +275,10 @@ def numeric(text: str) -> bool:
 
 
 def job_id(url: str) -> str:
-    """Extract a numeric posting ID, using ``""`` when the URL has none."""
-    slug = urlsplit(url).path.rstrip("/").rsplit("/", 1)[-1]
+    """Extract a numeric posting ID, using ``""`` when the URL has none or urlsplit rejects it."""
+    try:
+        slug = urlsplit(url).path.rstrip("/").rsplit("/", 1)[-1]
+    except ValueError:
+        return ""
     tail = slug.rsplit("-", 1)[-1]
     return tail if numeric(tail) else ""
