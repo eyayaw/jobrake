@@ -176,7 +176,7 @@ def _withdrawn(text: str) -> bool:
     # which a rerun may pass.
     try:
         return as_dict(json.loads(text)).get("errorCode") == "S22"
-    except ValueError:
+    except ValueError, RecursionError:
         return False
 
 

@@ -94,7 +94,7 @@ def _card_label(html: str) -> str | None:
         return None
     try:
         meta, _ = json.JSONDecoder().raw_decode(html, start + len(_META_DATA))
-    except ValueError:
+    except ValueError, RecursionError:
         return None
     return as_str(as_dict(meta).get("location"))
 

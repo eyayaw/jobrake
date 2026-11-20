@@ -4,7 +4,7 @@ import asyncio
 import json
 
 import pytest
-from fakes import PagedFetcher, StubFetcher, ok
+from fakes import DEEP_JSON, PagedFetcher, StubFetcher, ok
 
 from jobrake import Stopped
 from jobrake.fetchkit import FetchResult
@@ -181,6 +181,22 @@ def test_a_page_keeps_the_label_of_a_posting_open_in_several_cities(label, stree
 
     assert job is not None
     assert job["locations"] == [{"name": name, "country_code": "DE"}]
+
+
+@pytest.mark.parametrize("meta", ["{", DEEP_JSON])
+def test_a_page_whose_card_label_does_not_parse_names_the_place_from_its_block(meta):
+    address = {"addressLocality": "Wiesbaden", "addressCountry": "DE"}
+    block = {"@type": "JobPosting", "jobLocation": {"address": address}}
+    page = (
+        f'<script>window.JobAdContent = {{"metaData":{meta}}}</script>'
+        f'<script type="application/ld+json">{json.dumps(block)}</script>'
+    )
+    fetcher = StubFetcher({"/job/1": ok(page)})
+    found = asyncio.run(stepstone.postings(fetcher, ["https://www.stepstone.de/job/1"]))
+    job = found["https://www.stepstone.de/job/1"]
+
+    assert job is not None
+    assert job["locations"] == [{"name": "Wiesbaden", "city": "Wiesbaden", "country_code": "DE"}]
 
 
 def test_a_gone_posting_keeps_its_card() -> None:

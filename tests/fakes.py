@@ -4,6 +4,10 @@ from typing import Any
 
 from jobrake.fetchkit import FetchResult
 
+# JSON nested deeper than json.loads can read, which it refuses with RecursionError. Its limit
+# depends on the C stack, so the depth exceeds what macOS's largest stack, 64 MB, lets it read.
+DEEP_JSON = "[" * 1_000_000 + "]" * 1_000_000
+
 
 class StubFetcher:
     """

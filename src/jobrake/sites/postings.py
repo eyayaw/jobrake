@@ -8,6 +8,7 @@ from typing import Annotated, Any
 from jobrake import cache
 from jobrake.fetchkit import Fetcher
 from jobrake.models import IDENTITY_FIELDS, JobDict, Stopped, make_job
+from jobrake.sites.responses import UNREADABLE
 from jobrake.utils import Checked, checked, report_progress
 
 # A site's reader of the posting at a card's URL: the posting's fields, or None when the site
@@ -49,7 +50,11 @@ async def _posting(fetcher: Fetcher, card: JobDict, read: Reader) -> JobDict | N
         return None
     given = {name: value for name, value in fields.items() if value is not None}
     identity = {"site": card["site"], "id": card["id"]}
-    record = make_job(**({"url": card["url"]} | given | identity))
+    try:
+        record = make_job(**({"url": card["url"]} | given | identity))
+    except UNREADABLE as error:
+        # A field can hold a value nested deeper than make_job recurses, though json.loads read it.
+        raise Stopped(f"the posting's fields are malformed: {error!r}") from None
     cache.CACHE.put([record])
     return record
 

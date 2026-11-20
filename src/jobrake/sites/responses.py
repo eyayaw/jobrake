@@ -15,8 +15,8 @@ from jobrake.models import JobDict, Stopped
 from jobrake.utils import finite, report_progress
 
 # What a parser raises for site data it cannot read: a missing key or index, a value of the wrong
-# type, text that does not parse, such as JSON, a number, a date, or a URL, or JSON nested deeper
-# than Python's recursion limit.
+# type, text that does not parse, such as JSON, a number, a date, or a URL, or a value nested deeper
+# than json.loads or a recursive reader can follow.
 UNREADABLE = (TypeError, ValueError, LookupError, AttributeError, RecursionError)
 
 

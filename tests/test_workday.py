@@ -5,7 +5,7 @@ import json
 from datetime import date
 
 import pytest
-from fakes import PagedFetcher, StubFetcher, network_down, not_found, ok
+from fakes import DEEP_JSON, PagedFetcher, StubFetcher, network_down, not_found, ok
 
 from jobrake import Stopped
 from jobrake.fetchkit import FetchResult
@@ -273,8 +273,13 @@ def test_postings_fetch_each_posting_once_and_key_it_by_reference(caplog):
     )
     gone, failed = f"{BOARD}/job/Remote/Engineer_JR0", f"{BOARD}/job/Remote/Engineer_JR1"
     withdrawn, blocked = f"{BOARD}/job/Remote/Engineer_JR2", f"{BOARD}/job/Remote/Engineer_JR3"
-    # A withdrawn posting's 403 names error S22, in the shape of Workday's 404 body.
+    deep_block, deep_fields = f"{BOARD}/job/Remote/Engineer_JR4", f"{BOARD}/job/Remote/Engineer_JR5"
+    # A withdrawn posting's 403 names error S22, in the shape of Workday's 404 body, and any other
+    # 403 body, even one too deep to parse, is a block.
     s22 = {"errorCode": "S22", "httpStatus": 403, "message": "permission denied"}
+    # json.loads reads this field, but it nests deeper than make_job recurses.
+    nested = "[" * 2_000 + "]" * 2_000
+    malformed = f'{{"jobPostingInfo": {{"title": "T", "additionalLocations": [{nested}]}}}}'
     fetcher = StubFetcher(
         {
             "Networking-Architect_JR1996377": ok(json.dumps(DETAIL)),
@@ -282,15 +287,17 @@ def test_postings_fetch_each_posting_once_and_key_it_by_reference(caplog):
             "Engineer_JR1": network_down(),
             "Engineer_JR2": FetchResult("stub", 403, json.dumps(s22), error="HTTP 403"),
             "Engineer_JR3": FetchResult("stub", 403, "<html>blocked</html>", error="HTTP 403"),
+            "Engineer_JR4": FetchResult("stub", 403, DEEP_JSON, error="HTTP 403"),
+            "Engineer_JR5": ok(malformed),
         }
     )
-    references = [url, copied, gone, failed, withdrawn, blocked]
+    references = [url, copied, gone, failed, withdrawn, blocked, deep_block, deep_fields]
     got = asyncio.run(workday.postings(fetcher, references))
     # The URL alone fills the record, and a failed read leaves its reference out.
     assert got == {url: FILLED, copied: FILLED, gone: None, withdrawn: None}
     assert fetcher.requests == [
         f"{API}/job/US-CA-Santa-Clara/Networking-Architect_JR1996377",
-        *(f"{API}/job/Remote/Engineer_JR{n}" for n in range(4)),
+        *(f"{API}/job/Remote/Engineer_JR{n}" for n in range(6)),
     ]
     assert "skipping posting" in caplog.text
 
