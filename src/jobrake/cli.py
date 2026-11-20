@@ -200,7 +200,8 @@ def _write_stdout(text: str) -> int | None:
         # Flush now: when the output fits the pipe buffer, a closed pipe would otherwise surface at
         # interpreter exit, past this handler.
         sys.stdout.flush()
-    except OSError as error:
+    # A UnicodeEncodeError comes from a stdout encoding a user set, as PYTHONIOENCODING=ascii does.
+    except (OSError, UnicodeEncodeError) as error:
         # A closed pipe means the downstream reader (e.g. `jobrake ... | head`) stopped early, which
         # needs no message. Restoring the default SIGPIPE action would work only on Unix and would
         # change signal handling for the whole process, so the handling stays here.

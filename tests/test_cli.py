@@ -359,14 +359,23 @@ def test_closed_pipe_ends_quietly(run_cli, fake_site, monkeypatch, caplog):
     assert "could not write" not in caplog.text
 
 
-def test_a_stdout_write_error_reports_and_fails(run_cli, monkeypatch, caplog):
-    class FullDisk(io.StringIO):
-        def write(self, text):
-            raise OSError(28, "No space left on device")
+class _FullDisk(io.StringIO):
+    def write(self, text):
+        raise OSError(28, "No space left on device")
 
-    monkeypatch.setattr(sys, "stdout", FullDisk())
+
+@pytest.mark.parametrize(
+    ("stdout", "error"),
+    [
+        (_FullDisk, "[Errno 28] No space left on device"),
+        # PYTHONIOENCODING=ascii sets such a stdout, which cannot encode the É in JOBS.
+        (lambda: io.TextIOWrapper(io.BytesIO(), encoding="ascii"), "'ascii' codec can't encode"),
+    ],
+)
+def test_a_stdout_write_error_reports_and_fails(stdout, error, run_cli, monkeypatch, caplog):
+    monkeypatch.setattr(sys, "stdout", stdout())
     assert run_cli() == 1
-    assert "could not write stdout: [Errno 28] No space left on device" in caplog.text
+    assert f"could not write stdout: {error}" in caplog.text
 
 
 def test_a_closed_stderr_leaves_a_finished_run_successful(tmp_path):
