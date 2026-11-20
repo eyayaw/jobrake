@@ -211,6 +211,11 @@ def test_an_integer_option_beyond_float_range_reaches_the_first_request(site):
         assert fetcher.requests, name
 
 
+def test_check_rejects_an_integer_too_long_for_a_request_to_carry():
+    with pytest.raises(ValueError, match="radius is too large to send"):
+        check("linkedin", query="x", location="Seattle", radius=10**5000)
+
+
 def test_check_and_scrape_accept_an_explicit_zero_radius():
     check("linkedin", query="x", location="Seattle", radius=0)
     fetcher = StubFetcher({"seeMoreJobPostings": ok("")})

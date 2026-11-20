@@ -152,6 +152,12 @@ def _check(options: dict[str, Option], given: dict[str, object]) -> None:
         if not accepts(value):
             expected = description + (" or None" if option.optional else "")
             raise TypeError(f"{name} must be {expected}, got {value!r}")
+        # A request carries a number as text, which Python refuses past 4,300 digits by default.
+        if isinstance(value, int):
+            try:
+                str(value)
+            except ValueError:
+                raise ValueError(f"{name} is too large to send in a request") from None
         minimum = _MINIMUMS.get(name)
         if minimum is not None and isinstance(value, int) and value < minimum:
             raise ValueError(f"{name} ({value}) must be at least {minimum}")
