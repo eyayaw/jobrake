@@ -177,7 +177,7 @@ def test_a_search_returns_nothing_for_no_match_and_stops_on_a_changed_page():
         (PAGE.replace("11/16/2026", "November 16"), "is not MM/DD/YYYY"),
         (
             PAGE.replace('href="/joe/resultset', 'href="https://[broken/joe/resultset'),
-            "Invalid IPv6",
+            r"cannot read \(ValueError",
         ),
     ):
         with pytest.raises(Stopped, match=reason):
