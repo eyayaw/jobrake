@@ -876,7 +876,7 @@ and [Fields by site](reference.md#fields-by-site) lists the details each site fi
 
 A search or a `postings` command writes compact JSON to stdout.
 `--output | -o` writes a new file instead and refuses to overwrite an existing one.
-A write that fails partway removes the file it started, so a rerun can write it.
+A write that fails or is interrupted partway removes the file it started, so a rerun can write it.
 `--format | -f` chooses `json`, `jsonl`, or `csv`, and defaults to the extension of `--output`.
 A search that returns no jobs writes no file, and the output directory must already exist.
 

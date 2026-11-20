@@ -319,25 +319,27 @@ def _write_jobs(args: argparse.Namespace, jobs: list[JobDict], fmt: str) -> int 
         logger.warning("no jobs found, so %s was not created", args.output)
         return None
     text = RENDERERS[fmt](jobs)
-    created = False
+    created = written = False
     try:
         with args.output.open("x", encoding="utf-8") as output:
             created = True
             output.write(text)
+        written = True
     except OSError as error:
         logger.error(  # noqa: TRY400  the message says what failed
             "could not write %s: %s", args.output, error
         )
-        if created:
-            # A partial document would block the rerun and pass for a finished one. Only a file
-            # this open created is removed, never one that open refused.
+        return 1
+    finally:
+        # A partial document, cut short by a write error or Ctrl-C, would block the rerun and pass
+        # for a finished one. Only a file this open created is removed, never one that open refused.
+        if created and not written:
             try:
                 args.output.unlink()
             except OSError as stuck:
                 logger.warning(
                     "could not remove %s: %s. Delete it before a rerun", args.output, stuck
                 )
-        return 1
     logger.info(ngettext("wrote %d job to %s", "wrote %d jobs to %s", count), count, args.output)
     return None
 
@@ -369,8 +371,17 @@ def main() -> int | None:
     fmt = _settle_output(command, args) if args.command in _WRITES_POSTINGS else None
     try:
         found, status = _run(command, args.site, function, options)
+        if fmt is None:
+            # A stopped lookup prints nothing.
+            return status or _write_hits(args.command, next(iter(options.values())), found)
+        if args.command == "postings":
+            found, status = _fetched(args, found)
+        if status and not found:
+            # An empty document would pass for a search that completed and found nothing.
+            return status
+        return _write_jobs(args, found, fmt) or status
     except KeyboardInterrupt:
-        logger.warning("interrupted, so no output was written")
+        logger.warning("interrupted, so the output is missing or cut short")
         if sys.platform != "win32":
             # Die of SIGINT, as CPython does for an uncaught KeyboardInterrupt
             # (https://bugs.python.org/issue1054041, checked 2026-11-14). A shell stops a loop only
@@ -381,15 +392,6 @@ def main() -> int | None:
     finally:
         # An exceptional exit would otherwise start its traceback beside the progress line.
         handler.clear()
-    if fmt is None:
-        # A stopped lookup prints nothing.
-        return status or _write_hits(args.command, next(iter(options.values())), found)
-    if args.command == "postings":
-        found, status = _fetched(args, found)
-    if status and not found:
-        # An empty document would pass for a search that completed and found nothing.
-        return status
-    return _write_jobs(args, found, fmt) or status
 
 
 if __name__ == "__main__":

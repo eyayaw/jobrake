@@ -284,7 +284,7 @@ def test_ctrl_c_ends_the_run_with_one_line_and_dies_of_sigint(
     assert sent[-2:] == [(signal.SIGINT, signal.SIG_DFL), (os.getpid(), signal.SIGINT)]
     assert capsys.readouterr().out == ""
     assert [record.getMessage() for record in caplog.records] == [
-        "interrupted, so no output was written"
+        "interrupted, so the output is missing or cut short"
     ]
 
 
@@ -479,28 +479,60 @@ def test_an_output_file_that_open_refused_stays(run_cli, monkeypatch, tmp_path, 
         assert kept.read() == b"another run"
 
 
-def test_an_output_write_error_removes_the_file_it_created(run_cli, monkeypatch, tmp_path, caplog):
+@pytest.fixture
+def cut_write(monkeypatch):
+    """Make an ``--output`` write take its first bytes and then raise the given exception."""
     real_open = Path.open
+
+    def cut(error):
+        class Cut:
+            def __init__(self, file):
+                self.file = file
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_):
+                self.file.close()
+
+            def write(self, text):
+                self.file.write(text[:10])
+                self.file.flush()
+                raise error
+
+        monkeypatch.setattr(Path, "open", lambda path, *a, **k: Cut(real_open(path, *a, **k)))
+
+    return cut
+
+
+@pytest.mark.parametrize(
+    ("error", "status", "message"),
+    [
+        (OSError(28, "No space left on device"), 1, "could not write {out}: [Errno 28] No space"),
+        (KeyboardInterrupt(), 130, "interrupted, so the output is missing or cut short"),
+    ],
+)
+def test_a_write_cut_short_removes_the_file_it_created(
+    error, status, message, run_cli, cut_write, monkeypatch, tmp_path, caplog
+):
+    monkeypatch.setattr(signal, "signal", lambda *_: None)
+    monkeypatch.setattr(os, "kill", lambda *_: None)
     out = tmp_path / "jobs.json"
-
-    class FullDisk:
-        """Take the first bytes of a write, then report a full disk."""
-
-        def __init__(self, file):
-            self.file = file
-
-        def __enter__(self):
-            return self
-
-        def __exit__(self, *_):
-            self.file.close()
-
-        def write(self, text):
-            self.file.write(text[:10])
-            self.file.flush()
-            raise OSError(28, "No space left on device")
-
-    monkeypatch.setattr(Path, "open", lambda path, *a, **k: FullDisk(real_open(path, *a, **k)))
-    assert run_cli("-o", str(out)) == 1
-    assert f"could not write {out}: [Errno 28] No space left on device" in caplog.text
+    cut_write(error)
+    assert run_cli("-o", str(out)) == status
+    assert message.format(out=out) in caplog.text
     assert not out.exists()
+
+
+def test_a_cut_short_file_that_cannot_be_removed_stays_with_a_warning(
+    run_cli, cut_write, monkeypatch, tmp_path, caplog
+):
+    def refuse(*_):
+        raise PermissionError(13, "Permission denied")
+
+    out = tmp_path / "jobs.json"
+    cut_write(OSError(28, "No space left on device"))
+    monkeypatch.setattr(Path, "unlink", refuse)
+    assert run_cli("-o", str(out)) == 1
+    assert out.exists()
+    assert f"could not remove {out}: [Errno 13] Permission denied. Delete it" in caplog.text
