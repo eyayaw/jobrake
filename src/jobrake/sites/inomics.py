@@ -153,11 +153,11 @@ def _parse_card(card: Tag) -> JobDict:
 
 def _place(blocks: list[dict[str, Any]]) -> dict[str, Any]:
     """
-    Read the place a posting page's schema.org blocks give, which may have no part.
+    Read the place a posting page's schema.org blocks name, with every part None when none is named.
 
-    The block dated 2026/11/13 names the place as "city, country" with the country's ISO code, and
-    the other names the city and region. A page without the first gives the city and region of the
-    second, and a page without the second gives a place without its city.
+    The block with an ``addressCountry`` gives the place's label, "city, country", and the country's
+    ISO code, and the other block gives the city and region. Without the first, the place has no
+    label, so ``make_places`` names it from its city and region. Without the second, it has no city.
     """
     addresses = [as_dict(as_dict(block.get("jobLocation")).get("address")) for block in blocks]
     labeled = next((a for a in addresses if as_str(a.get("addressCountry"))), {})
@@ -167,7 +167,7 @@ def _place(blocks: list[dict[str, Any]]) -> dict[str, Any]:
 
     city = part("addressLocality", [a for a in addresses if a is not labeled])
     return {
-        "name": as_str(labeled.get("addressLocality")) or city,
+        "name": as_str(labeled.get("addressLocality")),
         "city": city,
         "region": part("addressRegion", addresses),
         "country_code": as_str(labeled.get("addressCountry")),

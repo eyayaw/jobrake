@@ -450,13 +450,14 @@ place's `region` and `country_code`.
   and 2 named more than one. `--details` takes the hiring organization the job's page names.
 - `locations` holds one place, named as the card writes it, such as `Saarbrücken, Germany`, with
   its `city`, or the country alone, as 7 of the 112 gave. One of the 112 named no place.
-  The card names the country in words. `--details` takes the place from the job's page.
+  The card names the country in words. `--details` takes the place from the job's page when the
+  page names one.
   When the page gives the country's code, as all 15 jobs in Germany did, the place takes the
   page's label, which matched the card's, and adds its `region` and `country_code`.
   It has a `city` only when the page's other schema.org block names it, so a page without that
   block drops the city the card gave, as job 1555182's did earlier that day.
-  A page without the country's code gives its city and region and no country, such as `Umeå`
-  in `Västerbotten` where the card named `Umeå, Sweden`.
+  A page without the country's code gives its city and region and no country, named from both,
+  such as `Umeå, Västerbotten` where the card named `Umeå, Sweden`.
   Of 20 pages read on 2026-11-18, the 2 such pages were a scholarship and a program.
 - `date` and `posted_at` are the day the card shows as posted, which INOMICS moves to the day it
   reposts a job. The job's page dates a job the same way: on 2026-11-17, 17 of 17 pages that

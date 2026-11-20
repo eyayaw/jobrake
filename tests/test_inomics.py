@@ -216,6 +216,6 @@ def test_postings_reads_both_page_types_and_leaves_out_a_page_it_cannot_read():
     assert scholarship is not None
     assert (scholarship["date"], scholarship["locations"]) == (
         "2026-10-02",
-        [{"name": "Umeå", "city": "Umeå", "region": "Västerbotten"}],
+        [{"name": "Umeå, Västerbotten", "city": "Umeå", "region": "Västerbotten"}],
     )
     assert gone is None
