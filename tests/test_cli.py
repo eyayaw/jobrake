@@ -118,6 +118,14 @@ def test_a_registered_site_gets_every_command_without_a_cli_change(
     ]
 
 
+def test_a_list_option_shows_value_in_its_help(fake_site, monkeypatch, capsys):
+    # A list option takes names, codes, or IDs, depending on the site.
+    monkeypatch.setattr(sys, "argv", ["jobrake", "fakesite", "search", "-h"])
+    with pytest.raises(SystemExit):
+        cli.main()
+    assert "--tags VALUE [VALUE ...]" in capsys.readouterr().out
+
+
 @pytest.mark.parametrize(
     ("name", "status", "out", "err"),
     [
