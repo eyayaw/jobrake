@@ -200,9 +200,10 @@ def make_job(**fields: Any) -> JobDict:
 
     Identity strings are stripped. A blank or missing summary value becomes ``None``,
     a missing ``locations`` becomes ``[]``, and a blank or ``None`` detail value is left out.
-    ``date`` keeps the calendar date of the given ``date``, falling back to ``posted_at``.
-    A ``date``, ``posted_at``, or ``expires_at`` that ``iso_date`` cannot read logs a warning and
-    becomes ``None`` or is left out.
+    ``date`` keeps the calendar date of the given ``date``, falling back to ``posted_at`` when
+    ``date`` is missing, not text, or unreadable, and is ``None`` when neither gives one.
+    Text in ``date``, or any ``posted_at`` or ``expires_at``, that ``iso_date`` cannot read logs a
+    warning, and such a ``posted_at`` or ``expires_at`` is left out.
     A lone surrogate, which JSON can carry as an escape and UTF-8 cannot encode, becomes U+FFFD.
 
     Raises:
@@ -227,7 +228,7 @@ def make_job(**fields: Any) -> JobDict:
     for name in DETAIL_FIELDS:
         if (value := _detail(name, fields.get(name))) is not None:
             job[name] = value
-    job["date"] = iso_date(job["date"] or job.get("posted_at"))
+    job["date"] = iso_date(job["date"]) or iso_date(job.get("posted_at"))
     return cast(JobDict, job)
 
 

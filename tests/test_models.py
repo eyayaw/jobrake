@@ -122,6 +122,9 @@ def test_date_falls_back_to_the_posting_timestamp():
     )
     assert job["date"] == "2026-08-05"
     assert job["posted_at"] == "2026-08-05T08:04:27.000Z"  # kept whole
+    # A date that does not parse falls back too.
+    unreadable = make_job(site="x", id="1", url="u", date="last week", posted_at="2026-08-05")
+    assert unreadable["date"] == "2026-08-05"
 
 
 def test_a_timestamp_that_is_not_iso_8601_is_left_out_with_a_warning(caplog):

@@ -99,7 +99,8 @@ jobrake reads a date or timestamp in the forms Python's `datetime.fromisoformat`
 are ISO 8601 without ordinal dates such as `2026-324` or reduced precision such as `2026-11`, and
 they take any one character in place of the `T`. Some sites send another form, such as Lever's
 epoch milliseconds or INOMICS's day-first dates, which jobrake converts to ISO 8601 first. Any
-other value logs a warning: `date` becomes `None`, and `posted_at` or `expires_at` is left out.
+other value logs a warning: `date` falls back to `posted_at` or becomes `None`, and `posted_at` or
+`expires_at` is left out.
 
 ## Fields by site
 
