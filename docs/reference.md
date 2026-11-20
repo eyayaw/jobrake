@@ -95,6 +95,8 @@ The exceptions are LinkedIn, Workday, StepStone, and INOMICS with `--details`, w
 calendar date of the `posted_at` that the posting page gives.
 A page without one leaves the search result's date.
 Compare on `date`, and read `posted_at` for a time of day.
+A value a site gives that is not ISO 8601 logs a warning: `date` becomes `None`,
+and `posted_at` or `expires_at` is left out.
 
 ## Fields by site
 
