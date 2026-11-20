@@ -158,7 +158,7 @@ def _check(options: dict[str, Option], given: dict[str, object]) -> None:
             try:
                 str(value)
             except ValueError:
-                raise ValueError(f"{name} is too large to send in a request") from None
+                raise ValueError(f"{name} has too many digits to send in a request") from None
         minimum = _MINIMUMS.get(name)
         if minimum is not None and isinstance(value, int) and value < minimum:
             raise ValueError(f"{name} ({value}) must be at least {minimum}")
