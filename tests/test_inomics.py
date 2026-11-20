@@ -74,12 +74,13 @@ PAGE = (
     '<div class="post-description"><p>The faculty seeks</p><ul><li>a labor economist</li></ul>'
     "</div>"
 )
-# The page of a job INOMICS also lists as a scholarship: one block, which names the city alone
-# (job 1555359, 2026-11-17).
+# The page of a job INOMICS also lists as a scholarship: one block, which names the city and region
+# and no country (job 1555359, 2026-11-18).
 SCHOLARSHIP = (
     f'{_LD}{{"@type": "EducationalOccupationalProgram", "title": "Postdoctoral scholarship",'
     ' "datePosted": "2026-10-02T07:30:06Z", "jobLocation": {"address": {"addressLocality":'
-    ' "Umeå"}}}</script><div class="post-description"><p>Umeå University offers</p></div>'
+    ' "Umeå", "addressRegion": "Västerbotten"}}}</script>'
+    '<div class="post-description"><p>Umeå University offers</p></div>'
 )
 
 
@@ -211,6 +212,8 @@ def test_postings_reads_both_page_types_and_leaves_out_a_page_it_cannot_read():
         "IWH",
     )
     assert scholarship is not None
-    # Its one block names the city alone, so it gives no place a card's would yield to.
-    assert (scholarship["date"], scholarship["locations"]) == ("2026-10-02", [])
+    assert (scholarship["date"], scholarship["locations"]) == (
+        "2026-10-02",
+        [{"name": "Umeå", "city": "Umeå", "region": "Västerbotten"}],
+    )
     assert gone is None

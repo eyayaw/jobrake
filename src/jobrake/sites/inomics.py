@@ -152,15 +152,35 @@ def _parse_card(card: Tag) -> JobDict:
     )
 
 
+def _place(blocks: list[dict[str, Any]]) -> dict[str, Any]:
+    """
+    Read the place a posting page's schema.org blocks give, which may have no part.
+
+    The block dated 2026/11/13 names the place as "city, country" with the country's ISO code, and
+    the other names the city and region. A page without the first gives the city and region of the
+    second, and a page without the second gives a place without its city.
+    """
+    addresses = [as_dict(as_dict(block.get("jobLocation")).get("address")) for block in blocks]
+    labeled = next((a for a in addresses if as_str(a.get("addressCountry"))), {})
+
+    def part(key: str, among: list[dict[str, Any]]) -> str | None:
+        return next((text for address in among if (text := as_str(address.get(key)))), None)
+
+    city = part("addressLocality", [a for a in addresses if a is not labeled])
+    return {
+        "name": as_str(labeled.get("addressLocality")) or city,
+        "city": city,
+        "region": part("addressRegion", addresses),
+        "country_code": as_str(labeled.get("addressCountry")),
+    }
+
+
 def _parse_page(page: BeautifulSoup) -> dict[str, Any]:
     """
     Read a posting page into a whole record's fields.
 
     The page carries one or two schema.org blocks, and the first non-empty value of a field wins.
-    One block dates the posting as 2026/11/13 and names the place as "city, country" with the
-    country's ISO code, and the other dates it in ISO 8601 and names the city alone. A page without
-    the first gives no place, so a search result keeps its card's, and a page without the second
-    gives a place without its city, which replaces the card's place and the city it names.
+    One block dates the posting as 2026/11/13, and the other dates it in ISO 8601.
     The blocks' descriptions are excerpts, so the description is the page's own text.
 
     Raises:
@@ -198,19 +218,10 @@ def _parse_page(page: BeautifulSoup) -> dict[str, Any]:
         # 2026/11/13 becomes ISO 8601, and an ISO timestamp stays as it is.
         return (first(name) or "").replace("/", "-") or None
 
-    addresses = [as_dict(as_dict(block.get("jobLocation")).get("address")) for block in blocks]
-    labeled = next((a for a in addresses if as_str(a.get("addressCountry"))), None)
-    cities = (as_str(a.get("addressLocality")) for a in addresses if a is not labeled)
-    place = labeled and {
-        "name": as_str(labeled.get("addressLocality")),
-        "city": next((city for city in cities if city), None),
-        "region": first("jobLocation", "address", "addressRegion"),
-        "country_code": as_str(labeled.get("addressCountry")),
-    }
     return {
         "title": first("title"),
         "company": first("hiringOrganization", "name"),
-        "locations": [place] if place else [],
+        "locations": [_place(blocks)],
         "description": html_text(str(description)),
         "posted_at": day("datePosted"),
         "expires_at": day("validThrough"),
