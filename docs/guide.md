@@ -962,7 +962,7 @@ An exception your own `Fetcher` raises propagates out of `scrape()`.
 
 ## Request limits and partial results
 
-A failed request ends a search with `Stopped`,
+A failed request, or an answer other than HTTP 200, ends a search with `Stopped`,
 and so does a page that ends it short of the total the site reported.
 Its `partial` holds the jobs collected before the search stopped:
 

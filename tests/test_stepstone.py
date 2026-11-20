@@ -199,6 +199,11 @@ def test_a_page_whose_card_label_does_not_parse_names_the_place_from_its_block(m
     assert job["locations"] == [{"name": "Wiesbaden", "city": "Wiesbaden", "country_code": "DE"}]
 
 
+def test_a_posting_page_sent_without_http_200_is_left_out() -> None:
+    fetcher = StubFetcher({"/job/1": FetchResult("stub", 203, POSTING)})
+    assert asyncio.run(stepstone.postings(fetcher, ["https://www.stepstone.de/job/1"])) == {}
+
+
 def test_a_gone_posting_keeps_its_card() -> None:
     gone = FetchResult(url="stub", status=410)
     fetcher = StubFetcher({"offset=0": ok(_page(CARDS[:1], 1)), "/job/14660809": gone})

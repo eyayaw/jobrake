@@ -23,9 +23,11 @@ UNREADABLE = (TypeError, ValueError, LookupError, AttributeError, RecursionError
 def _stop_if_failed(result: FetchResult, site: str, board: str | None, unknown: str | None) -> None:
     if result.status == 404 and unknown:
         raise Stopped(unknown)
-    if result.error:
+    # A site serves its data with HTTP 200. Another 2xx or a redirect the fetcher did not follow
+    # carries no data, and reading its body could pass for an empty result.
+    if result.error or result.status != 200:
         where = f" for board {board!r}" if board else ""
-        raise Stopped(f"{site} request{where} failed: {result.error}")
+        raise Stopped(f"{site} request{where} failed: {result.error or f'HTTP {result.status}'}")
 
 
 def _unreadable(site: str, error: Exception) -> Stopped:

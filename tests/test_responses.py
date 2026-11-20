@@ -7,6 +7,7 @@ import pytest
 from fakes import StubFetcher, network_down, not_found, ok
 
 from jobrake import Stopped
+from jobrake.fetchkit import FetchResult
 from jobrake.models import make_job
 from jobrake.sites import SITES
 from jobrake.sites.responses import collect, json_list, parse_postings, read_json
@@ -21,6 +22,8 @@ UNREADABLE = r"^acme sent a response this version cannot read \("
         (not_found(), {"board": "x", "unknown": UNKNOWN}, f"^{UNKNOWN}$"),
         (not_found(), {"board": "x"}, r"^acme request for board 'x' failed: HTTP 404$"),
         (network_down(), {}, "^acme request failed: connection reset$"),
+        # A body that would read as an empty list, sent without the 200 the data comes with.
+        (FetchResult("stub", 204, '{"jobs": []}'), {}, "^acme request failed: HTTP 204$"),
         (ok("not JSON"), {}, UNREADABLE + "JSONDecodeError"),
         (ok("\n<!DOCTYPE html><title>Maintenance</title>"), {}, "^acme sent a web page where"),
         (ok("[" + "9" * 5000 + "]"), {}, UNREADABLE + "ValueError"),

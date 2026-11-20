@@ -158,8 +158,10 @@ async def _posting_fields(fetcher: Fetcher, url: str) -> dict[str, Any] | None:
     result = await fetcher.fetch(url)
     if result.status in (404, 410):
         return None
-    if result.error:
-        raise Stopped(f"stepstone request for {url} failed: {result.error}")
+    # A posting page comes with HTTP 200, as the shared readers require of every site's data.
+    if result.error or result.status != 200:
+        failure = result.error or f"HTTP {result.status}"
+        raise Stopped(f"stepstone request for {url} failed: {failure}")
     page = BeautifulSoup(result.text, "html.parser")
     posting = next(iter(json_ld(page, {"JobPosting"})), None)
     if posting is None:
