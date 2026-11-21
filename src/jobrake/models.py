@@ -5,7 +5,7 @@ import math
 import re
 from typing import Any, Literal, NotRequired, TypedDict, cast, get_args
 
-from jobrake.utils import as_str, finite, iso_date, well_formed
+from jobrake.utils import as_int, as_str, finite, iso_date, well_formed
 
 logger = logging.getLogger(__name__)
 
@@ -79,6 +79,20 @@ JOB_FIELDS = tuple(JobDict.__annotations__)
 IDENTITY_FIELDS = ("site", "id", "url")
 DETAIL_FIELDS = tuple(name for name in JOB_FIELDS if name in JobDict.__optional_keys__)
 SUMMARY_FIELDS = tuple(name for name in JOB_FIELDS if name not in IDENTITY_FIELDS + DETAIL_FIELDS)
+# What a scalar detail of each type must be, and the check of it.
+_SCALARS = {
+    str: ("a string", lambda value: isinstance(value, str)),
+    float: ("a finite number", lambda value: finite(value) is not None),
+    int: ("an integer", lambda value: as_int(value) is not None),
+}
+# The details with a rule of their own: a menu, a structure, or a date _readable_date checks.
+_OWN_RULES = ("workplace_type", "site_data", "keywords", "posted_at", "expires_at")
+# Built at import, so a scalar detail of a type without a check fails as the module loads.
+_SCALAR_CHECKS = {
+    name: _SCALARS[get_args(JobDict.__annotations__[name])[0]]
+    for name in DETAIL_FIELDS
+    if name not in _OWN_RULES
+}
 _PLACE_TEXT = ("city", "region", "country_code")
 _ALPHA2 = re.compile(r"[A-Za-z]{2}")
 
@@ -181,7 +195,13 @@ def _keywords(value: object) -> list[str] | None:
 
 
 def _detail(name: str, value: object) -> object:
-    """Normalize one detail value, or return None to leave its key out."""
+    """
+    Normalize one detail value, or return None to leave its key out.
+
+    Raises:
+        TypeError: A detail other than a date or ``workplace_type`` is not of its ``JobDict``
+            type, or ``site_data`` or ``keywords`` is malformed.
+    """
     if isinstance(value, str):
         value = value.strip() or None
     if name == "workplace_type":
@@ -190,6 +210,11 @@ def _detail(name: str, value: object) -> object:
         return _site_data(value)
     if name == "keywords":
         return _keywords(value)
+    if value is None or name not in _SCALAR_CHECKS:
+        return value
+    kind, fits = _SCALAR_CHECKS[name]
+    if not fits(value):
+        raise TypeError(f"job field {name} must be {kind}, got {value!r}")
     return value
 
 
@@ -218,7 +243,9 @@ def make_job(**fields: Any) -> JobDict:
 
     Raises:
         TypeError: An identity field is missing, blank, or not a string, a field is not a
-            ``JobDict`` key, or ``locations`` or ``site_data`` is malformed.
+            ``JobDict`` key, a detail other than a date or ``workplace_type`` is not of its
+            ``JobDict`` type, such as ``applicants`` given as text or ``salary_min`` as NaN, or
+            ``locations``, ``site_data``, or ``keywords`` is malformed.
     """
     if unknown := fields.keys() - set(JOB_FIELDS):
         raise TypeError(f"not a job field: {', '.join(sorted(unknown))}")

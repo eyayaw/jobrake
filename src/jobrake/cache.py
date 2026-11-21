@@ -84,10 +84,11 @@ class Cache:
     Store whole ``JobDict`` records in one SQLite table, keyed by site and posting ID.
 
     A row stays fresh for ``ttl`` seconds, and opening the cache deletes expired rows.
-    Each row read passes through ``make_job``, so a row whose keys no longer fit ``JobDict`` is a
-    miss, which the next fetch replaces. A storage or decoding failure logs one warning with the
-    path and disables this instance, so callers see misses and keep fetching. A lock another
-    process holds past SQLite's busy timeout skips the cache for ``LOCK_PAUSE`` seconds.
+    Each row read passes through ``make_job``, so a row it rejects, such as one whose keys no longer
+    fit ``JobDict`` or whose ``applicants`` is text, is a miss, which the next fetch replaces.
+    A storage or decoding failure logs one warning with the path and disables this instance,
+    so callers see misses and keep fetching. A lock another process holds past SQLite's busy
+    timeout skips the cache for ``LOCK_PAUSE`` seconds.
 
     Attributes:
         path: SQLite database path. The cache opens it on first access.

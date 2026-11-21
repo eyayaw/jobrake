@@ -132,8 +132,8 @@ and the contract test in `tests/test_scrape.py` need no edit.
 - The cache is transparent. On LinkedIn, Workday, SmartRecruiters, StepStone, and INOMICS it
   stores the fields of each posting read as a `JobDict`. A reader sees only the posting's URL, so a
   later card merges with the cached fields as with a fresh read. Rows carry no version, and each
-  row read passes through `make_job`, so a row whose keys no longer fit `JobDict` or `Place` is a
-  miss.
+  row read passes through `make_job`, so a row it rejects is a miss, such as one whose keys no
+  longer fit `JobDict` or `Place` or whose `applicants` is text.
   `make_job` normalizes a row as it does a site's fields and cannot redo a parser's work, so a
   parser fix reaches a cached posting when its row expires.
   `JOBRAKE_CACHE_PATH` and `JOBRAKE_CACHE_TTL` configure it, and no site function takes a cache

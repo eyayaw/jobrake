@@ -89,10 +89,12 @@ def test_a_row_that_no_longer_fits_job_dict_is_a_miss(make_cache, caplog):
     other = make_job(site="linkedin", id="222", url="https://nl.linkedin.com/jobs/view/222")
     cache.put([JOB, other])
     moved_on = json.dumps({**JOB, "headcount": 4})
+    retyped = json.dumps({**JOB, "id": "333", "applicants": "25"})
     run_sql(cache, "UPDATE jobs SET job = ? WHERE id = '111'", (moved_on,))
+    run_sql(cache, "INSERT INTO jobs VALUES ('linkedin', '333', ?, unixepoch())", (retyped,))
     with caplog.at_level(logging.DEBUG, logger="jobrake.cache"):
-        assert cache.get("linkedin", ["111", "222"]) == {"222": other}
-    assert "1 row for linkedin did not fit JobDict" in caplog.text
+        assert cache.get("linkedin", ["111", "222", "333"]) == {"222": other}
+    assert "2 rows for linkedin did not fit JobDict" in caplog.text
     cache.put([JOB])
     assert cache.get("linkedin", ["111"]) == {"111": JOB}
 
