@@ -290,17 +290,26 @@ installed, as CI does.
 ## Disclaimer
 
 > [!WARNING]
-> jobrake has no affiliation with any of the [supported sites](#supported-job-boards).
+> jobrake has no affiliation with any of the [supported sites](#supported-job-boards),
+> and its authors are not liable for how you use it.
 > Use it for your own job search, not to collect postings at scale or republish them.
 > Scraping may violate their ToS, and any of them may rate-limit or block your IP address.
-> EconJobMarket offers its ad feed for personal use and academic research,
-> and redisplaying its ads on your own website needs its approval.
-> The UN's terms of use permit copying its sites' material only for personal, non-commercial use.
-> The AEA's JOE listings page limits its content to personal use and forbids scraping or
-> collecting it without the AEA's written permission.
-> The INOMICS terms forbid accessing its sites by automated means without its permission.
-> The robots.txt of AcademicTransfer's API host disallows every path.
-> You are responsible for checking and complying with their terms.
+> You are responsible for checking and complying with their terms:
+> [AcademicTransfer](https://www.academictransfer.com/en/terms-conditions-privacy/),
+> [AEA JOE](https://www.aeaweb.org/joe/listings),
+> [Ashby](https://www.ashbyhq.com/resources/terms-and-policies),
+> [EconJobMarket](https://backend.econjobmarket.org/docs/ad-redisplay/Ad-Redisplay.0.md),
+> [Greenhouse](https://www.greenhouse.com/legal),
+> [Indeed](https://www.indeed.com/legal),
+> [INOMICS](https://inomics.com/terms-and-conditions),
+> [Lever](https://www.lever.co/legal),
+> [LinkedIn](https://www.linkedin.com/legal/user-agreement),
+> [Personio](https://www.personio.com/terms/),
+> [SmartRecruiters](https://www.smartrecruiters.com/legal/terms-of-use/),
+> [StepStone](https://www.stepstone.de/ueber-stepstone/general-terms-of-use-from-april-27th-2022/),
+> [UN Careers](https://www.un.org/en/about-us/terms-of-use),
+> [Workable](https://www.workable.com/terms), and
+> [Workday](https://www.workday.com/en-us/legal/site-terms.html).
 
 ---
 
