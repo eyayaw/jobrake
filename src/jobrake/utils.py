@@ -310,6 +310,11 @@ def as_dict(value: object) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
 
+def as_list(value: object) -> list[Any]:
+    """Return a JSON array unchanged, or ``[]`` for any other value, so a loop can follow."""
+    return value if isinstance(value, list) else []
+
+
 def iso_date(value: object) -> str | None:
     """
     Reduce an ISO 8601 date or timestamp to its calendar date.

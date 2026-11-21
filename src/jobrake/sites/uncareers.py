@@ -9,7 +9,7 @@ from typing import Annotated, Any
 from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, Stopped, make_job
 from jobrake.sites.responses import collect, json_list, json_page, offset_pages, read_json
-from jobrake.utils import as_dict, as_str, checked, html_text
+from jobrake.utils import as_dict, as_list, as_str, checked, html_text
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +43,6 @@ def _parse_opening(opening: dict[str, Any]) -> JobDict:
     job_id = opening.get("jobId")
     if not isinstance(job_id, int):
         raise TypeError(f"jobId {job_id!r} is not an integer")
-    stations = opening.get("dutyStation")
     return make_job(
         site="uncareers",
         id=str(job_id),
@@ -54,7 +53,7 @@ def _parse_opening(opening: dict[str, Any]) -> JobDict:
         # A duty station is a label such as NEW YORK or FO West Bank, with no country.
         locations=[
             {"name": as_dict(station).get("description")}
-            for station in (stations if isinstance(stations, list) else [])
+            for station in as_list(opening.get("dutyStation"))
         ],
         description=html_text(as_str(opening.get("jobDescription")) or ""),
         posted_at=as_str(opening.get("startDate")),
@@ -99,7 +98,7 @@ def _entries(items: object, code: str, name: str) -> list[tuple[str, str]]:
     """Return the ``(code, name)`` pairs of catalog entries, skipping an incomplete one."""
     return [
         (key, label)
-        for entry in map(as_dict, items if isinstance(items, list) else [])
+        for entry in map(as_dict, as_list(items))
         if (key := as_str(entry.get(code))) and (label := as_str(entry.get(name)))
     ]
 
@@ -122,7 +121,7 @@ def _catalog(payload: Any) -> dict[str, list[tuple[str, str]]]:  # noqa: ANN401 
         if group.get("shortname") == "jn":
             families += [
                 family
-                for network in map(as_dict, values if isinstance(values, list) else [])
+                for network in map(as_dict, as_list(values))
                 for family in _entries(network.get("jobFamilies"), "Code", "Name")
             ]
     catalog["jf"] = families

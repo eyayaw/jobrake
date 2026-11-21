@@ -7,7 +7,7 @@ from urllib.parse import quote
 from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, employment_type, make_job, workplace_type
 from jobrake.sites.responses import json_list, parse_postings, read_json
-from jobrake.utils import as_dict, as_str, checked, finite, html_text
+from jobrake.utils import as_dict, as_list, as_str, checked, finite, html_text
 
 logger = logging.getLogger(__name__)
 
@@ -20,8 +20,7 @@ _PERIODS = {f"1 {unit}": unit for unit in ("HOUR", "DAY", "WEEK", "MONTH", "YEAR
 
 def _salary(compensation: dict[str, Any]) -> dict[str, Any]:
     """Return the salary fields of a posting's first Salary component, or nothing without one."""
-    components = compensation.get("summaryComponents")
-    for entry in components if isinstance(components, list) else []:
+    for entry in as_list(compensation.get("summaryComponents")):
         component = as_dict(entry)
         if component.get("compensationType") == "Salary":
             return {
@@ -62,9 +61,8 @@ def _parse_posting(posting: dict[str, Any]) -> JobDict:
     posting_id = as_str(posting.get("id"))
     if not posting_id and url:
         posting_id = url.split("?", 1)[0].split("#", 1)[0].rstrip("/").rsplit("/", 1)[-1]
-    secondary = posting.get("secondaryLocations")
     compensation = as_dict(posting.get("compensation"))
-    others = map(as_dict, secondary) if isinstance(secondary, list) else []
+    others = map(as_dict, as_list(posting.get("secondaryLocations")))
     return make_job(
         site="ashby",
         id=posting_id,

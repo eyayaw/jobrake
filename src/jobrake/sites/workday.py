@@ -13,7 +13,7 @@ from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, employment_type, make_job
 from jobrake.sites.postings import fill_details, postings_of
 from jobrake.sites.responses import collect, cut_short, json_page, parse_postings, read_json
-from jobrake.utils import as_dict, as_str, checked, html_text
+from jobrake.utils import as_dict, as_list, as_str, checked, html_text
 
 logger = logging.getLogger(__name__)
 
@@ -190,11 +190,10 @@ def _parse_details(payload: dict[str, Any]) -> dict[str, Any]:
     info = payload["jobPostingInfo"]
     country = as_dict(as_dict(info.get("jobRequisitionLocation")).get("country"))
     primary = (as_str(info.get("location")) or "").strip()
-    others = info.get("additionalLocations")
     # The requisition's country is the primary location's.
     locations = [
         *([{"name": primary, "country_code": country.get("alpha2Code")}] if primary else []),
-        *({"name": name} for name in (others if isinstance(others, list) else [])),
+        *({"name": name} for name in as_list(info.get("additionalLocations"))),
     ]
     start = as_str(info.get("startDate"))
     return {

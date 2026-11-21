@@ -8,7 +8,7 @@ from urllib.parse import quote
 from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, employment_type, make_job, workplace_type
 from jobrake.sites.responses import json_list, parse_postings, read_json
-from jobrake.utils import as_dict, as_str, checked, epoch_ms_to_iso, html_text
+from jobrake.utils import as_dict, as_list, as_str, checked, epoch_ms_to_iso, html_text
 
 logger = logging.getLogger(__name__)
 
@@ -19,8 +19,7 @@ API_URLS = ("https://api.lever.co/v0/postings", "https://api.eu.lever.co/v0/post
 def _description(posting: dict[str, Any]) -> str:
     # description already holds the opening, so the opening fields stay out.
     parts = [as_str(posting.get("description")) or ""]
-    lists = posting.get("lists")
-    for entry in lists if isinstance(lists, list) else []:
+    for entry in as_list(posting.get("lists")):
         if isinstance(entry, dict):
             # The list name is plain text, and its content is bare <li> elements.
             heading = escape(as_str(entry.get("text")) or "")
@@ -40,7 +39,7 @@ def _parse_posting(posting: dict[str, Any]) -> JobDict:
     """
     categories = as_dict(posting.get("categories"))
     primary = categories.get("location")
-    others = categories.get("allLocations")
+    others = as_list(categories.get("allLocations"))
     return make_job(
         site="lever",
         id=posting.get("id"),
@@ -50,11 +49,7 @@ def _parse_posting(posting: dict[str, Any]) -> JobDict:
             # The posting's country is the primary location's.
             {"name": primary, "country_code": posting.get("country")},
             # Lever documents that allLocations repeats the primary location.
-            *(
-                {"name": name}
-                for name in (others if isinstance(others, list) else [])
-                if name != primary
-            ),
+            *({"name": name} for name in others if name != primary),
         ],
         description=_description(posting),
         employment_type=employment_type(as_str(categories.get("commitment"))),

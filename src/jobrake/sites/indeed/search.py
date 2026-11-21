@@ -11,7 +11,7 @@ from urllib.parse import parse_qs, urlsplit
 from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, Stopped, WorkplaceType, employment_type, make_job
 from jobrake.sites.responses import collect, json_list, parse_postings, read_json
-from jobrake.utils import as_dict, as_str, checked, epoch_ms_to_iso, finite, html_text
+from jobrake.utils import as_dict, as_list, as_str, checked, epoch_ms_to_iso, finite, html_text
 
 from .client import API_HEADERS, API_URL
 from .countries import Country, indeed_domain
@@ -211,10 +211,9 @@ def _parse_job(job: dict[str, Any], base_url: str) -> JobDict:
     exactly = finite(amount.get("value"))
     # Employment types share the attributes bag with skills and benefits. Malformed entries,
     # or a bag that is not a list, are ignored.
-    attributes = job.get("attributes")
     labels = [
         attribute.get("label")
-        for attribute in (attributes if isinstance(attributes, list) else [])
+        for attribute in as_list(job.get("attributes"))
         if isinstance(attribute, dict) and isinstance(attribute.get("label"), str)
     ]
     company_page = as_str(employer.get("relativeCompanyPageUrl"))
@@ -258,8 +257,7 @@ def _parse_job(job: dict[str, Any], base_url: str) -> JobDict:
 
 def _graphql_error_message(payload: object) -> str | None:
     """Read the first string message from a GraphQL error envelope."""
-    errors = payload.get("errors") if isinstance(payload, dict) else None
-    for error in errors if isinstance(errors, list) else []:
+    for error in as_list(as_dict(payload).get("errors")):
         if isinstance(error, dict) and isinstance(error.get("message"), str):
             return error["message"]
     return None
