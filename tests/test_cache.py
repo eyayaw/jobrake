@@ -109,7 +109,7 @@ def test_corrupt_data_disables_the_cache_with_one_warning(make_cache, caplog):
     assert warning.message.startswith(f"cache disabled ({cache.path})")
 
 
-def test_a_lock_another_process_holds_pauses_the_cache_and_keeps_it(
+def test_a_lock_another_connection_holds_pauses_the_cache_and_keeps_it(
     make_cache, monkeypatch, caplog
 ):
     # No wait for the lock, which SQLite would otherwise wait out for 5 seconds.
@@ -124,7 +124,7 @@ def test_a_lock_another_process_holds_pauses_the_cache_and_keeps_it(
     # The pause skips the cache without waiting on SQLite, even once the lock has gone.
     assert cache.get("linkedin", ["111"]) == {}
     cache.put([{**JOB, "id": "333"}])
-    assert caplog.text.count("is locked by another process") == 1
+    assert caplog.text.count("is locked by another connection") == 1
     clock[0] += LOCK_PAUSE
     cache.put([{**JOB, "id": "444"}])
     assert cache.get("linkedin", ["111", "222", "333", "444"]).keys() == {"111", "444"}
