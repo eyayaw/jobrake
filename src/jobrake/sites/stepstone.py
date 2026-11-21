@@ -51,8 +51,9 @@ def _place(card: dict[str, Any]) -> dict[str, Any]:
         return {}
     place = {"name": name, "country_code": as_str(card.get("country"))}
     latitude, longitude = finite(card.get("latitude")), finite(card.get("longitude"))
-    # StepStone sends 0, 0 for a posting without a point, single-city ones included.
-    if latitude and longitude:
+    # StepStone sends 0, 0 for a posting without a point, single-city ones included. A single zero
+    # is a real coordinate, as for a city on the prime meridian or the equator.
+    if latitude is not None and longitude is not None and (latitude, longitude) != (0, 0):
         place["latitude"], place["longitude"] = latitude, longitude
     return place
 
