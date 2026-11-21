@@ -139,6 +139,28 @@ async def fill_details(
     return filled
 
 
+def readable_url(card: Callable[[str], JobDict], posting_id: object, url: str) -> str:
+    """
+    Return a search card's URL when the site's ``card`` reads it back unchanged, as that posting.
+
+    ``postings`` and a details search fetch a posting from its URL, so a URL that ``card`` refuses
+    or reads as another posting would leave the card unfillable. The URL must also come back
+    unchanged, as ``urlsplit`` drops a tab or newline the record would keep.
+
+    Raises:
+        TypeError: ``card`` refuses the URL, or reads another posting ID or URL from it.
+    """
+    try:
+        named = card(url)
+    except ValueError:
+        same = False
+    else:
+        same = named["id"] == posting_id and named["url"] == url
+    if not same:
+        raise TypeError(f"{url!r} does not read back as posting {posting_id!r}")
+    return url
+
+
 def postings_of(
     card: Callable[[str], JobDict],
     read: Reader,

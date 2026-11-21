@@ -12,7 +12,7 @@ lazy from bs4 import BeautifulSoup
 
 from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, Stopped, employment_type, make_job
-from jobrake.sites.postings import fill_details, postings_of
+from jobrake.sites.postings import fill_details, postings_of, readable_url
 from jobrake.sites.responses import collect, json_ld, json_page, offset_pages, read_json
 from jobrake.utils import (
     as_dict,
@@ -57,28 +57,33 @@ def _place(card: dict[str, Any]) -> dict[str, Any]:
     return place
 
 
-def _parse_card(card: dict[str, Any]) -> JobDict:
+def _parse_card(listing: dict[str, Any]) -> JobDict:
     """
     Build a record from one card of a search response's ``items`` list.
 
     Raises:
-        TypeError: The card lacks a string or integer ``id``.
+        TypeError: The card's ``id`` is not a posting number, as a string or an integer.
         AttributeError: The card is not an object.
     """
-    posting_id = card.get("id")
+    raw = listing.get("id")
+    posting_id = str(number) if (number := as_int(raw)) is not None else raw
+    url = readable_url(card, posting_id, POSTING_URL.format(id=posting_id))
     return make_job(
         site="stepstone",
-        id=str(number) if (number := as_int(posting_id)) is not None else posting_id,
-        url=POSTING_URL.format(id=posting_id),
-        title=card.get("title"),
-        company=card.get("companyName"),
-        locations=[_place(card)],
-        date=epoch_ms_to_iso(card.get("datePosted")),
-        company_logo=as_str(card.get("companyLogoURL")),
-        language=as_str(card.get("language")),
-        posted_at=epoch_ms_to_iso(card.get("dateOriginal") or card.get("datePosted")),
-        expires_at=epoch_ms_to_iso(card.get("dateExpire")),
-        site_data={"section": card.get("section"), "labels": card.get("listingLabels") or None},
+        id=posting_id,
+        url=url,
+        title=listing.get("title"),
+        company=listing.get("companyName"),
+        locations=[_place(listing)],
+        date=epoch_ms_to_iso(listing.get("datePosted")),
+        company_logo=as_str(listing.get("companyLogoURL")),
+        language=as_str(listing.get("language")),
+        posted_at=epoch_ms_to_iso(listing.get("dateOriginal") or listing.get("datePosted")),
+        expires_at=epoch_ms_to_iso(listing.get("dateExpire")),
+        site_data={
+            "section": listing.get("section"),
+            "labels": listing.get("listingLabels") or None,
+        },
     )
 
 

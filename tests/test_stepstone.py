@@ -111,8 +111,11 @@ def test_search_pages_until_the_reported_total_with_its_filters_on_every_page() 
     assert "workFromHome=1" in fetcher.requests[1]
 
 
-def test_a_card_without_an_id_is_skipped() -> None:
-    fetcher = PagedFetcher([_page([{"title": "No ID"}, {"id": True}, CARDS[0]], 3)])
+def test_a_card_without_a_posting_number_is_skipped() -> None:
+    # Each of these ids gives a posting URL that card rejects.
+    malformed: list[dict[str, object]] = [{"title": "No ID"}, {"id": True}, {"id": "abc"}]
+    malformed += [{"id": -5}, {"id": "1/"}]
+    fetcher = PagedFetcher([_page([*malformed, CARDS[0]], 6)])
     jobs = asyncio.run(stepstone.search(fetcher, query="data"))
 
     assert [job["id"] for job in jobs] == ["14660809"]

@@ -9,7 +9,7 @@ from urllib.parse import quote, urlencode, urlsplit
 
 from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, employment_type, make_job
-from jobrake.sites.postings import fill_details, postings_of
+from jobrake.sites.postings import fill_details, postings_of, readable_url
 from jobrake.sites.responses import collect, json_page, offset_pages, read_json
 from jobrake.utils import as_dict, as_str, checked, cutoff, finite, html_text
 
@@ -20,7 +20,7 @@ API_URL = "https://api.smartrecruiters.com/v1/companies"
 POSTING_URL = "https://jobs.smartrecruiters.com/{company}/{id}"
 # A posting's page path, where a title slug may follow the ID, as in
 # /BoschGroup/744000158197889-product-expert.
-_POSTING_PATH = re.compile(r"/([^/]+)/([0-9]+)(?:-[^/]*)?/?")
+_POSTING_PATH = re.compile(r"/([^/\s]+)/([0-9]+)(?:-[^/]*)?/?")
 PAGE_SIZE = 100  # the largest limit the API accepts
 
 
@@ -34,16 +34,20 @@ def _coordinate(value: object) -> float | None:
         return None
 
 
-def _parse_card(card: dict[str, Any]) -> JobDict:
+def _parse_card(listing: dict[str, Any]) -> JobDict:
     """
     Build a record from one card of a board's ``content`` list.
 
     Raises:
-        TypeError: The card lacks a string ``id`` or a company identifier.
+        TypeError: The card's ``id`` and company identifier do not make a posting URL.
         AttributeError: The card is not an object.
     """
-    company = as_dict(card.get("company"))
-    location = as_dict(card.get("location"))
+    company = as_dict(listing.get("company"))
+    identifier, posting_id = company.get("identifier"), listing.get("id")
+    # A missing identifier leaves the company out of the URL, which card then refuses.
+    company_url = POSTING_URL.format(company=as_str(identifier) or "", id=posting_id)
+    url = readable_url(card, posting_id, company_url)
+    location = as_dict(listing.get("location"))
     # SmartRecruiters' own example card has the place fields without fullLocation,
     # so make_job names that place from its parts.
     place = {
@@ -54,29 +58,25 @@ def _parse_card(card: dict[str, Any]) -> JobDict:
         "latitude": _coordinate(location.get("latitude")),
         "longitude": _coordinate(location.get("longitude")),
     }
-    identifier, posting_id = company.get("identifier"), card.get("id")
-    url = (
-        POSTING_URL.format(company=identifier, id=posting_id)
-        if isinstance(identifier, str)
-        else None
-    )
     return make_job(
         site="smartrecruiters",
         id=posting_id,
         url=url,
-        title=card.get("name"),
+        title=listing.get("name"),
         company=company.get("name"),
         locations=[place],
-        employment_type=employment_type(as_str(as_dict(card.get("typeOfEmployment")).get("label"))),
-        department=as_str(as_dict(card.get("department")).get("label")),
+        employment_type=employment_type(
+            as_str(as_dict(listing.get("typeOfEmployment")).get("label"))
+        ),
+        department=as_str(as_dict(listing.get("department")).get("label")),
         # Both flags false does not state on-site, so such a card has no workplace type.
         workplace_type="remote"
         if location.get("remote") is True
         else "hybrid"
         if location.get("hybrid") is True
         else None,
-        language=as_str(as_dict(card.get("language")).get("code")),
-        posted_at=as_str(card.get("releasedDate")),
+        language=as_str(as_dict(listing.get("language")).get("code")),
+        posted_at=as_str(listing.get("releasedDate")),
     )
 
 

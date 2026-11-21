@@ -390,6 +390,18 @@ def test_a_card_without_a_requisition_id_is_skipped(caplog):
     assert caplog.text.count("skipping malformed workday posting") == 2
 
 
+def test_a_card_whose_url_card_cannot_read_back_is_skipped():
+    # postings and a details search fetch a posting from its URL.
+    malformed = [
+        {**CARDS[0], "externalPath": "/details/Remote/Engineer_JR1"},  # outside /job/
+        {**CARDS[0], "externalPath": "/job/Remote/Engineer_JR2?source=x"},  # card reads JR2
+        {**CARDS[0], "externalPath": "/job/Remote/Eng\nineer_JR3"},  # urlsplit drops the newline
+        CARDS[1],
+    ]
+    jobs = asyncio.run(workday.search(StubFetcher({"/jobs": ok(page(malformed))}), board=BOARD))
+    assert [job["id"] for job in jobs] == ["nvidia:JR2019010"]
+
+
 def test_paging_ends_at_results_or_the_first_total_and_stops_at_an_early_empty_page(
     caplog, monkeypatch
 ):

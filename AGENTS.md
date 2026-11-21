@@ -47,7 +47,8 @@ applicant tracking systems, and it depends on `httpx` and `bs4`.
   becomes a record of its own, with the posting's own `url` when the reader gives one. The cache
   stores it, `postings` returns it, and a details search merges it into each card of the posting:
   the record wins wherever it has a value, and the card keeps its `site`, `id`, and `url`.
-  A cached posting costs no request.
+  A cached posting costs no request. `readable_url` keeps a search card's URL only when the site's
+  `card` reads it back unchanged, so `postings` can fetch the card's posting.
 - `utils.py`: `site_options`, which reads the `Annotated` arguments of a site function, `checked`,
   which wraps it in a `Checked` that runs those checks and the site's validator on every call,
   or alone through `check`, `menu_codes`, which maps filter values to codes of a site's fixed menu,

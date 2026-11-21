@@ -224,6 +224,29 @@ def test_a_malformed_card_is_skipped_with_a_warning(caplog):
     assert caplog.text.count("skipping malformed smartrecruiters posting") == 2
 
 
+@pytest.mark.parametrize(
+    ("identifier", "posting_id"),
+    [
+        (" ", "1"),
+        ("", "1"),
+        (None, "1"),
+        ("Bo\nsch", "1"),
+        ("Bosch/Group", "1"),
+        ("Bosch?x", "1"),
+        ("Bosch#x", "1"),
+        ("BoschGroup", "1/2"),
+        ("BoschGroup", "1-x"),
+    ],
+)
+def test_a_card_whose_posting_url_card_cannot_read_back_is_skipped(identifier, posting_id):
+    # postings and a details search fetch a posting from its URL.
+    company = {"identifier": identifier, "name": "Bosch Group"}
+    malformed = {**CARDS[0], "id": posting_id, "company": company}
+    fetcher = StubFetcher({"BoschGroup/postings": page([malformed, CARDS[1]], 2)})
+    (job,) = asyncio.run(smartrecruiters.search(fetcher, board="BoschGroup"))
+    assert smartrecruiters.card(job["url"])["id"] == job["id"] == CARDS[1]["id"]
+
+
 # GET {API}/BoschGroup/postings/744000158197889 on 2026-10-29, the posting behind CARDS[0],
 # trimmed to the fields jobrake reads, with each section cut to its opening and
 # additionalInformation emptied, as another BoschGroup posting serves it.
