@@ -14,7 +14,7 @@ from jobrake.fetchkit import Fetcher, FetchResult
 from jobrake.models import JobDict, Place, Stopped, employment_type, make_job, make_places
 from jobrake.sites.postings import Halt, postings_of
 from jobrake.sites.responses import failure, json_ld
-from jobrake.utils import as_dict, finite, html_text, split_url
+from jobrake.utils import as_dict, as_int, finite, html_text, split_url
 
 from .client import (
     EN_US_QUERY,
@@ -207,7 +207,7 @@ def _parse_posting(soup: BeautifulSoup) -> dict[str, Any]:
         "salary_max": _number_value(amount.get("maxValue")),
         "salary_currency": _text_value(pay.get("currency")),
         "salary_period": _text_value(amount.get("unitText")),
-        "experience_months": months if isinstance(months, int) else None,
+        "experience_months": as_int(months),
         "education": _text_value(
             _obj(posting.get("educationRequirements")).get("credentialCategory")
         ),
