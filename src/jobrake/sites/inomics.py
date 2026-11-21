@@ -4,7 +4,7 @@ import functools
 import logging
 import re
 from typing import Annotated, Any
-from urllib.parse import urlencode, urlsplit
+from urllib.parse import urlencode
 
 lazy from bs4 import BeautifulSoup, Tag
 
@@ -12,7 +12,7 @@ from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, Stopped, make_job, workplace_type
 from jobrake.sites.postings import fill_details, postings_of
 from jobrake.sites.responses import json_ld, parse_postings, read_html, read_json
-from jobrake.utils import as_dict, as_str, checked, html_text, menu_codes
+from jobrake.utils import as_dict, as_str, checked, html_text, menu_codes, split_url
 
 logger = logging.getLogger(__name__)
 
@@ -298,7 +298,7 @@ def card(reference: str) -> JobDict:
     Raises:
         ValueError: The reference is not a posting URL on inomics.com.
     """
-    parts = urlsplit(reference.strip())
+    parts = split_url(reference)
     hosted = parts.scheme in ("http", "https") and parts.netloc.lower() in _HOSTS
     if not (hosted and (match := _JOB_PATH.fullmatch(parts.path))):
         raise ValueError(

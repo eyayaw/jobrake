@@ -6,12 +6,21 @@ import logging
 import re
 from collections.abc import AsyncGenerator, Callable
 from typing import Annotated, Any
-from urllib.parse import parse_qs, urlencode, urlsplit
+from urllib.parse import parse_qs, urlencode
 
 from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, Stopped, WorkplaceType, employment_type, make_job
 from jobrake.sites.responses import collect, json_list, parse_postings, read_json
-from jobrake.utils import as_dict, as_list, as_str, checked, epoch_ms_to_iso, finite, html_text
+from jobrake.utils import (
+    as_dict,
+    as_list,
+    as_str,
+    checked,
+    epoch_ms_to_iso,
+    finite,
+    html_text,
+    split_url,
+)
 
 from .client import API_HEADERS, API_URL
 from .countries import Country, indeed_domain
@@ -190,7 +199,7 @@ def card(reference: str) -> JobDict:
     Raises:
         ValueError: The reference is not an Indeed URL that carries a posting key.
     """
-    parts = urlsplit(reference.strip())
+    parts = split_url(reference)
     host = parts.netloc.lower()
     query = parse_qs(parts.query)
     # A lone surrogate, which urlencode cannot encode, becomes U+FFFD in the key and its URL alike.

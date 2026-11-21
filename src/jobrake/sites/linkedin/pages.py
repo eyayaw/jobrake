@@ -14,7 +14,7 @@ from jobrake.fetchkit import Fetcher, FetchResult
 from jobrake.models import JobDict, Place, Stopped, employment_type, make_job, make_places
 from jobrake.sites.postings import Halt, postings_of
 from jobrake.sites.responses import json_ld
-from jobrake.utils import as_dict, finite, html_text
+from jobrake.utils import as_dict, finite, html_text, split_url
 
 from .client import (
     EN_US_QUERY,
@@ -423,7 +423,7 @@ def _reference(reference: str) -> JobDict:
     ref = reference.strip()
     if numeric(ref):
         ref = f"{FRAGMENT_URL}/{ref}"
-    parts = urlsplit(ref)
+    parts = split_url(ref)
     shown = parse_qs(parts.query).get("currentJobId", [""])[0]
     # The /comm/ link redirects to the page, and a search page carries only the ID,
     # so each is rewritten to the page address of its ID. A path that names a posting keeps it over

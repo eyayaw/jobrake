@@ -11,7 +11,7 @@ from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, employment_type, make_job
 from jobrake.sites.postings import fill_details, postings_of, readable_url
 from jobrake.sites.responses import collect, json_page, offset_pages, read_json
-from jobrake.utils import as_dict, as_str, checked, cutoff, finite, html_text
+from jobrake.utils import as_dict, as_str, checked, cutoff, finite, html_text, split_url
 
 logger = logging.getLogger(__name__)
 
@@ -208,7 +208,7 @@ def card(reference: str) -> JobDict:
     Raises:
         ValueError: The reference is not a posting URL on jobs.smartrecruiters.com.
     """
-    parts = urlsplit(reference.strip())
+    parts = split_url(reference)
     hosted = (
         parts.scheme in ("http", "https") and parts.netloc.lower() == "jobs.smartrecruiters.com"
     )

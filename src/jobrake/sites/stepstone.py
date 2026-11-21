@@ -6,7 +6,7 @@ import re
 import uuid
 from collections.abc import AsyncGenerator
 from typing import Annotated, Any
-from urllib.parse import urlencode, urlsplit
+from urllib.parse import urlencode
 
 lazy from bs4 import BeautifulSoup
 
@@ -23,6 +23,7 @@ from jobrake.utils import (
     epoch_ms_to_iso,
     finite,
     html_text,
+    split_url,
 )
 
 logger = logging.getLogger(__name__)
@@ -271,7 +272,7 @@ def card(reference: str) -> JobDict:
     Raises:
         ValueError: The reference is not a StepStone posting URL on stepstone.de.
     """
-    parts = urlsplit(reference.strip())
+    parts = split_url(reference)
     hosted = parts.scheme in ("http", "https") and parts.netloc.lower() in _HOSTS
     path = parts.path
     if not (hosted and (match := _JOB_PATH.fullmatch(path) or _SLUG_PATH.fullmatch(path))):

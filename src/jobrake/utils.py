@@ -10,6 +10,7 @@ from contextlib import suppress
 from datetime import UTC, datetime, timedelta
 from types import NoneType
 from typing import Annotated, Any, NamedTuple, Union, get_args, get_origin, overload
+from urllib.parse import SplitResult, urlsplit
 
 lazy from bs4 import BeautifulSoup
 lazy from bs4.element import Tag
@@ -298,6 +299,19 @@ def well_formed(value: Any) -> Any:  # noqa: ANN401  any JSON value
     if isinstance(value, dict):
         return {well_formed(key): well_formed(item) for key, item in value.items()}
     return value
+
+
+def split_url(text: str) -> SplitResult:
+    """
+    Split stripped text as ``urlsplit`` does, or return an empty split for text it refuses.
+
+    ``urlsplit`` raises ``ValueError`` for text such as an unbalanced bracket, so a caller that
+    checks the parts raises its own message, which names a next step.
+    """
+    try:
+        return urlsplit(text.strip())
+    except ValueError:
+        return SplitResult("", "", "", "", "")
 
 
 def as_str(value: object) -> str | None:

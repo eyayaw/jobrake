@@ -7,13 +7,12 @@ import re
 from collections.abc import AsyncGenerator
 from datetime import UTC, date, datetime, timedelta
 from typing import Annotated, Any
-from urllib.parse import urlsplit
 
 from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, employment_type, make_job
 from jobrake.sites.postings import fill_details, postings_of, readable_url
 from jobrake.sites.responses import collect, cut_short, json_page, parse_postings, read_json
-from jobrake.utils import as_dict, as_list, as_str, checked, html_text
+from jobrake.utils import as_dict, as_list, as_str, checked, html_text, split_url
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +49,7 @@ def _career_site(board: str) -> tuple[str, str, str, str]:
         ValueError: ``board`` is not a Workday career site URL, names a port,
             or is an API address under ``/wday/``.
     """
-    parts = urlsplit(board.strip())
+    parts = split_url(board)
     host = parts.hostname or ""
     names = [name for name in parts.path.split("/") if name]
     if names and _LOCALE.fullmatch(names[0]):

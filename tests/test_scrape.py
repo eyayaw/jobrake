@@ -108,6 +108,12 @@ def test_a_site_function_the_cli_cannot_build_fails_when_decorated(function, mat
         ("linkedin", {"location": "Seattle", "company_ids": ["１２３"]}, ValueError, "company ID"),  # noqa: RUF001  fullwidth digits are the input under test
         ("workday", {"board": "https://example.com/jobs"}, ValueError, "not a Workday career site"),
         (
+            "workday",
+            {"board": "https://[/x"},
+            ValueError,
+            "not a Workday career site",
+        ),  # urlsplit refuses
+        (
             "academictransfer",
             {"vacancy_type": "phd"},
             ValueError,
@@ -193,6 +199,15 @@ def test_identify_names_the_site_and_id_a_search_gives(link, named):
 )
 def test_identify_gives_none_for_a_link_no_site_reads(link):
     assert identify(link) is None
+
+
+@pytest.mark.parametrize(
+    "site", [site for site, module in SITES.items() if hasattr(module, "card")]
+)
+def test_card_names_a_link_urlsplit_refuses_in_its_own_message(site):
+    # urlsplit raises its own ValueError, "Invalid IPv6 URL", for an unbalanced bracket.
+    with pytest.raises(ValueError, match=r"^'https://\[/job/1' is (not|neither) "):
+        SITES[site].card("https://[/job/1")
 
 
 @given(st.one_of(st.text(), st.text().map("https://".__add__)))
