@@ -170,6 +170,7 @@ def test_make_job_rejects_a_record_outside_job_dict():
         ("applicants", "200"),
         ("applicants", True),
         ("experience_months", 1.5),
+        ("workplace_type", ["remote"]),
         ("salary_min", math.nan),
         ("salary_max", "100000"),
         ("department", ["Data"]),

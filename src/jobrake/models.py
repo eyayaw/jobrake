@@ -198,13 +198,17 @@ def _detail(name: str, value: object) -> object:
     """
     Normalize one detail value, or return None to leave its key out.
 
+    A ``workplace_type`` text outside ``WORKPLACE_TYPES`` is left out.
+
     Raises:
-        TypeError: A detail other than a date or ``workplace_type`` is not of its ``JobDict``
-            type, or ``site_data`` or ``keywords`` is malformed.
+        TypeError: A detail other than a date is not of its ``JobDict`` type, or ``site_data`` or
+            ``keywords`` is malformed.
     """
     if isinstance(value, str):
         value = value.strip() or None
     if name == "workplace_type":
+        if value is not None and not isinstance(value, str):
+            raise TypeError(f"job field workplace_type must be a string, got {value!r}")
         return value if value in WORKPLACE_TYPES else None
     if name == "site_data":
         return _site_data(value)
@@ -243,9 +247,9 @@ def make_job(**fields: Any) -> JobDict:
 
     Raises:
         TypeError: An identity field is missing, blank, or not a string, a field is not a
-            ``JobDict`` key, a detail other than a date or ``workplace_type`` is not of its
-            ``JobDict`` type, such as ``applicants`` given as text or ``salary_min`` as NaN, or
-            ``locations``, ``site_data``, or ``keywords`` is malformed.
+            ``JobDict`` key, a detail other than a date is not of its ``JobDict`` type, such as
+            ``applicants`` given as text or ``salary_min`` as NaN, or ``locations``,
+            ``site_data``, or ``keywords`` is malformed.
     """
     if unknown := fields.keys() - set(JOB_FIELDS):
         raise TypeError(f"not a job field: {', '.join(sorted(unknown))}")
