@@ -12,14 +12,7 @@ lazy from bs4 import BeautifulSoup
 
 from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, employment_type, make_job
-from jobrake.sites.responses import (
-    collect,
-    cut_short,
-    json_page,
-    parse_postings,
-    read_html,
-    read_json,
-)
+from jobrake.sites.responses import collect, json_page, offset_pages, read_html, read_json
 from jobrake.utils import as_str, checked, finite, html_text, menu_codes
 
 logger = logging.getLogger(__name__)
@@ -131,34 +124,21 @@ def _parse_vacancy(vacancy: dict[str, Any]) -> JobDict:
     )
 
 
-async def _pages(
+def _pages(
     fetcher: Fetcher, params: dict[str, Any], token: str, limit: int
 ) -> AsyncGenerator[tuple[list[JobDict], int]]:
-    """
-    Yield each page's vacancies with the count AcademicTransfer reports, until its last match.
-
-    Raises:
-        Stopped: A request failed, AcademicTransfer sent an unreadable answer, or an empty page
-            came before the reported count.
-    """
+    """Yield each page's vacancies with the count AcademicTransfer reports, until its last match."""
     headers = {"Authorization": f"Bearer {token}", "Accept": "application/json; version=2"}
-    offset = 0  # vacancies AcademicTransfer has sent, malformed ones included
-    while True:
+
+    async def read(offset: int) -> tuple[list[Any], int]:
         await asyncio.sleep(DELAY)
         page = urlencode(params | {"offset": offset, "limit": limit})
         result = await fetcher.fetch(f"{SEARCH_URL}?{page}", headers=headers)
-        vacancies, total = read_json(
+        return read_json(
             result, lambda body: json_page(body, "results", "count"), site="academictransfer"
         )
-        if not vacancies:
-            break
-        offset += len(vacancies)
-        # A vacancy published between two requests shifts the list, so a page can repeat one.
-        yield parse_postings(vacancies, _parse_vacancy, site="academictransfer"), total
-        if offset >= total:
-            return
-    if offset < total:
-        raise cut_short("academictransfer", total, offset)
+
+    return offset_pages(read, _parse_vacancy, site="academictransfer")
 
 
 @checked(validator=_validate)

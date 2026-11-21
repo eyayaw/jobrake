@@ -13,14 +13,7 @@ lazy from bs4 import BeautifulSoup
 from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, Stopped, employment_type, make_job
 from jobrake.sites.postings import fill_details, postings_of
-from jobrake.sites.responses import (
-    collect,
-    cut_short,
-    json_ld,
-    json_page,
-    parse_postings,
-    read_json,
-)
+from jobrake.sites.responses import collect, json_ld, json_page, offset_pages, read_json
 from jobrake.utils import as_dict, as_str, checked, cutoff, epoch_ms_to_iso, finite, html_text
 
 logger = logging.getLogger(__name__)
@@ -203,32 +196,19 @@ def _params(
     return params
 
 
-async def _pages(
+def _pages(
     fetcher: Fetcher, shared: dict[str, Any], limit: int
 ) -> AsyncGenerator[tuple[list[JobDict], int]]:
-    """
-    Yield each page's cards with the count of matches StepStone reports, until its last match.
+    """Yield each page's cards with the count of matches StepStone reports, until its last match."""
 
-    Raises:
-        Stopped: A request failed, StepStone sent an unreadable response, or an empty page came
-            before the reported total.
-    """
-    offset = 0  # cards StepStone has sent, malformed ones included
-    while True:
+    async def read(offset: int) -> tuple[list[Any], int]:
         page = urlencode(shared | {"offset": offset, "limit": limit})
         result = await fetcher.fetch(f"{SEARCH_URL}?{page}", headers=API_HEADERS)
-        cards, total = read_json(
+        return read_json(
             result, lambda body: json_page(body["data"], "items", "totalItems"), site="stepstone"
         )
-        if not cards:
-            break
-        offset += len(cards)
-        # A posting released between two requests shifts the cards, so a page can repeat one.
-        yield parse_postings(cards, _parse_card, site="stepstone"), total
-        if offset >= total:
-            return
-    if offset < total:
-        raise cut_short("stepstone", total, offset)
+
+    return offset_pages(read, _parse_card, site="stepstone")
 
 
 @checked

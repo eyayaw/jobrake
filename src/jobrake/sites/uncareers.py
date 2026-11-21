@@ -1,20 +1,14 @@
 """Read job openings from UN Careers, the United Nations Secretariat's recruitment site."""
 
 import difflib
+import itertools
 import logging
 from collections.abc import AsyncGenerator
 from typing import Annotated, Any
 
 from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, Stopped, make_job
-from jobrake.sites.responses import (
-    collect,
-    cut_short,
-    json_list,
-    json_page,
-    parse_postings,
-    read_json,
-)
+from jobrake.sites.responses import collect, json_list, json_page, offset_pages, read_json
 from jobrake.utils import as_dict, as_str, checked, html_text
 
 logger = logging.getLogger(__name__)
@@ -75,15 +69,16 @@ def _parse_opening(opening: dict[str, Any]) -> JobDict:
     )
 
 
-async def _pages(
+def _pages(
     fetcher: Fetcher, config: dict[str, object], size: int
 ) -> AsyncGenerator[tuple[list[JobDict], int]]:
-    page = offset = total = 0
-    while True:
+    numbers = itertools.count()  # the API pages by number, one per request
+
+    async def read(_offset: int) -> tuple[list[Any], int]:
         body = {
             "filterConfig": config,
             "pagination": {
-                "page": page,
+                "page": next(numbers),
                 "itemPerPage": size,
                 # Many openings share a start date, and the site orders them differently from one
                 # request to the next, so pages sorted by date repeated 11 openings of 448 and
@@ -93,19 +88,11 @@ async def _pages(
             },
         }
         result = await fetcher.fetch(SEARCH_URL, json=body)
-        openings, total = read_json(
+        return read_json(
             result, lambda payload: json_page(payload["data"], "list", "count"), site="uncareers"
         )
-        if not openings:
-            break
-        page += 1
-        offset += len(openings)
-        # An opening posted between two requests shifts the list, so a page can repeat one.
-        yield parse_postings(openings, _parse_opening, site="uncareers"), total
-        if offset >= total:
-            return
-    if offset < total:
-        raise cut_short("uncareers", total, offset)
+
+    return offset_pages(read, _parse_opening, site="uncareers")
 
 
 def _entries(items: object, code: str, name: str) -> list[tuple[str, str]]:

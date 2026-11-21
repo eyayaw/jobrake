@@ -198,12 +198,20 @@ def test_a_failed_or_early_empty_page_stops_with_the_pages_before_it():
     # An empty page before the reported total may have skipped postings.
     for last, message in (
         (network_down(), "smartrecruiters"),
-        (page([], 250), "may be incomplete"),
+        (page([], 250), "^smartrecruiters board 'BoschGroup' reported 250 .* may be incomplete"),
     ):
         fetcher = StubFetcher({"offset=0": page(cards(100), 250), "offset=100": last})
         with pytest.raises(Stopped, match=message) as stop:
             asyncio.run(smartrecruiters.search(fetcher, board="BoschGroup", results=200))
         assert len(stop.value.partial) == 100
+
+
+def test_an_empty_first_page_before_the_total_stops_without_the_misspelling_hint(caplog):
+    caplog.set_level(logging.INFO, logger="jobrake")
+    fetcher = StubFetcher({"BoschGroup/postings": page([], 1)})
+    with pytest.raises(Stopped, match="board 'BoschGroup' reported 1 postings"):
+        asyncio.run(smartrecruiters.search(fetcher, board="BoschGroup"))
+    assert "check the identifier" not in caplog.text
 
 
 def test_a_malformed_card_is_skipped_with_a_warning(caplog):

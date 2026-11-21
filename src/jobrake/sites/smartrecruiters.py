@@ -10,7 +10,7 @@ from urllib.parse import quote, urlencode, urlsplit
 from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, employment_type, make_job
 from jobrake.sites.postings import fill_details, postings_of
-from jobrake.sites.responses import collect, cut_short, json_page, parse_postings, read_json
+from jobrake.sites.responses import collect, json_page, offset_pages, read_json
 from jobrake.utils import as_dict, as_str, checked, cutoff, finite, html_text
 
 logger = logging.getLogger(__name__)
@@ -133,18 +133,12 @@ def _filters(query: str, max_age_hours: int | None, *, remote: bool) -> dict[str
     return params
 
 
-async def _pages(
+def _pages(
     fetcher: Fetcher, token: str, params: dict[str, Any]
 ) -> AsyncGenerator[tuple[list[JobDict], int]]:
-    """
-    Yield each page's cards with the board's count of matches, until its last match.
+    """Yield each page's cards with the board's count of matches, until its last match."""
 
-    Raises:
-        Stopped: A request failed, SmartRecruiters sent an unreadable response,
-            or an empty page came before the reported total.
-    """
-    offset = 0  # cards SmartRecruiters has sent, malformed ones included
-    while True:
+    async def read(offset: int) -> tuple[list[Any], int]:
         page = urlencode(params | {"offset": offset})
         result = await fetcher.fetch(f"{API_URL}/{quote(token, safe='')}/postings?{page}")
         cards, total = read_json(
@@ -153,24 +147,19 @@ async def _pages(
             site="smartrecruiters",
             board=token,
         )
-        if not cards:
-            break
-        offset += len(cards)
-        # A posting released between two requests shifts the cards, so a page can repeat one.
-        yield parse_postings(cards, _parse_card, site="smartrecruiters"), total
-        if offset >= total:
-            return
-    if offset < total:
-        raise cut_short(f"smartrecruiters board {token!r}", total, offset)
-    # An unknown board and a filter that matches nothing both answer with no postings,
-    # so only a search without filters hints at a misspelling.
-    if offset == 0 and params.keys() == {"limit"}:
-        logger.info(
-            "smartrecruiters board %r returned no postings. SmartRecruiters answers the same "
-            "for an unknown board, so check the identifier that follows "
-            "jobs.smartrecruiters.com/ in the board's URL",
-            token,
-        )
+        # An unknown board and a filter that matches nothing both answer with no postings,
+        # so only a search without filters hints at a misspelling.
+        if offset == 0 and not cards and total <= 0 and params.keys() == {"limit"}:
+            logger.info(
+                "smartrecruiters board %r returned no postings. SmartRecruiters answers the same "
+                "for an unknown board, so check the identifier that follows "
+                "jobs.smartrecruiters.com/ in the board's URL",
+                token,
+            )
+        return cards, total
+
+    where = f"smartrecruiters board {token!r}"
+    return offset_pages(read, _parse_card, site="smartrecruiters", where=where)
 
 
 @checked

@@ -38,7 +38,8 @@ applicant tracking systems, and it depends on `httpx` and `bs4`.
   posting with a warning.
   `collect` gathers the pages a paged search yields: it drops a repeated posting, logs progress,
   stops at `results`, and keeps the pages before a failure. A paged site yields its pages from a
-  generator and leaves the rest to `collect`.
+  generator and leaves the rest to `collect`. `offset_pages` builds that generator from a site's
+  reader of one page and its card parser.
 - `sites/postings.py`: the posting loop of the sites that fetch each posting on its own,
   LinkedIn among them. `fill_details` serves `details=True` and `postings_of` builds `postings`,
   and each site supplies only the reader of the posting at a URL, which raises `Stopped` for a
