@@ -166,6 +166,8 @@ def test_check_and_scrape_reject_bad_options_before_any_request(site, kwargs, er
             "https://www.indeed.com/jobs?q=economist&vjk=1a2b3c4d5e6f7a8b",
             ("indeed", "1a2b3c4d5e6f7a8b"),
         ),
+        # HTTPS's own port names the same address.
+        ("https://www.indeed.com:443/viewjob?jk=1a2b3c4d5e6f7a8b", ("indeed", "1a2b3c4d5e6f7a8b")),
         (
             "https://NVIDIA.wd5.myworkdayjobs.com/en-US/NVIDIAExternalCareerSite"
             "/job/US-CA-Santa-Clara/Networking-Architect_JR1996377/?source=email",
@@ -194,6 +196,9 @@ def test_identify_names_the_site_and_id_a_search_gives(link, named):
         # A posting link carries neither credentials nor a port.
         "https://acme@www.indeed.com/viewjob?jk=1a2b3c4d5e6f7a8b",
         "https://www.indeed.com:8443/viewjob?jk=1a2b3c4d5e6f7a8b",
+        # A host name's labels are never empty and never start or end with a hyphen.
+        "https://-.indeed.com/viewjob?jk=1a2b3c4d5e6f7a8b",
+        "https://www..linkedin.com/jobs/view/4449382178",
         "https://example.com/jobs/view/4449382178",
         "https://inomics.com/scholarship/postdoctoral-scholarship-1555359",
         # A posting ID holds digits 0-9, and \d also matches other scripts' digits.

@@ -314,6 +314,25 @@ def split_url(text: str) -> SplitResult:
         return SplitResult("", "", "", "", "")
 
 
+# One label of a host name: RFC 1035, sections 2.3.1 and 2.3.4, as RFC 1123, section 2.1, lets it
+# start with a digit (checked 2026-11-21).
+HOST_LABEL = r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?"
+
+
+def on_domain(parts: SplitResult, domain: str) -> bool:
+    """Tell whether a URL is on ``domain`` or a subdomain, with no credentials and no port but 443."""
+    try:
+        port = parts.port
+    except ValueError:  # a port that is not a number in range
+        return False
+    host = re.compile(rf"(?:{HOST_LABEL}\.)*{re.escape(domain)}")
+    return (
+        "@" not in parts.netloc
+        and port in (None, 443)
+        and bool(host.fullmatch(parts.hostname or ""))
+    )
+
+
 def as_str(value: object) -> str | None:
     """Return a JSON value when it is a string, made well-formed, or None for anything else."""
     return well_formed(value) if isinstance(value, str) else None

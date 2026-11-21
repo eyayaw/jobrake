@@ -8,6 +8,7 @@ from time import monotonic
 from urllib.parse import urljoin, urlsplit
 
 from jobrake.fetchkit import Fetcher, FetchResult
+from jobrake.utils import on_domain, split_url
 
 logger = logging.getLogger(__name__)
 
@@ -251,18 +252,8 @@ async def _fetch_on_turn(fetcher: Fetcher, url: str, tried: set[str]) -> FetchRe
 
 def on_linkedin(url: str) -> bool:
     """Tell whether a URL is an HTTPS LinkedIn address with the default port and no credentials."""
-    try:
-        parts = urlsplit(url)
-        port = parts.port
-    except ValueError:
-        return False
-    host = parts.hostname or ""
-    return (
-        parts.scheme == "https"
-        and (host == "linkedin.com" or host.endswith(".linkedin.com"))
-        and port in (None, 443)
-        and "@" not in parts.netloc
-    )
+    parts = split_url(url)
+    return parts.scheme == "https" and on_domain(parts, "linkedin.com")
 
 
 def numeric(text: str) -> bool:
