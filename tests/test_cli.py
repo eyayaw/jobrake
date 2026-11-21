@@ -400,7 +400,9 @@ def test_a_closed_stderr_leaves_the_exit_status_of_a_run_or_a_crash(
         "raise SystemExit(cli.main())\n"
     )
     env = os.environ | {
-        "PYTHONPATH": str(Path(__file__).parent),
+        "PYTHONPATH": os.pathsep.join(
+            filter(None, (str(Path(__file__).parent), os.environ.get("PYTHONPATH")))
+        ),
         "JOBRAKE_CACHE_PATH": str(tmp_path / "jobrake.sqlite3"),
     }
     read_end, write_end = os.pipe()
