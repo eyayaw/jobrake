@@ -105,12 +105,12 @@ and the contract test in `tests/test_scrape.py` need no edit.
   A name two sites share keeps one meaning and unit. Every function a site exports carries
   `@checked`, which raises `TypeError` for an unknown, missing, or wrongly typed argument and
   `ValueError` for a value out of range, a blank required string, or a blank list entry,
-  all before the first request. A rule of the site's own on a `search` option, such as Indeed's
-  country editions, goes in the validator `search` passes as `@checked(validator=_validate)`,
-  so `check` raises everything `scrape` would, without a request. The exception is a value only
-  the site's live catalog can confirm, such as a UN Careers duty station, which `search` checks
-  after reading that catalog. `site_options` rejects an annotation or a boolean default that breaks
-  these rules when the module is imported, and
+  all before the first request. A rule of the site's own on an option, such as Indeed's country
+  editions or a `postings` reference its `card` must read, goes in the validator the function
+  passes as `@checked(validator=_validate)`, so `check` raises everything the call would, without
+  a request. The exception is a value only the site's live catalog can confirm, such as a UN
+  Careers duty station, which `search` checks after reading that catalog. `site_options` rejects
+  an annotation or a boolean default that breaks these rules when the module is imported, and
   `test_a_site_meets_the_site_contract` checks that `search` takes no positional option and that a
   shared name keeps its type.
 - A caller can tell a cut-short result from a complete one. A failed request, an answer other than

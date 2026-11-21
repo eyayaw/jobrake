@@ -214,6 +214,14 @@ def test_card_names_a_link_urlsplit_refuses_in_its_own_message(site):
         SITES[site].card("https://[/job/1")
 
 
+@pytest.mark.parametrize(
+    "site", [site for site, module in SITES.items() if "postings" in module.__all__]
+)
+def test_postings_check_refuses_a_reference_the_call_refuses(site):
+    with pytest.raises(ValueError, match=r"^'not a url' is (not|neither) "):
+        SITES[site].postings.check(references=["not a url"])
+
+
 @given(st.one_of(st.text(), st.text().map("https://".__add__)))
 def test_identify_never_raises(text):
     identify(text)
