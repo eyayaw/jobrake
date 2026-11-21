@@ -213,7 +213,7 @@ def _silence(stream: TextIO) -> None:
 
     A stream without a file descriptor, such as one a program embedding the CLI sets, stays as is.
     """
-    with suppress(OSError), Path(os.devnull).open("w") as devnull:
+    with suppress(OSError, AttributeError), Path(os.devnull).open("w") as devnull:
         os.dup2(devnull.fileno(), stream.fileno())
 
 
@@ -227,7 +227,8 @@ def _settle_streams() -> None:
     """
     for stream, quiet in ((sys.stdout, BrokenPipeError), (sys.stderr, OSError)):
         # A stream closed at startup is None, and the interpreter skips one a caller closed.
-        if stream is None or stream.closed:
+        # A stream a program embedding the CLI sets may have only write and flush.
+        if stream is None or getattr(stream, "closed", False):
             continue
         try:
             stream.flush()

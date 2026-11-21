@@ -420,6 +420,15 @@ _CLOSED_BY_CALLER = (
     "import sys\nfrom jobrake import cli\nsys.argv = ['jobrake', '--version']\n"
     "try:\n    cli.main()\nexcept SystemExit:\n    sys.stdout.close()\n"
 )
+_BARE_STDOUT = (
+    "import sys\nfrom jobrake import cli\n"
+    # A pipe that fails once, in the exit hook's flush, which must not need fileno to silence it.
+    "class Sink:\n    failed = False\n    def write(self, text): return len(text)\n"
+    "    def flush(self):\n        if not Sink.failed:\n"
+    "            Sink.failed = True\n            raise BrokenPipeError\n"
+    "sys.stdout = Sink()\nsys.argv = ['jobrake', '--version']\n"
+    "try:\n    cli.main()\nexcept SystemExit:\n    pass\n"
+)
 
 
 @pytest.mark.parametrize(
@@ -429,6 +438,7 @@ _CLOSED_BY_CALLER = (
         ([*_CLI, "bogus"], "stderr", 2),
         (["sh", "-c", 'exec "$@" >&-', "sh", *_CLI, "-h"], None, 0),  # Python makes stdout None
         ([sys.executable, "-c", _CLOSED_BY_CALLER], None, 0),  # a program embedding the CLI
+        ([sys.executable, "-c", _BARE_STDOUT], None, 0),  # a stdout without closed or fileno
     ],
 )
 def test_a_closed_stream_leaves_the_exit_status_and_stderr_clean(command, dead_pipe, status):
