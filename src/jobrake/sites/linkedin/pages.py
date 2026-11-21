@@ -134,7 +134,11 @@ def _applicants(soup: BeautifulSoup) -> int | None:
     # LinkedIn displays counts above 200 as "Over 200", so no thousands separator appears.
     caption = soup.select_one(".num-applicants__caption")
     found = re.search(r"\d+", caption.get_text()) if caption else None
-    return int(found.group()) if found else None
+    try:
+        return int(found.group()) if found else None
+    except ValueError:
+        # Past Python's limit of 4,300 digits, which no count of applicants reaches.
+        return None
 
 
 def _block_places(posting: dict[str, Any]) -> list[dict[str, Any]]:
