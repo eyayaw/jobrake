@@ -1027,6 +1027,7 @@ def test_applicant_count_ignores_the_prose_around_it():
         ("Wees een van de eerste 25 sollicitanten", 25),  # the prose is localized
         ("applicants", None),
         ("9" * 4301 + " applicants", None),  # past the digits int() reads, so not a count
+        ("9" * 400 + " applicants", None),  # past float range, which make_job refuses
     ):
         job = parsed(job_page(applicants=caption))
         assert job.get("applicants") == expected

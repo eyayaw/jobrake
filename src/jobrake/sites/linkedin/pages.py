@@ -135,10 +135,12 @@ def _applicants(soup: BeautifulSoup) -> int | None:
     caption = soup.select_one(".num-applicants__caption")
     found = re.search(r"\d+", caption.get_text()) if caption else None
     try:
-        return int(found.group()) if found else None
+        count = int(found.group()) if found else None
     except ValueError:
         # Past Python's limit of 4,300 digits, which no count of applicants reaches.
         return None
+    # make_job refuses a count past float range, which would cost the posting its other fields.
+    return count if finite(count) is not None else None
 
 
 def _block_places(posting: dict[str, Any]) -> list[dict[str, Any]]:

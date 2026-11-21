@@ -67,11 +67,14 @@ def test_site_data_keeps_the_fields_with_a_value_and_rejects_another_shape():
         "open": False,
         # Strict JSON has no infinity, so that number alone becomes None.
         "pay": [{"type": "Bonus", "min": 1000}, {"type": "Salary", "min": float("inf")}],
+        # Python cannot write an integer past 4,300 digits as JSON.
+        "count": [10**4301],
     }
     assert make_job(site="x", id="1", url="u", site_data=fields)["site_data"] == {
         "team": "Data",
         "open": False,
         "pay": [{"type": "Bonus", "min": 1000}, {"type": "Salary", "min": None}],
+        "count": [None],
     }
     assert "site_data" not in make_job(site="x", id="1", url="u", site_data={"team": None})
     # A cache row of another shape must fail here, so the cache reads it as a miss.
@@ -170,7 +173,10 @@ def test_make_job_rejects_a_record_outside_job_dict():
         ("applicants", "200"),
         ("applicants", True),
         ("experience_months", 1.5),
+        ("experience_months", 10**400),
+        ("applicants", 10**4301),
         ("workplace_type", ["remote"]),
+        ("workplace_type", 10**4301),
         ("salary_min", math.nan),
         ("salary_max", "100000"),
         ("department", ["Data"]),
