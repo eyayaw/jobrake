@@ -112,7 +112,7 @@ def test_search_pages_until_the_reported_total_with_its_filters_on_every_page() 
 
 
 def test_a_card_without_an_id_is_skipped() -> None:
-    fetcher = PagedFetcher([_page([{"title": "No ID"}, CARDS[0]], 2)])
+    fetcher = PagedFetcher([_page([{"title": "No ID"}, {"id": True}, CARDS[0]], 3)])
     jobs = asyncio.run(stepstone.search(fetcher, query="data"))
 
     assert [job["id"] for job in jobs] == ["14660809"]

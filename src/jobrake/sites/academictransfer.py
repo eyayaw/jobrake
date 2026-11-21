@@ -13,7 +13,7 @@ lazy from bs4 import BeautifulSoup
 from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, employment_type, make_job
 from jobrake.sites.responses import collect, json_page, offset_pages, read_html, read_json
-from jobrake.utils import as_str, checked, finite, html_text, menu_codes
+from jobrake.utils import as_int, as_str, checked, finite, html_text, menu_codes
 
 logger = logging.getLogger(__name__)
 
@@ -95,7 +95,7 @@ def _parse_vacancy(vacancy: dict[str, Any]) -> JobDict:
     return make_job(
         site="academictransfer",
         # The public number, which the vacancy's page URL carries.
-        id=str(number) if isinstance(number, int) else number,
+        id=str(whole) if (whole := as_int(number)) is not None else number,
         url=vacancy.get("absolute_url"),
         title=vacancy.get("title"),
         company=vacancy.get("organisation_name"),
@@ -103,8 +103,8 @@ def _parse_vacancy(vacancy: dict[str, Any]) -> JobDict:
         department=as_str(vacancy.get("department_name")),
         description="\n\n".join(filter(None, (html_text(text) for text in sections if text))),
         language=as_str(vacancy.get("language_code")),
-        employment_type=employment_type(_CONTRACT_TYPES.get(vacancy.get("contract_type"))),
-        education=_EDUCATION_LEVELS.get(vacancy.get("education_level")),
+        employment_type=employment_type(_CONTRACT_TYPES.get(as_int(vacancy.get("contract_type")))),
+        education=_EDUCATION_LEVELS.get(as_int(vacancy.get("education_level"))),
         # The API names no currency or period, so both are inferred from the vacancies' texts: of
         # the 43 academic economics vacancies of 2026-11-17 with a range, 36 named an amount in
         # euros a month in their text. None of them was outside the Netherlands.

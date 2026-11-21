@@ -9,7 +9,7 @@ from typing import Annotated, Any
 from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, Stopped, make_job
 from jobrake.sites.responses import collect, json_list, json_page, offset_pages, read_json
-from jobrake.utils import as_dict, as_list, as_str, checked, html_text
+from jobrake.utils import as_dict, as_int, as_list, as_str, checked, html_text
 
 logger = logging.getLogger(__name__)
 
@@ -40,9 +40,8 @@ def _parse_opening(opening: dict[str, Any]) -> JobDict:
         TypeError: The opening lacks an integer ``jobId``.
         AttributeError: The opening is not an object.
     """
-    job_id = opening.get("jobId")
-    if not isinstance(job_id, int):
-        raise TypeError(f"jobId {job_id!r} is not an integer")
+    if (job_id := as_int(opening.get("jobId"))) is None:
+        raise TypeError(f"jobId {opening.get('jobId')!r} is not an integer")
     return make_job(
         site="uncareers",
         id=str(job_id),

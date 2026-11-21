@@ -310,6 +310,12 @@ def as_dict(value: object) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
 
+def as_int(value: object) -> int | None:
+    """Return a JSON integer, or None for anything else, ``true`` and ``false`` included."""
+    # bool is an int subclass, so a bare isinstance check reads true as 1.
+    return value if isinstance(value, int) and not isinstance(value, bool) else None
+
+
 def as_list(value: object) -> list[Any]:
     """Return a JSON array unchanged, or ``[]`` for any other value, so a loop can follow."""
     return value if isinstance(value, list) else []

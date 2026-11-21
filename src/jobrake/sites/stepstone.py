@@ -14,7 +14,16 @@ from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, Stopped, employment_type, make_job
 from jobrake.sites.postings import fill_details, postings_of
 from jobrake.sites.responses import collect, json_ld, json_page, offset_pages, read_json
-from jobrake.utils import as_dict, as_str, checked, cutoff, epoch_ms_to_iso, finite, html_text
+from jobrake.utils import (
+    as_dict,
+    as_int,
+    as_str,
+    checked,
+    cutoff,
+    epoch_ms_to_iso,
+    finite,
+    html_text,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +68,7 @@ def _parse_card(card: dict[str, Any]) -> JobDict:
     posting_id = card.get("id")
     return make_job(
         site="stepstone",
-        id=str(posting_id) if isinstance(posting_id, int) else posting_id,
+        id=str(number) if (number := as_int(posting_id)) is not None else posting_id,
         url=POSTING_URL.format(id=posting_id),
         title=card.get("title"),
         company=card.get("companyName"),
