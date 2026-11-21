@@ -25,10 +25,9 @@ It returns each posting as a record with the same fields, whichever site it came
 
 ```sh
 jobrake linkedin search \
-  --query "data scientist" \
-  --location "amsterdam, netherlands" \
-  --max-age-hours 48 \
-  --results 5 \
+  --query economist \
+  --location Germany \
+  --results 1 \
   --details
 ```
 
@@ -43,45 +42,41 @@ jobrake greenhouse search \
 </tr>
 </table>
 
-A sample record from a LinkedIn posting fetched with jobrake:
+The LinkedIn search writes this record, shown here indented, with its description and logo URL
+cut short:
 
 ```json
-{
-  "site": "linkedin",
-  "id": "4447222173",
-  "url": "https://www.linkedin.com/jobs/view/data-scientist-smb-ads-growth-at-openai-4447222173",
-  "title": "Data Scientist, SMB Ads Growth",
-  "company": "OpenAI",
-  "locations": [
-    {
-      "name": "San Francisco, CA",
-      "city": "San Francisco",
-      "region": "CA",
-      "country_code": "US",
-      "latitude": 37.78008,
-      "longitude": -122.42016
-    }
-  ],
-  "date": "2026-11-13",
-  "description": "About The Role\nOpenAI's ads platform is experiencing rapid global scale. ...",
-  "company_url": "https://www.linkedin.com/company/openai",
-  "company_logo": "https://media.licdn.com/dms/image/v2/D560BAQHpzXbqSyR74A/company-logo_200_200/...",
-  "employment_type": "full_time",
-  "salary_min": 293000,
-  "salary_max": 515000,
-  "salary_currency": "USD",
-  "salary_period": "YEAR",
-  "posted_at": "2026-11-13T14:15:13.000Z",
-  "expires_at": "2027-01-26T23:14:46.000Z",
-  "apply_type": "offsite",
-  "applicants": 200,
-  "experience_months": 60,
-  "education": "bachelor degree"
-}
+[
+  {
+    "site": "linkedin",
+    "id": "4491606986",
+    "url": "https://de.linkedin.com/jobs/view/senior-researcher-f-m-x-health-economics-at-wifor-institute-4491606986",
+    "title": "Senior Researcher (f/m/x) Health Economics",
+    "company": "WifOR Institute",
+    "locations": [
+      {
+        "name": "Darmstadt, Hesse, Germany",
+        "city": "Darmstadt",
+        "country_code": "DE",
+        "latitude": 49.87245,
+        "longitude": 8.6510105
+      }
+    ],
+    "date": "2026-11-19",
+    "description": "Dein zukünftiger Job?\nUnsere Business Unit Health Economics erforscht ...",
+    "company_url": "https://de.linkedin.com/company/wifor",
+    "company_logo": "https://media.licdn.com/dms/image/v2/C4D0BAQHzEHqMu92Yew/company-logo_200_200/...",
+    "employment_type": "full_time",
+    "posted_at": "2026-11-19T14:10:11.000Z",
+    "expires_at": "2027-11-19T14:10:11.000Z",
+    "apply_type": "offsite",
+    "applicants": 25,
+    "education": "bachelor degree"
+  }
+]
 ```
 
-The description and the logo URL are not fully displayed for brevity.
-The [reference](https://github.com/eyayaw/jobrake/blob/main/docs/reference.md#returned-fields)
+The [reference](https://github.com/eyayaw/jobrake/blob/main/docs/reference.md#the-record)
 describes every key.
 
 ## Installation
@@ -106,9 +101,13 @@ marks each breaking change.
 
 ### CLI
 
-```sh
-jobrake -h
+Every command has the form `jobrake <site> <command>`.
+Each site has `search`. Some add `postings`, which fetches postings you already know, and some
+add lookups, which turn a name into the ID a search takes.
+`jobrake -h` lists the sites, `jobrake <site> -h` a site's commands, and
+`jobrake <site> <command> -h` their options, and `jobrake --version` prints the version.
 
+```sh
 # LinkedIn ----
 ## Search
 jobrake linkedin search \
@@ -131,7 +130,7 @@ jobrake linkedin places "amsterdam" # then use the display name in search
 jobrake linkedin search -q "data scientist" -g 102011674 -n 2 # Amsterdam, Netherlands
 
 # Indeed ----
-## Search and fetch details
+## Search, details included
 jobrake indeed search \
         -q "data analyst" \
         -c gb \
@@ -141,6 +140,10 @@ jobrake indeed search \
         -o jobs.jsonl
 # Resolve place names
 jobrake indeed places -c nl "amsterdam"
+
+# StepStone ----
+## Engineering jobs within 50 km of Munich, each with its description
+jobrake stepstone search -q Ingenieur -l München -r 50 -n 20 -d
 
 # Greenhouse ----
 ## Every posting on one employer's board
@@ -163,12 +166,37 @@ jobrake inomics search -c de --category postdoc -d
 jobrake academictransfer search -q economics --vacancy-type scientific
 ```
 
-The CLI writes JSON to stdout by default.
-`--format | -f` selects JSON, JSONL, or CSV, and `--output | -o` writes to a file.
-See the [guide](https://github.com/eyayaw/jobrake/blob/main/docs/guide.md#read-and-save-results)
-for file formats and piping,
-and the [reference](https://github.com/eyayaw/jobrake/blob/main/docs/reference.md)
-for returned fields.
+Each site has its own options, which `-h` lists.
+These mean the same on every site that takes them:
+
+| Option                  | Effect                                                                         |
+| ----------------------- | ------------------------------------------------------------------------------ |
+| `--query`, `-q`         | Job title or keywords                                                          |
+| `--results`, `-n`       | The number of postings to return. The default is 10 on Indeed and LinkedIn, 20 on Workday, and 100 elsewhere |
+| `--max-age-hours`, `-a` | Only postings this many hours old or newer. No age limit by default            |
+| `--radius`, `-r`        | The search radius around `--location`, in kilometers                           |
+| `--details`, `-d`       | Fetch each posting for the fields a search result lacks, such as the description |
+| `--output`, `-o`        | Write a new file instead of stdout. An existing file is an error               |
+| `--format`, `-f`        | `json`, `jsonl`, or `csv`. Defaults to the extension of `--output`, else JSON  |
+
+A list option, such as `--company-ids`, takes several values after one flag or across repeats.
+A site without `--results` returns every posting that matches.
+
+The output is JSON, one array of records.
+JSONL writes one record per line with the same keys.
+CSV has the same columns for every site and leaves an absent value empty.
+In CSV, `locations` joins the place names with `; ` and drops their parts, `keywords` joins the
+keywords the same way, and `site_data` holds JSON.
+A place name can itself contain `; `, such as Greenhouse's `Remote, Canada; Remote, United States`,
+so read JSON or JSONL to count places.
+`--output` needs a directory that exists.
+A search that finds nothing writes no file, and on stdout it writes `[]` in JSON, the header row
+in CSV, and nothing in JSONL.
+A write that fails or is interrupted partway removes the file it started, so a rerun can write it.
+The [guide](https://github.com/eyayaw/jobrake/blob/main/docs/guide.md#collect-postings-from-several-sites)
+shows how to combine the files of several searches into one.
+
+A command that fails partway still writes the postings it got and exits 1.
 
 ### As a library
 
@@ -182,45 +210,73 @@ async def main():
     return await scrape(
         "indeed",
         query="economist",
-        country="us",
-        results=2,
+        country="de",
+        results=3,
     )
 
 
-jobs = asyncio.run(main())
+for job in asyncio.run(main()):
+    print(job["date"], job["title"], "|", job["company"])
 ```
+
+```text
+2026-11-11 Senior Economist - Research | The European Central Bank
+2026-09-15 Economist (m/w/d) – Economic Consulting | Oxford Economics
+2026-11-02 Economist (ESCB/IO) - EU Institutions and Fora | The European Central Bank
+```
+
+`scrape` takes the same options as the CLI, as keyword arguments with underscores, and checks
+them before any request. A failed request raises `jobrake.Stopped`, whose `partial` holds the
+postings collected until then.
+The [guide](https://github.com/eyayaw/jobrake/blob/main/docs/guide.md) shows how to recover from
+`Stopped` and how to fetch details later.
+The [reference](https://github.com/eyayaw/jobrake/blob/main/docs/reference.md#python-api) lists
+every function.
 
 ## Supported job boards
 
-| Site | Search | Posting details |
-| --- | --- | --- |
-| <a href="https://www.academictransfer.com"><img src="https://www.academictransfer.com/favicon.ico" alt="" height="16"> `academictransfer`</a> | The jobs page's list API, Dutch academic and research vacancies | Included in search results |
-| <a href="https://www.aeaweb.org/joe/listings"><img src="https://www.aeaweb.org/favicon.ico" alt="" height="16"> `aea`</a> | JOE listings page and its XML export, every active listing | Included in search results |
-| <a href="https://www.ashbyhq.com"><img src="https://www.ashbyhq.com/favicon.png" alt="" height="16"> `ashby`</a> | Public Job Posting API, one employer's board | Included in search results |
-| <a href="https://econjobmarket.org"><img src="https://econjobmarket.org/images/ejm_logo.png" alt="" height="16"> `econjobmarket`</a> | Public ad feed, every open ad | Included in search results |
-| <a href="https://www.greenhouse.com"><img src="https://cdn.simpleicons.org/greenhouse" alt="" height="16"> `greenhouse`</a> | Public Job Board API, one employer's board | Included in search results |
-| <a href="https://www.indeed.com"><picture><source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/eyayaw/jobrake/refs/heads/main/docs/assets/sites/indeed-light.svg"><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/eyayaw/jobrake/refs/heads/main/docs/assets/sites/indeed-dark.svg"><img src="https://raw.githubusercontent.com/eyayaw/jobrake/refs/heads/main/docs/assets/sites/indeed-light.svg" alt="" height="16"></picture> `indeed`</a> | Mobile-app GraphQL API | Included in search results |
-| <a href="https://inomics.com"><img src="https://inomics.com/themes/custom/venice/images/favicons/inomics_favicon.ico" alt="" height="16"> `inomics`</a> | The search page's results endpoint, jobs for economists | Optional and cached, one request per posting |
-| <a href="https://www.lever.co"><img src="https://www.lever.co/images/favicon-lever.png" alt="" height="16"> `lever`</a> | Public Postings API, one employer's board | Included in search results |
-| <a href="https://www.linkedin.com/jobs"><picture><source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/eyayaw/jobrake/refs/heads/main/docs/assets/sites/linkedin-light.svg"><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/eyayaw/jobrake/refs/heads/main/docs/assets/sites/linkedin-dark.svg"><img src="https://raw.githubusercontent.com/eyayaw/jobrake/refs/heads/main/docs/assets/sites/linkedin-light.svg" alt="" height="16"></picture> `linkedin`</a> | Login-free guest API | Optional, paced, and cached |
-| <a href="https://www.personio.com"><img src="https://assets.cdn.personio.de/rebrand/favicon.svg" alt="" height="16"> `personio`</a> | Public XML feed, one employer's career site | Included in search results |
-| <a href="https://www.smartrecruiters.com"><img src="https://www.smartrecruiters.com/wp-content/uploads/cropped-web-app-manifest-192x192-1-192x192.png" alt="" height="16"> `smartrecruiters`</a> | Public Posting API, one employer's board | Optional and cached, one request per posting |
-| <a href="https://www.stepstone.de"><img src="https://www.stepstone.de/favicon.ico" alt="" height="16"> `stepstone`</a> | Mobile-app listings API, German job board | Optional and cached, one request per posting |
-| <a href="https://careers.un.org"><img src="https://www.un.org/sites/un2.un.org/themes/bootstrap_un2/favicon.ico" alt="" height="16"> `uncareers`</a> | Web app's list API, every UN Secretariat opening | Included in search results |
-| <a href="https://www.workable.com"><img src="https://www.workable.com/static/apple-touch-icon.png" alt="" height="16"> `workable`</a> | Public widget API, one employer's board | Included in search results |
-| <a href="https://www.workday.com"><img src="https://www.workday.com/favicon.ico" alt="" height="16"> `workday`</a> | Career site JSON API, one employer's career site | Optional and cached, one request per posting |
+| Site | Search | Posting details | Requires |
+| --- | --- | --- | --- |
+| <a href="https://www.academictransfer.com"><img src="https://www.academictransfer.com/favicon.ico" alt="" height="16"></a> <a href="https://github.com/eyayaw/jobrake/blob/main/docs/sites/academictransfer.md">`academictransfer`</a> | The jobs page's list API, Dutch academic and research vacancies | Included in search results | — |
+| <a href="https://www.aeaweb.org/joe/listings"><img src="https://www.aeaweb.org/favicon.ico" alt="" height="16"></a> <a href="https://github.com/eyayaw/jobrake/blob/main/docs/sites/aea.md">`aea`</a> | JOE listings page and its XML export, every active listing | Included in search results | — |
+| <a href="https://www.ashbyhq.com"><img src="https://www.ashbyhq.com/favicon.png" alt="" height="16"></a> <a href="https://github.com/eyayaw/jobrake/blob/main/docs/sites/ashby.md">`ashby`</a> | Public Job Posting API, one employer's board | Included in search results | `--board` |
+| <a href="https://econjobmarket.org"><img src="https://econjobmarket.org/images/ejm_logo.png" alt="" height="16"></a> <a href="https://github.com/eyayaw/jobrake/blob/main/docs/sites/econjobmarket.md">`econjobmarket`</a> | Public ad feed, every open ad | Included in search results | — |
+| <a href="https://www.greenhouse.com"><img src="https://cdn.simpleicons.org/greenhouse" alt="" height="16"></a> <a href="https://github.com/eyayaw/jobrake/blob/main/docs/sites/greenhouse.md">`greenhouse`</a> | Public Job Board API, one employer's board | Included in search results | `--board` |
+| <a href="https://www.indeed.com"><picture><source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/eyayaw/jobrake/refs/heads/main/docs/assets/sites/indeed-light.svg"><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/eyayaw/jobrake/refs/heads/main/docs/assets/sites/indeed-dark.svg"><img src="https://raw.githubusercontent.com/eyayaw/jobrake/refs/heads/main/docs/assets/sites/indeed-light.svg" alt="" height="16"></picture></a> <a href="https://github.com/eyayaw/jobrake/blob/main/docs/sites/indeed.md">`indeed`</a> | Mobile-app GraphQL API | Included in search results | `--country` |
+| <a href="https://inomics.com"><img src="https://inomics.com/themes/custom/venice/images/favicons/inomics_favicon.ico" alt="" height="16"></a> <a href="https://github.com/eyayaw/jobrake/blob/main/docs/sites/inomics.md">`inomics`</a> | The search page's results endpoint, jobs for economists | Optional and cached, one request per posting | — |
+| <a href="https://www.lever.co"><img src="https://www.lever.co/images/favicon-lever.png" alt="" height="16"></a> <a href="https://github.com/eyayaw/jobrake/blob/main/docs/sites/lever.md">`lever`</a> | Public Postings API, one employer's board | Included in search results | `--board` |
+| <a href="https://www.linkedin.com/jobs"><picture><source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/eyayaw/jobrake/refs/heads/main/docs/assets/sites/linkedin-light.svg"><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/eyayaw/jobrake/refs/heads/main/docs/assets/sites/linkedin-dark.svg"><img src="https://raw.githubusercontent.com/eyayaw/jobrake/refs/heads/main/docs/assets/sites/linkedin-light.svg" alt="" height="16"></picture></a> <a href="https://github.com/eyayaw/jobrake/blob/main/docs/sites/linkedin.md">`linkedin`</a> | Login-free guest API | Optional, paced, and cached | `--location` or `--geoid` |
+| <a href="https://www.personio.com"><img src="https://assets.cdn.personio.de/rebrand/favicon.svg" alt="" height="16"></a> <a href="https://github.com/eyayaw/jobrake/blob/main/docs/sites/personio.md">`personio`</a> | Public XML feed, one employer's career site | Included in search results | `--board` |
+| <a href="https://www.smartrecruiters.com"><img src="https://www.smartrecruiters.com/wp-content/uploads/cropped-web-app-manifest-192x192-1-192x192.png" alt="" height="16"></a> <a href="https://github.com/eyayaw/jobrake/blob/main/docs/sites/smartrecruiters.md">`smartrecruiters`</a> | Public Posting API, one employer's board | Optional and cached, one request per posting | `--board` |
+| <a href="https://www.stepstone.de"><img src="https://www.stepstone.de/favicon.ico" alt="" height="16"></a> <a href="https://github.com/eyayaw/jobrake/blob/main/docs/sites/stepstone.md">`stepstone`</a> | Mobile-app listings API, German job board | Optional and cached, one request per posting | — |
+| <a href="https://careers.un.org"><img src="https://www.un.org/sites/un2.un.org/themes/bootstrap_un2/favicon.ico" alt="" height="16"></a> <a href="https://github.com/eyayaw/jobrake/blob/main/docs/sites/uncareers.md">`uncareers`</a> | Web app's list API, every UN Secretariat opening | Included in search results | — |
+| <a href="https://www.workable.com"><img src="https://www.workable.com/static/apple-touch-icon.png" alt="" height="16"></a> <a href="https://github.com/eyayaw/jobrake/blob/main/docs/sites/workable.md">`workable`</a> | Public widget API, one employer's board | Included in search results | `--board` |
+| <a href="https://www.workday.com"><img src="https://www.workday.com/favicon.ico" alt="" height="16"></a> <a href="https://github.com/eyayaw/jobrake/blob/main/docs/sites/workday.md">`workday`</a> | Career site JSON API, one employer's career site | Optional and cached, one request per posting | `--board`, the career site URL |
 
-The employer-board sites require `board`: the employer's token, or for Workday the career site URL.
-Indeed requires `country`. LinkedIn requires `location` or a geoId.
-See the [guide](https://github.com/eyayaw/jobrake/blob/main/docs/guide.md)
-for search queries, geography, filters, and detail fetching,
-and the [reference](https://github.com/eyayaw/jobrake/blob/main/docs/reference.md#requests-by-site)
-for pagination, rate limits, and retries.
+Each site's name links to its page.
+On an employer-board site, `--board` takes the employer's token from the board's address,
+such as `airbnb` in `boards.greenhouse.io/airbnb`, and Workday takes the career site's address.
+
+Glassdoor is not planned because it is now
+[part of Indeed](https://web.archive.org/web/20260704043638/https://www.glassdoor.com/about/).
+Wellfound is not planned because it has no public API,
+and its job data sits behind a Cloudflare challenge that only a browser passes.
+
+## Requests and caching
+
+jobrake paces its requests to two sites. It spaces out LinkedIn requests and retries one that
+LinkedIn refuses with HTTP 429, and it waits 10 seconds before each request to AcademicTransfer's
+API, as the site's robots.txt asks. It sends every other request without a pause and tries it once, so a failed
+request ends the search with the postings collected so far.
+jobrake caches the postings it fetches for seven days, so a repeat run costs no request for them.
+The [reference](https://github.com/eyayaw/jobrake/blob/main/docs/reference.md#configuration) says
+where the cache lives and how to change it.
 
 > [!WARNING]
 > LinkedIn answers posting pages with [HTTP 999](https://http.dev/999) from data center IPs,
 > such as a Hetzner VPS.
-> Searches still work there, but `--details` and `jobrake linkedin postings` return no details.
+> Searches still work there, but `--details` and `jobrake linkedin postings` return no details
+> and exit 1.
 > So use jobrake from the comfort of your home. :D
 
 ## Contributing
@@ -234,17 +290,26 @@ installed, as CI does.
 ## Disclaimer
 
 > [!WARNING]
-> jobrake has no affiliation with any of the [supported sites](#supported-job-boards).
+> jobrake has no affiliation with any of the [supported sites](#supported-job-boards),
+> and its authors are not liable for how you use it.
 > Use it for your own job search, not to collect postings at scale or republish them.
 > Scraping may violate their ToS, and any of them may rate-limit or block your IP address.
-> EconJobMarket offers its ad feed for personal use and academic research,
-> and redisplaying its ads on your own website needs its approval.
-> The UN's terms of use permit copying its sites' material only for personal, non-commercial use.
-> The AEA's JOE listings page limits its content to personal use and forbids scraping or
-> collecting it without the AEA's written permission.
-> The INOMICS terms forbid accessing its sites by automated means without its permission.
-> The robots.txt of AcademicTransfer's API host disallows every path.
-> You are responsible for checking and complying with their terms.
+> You are responsible for checking and complying with their terms:
+> [AcademicTransfer](https://www.academictransfer.com/en/terms-conditions-privacy/),
+> [AEA JOE](https://www.aeaweb.org/joe/listings),
+> [Ashby](https://www.ashbyhq.com/resources/terms-and-policies),
+> [EconJobMarket](https://backend.econjobmarket.org/docs/ad-redisplay/Ad-Redisplay.0.md),
+> [Greenhouse](https://www.greenhouse.com/legal),
+> [Indeed](https://www.indeed.com/legal),
+> [INOMICS](https://inomics.com/terms-and-conditions),
+> [Lever](https://www.lever.co/legal),
+> [LinkedIn](https://www.linkedin.com/legal/user-agreement),
+> [Personio](https://www.personio.com/terms/),
+> [SmartRecruiters](https://www.smartrecruiters.com/legal/terms-of-use/),
+> [StepStone](https://www.stepstone.de/ueber-stepstone/general-terms-of-use-from-april-27th-2022/),
+> [UN Careers](https://www.un.org/en/about-us/terms-of-use),
+> [Workable](https://www.workable.com/terms), and
+> [Workday](https://www.workday.com/en-us/legal/site-terms.html).
 
 ---
 
