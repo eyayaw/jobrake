@@ -52,6 +52,8 @@ def test_linkedin_parses_cards_and_dedups_by_posting_id():
         # details=True would request a card's link, so a link off LinkedIn is no card.
         + linkedin_card("role-333").replace("www.linkedin.com", "jobs.example.net")
         + linkedin_card("role-444").replace("https://www.linkedin.com", "https://[broken")
+        # postings refuses a LinkedIn address off a posting's page, so such a link is no card.
+        + linkedin_card("role-555").replace("/jobs/view/", "/jobs/collections/")
     )
     fetcher = StubFetcher({"seeMoreJobPostings": ok(html)})
     jobs = asyncio.run(linkedin.search(fetcher, query="economist", location="Seattle", results=3))
