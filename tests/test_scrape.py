@@ -175,6 +175,10 @@ def test_check_and_scrape_reject_bad_options_before_any_request(site, kwargs, er
             "https://jobs.smartrecruiters.com/BoschGroup/744000158197889-product-expert?trk=x",
             ("smartrecruiters", "744000158197889"),
         ),
+        (
+            "https://jobs.smartrecruiters.com/Bosch Group/744000158197889",
+            ("smartrecruiters", "744000158197889"),
+        ),
     ],
 )
 def test_identify_names_the_site_and_id_a_search_gives(link, named):
