@@ -173,12 +173,11 @@ which `tests/test_docs.py` requires. `scrape`, the CLI, and the contract test in
   "The job boards shed new postings every day. Bring a rake." It heads the README. The package and
   repository descriptions say what jobrake does.
 - The README holds what a user needs to start: installation, a run with its real output, the
-  options every site shares, the output formats and exit statuses, the sites, and the limits.
+  options every site shares, the output formats, the sites, and how jobrake requests and caches.
 - `docs/guide.md` holds tasks that span sites, one section each. `docs/reference.md` holds the
-  record, the fields by site, the commands, the Python API, and configuration, each stated once.
-- `docs/sites/<site>.md` holds everything about one site, in the sections Options, Lookups,
-  Fields, Requests, and Terms, in that order and only those it needs. A site's quirk lives on its
-  page, and a rule every site shares lives in the reference, linked from the page.
+  record, the fields by site, the commands, the Python API, and configuration.
+- `docs/sites/<site>.md` holds everything about one site and reads on its own. Its sections, when
+  it needs them, are Options, Lookups, Fields, Requests, and Terms, in that order.
 - Keep CLI help terse. It comes from the `Annotated` help of each option and the first docstring
   line of each site and site function. Caveats and site quirks go on the site's page.
 - The docs tell readers what they need to use jobrake. Leave out input normalization,

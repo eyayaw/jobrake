@@ -196,16 +196,7 @@ A write that fails or is interrupted partway removes the file it started, so a r
 The [guide](https://github.com/eyayaw/jobrake/blob/main/docs/guide.md#collect-postings-from-several-sites)
 shows how to combine the files of several searches into one.
 
-| Exit status | When                                                                                      |
-| ----------- | ----------------------------------------------------------------------------------------- |
-| 0           | The command completed, including a search that found nothing                              |
-| 1           | A request failed or a search ended short, a named posting could not be fetched, or the output could not be written |
-| 2           | An argument is wrong, a site refuses its value, or the `--output` path cannot be used     |
-| 130         | Ctrl-C ended the command                                                                  |
-
-A search or `postings` command that exits 1 still writes the postings it got, and stderr says
-what failed. With none it writes nothing, so empty output always comes from a command that
-completed. Logs and progress go to stderr, and the records to stdout.
+A command that fails partway still writes the postings it got and exits 1.
 
 ### As a library
 
@@ -271,7 +262,7 @@ Glassdoor is not planned because it is now
 Wellfound is not planned because it has no public API,
 and its job data sits behind a Cloudflare challenge that only a browser passes.
 
-## Limits
+## Requests and caching
 
 jobrake paces its requests to two sites. It spaces out LinkedIn requests and retries one that
 LinkedIn refuses with HTTP 429, and it waits 10 seconds before each request to AcademicTransfer's

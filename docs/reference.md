@@ -122,8 +122,7 @@ The table names the sites that fill each detail key, and whether a search fills 
 
 ## Command line
 
-The [README](../README.md#cli) lists the options several sites share, the output formats, and the
-exit statuses.
+The [README](../README.md#cli) lists the options several sites share and the output formats.
 
 | Site                                                     | Commands                                          |
 | -------------------------------------------------------- | ------------------------------------------------- |
@@ -187,6 +186,19 @@ without details, and does not count it as a failure.
 The command takes the same `--output` and `--format` as a search.
 A posting that is gone or unreachable is reported on stderr and left out.
 When one was unreachable, the command writes the others and exits 1.
+
+### Exit statuses
+
+| Exit status | When                                                                                      |
+| ----------- | ----------------------------------------------------------------------------------------- |
+| 0           | The command completed, including a search that found nothing                              |
+| 1           | A request failed or a search ended short, a named posting could not be fetched, or the output could not be written |
+| 2           | An argument is wrong, a site refuses its value, or the `--output` path cannot be used     |
+| 130         | Ctrl-C ended the command                                                                  |
+
+A search or `postings` command that exits 1 still writes the postings it got, and stderr says
+what failed. With none it writes nothing, so empty output always comes from a command that
+completed. Logs and progress go to stderr, and the records to stdout.
 
 ## Python API
 
