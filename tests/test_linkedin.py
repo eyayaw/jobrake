@@ -1145,6 +1145,11 @@ def test_postings_have_three_outcomes():
     assert sum(1 for u in fetcher.requests if "gone-at" in u) == 1  # so is the alias
 
 
+def test_a_posting_page_sent_without_http_200_is_left_out():
+    fetcher = StubFetcher({"economist-at-acme-111": FetchResult("stub", 203, job_page())})
+    assert asyncio.run(linkedin.postings(fetcher, [CANONICAL])) == {}
+
+
 def test_postings_overlap_page_reads_and_keep_reference_order(caplog):
     references = [f"https://nl.linkedin.com/jobs/view/role-{n}" for n in range(111, 119)]
 

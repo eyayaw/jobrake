@@ -158,7 +158,7 @@ def _check(options: dict[str, Option], given: dict[str, object]) -> None:
             try:
                 str(value)
             except ValueError:
-                raise ValueError(f"{name} is too large to send in a request") from None
+                raise ValueError(f"{name} has too many digits to send in a request") from None
         minimum = _MINIMUMS.get(name)
         if minimum is not None and isinstance(value, int) and value < minimum:
             raise ValueError(f"{name} ({value}) must be at least {minimum}")
@@ -314,15 +314,12 @@ def iso_date(value: object) -> str | None:
     """
     Reduce an ISO 8601 date or timestamp to its calendar date.
 
-    ``None`` and empty text return ``None``. Any other value that ``datetime.fromisoformat`` cannot
-    read, an ordinal date among them, logs a warning and returns ``None``.
+    Any value that ``datetime.fromisoformat`` cannot read, an ordinal date among them, gives
+    ``None``.
     """
-    if value is None or value == "":
-        return None
     if isinstance(value, str):
         with suppress(ValueError):
             return datetime.fromisoformat(value).date().isoformat()
-    logger.warning("not an ISO 8601 date or timestamp jobrake reads: %r", value)
     return None
 
 

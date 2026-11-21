@@ -121,6 +121,9 @@ def _parse_position(item: tuple[str, ET.Element], dates: dict[str, str]) -> JobD
         # The export names the country in words, such as GERMANY, so it has no ISO code.
         name = ", ".join(part for part in (city, region, country) if part)
         places.append({"name": name, "city": city, "region": region})
+    # The export writes a deadline with a midnight time, as in 2027-07-31 00:00:00, so expires_at
+    # keeps the date alone. One that does not parse passes as written for make_job to warn and drop.
+    deadline = _text(position, "jp_application_deadline")
     return make_job(
         site="aea",
         id=joe_id,
@@ -132,7 +135,7 @@ def _parse_position(item: tuple[str, ET.Element], dates: dict[str, str]) -> JobD
         department=_text(position, "jp_department"),
         keywords=(_text(position, "jp_keywords") or "").splitlines(),
         posted_at=dates.get(joe_id),
-        expires_at=iso_date(_text(position, "jp_application_deadline")),
+        expires_at=iso_date(deadline) or deadline,
         site_data={
             "section": _text(position, "jp_section"),
             "division": _text(position, "jp_division"),

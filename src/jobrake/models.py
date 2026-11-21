@@ -1,10 +1,13 @@
 """The ``JobDict`` record every site returns, the helpers that build it, and ``Stopped``."""
 
+import logging
 import math
 import re
 from typing import Any, Literal, NotRequired, TypedDict, cast, get_args
 
 from jobrake.utils import as_str, finite, iso_date, well_formed
+
+logger = logging.getLogger(__name__)
 
 WorkplaceType = Literal["remote", "hybrid", "on_site"]
 WORKPLACE_TYPES: tuple[WorkplaceType, ...] = get_args(WorkplaceType)
@@ -187,11 +190,17 @@ def _detail(name: str, value: object) -> object:
         return _site_data(value)
     if name == "keywords":
         return _keywords(value)
-    if name in ("posted_at", "expires_at"):
-        # A date or timestamp iso_date reads stays as given. iso_date logs a warning for any other
-        # value, which is left out.
-        return value if iso_date(value) else None
     return value
+
+
+def _readable_date(name: str, value: object, url: str) -> object:
+    """Return a date or timestamp ``iso_date`` reads as given, or None after a warning naming it."""
+    if value is None or iso_date(value):
+        return value
+    logger.warning(
+        "%s %r of %s is not an ISO 8601 date or timestamp jobrake reads", name, value, url
+    )
+    return None
 
 
 def make_job(**fields: Any) -> JobDict:
@@ -200,9 +209,11 @@ def make_job(**fields: Any) -> JobDict:
 
     Identity strings are stripped. A blank or missing summary value becomes ``None``,
     a missing ``locations`` becomes ``[]``, and a blank or ``None`` detail value is left out.
-    ``date`` keeps the calendar date of the given ``date``, falling back to ``posted_at``.
-    A ``date``, ``posted_at``, or ``expires_at`` that ``iso_date`` cannot read logs a warning and
-    becomes ``None`` or is left out.
+    ``date`` keeps the calendar date of the given ``date``, falling back to ``posted_at`` when
+    ``date`` is missing, not text, or unreadable, and is ``None`` when neither gives one.
+    Text in ``date``, or any ``posted_at`` or ``expires_at``, that ``iso_date`` cannot read logs a
+    warning that names the field and the posting's URL, and such a ``posted_at`` or ``expires_at``
+    is left out.
     A lone surrogate, which JSON can carry as an escape and UTF-8 cannot encode, becomes U+FFFD.
 
     Raises:
@@ -224,10 +235,14 @@ def make_job(**fields: Any) -> JobDict:
             job[name] = make_places(value)
         else:
             job[name] = (value.strip() or None) if isinstance(value, str) else None
+    job["date"] = _readable_date("date", job["date"], job["url"])
     for name in DETAIL_FIELDS:
-        if (value := _detail(name, fields.get(name))) is not None:
+        value = _detail(name, fields.get(name))
+        if name in ("posted_at", "expires_at"):
+            value = _readable_date(name, value, job["url"])
+        if value is not None:
             job[name] = value
-    job["date"] = iso_date(job["date"] or job.get("posted_at"))
+    job["date"] = iso_date(job["date"]) or iso_date(job.get("posted_at"))
     return cast(JobDict, job)
 
 

@@ -122,14 +122,22 @@ def test_date_falls_back_to_the_posting_timestamp():
     )
     assert job["date"] == "2026-08-05"
     assert job["posted_at"] == "2026-08-05T08:04:27.000Z"  # kept whole
+    # A date that does not parse falls back too.
+    unreadable = make_job(site="x", id="1", url="u", date="last week", posted_at="2026-08-05")
+    assert unreadable["date"] == "2026-08-05"
 
 
 def test_a_timestamp_that_is_not_iso_8601_is_left_out_with_a_warning(caplog):
-    job = make_job(site="x", id="1", url="u", posted_at=1763000000, expires_at="next spring")
+    job = make_job(
+        site="x", id="1", url="u", date="soon", posted_at=1763000000, expires_at="next spring"
+    )
+    assert job["date"] is None
     assert "posted_at" not in job
     assert "expires_at" not in job
-    assert "jobrake reads: 1763000000" in caplog.text
-    assert "jobrake reads: 'next spring'" in caplog.text
+    # Each warning names the field and the posting, so a user can find the value.
+    assert "date 'soon' of u is not" in caplog.text
+    assert "posted_at 1763000000 of u is not" in caplog.text
+    assert "expires_at 'next spring' of u is not" in caplog.text
 
 
 def test_a_lone_surrogate_in_any_text_becomes_the_replacement_character():

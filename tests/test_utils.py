@@ -1,12 +1,10 @@
 """Tests for the text/date helpers."""
 
-import logging
-
 import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from jobrake.utils import epoch_ms_to_iso, html_text, iso_date
+from jobrake.utils import epoch_ms_to_iso, html_text
 
 # Soft hyphen, zero-width space, word joiner, BOM, and the bidi embedding, override,
 # and isolate controls.
@@ -93,9 +91,3 @@ def test_epoch_ms_to_iso_drops_with_a_warning_what_cannot_be_milliseconds(caplog
         caplog.clear()
         assert epoch_ms_to_iso(value) is None
         assert message in caplog.text
-
-
-def test_iso_date_drops_junk_with_a_warning(caplog):
-    with caplog.at_level(logging.WARNING, logger="jobrake.utils"):
-        assert iso_date("posted yesterday, allegedly") is None
-    assert any("ISO" in record.message for record in caplog.records)

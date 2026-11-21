@@ -140,6 +140,14 @@ def test_a_search_reads_the_page_for_dates_and_the_export_for_the_rest(caplog):
     assert export == "https://www.aeaweb.org/joe/resultset_output.php?mode=full_xml&q=eNplj0EKwkAM"
 
 
+def test_an_unreadable_deadline_is_reported_with_its_listing(caplog):
+    export = EXPORT.replace("2027-07-31 00:00:00", "TBA")
+    jobs = asyncio.run(aea.search(PagedFetcher([PAGE, export]), query="labor"))
+    listing = "https://www.aeaweb.org/joe/listing.php?JOE_ID=2026-02_111477855"
+    assert not any("expires_at" in job for job in jobs)
+    assert f"expires_at 'TBA' of {listing} is not" in caplog.text
+
+
 def test_a_search_sends_jel_codes_and_a_date_range():
     fetcher = PagedFetcher([PAGE, EXPORT])
     asyncio.run(aea.search(fetcher, jel=["j", "h"], max_age_hours=48))
@@ -169,7 +177,7 @@ def test_a_search_returns_nothing_for_no_match_and_stops_on_a_changed_page():
         (PAGE.replace("11/16/2026", "November 16"), "is not MM/DD/YYYY"),
         (
             PAGE.replace('href="/joe/resultset', 'href="https://[broken/joe/resultset'),
-            "Invalid IPv6",
+            r"cannot read \(ValueError",
         ),
     ):
         with pytest.raises(Stopped, match=reason):

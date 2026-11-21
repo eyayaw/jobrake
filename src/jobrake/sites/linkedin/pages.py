@@ -286,8 +286,9 @@ async def _request(fetcher: Fetcher, url: str) -> FetchResult | None:
         )
     if result.status in (404, 410):
         return None
-    if result.error:
-        raise Stopped(result.error)
+    # A posting page comes with HTTP 200, as the shared readers require of every site's data.
+    if result.error or result.status != 200:
+        raise Stopped(result.error or f"HTTP {result.status}")
     return result
 
 
