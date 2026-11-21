@@ -28,6 +28,10 @@ def _candidate(hit: object, id_key: str, name_key: str) -> dict[str, str] | None
     return {"id": hit_id, "name": name} if hit_id and name else None
 
 
+def _known_edition(*, country: str, **_: object) -> None:
+    indeed_domain(country)
+
+
 # Each autocomplete kind: the hit field that holds the ID, and the parameters it adds.
 _KINDS: dict[str, tuple[str, dict[str, Any]]] = {
     "location": ("suggestion", {"formatted": 1}),
@@ -61,7 +65,7 @@ async def _suggestions(
     return read_json(result, candidates, site="indeed")
 
 
-@checked
+@checked(validator=_known_edition)
 async def places(
     fetcher: Fetcher, name: Annotated[str, "place name, e.g., 'boston'"], *, country: Country
 ) -> list[dict[str, str]]:
@@ -79,7 +83,7 @@ async def places(
     return await _suggestions(fetcher, "location", name, country)
 
 
-@checked
+@checked(validator=_known_edition)
 async def companies(
     fetcher: Fetcher, name: Annotated[str, "company name, e.g., 'ABN AMRO'"], *, country: Country
 ) -> list[dict[str, str]]:
@@ -124,7 +128,7 @@ def _attribute_codes(payload: Any) -> list[dict[str, str]]:  # noqa: ANN401  any
     return list(found.values())
 
 
-@checked
+@checked(validator=_known_edition)
 async def attributes(
     fetcher: Fetcher, query: Annotated[str, "job title or keywords"], *, country: Country
 ) -> list[dict[str, str]]:

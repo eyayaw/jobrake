@@ -16,6 +16,7 @@ from hypothesis import strategies as st
 from jobrake import Stopped
 from jobrake.models import IDENTITY_FIELDS, SUMMARY_FIELDS
 from jobrake.sites import indeed
+from jobrake.utils import site_options
 
 
 def test_query_escapes_graphql_strings_as_json():
@@ -123,6 +124,13 @@ def test_places_lists_edition_suggestions():
     with pytest.raises(ValueError, match="blank"):
         asyncio.run(indeed.places(fetcher, "", country="us"))
     assert len(fetcher.requests) == 1
+
+
+@pytest.mark.parametrize("lookup", [indeed.places, indeed.companies, indeed.attributes])
+def test_a_lookup_check_rejects_an_unknown_edition(lookup):
+    text = dict.fromkeys(site_options(lookup), "x")  # the lookup's text and its country
+    with pytest.raises(ValueError, match="unknown Indeed country 'atlantis'"):
+        lookup.check(**text | {"country": "atlantis"})
 
 
 def test_an_iso_code_selects_its_edition():
