@@ -181,6 +181,9 @@ def test_identify_names_the_site_and_id_a_search_gives(link, named):
         "4449382178",  # a LinkedIn ID, but not a link
         "https://boards.greenhouse.io/airbnb/jobs/7649441",
         "https://www.indeed.com/viewjob",
+        # A posting link carries neither credentials nor a port.
+        "https://acme@www.indeed.com/viewjob?jk=1a2b3c4d5e6f7a8b",
+        "https://www.indeed.com:8443/viewjob?jk=1a2b3c4d5e6f7a8b",
         "https://example.com/jobs/view/4449382178",
         "https://inomics.com/scholarship/postdoctoral-scholarship-1555359",
         # A posting ID holds digits 0-9, and \d also matches other scripts' digits.

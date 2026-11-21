@@ -6,7 +6,7 @@ import logging
 import re
 from collections.abc import AsyncGenerator, Callable
 from typing import Annotated, Any
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import parse_qs, urlencode, urlsplit
 
 from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, Stopped, WorkplaceType, employment_type, make_job
@@ -172,8 +172,13 @@ def _workplace_type(labels: list[str]) -> WorkplaceType | None:
     return "remote" if remote else "hybrid"
 
 
-# Indeed's job key is both the job ID and the URL's ``jk`` parameter.
-_VIEW_URL = "{base_url}/viewjob?jk={key}"
+# An edition's host, without the credentials or port a URL may add before or after it.
+_HOST = re.compile(r"(?:[a-z0-9-]+\.)*indeed\.com")
+
+
+def _view_url(base_url: str, key: str) -> str:
+    """Return the posting page of a job key, which is both the job ID and the ``jk`` parameter."""
+    return f"{base_url}/viewjob?{urlencode({'jk': key})}"
 
 
 def card(reference: str) -> JobDict:
@@ -186,18 +191,16 @@ def card(reference: str) -> JobDict:
         ValueError: The reference is not an Indeed URL that carries a posting key.
     """
     parts = urlsplit(reference.strip())
-    host = parts.hostname or ""
+    host = parts.netloc.lower()
     query = parse_qs(parts.query)
-    key = (query.get("jk") or query.get("vjk") or [""])[0].strip()
-    indeed = host == "indeed.com" or host.endswith(".indeed.com")
-    if not (parts.scheme in ("http", "https") and indeed and key):
+    # A lone surrogate, which urlencode cannot encode, becomes U+FFFD in the key and its URL alike.
+    key = (as_str((query.get("jk") or query.get("vjk") or [""])[0]) or "").strip()
+    if not (parts.scheme in ("http", "https") and _HOST.fullmatch(host) and key):
         raise ValueError(
             f"{reference!r} is not an Indeed posting URL. Pass one with its key in jk, such as "
             "https://www.indeed.com/viewjob?jk=1a2b3c4d5e6f7a8b"
         )
-    return make_job(
-        site="indeed", id=key, url=_VIEW_URL.format(base_url=f"https://{host}", key=key)
-    )
+    return make_job(site="indeed", id=key, url=_view_url(f"https://{host}", key))
 
 
 def _parse_job(job: dict[str, Any], base_url: str) -> JobDict:
@@ -222,7 +225,7 @@ def _parse_job(job: dict[str, Any], base_url: str) -> JobDict:
     return make_job(
         site="indeed",
         id=key,
-        url=_VIEW_URL.format(base_url=base_url, key=key),
+        url=_view_url(base_url, key),
         title=as_str(job.get("title")),
         language=as_str(job.get("language")),
         company=as_str(employer.get("name")),
