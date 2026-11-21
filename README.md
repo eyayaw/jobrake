@@ -42,7 +42,8 @@ jobrake greenhouse search \
 </tr>
 </table>
 
-The LinkedIn search writes this record, shown here with its description and logo URL cut short:
+The LinkedIn search writes this record, shown here indented, with its description and logo URL
+cut short:
 
 ```json
 [
@@ -75,8 +76,8 @@ The LinkedIn search writes this record, shown here with its description and logo
 ]
 ```
 
-Every site gives the same keys, as [the record](https://github.com/eyayaw/jobrake/blob/main/docs/reference.md#the-record)
-describes, and leaves out a detail it does not have.
+The [reference](https://github.com/eyayaw/jobrake/blob/main/docs/reference.md#the-record)
+describes every key.
 
 ## Installation
 
@@ -91,8 +92,6 @@ uv tool install git+https://github.com/eyayaw/jobrake
 uv add git+https://github.com/eyayaw/jobrake
 ```
 
-jobrake needs the Python version that `requires-python` in its `pyproject.toml` names, and
-`uv tool install` fetches one when your system lacks it.
 Releases before 1.0 can break the API, so pin a tag in a project:
 `uv add git+https://github.com/eyayaw/jobrake --tag <tag>`.
 The [changelog](https://github.com/eyayaw/jobrake/blob/main/CHANGELOG.md)
@@ -103,10 +102,10 @@ marks each breaking change.
 ### CLI
 
 Every command has the form `jobrake <site> <command>`.
-Each site has `search`, and some add `postings`, which fetches postings you already know, or a
-lookup that turns a name into the ID a search takes.
+Each site has `search`. Some add `postings`, which fetches postings you already know, and some
+add lookups, which turn a name into the ID a search takes.
 `jobrake -h` lists the sites, `jobrake <site> -h` a site's commands, and
-`jobrake <site> <command> -h` their options. `jobrake --version` prints the version.
+`jobrake <site> <command> -h` their options, and `jobrake --version` prints the version.
 
 ```sh
 # LinkedIn ----
@@ -167,32 +166,32 @@ jobrake inomics search -c de --category postdoc -d
 jobrake academictransfer search -q economics --vacancy-type scientific
 ```
 
-A site takes only the options its server applies, so `-h` shows a different list on each.
-The options that several sites share keep one meaning:
+Each site has its own options, which `-h` lists.
+These mean the same on every site that takes them:
 
 | Option                  | Effect                                                                         |
 | ----------------------- | ------------------------------------------------------------------------------ |
 | `--query`, `-q`         | Job title or keywords                                                          |
-| `--results`, `-n`       | The most postings to return: 10 on Indeed and LinkedIn, 20 on Workday, 100 on the other sites that take it |
+| `--results`, `-n`       | The number of postings to return. The default is 10 on Indeed and LinkedIn, 20 on Workday, and 100 elsewhere |
 | `--max-age-hours`, `-a` | Only postings this many hours old or newer. No age limit by default            |
 | `--radius`, `-r`        | The search radius around `--location`, in kilometers                           |
-| `--details`, `-d`       | Fetch each posting's page for the fields its card lacks, such as the description |
+| `--details`, `-d`       | Fetch each posting for the fields a search result lacks, such as the description |
 | `--output`, `-o`        | Write a new file instead of stdout. An existing file is an error               |
 | `--format`, `-f`        | `json`, `jsonl`, or `csv`. Defaults to the extension of `--output`, else JSON  |
 
 A list option, such as `--company-ids`, takes several values after one flag or across repeats.
-Ashby, Greenhouse, Lever, Personio, Workable, EconJobMarket, and AEA JOE take no `--results`:
-they return every posting that matches, the whole board where they take no filter.
+A site without `--results` returns every posting that matches.
 
-The output is compact JSON, one array of records.
+The output is JSON, one array of records.
 JSONL writes one record per line with the same keys.
 CSV has the same columns for every site and leaves an absent value empty.
-Its `locations` column joins the place names with `; `, without their parts, its `keywords`
-column joins the keywords the same way, and its `site_data` column holds JSON.
+In CSV, `locations` joins the place names with `; ` and drops their parts, `keywords` joins the
+keywords the same way, and `site_data` holds JSON.
 A place name can itself contain `; `, such as Greenhouse's `Remote, Canada; Remote, United States`,
 so read JSON or JSONL to count places.
-`--output` needs a directory that exists. A search that finds nothing writes no file, and on
-stdout it writes `[]` in JSON, the header row in CSV, and nothing in JSONL.
+`--output` needs a directory that exists.
+A search that finds nothing writes no file, and on stdout it writes `[]` in JSON, the header row
+in CSV, and nothing in JSONL.
 A write that fails or is interrupted partway removes the file it started, so a rerun can write it.
 The [guide](https://github.com/eyayaw/jobrake/blob/main/docs/guide.md#collect-postings-from-several-sites)
 shows how to combine the files of several searches into one.
@@ -201,12 +200,11 @@ shows how to combine the files of several searches into one.
 | ----------- | ----------------------------------------------------------------------------------------- |
 | 0           | The command completed, including a search that found nothing                              |
 | 1           | A request failed or a search ended short, a named posting could not be fetched, or the output could not be written |
-| 2           | An argument is wrong or a site refuses its value, or the `--output` path cannot be used   |
+| 2           | An argument is wrong, a site refuses its value, or the `--output` path cannot be used     |
 | 130         | Ctrl-C ended the command                                                                  |
 
-Under status 1, a stopped search and a `postings` command with a failed reference still write the
-postings they got, and stderr says what failed.
-With none, they write nothing, so empty output such as `[]` always comes from a command that
+A search or `postings` command that exits 1 still writes the postings it got, and stderr says
+what failed. With none it writes nothing, so empty output always comes from a command that
 completed. Logs and progress go to stderr, and the records to stdout.
 
 ### As a library
@@ -237,12 +235,12 @@ for job in asyncio.run(main()):
 ```
 
 `scrape` takes the same options as the CLI, as keyword arguments with underscores, and checks
-them before any request. A search that cannot finish raises `jobrake.Stopped`, whose `partial`
-holds the postings collected before it.
+them before any request. A failed request raises `jobrake.Stopped`, whose `partial` holds the
+postings collected until then.
 The [guide](https://github.com/eyayaw/jobrake/blob/main/docs/guide.md) shows how to recover from
-that, share one connection pool across calls, and fetch details later, and the
-[reference](https://github.com/eyayaw/jobrake/blob/main/docs/reference.md#python-api) lists every
-function.
+`Stopped` and how to fetch details later.
+The [reference](https://github.com/eyayaw/jobrake/blob/main/docs/reference.md#python-api) lists
+every function.
 
 ## Supported job boards
 
@@ -264,10 +262,9 @@ function.
 | <a href="https://www.workable.com"><img src="https://www.workable.com/static/apple-touch-icon.png" alt="" height="16"></a> <a href="https://github.com/eyayaw/jobrake/blob/main/docs/sites/workable.md">`workable`</a> | Public widget API, one employer's board | Included in search results | `--board` |
 | <a href="https://www.workday.com"><img src="https://www.workday.com/favicon.ico" alt="" height="16"></a> <a href="https://github.com/eyayaw/jobrake/blob/main/docs/sites/workday.md">`workday`</a> | Career site JSON API, one employer's career site | Optional and cached, one request per posting | `--board`, the career site URL |
 
-Each site's name links to its page, which lists its options, the fields it fills, and its limits.
-On an employer-board site, `--board` names the employer, and the
-[guide](https://github.com/eyayaw/jobrake/blob/main/docs/guide.md#read-an-employers-board) shows
-how to find it.
+Each site's name links to its page.
+On an employer-board site, `--board` takes the employer's token from the board's address,
+such as `airbnb` in `boards.greenhouse.io/airbnb`, and Workday takes the career site's address.
 
 Glassdoor is not planned because it is now
 [part of Indeed](https://web.archive.org/web/20260704043638/https://www.glassdoor.com/about/).
@@ -276,20 +273,19 @@ and its job data sits behind a Cloudflare challenge that only a browser passes.
 
 ## Limits
 
-Only LinkedIn and AcademicTransfer pace their requests: LinkedIn spaces them out and retries a
-rate limit, and AcademicTransfer waits the crawl delay its robots.txt asks for, about 10 seconds
-per page. The other sites take the requests as fast as they answer and try each one once,
-so a failed request ends the search with what it had collected.
-jobrake caches the postings it fetched from LinkedIn, Workday, SmartRecruiters, StepStone, and
-INOMICS for seven days, so a repeat run costs no request for them.
+jobrake paces its requests to two sites. It spaces out LinkedIn requests and retries one that
+LinkedIn refuses with HTTP 429, and it waits 10 seconds before each request to AcademicTransfer's
+API, as the site's robots.txt asks. It sends every other request without a pause and tries it once, so a failed
+request ends the search with the postings collected so far.
+jobrake caches the postings it fetches for seven days, so a repeat run costs no request for them.
 The [reference](https://github.com/eyayaw/jobrake/blob/main/docs/reference.md#configuration) says
 where the cache lives and how to change it.
 
 > [!WARNING]
 > LinkedIn answers posting pages with [HTTP 999](https://http.dev/999) from data center IPs,
 > such as a Hetzner VPS.
-> Searches still work there, but a `--details` search stops with the cards it found, and
-> `jobrake linkedin postings` fetches nothing.
+> Searches still work there, but `--details` and `jobrake linkedin postings` return no details
+> and exit 1.
 > So use jobrake from the comfort of your home. :D
 
 ## Contributing

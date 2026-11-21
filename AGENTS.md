@@ -177,13 +177,13 @@ which `tests/test_docs.py` requires. `scrape`, the CLI, and the contract test in
 - `docs/guide.md` holds tasks that span sites, one section each. `docs/reference.md` holds the
   record, the fields by site, the commands, the Python API, and configuration, each stated once.
 - `docs/sites/<site>.md` holds everything about one site, in the sections Options, Lookups,
-  Fields, Limits, Terms, and Measured, in that order and only those it needs. A site's quirk lives
-  on its page, and a rule every site shares lives in the reference, linked from the page.
+  Fields, Requests, and Terms, in that order and only those it needs. A site's quirk lives on its
+  page, and a rule every site shares lives in the reference, linked from the page.
 - Keep CLI help terse. It comes from the `Annotated` help of each option and the first docstring
   line of each site and site function. Caveats and site quirks go on the site's page.
 - The docs tell readers what they need to use jobrake. Leave out input normalization,
-  request sizes, and other internals. A site's measured behavior goes in its page's Measured
-  section, with when and on what it was measured.
+  request sizes, and other internals. A measured behavior says so where it is stated,
+  with when and on what it was measured.
 
 ## Sites
 

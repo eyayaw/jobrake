@@ -1,61 +1,59 @@
 # Indeed (`indeed`)
 
-[Indeed](https://www.indeed.com) is a general job board with a separate edition for each country it
-serves. jobrake searches one edition at a time.
+jobrake searches [Indeed](https://www.indeed.com) through Indeed's mobile GraphQL API.
+Indeed does not document this API, so the search behavior on this page is what we measured.
+Only its language codes have an Indeed reference.
 
 ```sh
 jobrake indeed search -q "data scientist" -c nl -l Amsterdam -n 2
 jobrake indeed search -q "data analyst" -c gb -l London -n 5 -a 24 -o jobs.jsonl
-jobrake indeed search -q econometrics -c nl --language en --remote
-jobrake indeed places amsterdam -c nl
-jobrake indeed companies "Booking" -c nl
-jobrake indeed attributes "data scientist" -c us
 ```
 
-`search` requires `--country` and returns postings newest first, by the date each reached Indeed.
-Indeed returns the details it has with the search itself, so an Indeed search needs nothing further:
-it takes no `--details`, and the site has no `postings` command.
-In Python the options are keyword arguments:
-`scrape("indeed", query="economist", country="us", attributes=["CF3CP"])`.
+```python
+import asyncio
+
+from jobrake import scrape
+
+jobs = asyncio.run(scrape("indeed", query="economist", country="us", attributes=["CF3CP"]))
+```
+
+Indeed returns the details it has with the search itself, so an Indeed search takes no `--details`,
+and the site has no `postings` command.
 
 ## Options
 
-| Option                  | Value                                                    | Default           |
-| ----------------------- | -------------------------------------------------------- | ----------------- |
-| `--query`, `-q`         | a job title or keywords                                  | none              |
-| `--country`, `-c`       | an ISO 3166-1 alpha-2 code, such as `de`, `gb`, or `us`  | required          |
-| `--location`, `-l`      | a city or another place within that country              | the whole edition |
-| `--radius`, `-r`        | kilometers around the location, 0 or more                | 40                |
-| `--results`, `-n`       | a positive integer                                       | 10                |
-| `--max-age-hours`, `-a` | a positive integer                                       | no age limit      |
-| `--company-ids`         | one Indeed employer key                                  | every employer    |
-| `--language`            | a two-letter language code, such as `en`                 | every language    |
-| `--attributes`          | attribute codes, all of which a posting must carry       | none              |
-| `--remote`              | only postings Indeed tags Remote                         | off               |
-
-A posting must match every option given.
-The [reference](../reference.md#options) has the rules every site shares.
+| Option                  | Value                                                 | Default           |
+| ----------------------- | ----------------------------------------------------- | ----------------- |
+| `--query`, `-q`         | a job title or keywords                               | none              |
+| `--country`, `-c`       | a country code                                        | required          |
+| `--location`, `-l`      | a city or another place within that country           | the whole edition |
+| `--radius`, `-r`        | kilometers around the location                        | 40                |
+| `--results`, `-n`       | the number of postings to return                      | 10                |
+| `--max-age-hours`, `-a` | the oldest posting to keep, in hours                  | no age limit      |
+| `--company-ids`         | one Indeed employer key                               | every employer    |
+| `--language`            | a language code                                       | every language    |
+| `--attributes`          | attribute codes, all of which a posting must carry    | none              |
+| `--remote`              | keep only postings Indeed tags Remote                 | off               |
 
 ### Country and location
 
 Indeed searches one country edition at a time, so `--country` is required.
 Set it to the country's ISO 3166-1 alpha-2 code in either case, such as `de`, `gb`, or `us`.
 A code with no Indeed edition is an error that lists the codes Indeed serves.
+The editions are the country sites Indeed listed at <https://www.indeed.com/worldwide> on
+2026-10-29, and its API answered HTTP 400 for the unlisted countries we tried.
 
 `--location` narrows that edition to a city or another place within it,
 and [`jobrake indeed places`](#lookups) suggests the names Indeed knows.
-Without `--radius`, jobrake searches 40 km around the location.
-`--radius` counts only with `--location`: without one, the search covers the whole edition and
-ignores the radius.
+Without `--location`, the search covers the whole edition and sends no radius.
 
 ### Query
 
-jobrake sends the query unchanged.
+jobrake sends the query unchanged to Indeed's `what` field.
 Indeed matches loosely, so a returned posting need not contain every word you typed.
 Where that matters, run several narrow queries and filter the results yourself.
-Leave out `-q` to search without keywords.
 
-Indeed's mobile endpoint treats `title:` and `company:` as field restrictions.
+Indeed's mobile API treats `title:` and `company:` as field restrictions.
 Inside `title:`, parentheses for grouping terms and `OR` work.
 Quotation marks narrow phrase searches, and a leading minus can exclude a term.
 Note that these operations can be combined.
@@ -77,15 +75,16 @@ Keep those restrictions out of query text such as `"data science jobs in England
 
 ### Posting age
 
-`--max-age-hours` measures a posting's age from the date it reached Indeed, the date the results
-are ordered by. A posting inside your age window can still carry an older `posted_at`,
+Indeed returns postings newest first by the date the posting reached Indeed,
+the same date `--max-age-hours` filters on.
+A posting inside your age window can still carry an older `posted_at`,
 the publication timestamp the search returns.
 A reposted posting counts as new, so a 24-hour window can include postings published weeks earlier.
 
 ### Employers
 
-`--company-ids` takes an Indeed employer key, which [`jobrake indeed companies`](#lookups) finds
-from the company's name:
+Find an Indeed employer key by looking up the company name with
+[`jobrake indeed companies`](#lookups), then pass it to `--company-ids`:
 
 ```sh
 jobrake indeed search -c nl -q "data scientist" --company-ids 8e8f030e53ea29e4
@@ -98,8 +97,14 @@ Search one employer at a time and combine the results.
 
 ### Language
 
-`--language` selects Indeed postings in one language, in either case. Indeed decides each posting's language.
-The option accepts two-letter language codes such as `en` and `nl`.
+Use `--language CODE` to select Indeed postings in one language:
+
+```sh
+jobrake indeed search -q econometrics -c nl --language en
+```
+
+Indeed decides each posting's language.
+The option accepts two-letter language codes such as `EN` and `NL`.
 Indeed's [language-code reference](https://docs.indeed.com/api/common/objects/LanguageCode)
 describes ISO 639-1.
 A well-formed code can still match nothing.
@@ -121,6 +126,12 @@ A posting can hold codes that look mutually exclusive,
 so a Full-time match may carry Part-time as well when the employer offers either arrangement.
 The filter has no way to exclude a code.
 
+Pass `--remote` to search postings that Indeed tags Remote:
+
+```sh
+jobrake indeed search -q "econometrics" -c us --remote
+```
+
 `--remote` is shorthand for `--attributes DSQF7`, so a posting must carry the Remote tag
 and every other code you pass.
 The tag reflects Indeed's classification.
@@ -128,26 +139,47 @@ Check the posting for residency and workplace requirements.
 
 ## Lookups
 
-Each lookup requires `--country` and prints a JSON list of `{"id", "name"}` entries in Indeed's
-order. The `id` is the value a search takes.
+Each lookup requires `--country` and prints a JSON list of `{"id", "name"}` entries.
+The `id` is the value a search takes.
 
-| Command              | Lists                                                   | `id` goes to    |
-| -------------------- | ------------------------------------------------------- | --------------- |
-| `places <name>`      | the edition's location suggestions, best match first    | `--location`    |
-| `companies <name>`   | employer keys with their company names                  | `--company-ids` |
-| `attributes <query>` | the attribute codes on the first 100 matching postings  | `--attributes`  |
+`jobrake indeed places <name>` prints the edition's location suggestions, best match first.
+Each `id` can be passed directly to `--location`.
 
-`places` lists up to ten suggestions.
-`companies` may include related companies, so choose the employer whose postings you want.
+`jobrake indeed companies <name>` pairs an employer key in `id` with a company name in `name`:
 
-`attributes` reads postings that match a job title or keywords and applies no posting-age
-restriction. Those postings carry several (hundred) attributes between them.
+```sh
+jobrake indeed companies "Booking" -c nl
+```
+```json
+[
+  {
+    "id": "8e8f030e53ea29e4",
+    "name": "Booking.com"
+  },
+  {
+    "id": "aee0b02548b689e2",
+    "name": "Booking Experts"
+  },
+  {
+    "id": "542f63b11393c5a9",
+    "name": "BookingGo"
+  }
+]
+```
+
+Results follow Indeed's suggestion order and may include related companies.
+Choose the employer whose postings you want.
+
+`jobrake indeed attributes <query>` reads the first 100 postings that match a job title or
+keywords and prints their attribute codes, as `id` and `name`.
+It applies no posting-age restriction.
+Those postings carry several (hundred) attributes between them.
 Search the list by label:
 
 ```sh
 jobrake indeed attributes -c us "data scientist" \
   | jq -r '.[] | select(.name | test("python"; "i")) | [.id, .name] | @tsv'
-# X62BT Python
+# X62BT	Python
 ```
 
 Each run samples the postings afresh, so a code can be missing from one lookup
@@ -162,61 +194,36 @@ in `jobrake.sites.indeed`.
 
 ## Fields
 
-An Indeed record carries `title`, `company`, `locations`, and `date`,
-and, when Indeed supplies them, `description` and the details below.
-[The record](../reference.md#the-record) describes every key.
+An Indeed [record](../reference.md#the-record) carries `title`, `company`, `locations`, and
+`date`, and, when Indeed supplies them, `description` and the details `posted_at`, `expires_at`,
+`language`, `employment_type`, `workplace_type`, `apply_url`, `company_url`, `company_logo`,
+`salary_min`, `salary_max`, `salary_currency`, and `salary_period`.
 
-| Key                                | Holds                                                           |
-| ---------------------------------- | --------------------------------------------------------------- |
-| `id`                               | Indeed's job key                                                |
-| `url`                              | the posting on the country edition searched                     |
-| `locations`                        | one place, named from the parts Indeed gives                    |
-| `posted_at`, `date`                | the time the posting was published, and its calendar date       |
-| `expires_at`                       | the expiration time Indeed gives                                |
-| `language`                         | Indeed's two-letter code, such as `en`                          |
-| `employment_type`                  | a slug of one of the posting's attribute labels                 |
-| `workplace_type`                   | `remote` or `hybrid`, from Indeed's tags                        |
-| `salary_min`, `salary_max`         | the range Indeed gives                                          |
-| `salary_currency`, `salary_period` | the range's currency and period, as Indeed sends them           |
-| `apply_url`                        | the application link Indeed gives                               |
-| `company_url`, `company_logo`      | the employer's page on Indeed, and its logo                     |
+- `id` is Indeed's job key, and `url` opens the posting on the country edition searched.
+- `locations` holds one place with the `city`, `region`, `country_code`, `latitude`,
+  and `longitude` Indeed gives, named from those parts.
+- `posted_at` is the time the posting was published, and `date` is its calendar date.
+  `--max-age-hours` filters on another date, as [Posting age](#posting-age) says.
+- `language` is Indeed's two-letter code, and Indeed also sends the legacy codes `iw` for Hebrew
+  and `in` for Indonesian, which jobrake preserves.
+- `employment_type` comes from the posting's attribute labels, as a slug such as `full_time`.
+  It is one of `full_time`, `part_time`, `contract`, `temporary`, `internship`, or `per_diem`.
+- `workplace_type` is `remote` for a posting tagged Remote
+  and `hybrid` for one tagged Hybrid work, whose code is `PAXZC`.
+  Indeed tags some postings both, and such a posting has no `workplace_type`.
+  On 2026-10-28, 1 of 100 hybrid postings carried both tags.
+- The salary fields hold the range Indeed gives with its currency and period.
+  A posting with one exact figure carries it as both bounds,
+  and a posting with only a minimum or only a maximum carries that bound alone.
+- `apply_url` is the application link Indeed gives,
+  and `company_url` is the employer's page on Indeed.
 
-The place carries the `city`, `region`, `country_code`, `latitude`, and `longitude` Indeed gives.
-`language` also carries the legacy codes `iw` for Hebrew and `in` for Indonesian.
-`employment_type` is `full_time`, `part_time`, `contract`, `temporary`, `internship`, or `per_diem`.
-A posting with one exact salary figure carries it as both bounds,
-and a posting with only a minimum or only a maximum carries that bound alone.
+## Requests
 
-`workplace_type` is `remote` for a posting tagged Remote
-and `hybrid` for one tagged Hybrid work.
-Indeed tags some postings both, and such a posting has no `workplace_type`.
-
-A record has no `site_data`, and no `department`, `team`, `education`, `experience_months`,
-`apply_type`, `applicants`, or `keywords`.
-
-`jobrake.identify` reads an Indeed link that carries the posting's key in `jk`,
-or in `vjk` on a search page, and returns `("indeed", <key>)`,
-as the [Python API](../reference.md#python-api) describes.
-
-## Limits
-
-A search reads Indeed's results a page at a time.
-Pages follow one another without delay, and each request gets a single attempt.
 One search reaches at most 1,000 results, and jobrake warns when that cap cuts a search short.
-Narrow the search to reach more of Indeed's postings.
 
-A failed request, an error from Indeed, or an answer jobrake cannot read raises `Stopped` with the
-postings of the pages before it. So does an answer that sends the search back to a page it already
-read, with the postings read so far, its own included. Rerun the search to start again.
-
-Each lookup is one request with a single attempt.
-jobrake caches nothing it reads from Indeed.
-
-## Measured
-
-Indeed documents its language codes and none of the search behavior on this page.
-The query syntax, the result order, the date behind `--max-age-hours`, and the 1,000-result cap
-are what we observed on the mobile endpoint jobrake uses.
-The editions are the country sites Indeed listed at <https://www.indeed.com/worldwide> on
-2026-10-29, and its API answered HTTP 400 for the unlisted countries we tried.
-On 2026-10-28, 1 of 100 hybrid postings was tagged Remote as well.
+Pages follow one another without delay, and each request gets a single attempt.
+A failed request raises [`Stopped`](../reference.md#stopped) with the postings of the pages before
+it, and a page that repeats an earlier page's cursor raises it with the postings read so far, its
+own included.
+Each lookup is one request.

@@ -1,9 +1,7 @@
 # jobrake guide
 
-This guide shows how to do common tasks with jobrake, across sites.
-The [README](../README.md) covers installation and the options every site shares.
-Each site's page under [sites](sites/) gives its own options, fields, and limits,
-and the [reference](reference.md) describes the record, the commands, and the Python API.
+Each section is one task that spans several sites.
+A site's own options and quirks are on its page under [sites](sites/).
 
 - [Search by keyword and place](#search-by-keyword-and-place)
 - [Filter by employer](#filter-by-employer)
@@ -12,12 +10,13 @@ and the [reference](reference.md) describes the record, the commands, and the Py
 - [Pipe results](#pipe-results)
 - [Fetch posting details](#fetch-posting-details)
 - [Recover from a stopped search](#recover-from-a-stopped-search)
-- [Use jobrake from Python](#use-jobrake-from-python)
+- [Check searches before they run](#check-searches-before-they-run)
+- [Show progress](#show-progress)
 - [Refresh the cache](#refresh-the-cache)
 
 ## Search by keyword and place
 
-Indeed, LinkedIn, and StepStone search a whole job market by keywords and place.
+The searches in this section run on Indeed, LinkedIn, and StepStone.
 Choose a site and supply a job title or keywords:
 
 ```sh
@@ -26,27 +25,28 @@ jobrake linkedin search -q "data scientist" -l "Amsterdam, North Holland, Nether
 jobrake stepstone search -q "data scientist" -l Berlin -n 2
 ```
 
-The commands ask for two postings near Amsterdam, Netherlands, or Berlin,
-but each site names a place its own way.
+Each site names a place its own way.
 Indeed searches one country edition at a time, so `--country` is required,
 and `--location` narrows that edition to a city or area within it.
 LinkedIn has no editions: pass the place as text to `--location`, or its ID to `--geoid`,
 and leave `--country` out.
 StepStone searches Germany only, so `--location` is a German city or postal code.
-When a site does not recognize a place, its `places` lookup turns a name into one it does:
+
+When Indeed or LinkedIn does not recognize a place, look it up with `places`
+and search with a name or ID it returns:
 
 ```sh
 jobrake linkedin places "amsterdam"
 jobrake indeed places "amsterdam" -c nl
 ```
 
-Each site's page, [Indeed](sites/indeed.md), [LinkedIn](sites/linkedin.md), and
-[StepStone](sites/stepstone.md), gives its query syntax, how it reads a place, and its radius.
+The [Indeed](sites/indeed.md#query) and [LinkedIn](sites/linkedin.md#query) pages give each
+site's query syntax.
 
 ## Filter by employer
 
-Indeed and LinkedIn filter by employer identifier, and both need a lookup to turn a name into
-one. Look up the company name, then pass the `id` of the employer you want to `--company-ids`:
+Indeed and LinkedIn filter by employer, and both need a lookup to turn a company name into the ID
+a search takes:
 
 ```sh
 jobrake indeed companies "Booking" -c nl
@@ -69,14 +69,35 @@ jobrake indeed companies "Booking" -c nl
 ```
 
 ```sh
+jobrake linkedin companies "Booking"
+```
+```json
+[
+  {
+    "id": "11348",
+    "name": "Booking.com"
+  },
+  {
+    "id": "10198247",
+    "name": "Booking Holdings (NASDAQ: BKNG)"
+  },
+  {
+    "id": "17896204",
+    "name": "Booking Experts B.V."
+  }
+]
+```
+
+Pass the `id` of the employer you want to `--company-ids`:
+
+```sh
 jobrake indeed search -c nl -q "data scientist" --company-ids 8e8f030e53ea29e4
 jobrake linkedin search -l "Netherlands" --company-ids 11348 215713
 ```
 
-The Indeed key selects _Booking.com_, and the LinkedIn IDs select _Booking.com_ and
-_ING Nederland_.
-An Indeed search takes one employer and a LinkedIn search several, as the
-[Indeed](sites/indeed.md#employers) and [LinkedIn](sites/linkedin.md#employers) pages explain.
+The Indeed search keeps Booking.com's postings.
+The LinkedIn search keeps those of Booking.com and of ING Nederland, whose ID is `215713`.
+Indeed takes one employer per search, and LinkedIn several.
 
 > [!TIP]
 > Leave out `-q` to search without keywords, on any site that takes a query.
@@ -85,7 +106,7 @@ An Indeed search takes one employer and a LinkedIn search several, as the
 ## Read an employer's board
 
 Many employers publish their openings on a board that their applicant tracking system (ATS) hosts.
-jobrake reads Ashby, Greenhouse, Lever, Personio, SmartRecruiters, Workable, and Workday boards.
+jobrake reads boards on Ashby, Greenhouse, Lever, Personio, SmartRecruiters, Workable, and Workday.
 A search names one employer's board with `--board | -b`.
 An Ashby, Greenhouse, Lever, Personio, or Workable search returns every posting on the board:
 
@@ -103,17 +124,20 @@ from jobrake import scrape
 jobs = asyncio.run(scrape("greenhouse", board="airbnb"))
 ```
 
-The board token is the part of the board's address that names the employer,
-such as `airbnb` in `boards.greenhouse.io/airbnb`, and each site's page shows where to find it.
-Workday has no token: pass the address of the employer's job search page instead.
-These five searches take no query, result limit, or filters.
+These searches take no query, result limit, or filters.
 To narrow the postings, [pipe the results](#pipe-results) through `jq`
 or load them into another tool.
-SmartRecruiters and Workday search on the server, with a query and a result limit.
+SmartRecruiters and Workday take a query and a result limit,
+and SmartRecruiters also filters by age and by remote work.
 
-A token the site does not know stops the search with an error that says so, except on
-SmartRecruiters, which answers it as a board with no postings: check the token against the board's
-address, as its [page](sites/smartrecruiters.md) explains.
+The board token is the part of the board's address that names the employer,
+such as `airbnb` in `boards.greenhouse.io/airbnb`.
+Workday has no token. Pass the address of the employer's job search page instead.
+
+A token the site does not know stops the search with an error that says so.
+SmartRecruiters is the exception. It answers an unknown token as it answers a board with no
+postings, so an empty result can mean a misspelled token, as
+[its page](sites/smartrecruiters.md#options) explains.
 
 ## Collect postings from several sites
 
@@ -129,13 +153,14 @@ jobrake academictransfer search -q economics -o runs/academictransfer.csv
 awk 'FNR > 1 || NR == 1' runs/*.csv > economics.csv
 ```
 
-The `awk` line keeps the header of the first file and drops the others.
-A site's own fields stay in the `site_data` column as JSON, and a column a site does not fill stays
-empty. Each site's page lists the fields it fills, and INOMICS adds the description only with `-d`.
+The `awk` line drops the header row of every file but the first.
+A site's own fields stay in the `site_data` column.
+The INOMICS rows have no description unless you add `-d`.
 `site` and `id` together name one posting, so use them to drop a posting that two runs share.
 
 > [!TIP]
 > JSONL suits a run you repeat, a daily one for instance.
+> `--output` refuses a file that exists, so give each run its own name, such as the date.
 > Combine the files with `cat`, or read the whole directory into DuckDB.
 >
 > ```sh
@@ -146,11 +171,9 @@ empty. Each site's page lists the fields it fills, and INOMICS adds the descript
 > duckdb -c "select * from read_json('runs/*.jsonl', union_by_name=true)"
 > ```
 
-`--output` refuses a file that exists, so give each run its own name, such as the date.
-
 ## Pipe results
 
-Pipe stdout into another program to reshape the jobs.
+Pipe stdout into another program to reshape the postings.
 [`jq`](https://github.com/jqlang/jq) picks out fields:
 
 ```sh
@@ -158,7 +181,7 @@ jobrake indeed search -q "data scientist" -c us -n 2 \
   | jq -r '.[] | [.date, .title, .company, .url] | @tsv'
 ```
 
-A site without a date filter can be filtered on `date` afterwards:
+Where a site has no date filter, filter on `date` yourself:
 
 ```sh
 jobrake inomics search -n 500 | jq '[.[] | select(.date != null and .date >= "2026-11-14")]'
@@ -166,11 +189,11 @@ jobrake inomics search -n 500 | jq '[.[] | select(.date != null and .date >= "20
 
 ## Fetch posting details
 
-Some sites send search cards without the description and other details. On LinkedIn, Workday,
-SmartRecruiters, StepStone, and INOMICS, add `--details | -d` (`details=True`) to fetch each
-posting's page during the search, and the other sites return the details with the search itself.
-If some pages could not be fetched, the CLI still writes every card, exits 1, and prints the
-`postings` command that retries the rest.
+A LinkedIn, Workday, SmartRecruiters, StepStone, or INOMICS search returns each posting without
+its description. Add `--details | -d` (`details=True`) to fetch each posting during the search.
+The other sites return the description with the search itself.
+If some postings could not be fetched, the CLI still writes every search result, exits 1,
+and prints the `postings` command that retries them.
 
 ### Fetch known postings
 
@@ -183,10 +206,18 @@ jobrake stepstone postings https://www.stepstone.de/job/14569042
 
 Sites take postings down over time, so the examples above may be gone.
 Use references from a recent search, and name as many as you like.
-The [reference](reference.md#postings) describes the result, and each site's page lists the
-references it takes.
-To match a link someone sends you to a posting you already stored, without a request, use
-[`jobrake.identify`](reference.md#python-api).
+A reference is a search result's `url` or another form the [reference](reference.md#postings)
+lists, such as a bare LinkedIn posting ID.
+
+To match a link someone sends you to a posting you already stored, `jobrake.identify` returns the
+`site` and `id` a search gives that posting:
+
+```python
+import jobrake
+
+jobrake.identify("https://nl.indeed.com/viewjob?jk=1a2b3c4d5e6f7a8b")
+# ('indeed', '1a2b3c4d5e6f7a8b')
+```
 
 ### Fetch selected results
 
@@ -215,13 +246,13 @@ async def main():
 postings = asyncio.run(main())
 ```
 
-The two calls share one fetcher, and so one connection pool. A posting `postings` could not fetch
-is left out of its result, so calling it again on the missing URLs retries them.
+The two calls share one fetcher, and so one connection pool.
+`postings` leaves out a posting it could not fetch. Call it again with the missing URLs to retry.
 
 ## Recover from a stopped search
 
-A search that cannot finish raises [`Stopped`](reference.md#stopped), whose `partial` holds the
-jobs it collected. Keep them, and rerun later for the rest:
+A search that cannot finish raises [`Stopped`](reference.md#stopped).
+Its `partial` holds the postings collected before the failure:
 
 ```python
 from jobrake import Stopped, scrape
@@ -232,13 +263,12 @@ async def main():
         return await scrape("indeed", query="economist", country="us", results=500)
     except Stopped as stop:
         print(stop)  # what failed
-        return stop.partial  # the jobs collected before it
+        return stop.partial  # the postings collected before it
 ```
 
-The CLI writes those jobs and exits 1, so a script can tell a partial run from a complete one.
 After a details search, `stop.failed` holds the URLs to pass to the site's `postings`.
 
-## Use jobrake from Python
+## Check searches before they run
 
 To check a batch of planned searches before any of them runs, such as searches read from a config
 file, call `jobrake.check` on each. It raises what the search would, without a request:
@@ -249,10 +279,7 @@ import jobrake
 jobrake.check("indeed", query="economist", country="zz")  # ValueError: unknown Indeed country 'zz'
 ```
 
-The [reference](reference.md#python-api) lists every function, the `.check` of each site function,
-and the `Fetcher` protocol for another HTTP client.
-
-### Show progress
+## Show progress
 
 The CLI draws its progress line from the `progress` attribute of jobrake's INFO log records,
 and a handler of your own can do the same:
@@ -275,13 +302,11 @@ logger.addHandler(Progress())
 
 ## Refresh the cache
 
-jobrake serves a posting it fetched in the last seven days from its cache.
-To refetch every posting at once, move `jobrake.sqlite3` out of the cache directory, or delete it.
+A cached posting stays fresh for seven days and is fetched again after that.
+To refetch every posting at once, move `jobrake.sqlite3` out of the
+[cache directory](reference.md#configuration), or delete it.
 To bypass the cache for one run, point `JOBRAKE_CACHE_PATH` at a new file:
 
 ```sh
 JOBRAKE_CACHE_PATH="$(mktemp -d)/jobrake.sqlite3" jobrake linkedin postings 4449382178
 ```
-
-The [reference](reference.md#configuration) gives the cache directory on each platform and the
-variable that sets the lifetime.

@@ -19,7 +19,7 @@ DOCS = [
     *sorted(PAGES.glob("*.md")),
 ]
 # The sections of a site page, in the order a page that has them gives them.
-SECTIONS = ["Options", "Lookups", "Fields", "Limits", "Terms", "Measured"]
+SECTIONS = ["Options", "Lookups", "Fields", "Requests", "Terms"]
 LINK = re.compile(r"\]\(([^)\s]+)\)|href=\"([^\"]+)\"")
 # The README links to the repository by absolute URL, so it also reads right off GitHub.
 REPO = "https://github.com/eyayaw/jobrake/blob/main/"

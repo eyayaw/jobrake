@@ -1,8 +1,7 @@
 # jobrake reference
 
-This page describes a jobrake record, the commands and options every site shares, the Python API,
-and configuration. Each site's own options, fields, and limits are on its page under
-[sites](sites/), and the [guide](guide.md) shows how to do common tasks.
+This page describes a jobrake record, the commands, the Python API, and configuration.
+Each site's own options and fields are on its page under [sites](sites/).
 
 - [The record](#the-record)
 - [Fields by site](#fields-by-site)
@@ -12,7 +11,7 @@ and configuration. Each site's own options, fields, and limits are on its page u
 
 ## The record
 
-Every job is a dictionary, with three groups of keys.
+Every record is a dictionary, with three groups of keys.
 
 - **Identity keys:** `site`, `id`, and `url`.
 - **Summary keys:** `title`, `company`, `locations`, and `date`.
@@ -61,13 +60,12 @@ with `contractor` and `intern` read as `contract` and `internship`.
 Indeed sends one of six labels, and elsewhere the values form no fixed list:
 Spotify's board on Lever labels its postings `permanent`.
 Ashby gives `salary_period` as `HOUR`, `DAY`, `WEEK`, `MONTH`, or `YEAR`,
-and so does jobrake's reading of LinkedIn's page markup.
+and so does LinkedIn's page markup.
 Indeed's value and the one in LinkedIn's structured data pass through as sent.
 `workplace_type` appears only when the site states it,
 so an absent one leaves the workplace unknown and does not mean on-site.
 
-`site_data` holds fields that only one site carries, under that site's own names,
-such as EconJobMarket's `position_types`.
+`site_data` holds, for example, EconJobMarket's `position_types`.
 Its keys depend on `site`, and each site's page lists them.
 A key that a second site comes to share with the same meaning moves into the record.
 
@@ -94,16 +92,14 @@ The exceptions are LinkedIn, Workday, StepStone, and INOMICS with `--details`, w
 calendar date of the `posted_at` that the posting page gives.
 A page without one leaves the search result's date.
 Compare on `date`, and read `posted_at` for a time of day.
-Some sites send another form, such as Lever's epoch milliseconds or INOMICS's day-first dates,
-which jobrake converts to ISO 8601. A value jobrake cannot read logs a warning that names the field
-and the posting: `date` falls back to `posted_at` or becomes `None`, and `posted_at` or
-`expires_at` is left out.
+jobrake converts a site's own form, such as Lever's epoch milliseconds or INOMICS's day-first
+dates, to ISO 8601. Any other value logs a warning that names the field and the posting:
+`date` falls back to `posted_at` or becomes `None`, and `posted_at` or `expires_at` is left out.
 
 ## Fields by site
 
-Each detail key comes from the sites below, from a search or only once `--details` fetches the
-posting's page. A site that fills a key fills it when the posting has a value, and each site's page
-says what the value holds.
+The table names the sites that fill each detail key, and whether a search fills it or only
+`--details` does.
 
 | Key | From a search | Only with `--details` |
 | --- | --- | --- |
@@ -115,23 +111,17 @@ says what the value holds.
 | `team` | [Ashby](sites/ashby.md), [Lever](sites/lever.md) | — |
 | `employment_type` | [AcademicTransfer](sites/academictransfer.md), [Ashby](sites/ashby.md), [Indeed](sites/indeed.md), [Lever](sites/lever.md), [Personio](sites/personio.md), [SmartRecruiters](sites/smartrecruiters.md), [Workable](sites/workable.md) | [LinkedIn](sites/linkedin.md), [StepStone](sites/stepstone.md), [Workday](sites/workday.md) |
 | `workplace_type` | [Ashby](sites/ashby.md), [Indeed](sites/indeed.md), [INOMICS](sites/inomics.md), [Lever](sites/lever.md), [SmartRecruiters](sites/smartrecruiters.md), [Workable](sites/workable.md) | — |
-| `salary_min` | [AcademicTransfer](sites/academictransfer.md), [Ashby](sites/ashby.md), [Indeed](sites/indeed.md), [Personio](sites/personio.md) | [LinkedIn](sites/linkedin.md) |
-| `salary_max` | [AcademicTransfer](sites/academictransfer.md), [Ashby](sites/ashby.md), [Indeed](sites/indeed.md), [Personio](sites/personio.md) | [LinkedIn](sites/linkedin.md) |
-| `salary_currency` | [AcademicTransfer](sites/academictransfer.md), [Ashby](sites/ashby.md), [Indeed](sites/indeed.md), [Personio](sites/personio.md) | [LinkedIn](sites/linkedin.md) |
-| `salary_period` | [AcademicTransfer](sites/academictransfer.md), [Ashby](sites/ashby.md), [Indeed](sites/indeed.md), [Personio](sites/personio.md) | [LinkedIn](sites/linkedin.md) |
+| `salary_min`, `salary_max`, `salary_currency`, `salary_period` | [AcademicTransfer](sites/academictransfer.md), [Ashby](sites/ashby.md), [Indeed](sites/indeed.md), [Personio](sites/personio.md) | [LinkedIn](sites/linkedin.md) |
 | `posted_at` | [AcademicTransfer](sites/academictransfer.md), [AEA JOE](sites/aea.md), [Ashby](sites/ashby.md), [EconJobMarket](sites/econjobmarket.md), [Greenhouse](sites/greenhouse.md), [Indeed](sites/indeed.md), [INOMICS](sites/inomics.md), [Lever](sites/lever.md), [Personio](sites/personio.md), [SmartRecruiters](sites/smartrecruiters.md), [StepStone](sites/stepstone.md), [UN Careers](sites/uncareers.md), [Workable](sites/workable.md) | [LinkedIn](sites/linkedin.md), [Workday](sites/workday.md) |
 | `expires_at` | [AcademicTransfer](sites/academictransfer.md), [AEA JOE](sites/aea.md), [EconJobMarket](sites/econjobmarket.md), [Greenhouse](sites/greenhouse.md), [Indeed](sites/indeed.md), [StepStone](sites/stepstone.md), [UN Careers](sites/uncareers.md) | [INOMICS](sites/inomics.md), [LinkedIn](sites/linkedin.md) |
 | `apply_url` | [AcademicTransfer](sites/academictransfer.md), [Ashby](sites/ashby.md), [Indeed](sites/indeed.md), [Lever](sites/lever.md), [Workable](sites/workable.md) | [SmartRecruiters](sites/smartrecruiters.md) |
-| `apply_type` | — | [LinkedIn](sites/linkedin.md) |
-| `applicants` | — | [LinkedIn](sites/linkedin.md) |
-| `experience_months` | — | [LinkedIn](sites/linkedin.md) |
+| `apply_type`, `applicants`, `experience_months` | — | [LinkedIn](sites/linkedin.md) |
 | `education` | [AcademicTransfer](sites/academictransfer.md), [Workable](sites/workable.md) | [LinkedIn](sites/linkedin.md) |
 | `keywords` | [AcademicTransfer](sites/academictransfer.md), [AEA JOE](sites/aea.md), [Personio](sites/personio.md) | — |
 | `site_data` | [AcademicTransfer](sites/academictransfer.md), [AEA JOE](sites/aea.md), [Ashby](sites/ashby.md), [EconJobMarket](sites/econjobmarket.md), [INOMICS](sites/inomics.md), [Personio](sites/personio.md), [StepStone](sites/stepstone.md), [UN Careers](sites/uncareers.md) | [LinkedIn](sites/linkedin.md) |
 
 ## Command line
 
-Every command has the form `jobrake <site> <command>`, and `-h` at each level lists what comes next.
 The [README](../README.md#cli) lists the options several sites share, the output formats, and the
 exit statuses.
 
@@ -145,32 +135,24 @@ exit statuses.
 
 ### Options
 
-A site takes only the options its server applies.
+Each site takes only the filters it applies.
 `jobrake linkedin search --remote` fails as an unrecognized argument and exits 2,
 and `scrape("linkedin", remote=True)` raises `TypeError` before any request and lists LinkedIn's
 options.
 An option left at its unset value, or an empty list, stays out of the search.
 A list option takes several values after one flag, `--attributes CF3CP 6QC5F`, or across repeats.
-A posting must match every option given. How several values of one option combine differs by
-site, and each site's page says so.
-A value outside a site's fixed menu is an error before any request.
-Filters apply on every page, alongside keywords and geography, before the result limit.
-
-| Filter           | CLI                 | Library                | Sites                              |
-| ---------------- | ------------------- | ---------------------- | ---------------------------------- |
-| Employers        | `--company-ids`     | `company_ids=[...]`    | LinkedIn, Indeed                   |
-| Posting language | `--language`        | `language="en"`        | Indeed                             |
-| Job attributes   | `--attributes`      | `attributes=[...]`     | Indeed                             |
-| Remote           | `--remote`          | `remote=True`          | Indeed, SmartRecruiters, StepStone |
-| Easy Apply       | `--easy-apply`      | `easy_apply=True`      | LinkedIn                           |
-| Early applicant  | `--early-applicant` | `early_applicant=True` | LinkedIn                           |
+A posting must match every option given. Within one list option, a posting needs to match only
+one value, except for Indeed's `--attributes`, where it must carry every code.
+An option with a fixed list of values, such as AEA JOE's `--section`, rejects any other value
+before any request.
+Filters apply alongside keywords and geography, before the result limit.
 
 ### Lookups
 
 The `places`, `companies`, `attributes`, and `filters` commands print an indented JSON list of
 `{"id", "name"}` entries, and their library functions return the same list.
 Each `id` is the value a search takes. An empty list means the lookup found no matches.
-A lookup takes no `--output` or `--format`, so redirect it to save it.
+A lookup takes no `--output` or `--format`, so redirect stdout to save one.
 A failed request or unreadable response raises `Stopped` in a library call,
 and the CLI exits 1.
 
@@ -185,20 +167,30 @@ and the CLI exits 1.
 
 ### Postings
 
-`jobrake <site> postings <reference>...` fetches postings you already know, on LinkedIn, Workday,
-SmartRecruiters, StepStone, and INOMICS, with no request for a cached posting.
-A reference is at least a search result's `url`, and each site's page lists the other forms it
-takes. Any other reference is an error, and nothing is fetched.
-Results follow the order given and have the fields of the posting's page,
-so a field only the search card carries is absent.
-Several references to one posting return one job.
+`jobrake <site> postings <reference>...` fetches the postings you name.
+A cached posting costs no request.
+A reference is a search result's `url` or another address of the posting:
+
+| Site                     | Other references                                                                  |
+| ------------------------ | --------------------------------------------------------------------------------- |
+| LinkedIn                 | a numeric posting ID, an HTTPS posting URL such as a job alert email's link, or a search page address with `currentJobId=` |
+| StepStone                | `stepstone.de/job/<id>`, or the longer address that ends in `--<id>-inline.html`  |
+| SmartRecruiters, INOMICS | the posting's address with its title slug                                         |
+| Workday                  | the posting's address copied from the browser                                     |
+
+Any other reference is an error, and nothing is fetched.
+Results follow the order given and have the fields of a search with `--details`, except a field only
+the search result carries, such as SmartRecruiters' `department`.
+Several references to one posting return one record.
+A posting the site reports gone is left out. A search with `--details` keeps its search result,
+without details, and does not count it as a failure.
 The command takes the same `--output` and `--format` as a search.
 A posting that is gone or unreachable is reported on stderr and left out.
 When one was unreachable, the command writes the others and exits 1.
 
 ## Python API
 
-```python
+```text
 import jobrake
 
 await jobrake.scrape(site, *, fetcher=None, **options)  # -> list[JobDict]
@@ -206,29 +198,27 @@ jobrake.check(site, **options)  # -> None, or the TypeError or ValueError scrape
 jobrake.identify(link)  # -> (site, id) or None
 ```
 
+`jobrake.JobDict` and `jobrake.Place` are the `TypedDict`s of a record and a place.
+
 `scrape` takes a site's `search` options as keyword arguments, named as the CLI's long options
 with underscores, such as `max_age_hours`.
 It checks them before any request. An unknown, missing, or wrongly typed option raises
 `TypeError`, and an unknown site, a value out of range, a blank required string, or a value the
 site refuses raises `ValueError`.
 Without `fetcher`, it creates and closes an `HttpxFetcher` of its own.
-`jobrake.sites.SITES` maps each site name to its module.
 
-`check` takes the same arguments as `scrape` without `fetcher` and sends no request,
-so a caller can check every planned search, such as searches read from a config file,
-before the first one runs.
+`check` takes the same arguments as `scrape` without `fetcher` and sends no request.
 A value that only the site's live list can confirm, such as a UN Careers duty station,
 passes `check`, and the search refuses it after reading that list:
 
 ```python
-jobrake.check("indeed", query="economist", country="zz")  # ValueError: unknown Indeed country 'zz'
 jobrake.check("uncareers", duty_station=["Genva"])  # passes, and the search raises ValueError
 ```
 
-`identify` returns the `site` and `id` that a search gives the posting a link names, and sends no
-request. It reads the posting URLs of LinkedIn, Indeed, INOMICS, SmartRecruiters, StepStone, and
-Workday: those that `postings` takes, and Indeed links that carry the key in `jk`, or in `vjk` on a
-search page. Any other link, including a bare LinkedIn ID or a Greenhouse posting, gives `None`.
+`identify` reads a posting's link and returns the `site` and `id` a search gives that posting.
+It sends no request. It reads the posting URLs that `postings` takes, and Indeed links that carry
+the key in `jk`, or in `vjk` on a search page.
+Any other link, including a bare LinkedIn ID or a Greenhouse posting, gives `None`.
 
 ```python
 jobrake.identify("https://nl.indeed.com/viewjob?jk=1a2b3c4d5e6f7a8b")  # ('indeed', '1a2b3c4d5e6f7a8b')
@@ -236,13 +226,14 @@ jobrake.identify("https://nl.indeed.com/viewjob?jk=1a2b3c4d5e6f7a8b")  # ('indee
 
 ### Site functions
 
-Each site module in `jobrake.sites` exports `search` and the functions behind its other commands,
+`jobrake.sites.SITES` maps each site name to its module.
+Each site module exports `search` and the functions behind its other commands,
 and each takes a `Fetcher` first: `search(fetcher, **options)`,
 `postings(fetcher, references)`, and the lookups listed under [Lookups](#lookups).
-Every one has a `.check(**options)` that raises what the call would, without a request,
-such as `stepstone.postings.check(references=urls)`.
+Each also has a `.check(**options)` that raises what the call would and sends no request,
+as in `stepstone.postings.check(references=urls)`.
 
-`postings` never raises `Stopped`. It maps each reference to its whole job,
+`postings` never raises `Stopped`. It maps each reference to its whole record,
 or to `None` when the site reports the posting gone.
 A reference whose request failed, or whose response jobrake cannot read, is absent from the result,
 and calling the function again retries it.
@@ -251,21 +242,23 @@ and calling the function again retries it.
 
 A failed request, an answer other than HTTP 200, or a page that ends a search short of the total
 the site reported raises `jobrake.Stopped`.
-Its `partial` holds the jobs collected before the search stopped, and is `[]` when there are none.
-A details search that could not fetch every posting raises it at the end, with every posting in
-`partial`, filled where its posting was read, and the URLs of the unfetched ones in `failed`, for
-the site's `postings` to retry. LinkedIn stops fetching early after a rate limit that outlasts its
-retries, and the postings it never tried are in `failed` too.
-`partial` is a list of `JobDict` and `failed` a list of URL strings, each `[]` when empty.
-Reaching a site's own result cap is not a failure: jobrake warns and returns what the site served.
+Its `partial`, a list of `JobDict`, holds the postings collected before the search stopped,
+and is `[]` when there are none.
+
+A details search that could not fetch every posting fetches the others first, then raises
+`Stopped`. `partial` holds every search result, with details where the fetch succeeded,
+and `failed` holds the URLs of the rest. Pass them to the site's `postings` to retry.
+LinkedIn stops fetching early after a rate limit that outlasts its retries,
+and the postings it never tried are in `failed` too.
+
+Reaching a site's own result cap is not a failure. jobrake warns and returns what the site served.
 On every site, jobrake skips a posting it cannot read and leaves out a field it cannot read.
 
 ### Fetchers
 
 `jobrake.HttpxFetcher(timeout=30.0, *, headers=None)` is the HTTP client jobrake uses by default.
-`timeout` applies to each network operation, in seconds, and must be finite and positive, or it
-raises `ValueError`. `headers` override its browser-like default headers, whatever the case of their
-names.
+`timeout` is the limit on each network operation, in seconds. `headers` override its browser-like
+defaults.
 Use it as an async context manager to share one connection pool across calls.
 A fetcher you supply is yours to close.
 
@@ -274,16 +267,22 @@ an async `fetch(url, *, headers=None, json=None, follow_redirects=True)`
 that sends a POST when `json` is given.
 With `follow_redirects=False`, return the first response,
 including its `Location` header. LinkedIn uses this to pace each redirect hop.
-`fetch` returns a `FetchResult(url, status, text, headers, error)`: the final URL, the HTTP status
-or `None` when no response arrived, the body, the response headers, which it stores with lowercased
-names, and a failure message or `None`. It reports a failed request in `error`.
+`fetch` returns a `FetchResult`:
+
+| Field     | Value                                                   |
+| --------- | ------------------------------------------------------- |
+| `url`     | the final URL                                           |
+| `status`  | the HTTP status, or `None` when no response arrived     |
+| `text`    | the body                                                |
+| `headers` | the response headers, with lowercased names             |
+| `error`   | a message for a failed request, or `None`               |
+
 A status of 400 or more sets `error` on its own,
 and jobrake reads a response as data only when its `status` is 200.
 An exception your own `Fetcher` raises propagates out of `scrape()`.
 
-### Types and logging
+### Logging
 
-`jobrake.JobDict` and `jobrake.Place` are the `TypedDict`s of a record and a place, for type hints.
 Library calls log under the `jobrake` logger and print nothing, and your application sets its level
 and handlers. While a paged search reads its pages, and while it fetches posting details,
 jobrake logs INFO records whose `progress` attribute holds `(done, total)`.
@@ -304,12 +303,13 @@ No other site is cached.
 
 The lifetime must be a positive number of seconds.
 An invalid value draws a warning and falls back to the default.
+
+A cached posting stays fresh for seven days and is fetched again after that.
 A posting that its site reports gone is not cached.
 An upgrade keeps the cache.
 A cached posting keeps the fields the older version extracted until it expires,
-and is fetched again earlier only if its cached copy no longer fits the job fields.
+and is fetched again earlier only if its cached copy no longer fits the record's fields.
+
 A storage failure disables the cache with a warning, and scraping carries on without it.
 When another connection holds the cache locked, jobrake skips the cache for a minute with a
 warning, then uses it again.
-jobrake has no switch to turn the cache off. To run without the cached postings, point
-`JOBRAKE_CACHE_PATH` at a new file, as the [guide](guide.md#refresh-the-cache) shows.
