@@ -1017,6 +1017,8 @@ The lifetime must be a positive number of seconds.
 An invalid value draws a warning and falls back to the default.
 
 A storage failure disables the cache with a warning, and scraping carries on without it.
+When another process holds the cache locked for more than five seconds, jobrake skips the cache
+for a minute with a warning, then uses it again.
 
 ## Other job boards
 
