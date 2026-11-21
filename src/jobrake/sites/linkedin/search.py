@@ -11,7 +11,7 @@ lazy from bs4 import BeautifulSoup
 from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, Stopped, make_job
 from jobrake.sites.postings import fill_details
-from jobrake.sites.responses import collect
+from jobrake.sites.responses import collect, failure
 from jobrake.utils import checked
 
 from .client import SEARCH_URL, job_id, numeric, on_linkedin, paced_fetch
@@ -74,8 +74,8 @@ async def _pages(
     while start < MAX_START:
         page = {k: v for k, v in (params | {"start": start}).items() if v is not None}
         result = await paced_fetch(fetcher, f"{SEARCH_URL}?{urlencode(page)}")
-        if result.error:
-            raise Stopped(f"linkedin request failed: {result.error}")
+        if result.error or result.status is None:
+            raise Stopped(f"linkedin request failed: {failure(result)}")
         # A page without cards ends the search as complete, so only the search endpoint's HTTP 200
         # counts as a results page.
         if result.status != 200 or urlsplit(result.url).path != urlsplit(SEARCH_URL).path:

@@ -98,15 +98,19 @@ def test_a_failed_page_stops_the_search_keeping_the_earlier_pages():
 
 
 @pytest.mark.parametrize(
-    "answer",
+    ("answer", "message"),
     [
-        FetchResult("https://www.linkedin.com/login", 200, "<form></form>"),
-        FetchResult("stub", 204),  # the endpoint's own path, without its 200
+        (FetchResult("https://www.linkedin.com/login", 200, "<form></form>"), "not a results page"),
+        # the endpoint's own path, without its 200
+        (FetchResult("stub", 204), "not a results page"),
+        (FetchResult("stub", text="[]"), "the fetcher reported no HTTP status"),
     ],
 )
-def test_an_answer_other_than_the_endpoints_200_stops_the_search_keeping_the_earlier_pages(answer):
+def test_an_answer_other_than_the_endpoints_200_stops_the_search_keeping_the_earlier_pages(
+    answer, message
+):
     fetcher = PagedFetcher([linkedin_card("111"), answer])
-    with pytest.raises(Stopped, match="not a results page") as stop:
+    with pytest.raises(Stopped, match=message) as stop:
         asyncio.run(linkedin.search(fetcher, query="x", location="Seattle", results=5))
     assert [job["id"] for job in stop.value.partial] == ["111"]
 

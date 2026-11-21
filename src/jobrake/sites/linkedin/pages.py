@@ -13,7 +13,7 @@ lazy from bs4 import BeautifulSoup
 from jobrake.fetchkit import Fetcher, FetchResult
 from jobrake.models import JobDict, Place, Stopped, employment_type, make_job, make_places
 from jobrake.sites.postings import Halt, postings_of
-from jobrake.sites.responses import json_ld
+from jobrake.sites.responses import failure, json_ld
 from jobrake.utils import as_dict, finite, html_text, split_url
 
 from .client import (
@@ -290,9 +290,8 @@ async def _request(fetcher: Fetcher, url: str) -> FetchResult | None:
         )
     if result.status in (404, 410):
         return None
-    # A posting page comes with HTTP 200, as the shared readers require of every site's data.
-    if result.error or result.status != 200:
-        raise Stopped(result.error or f"HTTP {result.status}")
+    if reason := failure(result):
+        raise Stopped(reason)
     return result
 
 
