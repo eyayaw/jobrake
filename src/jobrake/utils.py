@@ -382,12 +382,13 @@ def cutoff(max_age_hours: int | None) -> datetime | None:
         return None
 
 
-def epoch_ms_to_iso(ms: object) -> str | None:
+def epoch_ms_to_iso(ms: object, *, name: str, url: object) -> str | None:
     """
     Convert a site's epoch milliseconds to an ISO 8601 UTC timestamp.
 
     ``None`` returns ``None``. A value that is no number, is out of range, or resolves before the
-    year 2000, as epoch seconds do, logs a warning and returns ``None``.
+    year 2000, as epoch seconds do, logs a warning that names the field ``name`` of the posting at
+    ``url``, and returns ``None``.
     """
     if ms is None:
         return None
@@ -397,11 +398,15 @@ def epoch_ms_to_iso(ms: object) -> str | None:
     except ValueError, OSError, OverflowError:
         stamp = None
     if stamp is None:
-        logger.warning("not epoch milliseconds: %r", ms)
+        logger.warning("%s %r of %s is not epoch milliseconds", name, ms, url)
         return None
     if stamp.year < 2000:
         logger.warning(
-            "%r resolves before 2000, so it looks like epoch seconds rather than milliseconds", ms
+            "%s %r of %s resolves before 2000, so it looks like epoch seconds rather than "
+            "milliseconds",
+            name,
+            ms,
+            url,
         )
         return None
     return stamp.isoformat()

@@ -227,10 +227,11 @@ def _parse_job(job: dict[str, Any], base_url: str) -> JobDict:
     company_page = as_str(employer.get("relativeCompanyPageUrl"))
     dossier = as_dict(employer.get("dossier"))
     images = as_dict(dossier.get("images"))
+    url = _view_url(base_url, key)
     return make_job(
         site="indeed",
         id=key,
-        url=_view_url(base_url, key),
+        url=url,
         title=as_str(job.get("title")),
         language=as_str(job.get("language")),
         company=as_str(employer.get("name")),
@@ -246,8 +247,8 @@ def _parse_job(job: dict[str, Any], base_url: str) -> JobDict:
         description=_scrub_css(
             html_text(as_str(as_dict(job.get("description")).get("html")) or "")
         ),
-        posted_at=epoch_ms_to_iso(job.get("datePublished")),
-        expires_at=epoch_ms_to_iso(job.get("expirationDate")),
+        posted_at=epoch_ms_to_iso(job.get("datePublished"), name="posted_at", url=url),
+        expires_at=epoch_ms_to_iso(job.get("expirationDate"), name="expires_at", url=url),
         company_url=base_url + company_page if company_page else None,
         company_logo=as_str(images.get("squareLogoUrl")),
         employment_type=next(

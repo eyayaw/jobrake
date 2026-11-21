@@ -6,6 +6,8 @@ from hypothesis import strategies as st
 
 from jobrake.utils import epoch_ms_to_iso, html_text
 
+URL = "https://acme.test/1"
+
 # Soft hyphen, zero-width space, word joiner, BOM, and the bidi embedding, override,
 # and isolate controls.
 _INVISIBLE_CHARACTERS = (
@@ -80,14 +82,14 @@ def test_html_text_drops_invisible_characters_and_keeps_joiners(text, inserts):
 
 
 def test_epoch_ms_to_iso_drops_with_a_warning_what_cannot_be_milliseconds(caplog):
-    assert epoch_ms_to_iso(1717200000000) == "2024-06-01T00:00:00+00:00"
-    assert epoch_ms_to_iso(None) is None
+    assert epoch_ms_to_iso(1717200000000, name="posted_at", url=URL) == "2024-06-01T00:00:00+00:00"
+    assert epoch_ms_to_iso(None, name="posted_at", url=URL) is None
     assert caplog.text == ""
     for value, message in (
-        ("not a timestamp", "not epoch milliseconds"),
-        (1717200000, "looks like epoch seconds"),  # seconds: reads as 1970-01-20
-        (1e18, "not epoch milliseconds"),  # past what datetime can represent
+        ("not a timestamp", "is not epoch milliseconds"),
+        (1717200000, "resolves before 2000, so it looks like epoch seconds"),  # 1970-01-20
+        (1e18, "is not epoch milliseconds"),  # past what datetime can represent
     ):
         caplog.clear()
-        assert epoch_ms_to_iso(value) is None
-        assert message in caplog.text
+        assert epoch_ms_to_iso(value, name="posted_at", url=URL) is None
+        assert f"posted_at {value!r} of {URL} {message}" in caplog.text
