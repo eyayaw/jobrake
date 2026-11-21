@@ -17,6 +17,9 @@ from jobrake.models import JobDict, make_job
 logger = logging.getLogger(__name__)
 
 TTL = 7 * 24 * 3600  # seconds
+# Seconds the cache is skipped after a lock that outlasted SQLite's busy timeout, so a lock that
+# another process keeps costs that wait about once a minute, not once per posting.
+LOCK_PAUSE = 60
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS jobs (
@@ -68,14 +71,24 @@ def _default_path() -> Path:
     return base / "jobrake" / "jobrake.sqlite3"
 
 
+def _locked(error: Exception) -> bool:
+    """Tell whether SQLite refused a statement for a lock another connection held too long."""
+    # An extended code, such as SQLITE_BUSY_SNAPSHOT, carries its primary code in its low byte
+    # (https://sqlite.org/rescode.html, checked 2026-11-21).
+    code = getattr(error, "sqlite_errorcode", 0) & 0xFF
+    return code in (sqlite3.SQLITE_BUSY, sqlite3.SQLITE_LOCKED)
+
+
 class Cache:
     """
     Store whole ``JobDict`` records in one SQLite table, keyed by site and posting ID.
 
     A row stays fresh for ``ttl`` seconds, and opening the cache deletes expired rows.
-    Each row read passes through ``make_job``, so a row whose keys no longer fit ``JobDict`` is a
-    miss, which the next fetch replaces. A storage or decoding failure logs one warning with the
-    path and disables this instance, so callers see misses and keep fetching.
+    Each row read passes through ``make_job``, so a row it rejects, such as one whose keys no longer
+    fit ``JobDict`` or whose ``applicants`` is text, is a miss, which the next fetch replaces.
+    A storage or decoding failure logs one warning with the path and disables this instance,
+    so callers see misses and keep fetching. A lock another process holds past SQLite's busy
+    timeout skips the cache for ``LOCK_PAUSE`` seconds.
 
     Attributes:
         path: SQLite database path. The cache opens it on first access.
@@ -93,9 +106,10 @@ class Cache:
         self.path = Path(path) if path else _default_path()
         self._conn: sqlite3.Connection | None = None
         self._broken = False
+        self._paused_until = -math.inf  # time.monotonic() before which a lock skips the cache
 
     def _connect(self) -> sqlite3.Connection | None:
-        if self._broken:
+        if self._broken or time.monotonic() < self._paused_until:
             return None
         if self._conn is not None:
             return self._conn
@@ -106,7 +120,7 @@ class Cache:
             self._conn.execute("DELETE FROM jobs WHERE stored_at < ?", (time.time() - self.ttl,))
             self._conn.commit()
         except (sqlite3.Error, OSError) as error:
-            self._give_up(error)
+            self._fail(error)
         return self._conn
 
     def close(self) -> None:
@@ -114,6 +128,21 @@ class Cache:
         if self._conn is not None:
             conn, self._conn = self._conn, None
             conn.close()
+
+    def _fail(self, error: Exception) -> None:
+        if not _locked(error):
+            self._give_up(error)
+            return
+        # Closing rolls back this call's transaction, and the first read or write after the pause
+        # opens the database again.
+        with contextlib.suppress(sqlite3.Error):
+            self.close()
+        self._paused_until = time.monotonic() + LOCK_PAUSE
+        logger.warning(
+            "cache %s is locked by another process, so jobrake skips it for %d seconds",
+            self.path,
+            LOCK_PAUSE,
+        )
 
     def _give_up(self, error: Exception) -> None:
         self._broken = True
@@ -131,7 +160,8 @@ class Cache:
         Read the fresh records of one site for the requested posting IDs.
 
         A row ``make_job`` rejects is left out, and the count of rejected rows logs at DEBUG.
-        A storage or decoding failure disables the cache and returns an empty dict.
+        A lock another process holds returns an empty dict, as does a call in the pause after one.
+        Any other storage or decoding failure also returns an empty dict and disables the cache.
         """
         ids = list(dict.fromkeys(ids))
         conn = self._connect()
@@ -154,7 +184,7 @@ class Cache:
                 except TypeError:
                     rejected += 1
         except (ValueError, OSError, sqlite3.Error) as error:
-            self._give_up(error)
+            self._fail(error)
             return {}
         if rejected:
             rows = ngettext("%d row", "%d rows", rejected) % rejected
@@ -167,7 +197,8 @@ class Cache:
         """
         Store records, each under its own site and ID, replacing an older row.
 
-        A storage or serialization failure disables the cache.
+        A lock another process holds skips the write, as does the pause after one, and any other
+        storage or serialization failure disables the cache.
         """
         conn = self._connect()
         if conn is None:
@@ -183,7 +214,7 @@ class Cache:
             )
             conn.commit()
         except (OSError, sqlite3.Error, TypeError, ValueError) as error:
-            self._give_up(error)
+            self._fail(error)
 
 
 def __getattr__(name: str) -> Cache:

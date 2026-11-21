@@ -110,8 +110,9 @@ def numbered(count, start=0):
 
 
 def test_an_opening_becomes_a_record_with_a_place_per_duty_station(caplog):
-    malformed = {"postingTitle": "no jobId"}
-    jobs = asyncio.run(uncareers.search(PagedFetcher([page([OPENING, malformed], total=2)])))
+    # A JSON true is an int to isinstance, and str() of it would invent the ID "True".
+    malformed = [{"postingTitle": "no jobId"}, OPENING | {"jobId": True}]
+    jobs = asyncio.run(uncareers.search(PagedFetcher([page([OPENING, *malformed], total=3)])))
     assert jobs == [
         {
             "site": "uncareers",

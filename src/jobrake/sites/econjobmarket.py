@@ -7,7 +7,7 @@ from typing import Any
 from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, make_job
 from jobrake.sites.responses import json_list, parse_postings, read_json
-from jobrake.utils import as_dict, as_str, checked, html_text
+from jobrake.utils import as_dict, as_list, as_str, checked, html_text
 
 logger = logging.getLogger(__name__)
 
@@ -19,11 +19,7 @@ _AD_ID = re.compile(r"/positions/([0-9]+)")
 
 def _names(entries: object) -> list[str]:
     """Read the names of a list of ``{"name": ...}`` entries, as the feed sends position types and categories."""
-    return [
-        name
-        for entry in (entries if isinstance(entries, list) else [])
-        if (name := as_str(as_dict(entry).get("name")))
-    ]
+    return [name for entry in as_list(entries) if (name := as_str(as_dict(entry).get("name")))]
 
 
 def _parse_ad(ad: dict[str, Any]) -> JobDict:
@@ -40,7 +36,6 @@ def _parse_ad(ad: dict[str, Any]) -> JobDict:
         raise TypeError(f"ad url {url!r} holds no /positions/<number>")
     # "All departments" stands for no unit in particular, in 61 of 319 ads on 2026-10-28.
     department = as_str(ad.get("department"))
-    locations = ad.get("locations")
     # The top-level coordinates are the institution's, which can lie on another continent,
     # so each place takes its own.
     places = [
@@ -51,7 +46,7 @@ def _parse_ad(ad: dict[str, Any]) -> JobDict:
             "latitude": place.get("latitude"),
             "longitude": place.get("longitude"),
         }
-        for place in map(as_dict, locations if isinstance(locations, list) else [])
+        for place in map(as_dict, as_list(ad.get("locations")))
     ]
     return make_job(
         site="econjobmarket",

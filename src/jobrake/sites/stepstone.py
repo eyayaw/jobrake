@@ -6,22 +6,25 @@ import re
 import uuid
 from collections.abc import AsyncGenerator
 from typing import Annotated, Any
-from urllib.parse import urlencode, urlsplit
+from urllib.parse import urlencode
 
 lazy from bs4 import BeautifulSoup
 
 from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, Stopped, employment_type, make_job
-from jobrake.sites.postings import fill_details, postings_of
-from jobrake.sites.responses import (
-    collect,
-    cut_short,
-    json_ld,
-    json_page,
-    parse_postings,
-    read_json,
+from jobrake.sites.postings import fill_details, postings_of, readable_url
+from jobrake.sites.responses import collect, json_ld, json_page, offset_pages, read_json
+from jobrake.utils import (
+    as_dict,
+    as_int,
+    as_str,
+    checked,
+    cutoff,
+    epoch_ms_to_iso,
+    finite,
+    html_text,
+    split_url,
 )
-from jobrake.utils import as_dict, as_str, checked, cutoff, epoch_ms_to_iso, finite, html_text
 
 logger = logging.getLogger(__name__)
 
@@ -49,34 +52,40 @@ def _place(card: dict[str, Any]) -> dict[str, Any]:
         return {}
     place = {"name": name, "country_code": as_str(card.get("country"))}
     latitude, longitude = finite(card.get("latitude")), finite(card.get("longitude"))
-    # StepStone sends 0, 0 for a posting without a point, single-city ones included.
-    if latitude and longitude:
+    # StepStone sends 0, 0 for a posting without a point, single-city ones included. A single zero
+    # is a real coordinate, as for a city on the prime meridian or the equator.
+    if latitude is not None and longitude is not None and (latitude, longitude) != (0, 0):
         place["latitude"], place["longitude"] = latitude, longitude
     return place
 
 
-def _parse_card(card: dict[str, Any]) -> JobDict:
+def _parse_card(listing: dict[str, Any]) -> JobDict:
     """
     Build a record from one card of a search response's ``items`` list.
 
     Raises:
-        TypeError: The card lacks a string or integer ``id``.
+        TypeError: The card's ``id`` is not a posting number, as a string or an integer.
         AttributeError: The card is not an object.
     """
-    posting_id = card.get("id")
+    raw = listing.get("id")
+    posting_id = str(number) if (number := as_int(raw)) is not None else raw
+    url = readable_url(card, posting_id, POSTING_URL.format(id=posting_id))
     return make_job(
         site="stepstone",
-        id=str(posting_id) if isinstance(posting_id, int) else posting_id,
-        url=POSTING_URL.format(id=posting_id),
-        title=card.get("title"),
-        company=card.get("companyName"),
-        locations=[_place(card)],
-        date=epoch_ms_to_iso(card.get("datePosted")),
-        company_logo=as_str(card.get("companyLogoURL")),
-        language=as_str(card.get("language")),
-        posted_at=epoch_ms_to_iso(card.get("dateOriginal") or card.get("datePosted")),
-        expires_at=epoch_ms_to_iso(card.get("dateExpire")),
-        site_data={"section": card.get("section"), "labels": card.get("listingLabels") or None},
+        id=posting_id,
+        url=url,
+        title=listing.get("title"),
+        company=listing.get("companyName"),
+        locations=[_place(listing)],
+        date=epoch_ms_to_iso(listing.get("datePosted")),
+        company_logo=as_str(listing.get("companyLogoURL")),
+        language=as_str(listing.get("language")),
+        posted_at=epoch_ms_to_iso(listing.get("dateOriginal") or listing.get("datePosted")),
+        expires_at=epoch_ms_to_iso(listing.get("dateExpire")),
+        site_data={
+            "section": listing.get("section"),
+            "labels": listing.get("listingLabels") or None,
+        },
     )
 
 
@@ -203,32 +212,19 @@ def _params(
     return params
 
 
-async def _pages(
+def _pages(
     fetcher: Fetcher, shared: dict[str, Any], limit: int
 ) -> AsyncGenerator[tuple[list[JobDict], int]]:
-    """
-    Yield each page's cards with the count of matches StepStone reports, until its last match.
+    """Yield each page's cards with the count of matches StepStone reports, until its last match."""
 
-    Raises:
-        Stopped: A request failed, StepStone sent an unreadable response, or an empty page came
-            before the reported total.
-    """
-    offset = 0  # cards StepStone has sent, malformed ones included
-    while True:
+    async def read(offset: int) -> tuple[list[Any], int]:
         page = urlencode(shared | {"offset": offset, "limit": limit})
         result = await fetcher.fetch(f"{SEARCH_URL}?{page}", headers=API_HEADERS)
-        cards, total = read_json(
+        return read_json(
             result, lambda body: json_page(body["data"], "items", "totalItems"), site="stepstone"
         )
-        if not cards:
-            break
-        offset += len(cards)
-        # A posting released between two requests shifts the cards, so a page can repeat one.
-        yield parse_postings(cards, _parse_card, site="stepstone"), total
-        if offset >= total:
-            return
-    if offset < total:
-        raise cut_short("stepstone", total, offset)
+
+    return offset_pages(read, _parse_card, site="stepstone")
 
 
 @checked
@@ -276,7 +272,7 @@ def card(reference: str) -> JobDict:
     Raises:
         ValueError: The reference is not a StepStone posting URL on stepstone.de.
     """
-    parts = urlsplit(reference.strip())
+    parts = split_url(reference)
     hosted = parts.scheme in ("http", "https") and parts.netloc.lower() in _HOSTS
     path = parts.path
     if not (hosted and (match := _JOB_PATH.fullmatch(path) or _SLUG_PATH.fullmatch(path))):

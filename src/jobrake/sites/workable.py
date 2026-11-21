@@ -7,7 +7,7 @@ from urllib.parse import quote
 from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, employment_type, make_job, make_places
 from jobrake.sites.responses import json_list, parse_postings, read_json
-from jobrake.utils import as_dict, as_str, checked, html_text
+from jobrake.utils import as_dict, as_list, as_str, checked, html_text
 
 logger = logging.getLogger(__name__)
 
@@ -29,8 +29,7 @@ def _parse_posting(posting: dict[str, Any], company: str | None) -> JobDict:
         TypeError: The posting lacks a ``shortcode`` or a ``url``.
         AttributeError: The posting is not an object.
     """
-    places = posting.get("locations")
-    listed = [as_dict(place) for place in (places if isinstance(places, list) else [])]
+    listed = [as_dict(place) for place in as_list(posting.get("locations"))]
     # Each place is named with Workable's own text, whose country is a name such as France,
     # so a country without its code keeps the place.
     locations = [

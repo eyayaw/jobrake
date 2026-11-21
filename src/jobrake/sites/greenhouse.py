@@ -8,7 +8,7 @@ from urllib.parse import quote
 from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, make_job
 from jobrake.sites.responses import json_list, parse_postings, read_json
-from jobrake.utils import as_dict, as_str, checked, html_text
+from jobrake.utils import as_dict, as_int, as_str, checked, html_text
 
 logger = logging.getLogger(__name__)
 
@@ -23,10 +23,9 @@ def _parse_posting(posting: dict[str, Any]) -> JobDict:
         TypeError: The posting lacks an integer ``id`` or an ``absolute_url``.
         AttributeError: The posting is not an object.
     """
-    posting_id = posting.get("id")
-    # bool is an int subclass, and str() of any other value would invent an ID.
-    if isinstance(posting_id, bool) or not isinstance(posting_id, int):
-        raise TypeError(f"posting id {posting_id!r} is not an integer")
+    # str() of any other value would invent an ID.
+    if (posting_id := as_int(posting.get("id"))) is None:
+        raise TypeError(f"posting id {posting.get('id')!r} is not an integer")
     # Greenhouse escapes the description HTML, so its tags arrive as entities.
     content = unescape(as_str(posting.get("content")) or "")
     # Greenhouse does not say which of several departments hires, so only a lone one counts.

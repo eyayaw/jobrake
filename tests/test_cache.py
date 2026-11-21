@@ -1,19 +1,21 @@
 """Cache tests for stored records, expiry, rows that no longer fit, and corrupt data."""
 
 import contextlib
+import functools
 import json
 import logging
 import os
 import sqlite3
 import subprocess
 import sys
+import time
 from unittest import mock
 
 import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from jobrake.cache import TTL, Cache
+from jobrake.cache import LOCK_PAUSE, TTL, Cache
 from jobrake.models import make_job
 
 JOB = make_job(
@@ -87,10 +89,12 @@ def test_a_row_that_no_longer_fits_job_dict_is_a_miss(make_cache, caplog):
     other = make_job(site="linkedin", id="222", url="https://nl.linkedin.com/jobs/view/222")
     cache.put([JOB, other])
     moved_on = json.dumps({**JOB, "headcount": 4})
+    retyped = json.dumps({**JOB, "id": "333", "applicants": "25"})
     run_sql(cache, "UPDATE jobs SET job = ? WHERE id = '111'", (moved_on,))
+    run_sql(cache, "INSERT INTO jobs VALUES ('linkedin', '333', ?, unixepoch())", (retyped,))
     with caplog.at_level(logging.DEBUG, logger="jobrake.cache"):
-        assert cache.get("linkedin", ["111", "222"]) == {"222": other}
-    assert "1 row for linkedin did not fit JobDict" in caplog.text
+        assert cache.get("linkedin", ["111", "222", "333"]) == {"222": other}
+    assert "2 rows for linkedin did not fit JobDict" in caplog.text
     cache.put([JOB])
     assert cache.get("linkedin", ["111"]) == {"111": JOB}
 
@@ -103,6 +107,27 @@ def test_corrupt_data_disables_the_cache_with_one_warning(make_cache, caplog):
     assert cache.get("linkedin", ["111"]) == {}  # later lookups miss quietly
     (warning,) = caplog.records
     assert warning.message.startswith(f"cache disabled ({cache.path})")
+
+
+def test_a_lock_another_process_holds_pauses_the_cache_and_keeps_it(
+    make_cache, monkeypatch, caplog
+):
+    # No wait for the lock, which SQLite would otherwise wait out for 5 seconds.
+    monkeypatch.setattr(sqlite3, "connect", functools.partial(sqlite3.connect, timeout=0))
+    clock = [0.0]
+    monkeypatch.setattr(time, "monotonic", lambda: clock[0])
+    cache = make_cache()
+    cache.put([JOB])
+    with contextlib.closing(sqlite3.connect(cache.path)) as holder:
+        holder.execute("BEGIN EXCLUSIVE")
+        cache.put([{**JOB, "id": "222"}])
+    # The pause skips the cache without waiting on SQLite, even once the lock has gone.
+    assert cache.get("linkedin", ["111"]) == {}
+    cache.put([{**JOB, "id": "333"}])
+    assert caplog.text.count("is locked by another process") == 1
+    clock[0] += LOCK_PAUSE
+    cache.put([{**JOB, "id": "444"}])
+    assert cache.get("linkedin", ["111", "222", "333", "444"]).keys() == {"111", "444"}
 
 
 def test_an_unserializable_record_disables_the_cache(make_cache, caplog):

@@ -7,13 +7,12 @@ import re
 from collections.abc import AsyncGenerator
 from datetime import UTC, date, datetime, timedelta
 from typing import Annotated, Any
-from urllib.parse import urlsplit
 
 from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, employment_type, make_job
-from jobrake.sites.postings import fill_details, postings_of
+from jobrake.sites.postings import fill_details, postings_of, readable_url
 from jobrake.sites.responses import collect, cut_short, json_page, parse_postings, read_json
-from jobrake.utils import as_dict, as_str, checked, html_text
+from jobrake.utils import as_dict, as_list, as_str, checked, html_text, split_url
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +49,7 @@ def _career_site(board: str) -> tuple[str, str, str, str]:
         ValueError: ``board`` is not a Workday career site URL, names a port,
             or is an API address under ``/wday/``.
     """
-    parts = urlsplit(board.strip())
+    parts = split_url(board)
     host = parts.hostname or ""
     names = [name for name in parts.path.split("/") if name]
     if names and _LOCALE.fullmatch(names[0]):
@@ -93,7 +92,7 @@ def _posted_date(posted_on: object) -> str | None:
     return (_today() - timedelta(days=age)).isoformat()
 
 
-def _parse_card(card: dict[str, Any], site_url: str, tenant: str) -> JobDict:
+def _parse_card(listing: dict[str, Any], site_url: str, tenant: str) -> JobDict:
     """
     Build a record from one entry of a search page's ``jobPostings`` list.
 
@@ -101,23 +100,26 @@ def _parse_card(card: dict[str, Any], site_url: str, tenant: str) -> JobDict:
     as in ``zillow:P751481-1``, because requisition IDs are unique only within a tenant.
 
     Raises:
-        TypeError: The card lacks an ``externalPath`` ending in a requisition ID.
+        TypeError: The card lacks an ``externalPath`` ending in a requisition ID, or its URL does
+            not read back as the posting, as for a path outside ``/job/`` or with a query.
         AttributeError: The card is not an object.
     """
-    path = card.get("externalPath")
+    path = listing.get("externalPath")
     if not isinstance(path, str) or not (match := _REQUISITION.fullmatch(path)):
         raise TypeError(f"externalPath {path!r} does not end in a requisition ID")
-    location = card.get("locationsText")
+    posting_id = f"{tenant}:{match.group(1)}"
+    url = readable_url(card, posting_id, site_url + path)
+    location = listing.get("locationsText")
     # A posting with several locations shows only their count.
     if isinstance(location, str) and _LOCATION_COUNT.fullmatch(location):
         location = None
     return make_job(
         site="workday",
-        id=f"{tenant}:{match.group(1)}",
-        url=site_url + path,
-        title=card.get("title"),
+        id=posting_id,
+        url=url,
+        title=listing.get("title"),
         locations=[{"name": location}],
-        date=_posted_date(card.get("postedOn")),
+        date=_posted_date(listing.get("postedOn")),
     )
 
 
@@ -190,11 +192,10 @@ def _parse_details(payload: dict[str, Any]) -> dict[str, Any]:
     info = payload["jobPostingInfo"]
     country = as_dict(as_dict(info.get("jobRequisitionLocation")).get("country"))
     primary = (as_str(info.get("location")) or "").strip()
-    others = info.get("additionalLocations")
     # The requisition's country is the primary location's.
     locations = [
         *([{"name": primary, "country_code": country.get("alpha2Code")}] if primary else []),
-        *({"name": name} for name in (others if isinstance(others, list) else [])),
+        *({"name": name} for name in as_list(info.get("additionalLocations"))),
     ]
     start = as_str(info.get("startDate"))
     return {

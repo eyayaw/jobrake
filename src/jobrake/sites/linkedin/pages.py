@@ -14,7 +14,7 @@ from jobrake.fetchkit import Fetcher, FetchResult
 from jobrake.models import JobDict, Place, Stopped, employment_type, make_job, make_places
 from jobrake.sites.postings import Halt, postings_of
 from jobrake.sites.responses import json_ld
-from jobrake.utils import as_dict, finite, html_text
+from jobrake.utils import as_dict, finite, html_text, split_url
 
 from .client import (
     EN_US_QUERY,
@@ -134,7 +134,11 @@ def _applicants(soup: BeautifulSoup) -> int | None:
     # LinkedIn displays counts above 200 as "Over 200", so no thousands separator appears.
     caption = soup.select_one(".num-applicants__caption")
     found = re.search(r"\d+", caption.get_text()) if caption else None
-    return int(found.group()) if found else None
+    try:
+        return int(found.group()) if found else None
+    except ValueError:
+        # Past Python's limit of 4,300 digits, which no count of applicants reaches.
+        return None
 
 
 def _block_places(posting: dict[str, Any]) -> list[dict[str, Any]]:
@@ -419,7 +423,7 @@ def _reference(reference: str) -> JobDict:
     ref = reference.strip()
     if numeric(ref):
         ref = f"{FRAGMENT_URL}/{ref}"
-    parts = urlsplit(ref)
+    parts = split_url(ref)
     shown = parse_qs(parts.query).get("currentJobId", [""])[0]
     # The /comm/ link redirects to the page, and a search page carries only the ID,
     # so each is rewritten to the page address of its ID. A path that names a posting keeps it over

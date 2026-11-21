@@ -10,6 +10,7 @@ from contextlib import suppress
 from datetime import UTC, datetime, timedelta
 from types import NoneType
 from typing import Annotated, Any, NamedTuple, Union, get_args, get_origin, overload
+from urllib.parse import SplitResult, urlsplit
 
 lazy from bs4 import BeautifulSoup
 lazy from bs4.element import Tag
@@ -300,6 +301,19 @@ def well_formed(value: Any) -> Any:  # noqa: ANN401  any JSON value
     return value
 
 
+def split_url(text: str) -> SplitResult:
+    """
+    Split stripped text as ``urlsplit`` does, or return an empty split for text it refuses.
+
+    ``urlsplit`` raises ``ValueError`` for text such as an unbalanced bracket, so a caller that
+    checks the parts raises its own message, which names a next step.
+    """
+    try:
+        return urlsplit(text.strip())
+    except ValueError:
+        return SplitResult("", "", "", "", "")
+
+
 def as_str(value: object) -> str | None:
     """Return a JSON value when it is a string, made well-formed, or None for anything else."""
     return well_formed(value) if isinstance(value, str) else None
@@ -308,6 +322,17 @@ def as_str(value: object) -> str | None:
 def as_dict(value: object) -> dict[str, Any]:
     """Return a JSON object unchanged, or ``{}`` for any other value, so a ``.get`` can follow."""
     return value if isinstance(value, dict) else {}
+
+
+def as_int(value: object) -> int | None:
+    """Return a JSON integer, or None for anything else, ``true`` and ``false`` included."""
+    # bool is an int subclass, so a bare isinstance check reads true as 1.
+    return value if isinstance(value, int) and not isinstance(value, bool) else None
+
+
+def as_list(value: object) -> list[Any]:
+    """Return a JSON array unchanged, or ``[]`` for any other value, so a loop can follow."""
+    return value if isinstance(value, list) else []
 
 
 def iso_date(value: object) -> str | None:

@@ -3,7 +3,7 @@
 import json
 import logging
 import xml.etree.ElementTree as ET
-from collections.abc import AsyncGenerator, Callable, Set
+from collections.abc import AsyncGenerator, Awaitable, Callable, Set
 from contextlib import suppress
 from gettext import ngettext
 from typing import Any
@@ -199,6 +199,37 @@ def parse_postings(
         except UNREADABLE as error:
             logger.warning("skipping malformed %s posting: %r", site, error)
     return jobs
+
+
+async def offset_pages[T](
+    read: Callable[[int], Awaitable[tuple[list[T], int]]],
+    parse: Callable[[T], JobDict],
+    *,
+    site: str,
+    where: str | None = None,
+) -> AsyncGenerator[tuple[list[JobDict], int]]:
+    """
+    Yield each page of a search paged by offset, with the site's count of matches, for ``collect``.
+
+    ``read`` returns the cards at an offset and the count of all matches, and ``parse`` builds a
+    record from a card. The pages end at the count or at an empty page. ``where`` names the site
+    and its board in the message of a search cut short, when the site has boards.
+
+    Raises:
+        Stopped: ``read`` raised it, or an empty page came before the reported count.
+    """
+    offset = 0  # cards the site has sent, malformed ones included
+    while True:
+        cards, total = await read(offset)
+        if not cards:
+            break
+        offset += len(cards)
+        # A posting released between two requests shifts the cards, so a page can repeat one.
+        yield parse_postings(cards, parse, site=site), total
+        if offset >= total:
+            return
+    if offset < total:
+        raise cut_short(where or site, total, offset)
 
 
 async def collect(

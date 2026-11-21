@@ -101,6 +101,14 @@ def test_a_multi_city_card_keeps_its_label_and_drops_the_zero_coordinate() -> No
     assert deloitte["locations"] == [{"name": "Berlin, Düsseldorf, München", "country_code": "DE"}]
 
 
+def test_a_card_on_the_prime_meridian_keeps_its_coordinates() -> None:
+    greenwich = {**CARDS[0], "location": "Greenwich", "latitude": 51.48, "longitude": 0.0}
+    [job] = asyncio.run(stepstone.search(PagedFetcher([_page([greenwich], 1)]), query="data"))
+
+    assert job["locations"][0]["latitude"] == 51.48
+    assert job["locations"][0]["longitude"] == 0.0
+
+
 def test_search_pages_until_the_reported_total_with_its_filters_on_every_page() -> None:
     fetcher = PagedFetcher([_page(CARDS, 3), _page(CARDS[:1], 3)])
     jobs = asyncio.run(stepstone.search(fetcher, query="data", remote=True))
@@ -111,8 +119,11 @@ def test_search_pages_until_the_reported_total_with_its_filters_on_every_page() 
     assert "workFromHome=1" in fetcher.requests[1]
 
 
-def test_a_card_without_an_id_is_skipped() -> None:
-    fetcher = PagedFetcher([_page([{"title": "No ID"}, CARDS[0]], 2)])
+def test_a_card_without_a_posting_number_is_skipped() -> None:
+    # Each of these ids gives a posting URL that card rejects.
+    malformed: list[dict[str, object]] = [{"title": "No ID"}, {"id": True}, {"id": "abc"}]
+    malformed += [{"id": -5}, {"id": "1/"}]
+    fetcher = PagedFetcher([_page([*malformed, CARDS[0]], 6)])
     jobs = asyncio.run(stepstone.search(fetcher, query="data"))
 
     assert [job["id"] for job in jobs] == ["14660809"]

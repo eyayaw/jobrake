@@ -1020,6 +1020,7 @@ def test_applicant_count_ignores_the_prose_around_it():
         ("114 applicants", 114),
         ("Wees een van de eerste 25 sollicitanten", 25),  # the prose is localized
         ("applicants", None),
+        ("9" * 4301 + " applicants", None),  # past the digits int() reads, so not a count
     ):
         job = parsed(job_page(applicants=caption))
         assert job.get("applicants") == expected

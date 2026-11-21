@@ -38,7 +38,8 @@ applicant tracking systems, and it depends on `httpx` and `bs4`.
   posting with a warning.
   `collect` gathers the pages a paged search yields: it drops a repeated posting, logs progress,
   stops at `results`, and keeps the pages before a failure. A paged site yields its pages from a
-  generator and leaves the rest to `collect`.
+  generator and leaves the rest to `collect`. `offset_pages` builds that generator from a site's
+  reader of one page and its card parser.
 - `sites/postings.py`: the posting loop of the sites that fetch each posting on its own,
   LinkedIn among them. `fill_details` serves `details=True` and `postings_of` builds `postings`,
   and each site supplies only the reader of the posting at a URL, which raises `Stopped` for a
@@ -46,7 +47,8 @@ applicant tracking systems, and it depends on `httpx` and `bs4`.
   becomes a record of its own, with the posting's own `url` when the reader gives one. The cache
   stores it, `postings` returns it, and a details search merges it into each card of the posting:
   the record wins wherever it has a value, and the card keeps its `site`, `id`, and `url`.
-  A cached posting costs no request.
+  A cached posting costs no request. `readable_url` keeps a search card's URL only when the site's
+  `card` reads it back unchanged, so `postings` can fetch the card's posting.
 - `utils.py`: `site_options`, which reads the `Annotated` arguments of a site function, `checked`,
   which wraps it in a `Checked` that runs those checks and the site's validator on every call,
   or alone through `check`, `menu_codes`, which maps filter values to codes of a site's fixed menu,
@@ -130,8 +132,8 @@ and the contract test in `tests/test_scrape.py` need no edit.
 - The cache is transparent. On LinkedIn, Workday, SmartRecruiters, StepStone, and INOMICS it
   stores the fields of each posting read as a `JobDict`. A reader sees only the posting's URL, so a
   later card merges with the cached fields as with a fresh read. Rows carry no version, and each
-  row read passes through `make_job`, so a row whose keys no longer fit `JobDict` or `Place` is a
-  miss.
+  row read passes through `make_job`, so a row it rejects is a miss, such as one whose keys no
+  longer fit `JobDict` or `Place` or whose `applicants` is text.
   `make_job` normalizes a row as it does a site's fields and cannot redo a parser's work, so a
   parser fix reaches a cached posting when its row expires.
   `JOBRAKE_CACHE_PATH` and `JOBRAKE_CACHE_TTL` configure it, and no site function takes a cache

@@ -165,6 +165,19 @@ def test_make_job_rejects_a_record_outside_job_dict():
     for identity in ({"id": "1"}, {"id": 1, "url": "u"}, {"id": " ", "url": "u"}):
         with pytest.raises(TypeError, match="must be a nonblank string"):
             make_job(site="linkedin", **identity)
+    # So must a row whose detail has another type, which a parser would have left out.
+    for name, value in [
+        ("applicants", "200"),
+        ("applicants", True),
+        ("experience_months", 1.5),
+        ("salary_min", math.nan),
+        ("salary_max", "100000"),
+        ("department", ["Data"]),
+        ("description", 5),
+    ]:
+        with pytest.raises(TypeError, match=f"job field {name} must be"):
+            make_job(site="linkedin", id="1", url="u", **{name: value})
+    assert make_job(site="linkedin", id="1", url="u", salary_min=50000)["salary_min"] == 50000
 
 
 def test_stopped_keeps_its_partial_across_processes():
