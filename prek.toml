@@ -29,4 +29,4 @@ name = "pytest"
 language = "system"
 entry = "uv run --locked pytest -q"
 pass_filenames = false
-files = '\.(py|pyi|toml|lock)$' # code, config, and the lock; a docs-only commit skips it
+files = '\.(py|pyi|toml|lock|md)$' # code, config, the lock, and the docs tests/test_docs.py checks

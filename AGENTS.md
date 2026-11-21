@@ -64,8 +64,9 @@ applicant tracking systems, and it depends on `httpx` and `bs4`.
 - `tests/`: offline, built on the stub fetcher in `tests/fakes.py`.
   `tests/fakesite.py` is a fake site the tests register.
 
-A new site is a module under `sites/` and one entry in `SITES`. `scrape`, the CLI,
-and the contract test in `tests/test_scrape.py` need no edit.
+A new site is a module under `sites/`, one entry in `SITES`, and its page, `docs/sites/<site>.md`,
+which `tests/test_docs.py` requires. `scrape`, the CLI, and the contract test in
+`tests/test_scrape.py` need no edit.
 
 ## Non-goals
 
