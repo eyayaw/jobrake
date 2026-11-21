@@ -10,7 +10,9 @@ from hypothesis import given
 from hypothesis import strategies as st
 
 from jobrake import Stopped, check, cli, identify, scrape, sites
+from jobrake.models import make_job
 from jobrake.sites import SITES
+from jobrake.sites.postings import readable_url
 from jobrake.utils import checked, site_options
 
 
@@ -217,6 +219,15 @@ def test_card_names_a_link_urlsplit_refuses_in_its_own_message(site):
     # urlsplit raises its own ValueError, "Invalid IPv6 URL", for an unbalanced bracket.
     with pytest.raises(ValueError, match=r"^'https://\[/job/1' is (not|neither) "):
         SITES[site].card("https://[/job/1")
+
+
+def test_a_card_url_that_reads_back_as_another_posting_is_refused():
+    # postings would key the posting under the ID card reads, not the card's own.
+    def card(url):
+        return make_job(site="acme", id="2", url=url)
+
+    with pytest.raises(TypeError, match="does not read back as posting '1'"):
+        readable_url(card, "1", "https://acme.test/1")
 
 
 @pytest.mark.parametrize(
