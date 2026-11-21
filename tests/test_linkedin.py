@@ -52,6 +52,8 @@ def test_linkedin_parses_cards_and_dedups_by_posting_id():
         # details=True would request a card's link, so a link off LinkedIn is no card.
         + linkedin_card("role-333").replace("www.linkedin.com", "jobs.example.net")
         + linkedin_card("role-444").replace("https://www.linkedin.com", "https://[broken")
+        # postings refuses a LinkedIn address off a posting's page, so such a link is no card.
+        + linkedin_card("role-555").replace("/jobs/view/", "/jobs/collections/")
     )
     fetcher = StubFetcher({"seeMoreJobPostings": ok(html)})
     jobs = asyncio.run(linkedin.search(fetcher, query="economist", location="Seattle", results=3))
@@ -98,15 +100,19 @@ def test_a_failed_page_stops_the_search_keeping_the_earlier_pages():
 
 
 @pytest.mark.parametrize(
-    "answer",
+    ("answer", "message"),
     [
-        FetchResult("https://www.linkedin.com/login", 200, "<form></form>"),
-        FetchResult("stub", 204),  # the endpoint's own path, without its 200
+        (FetchResult("https://www.linkedin.com/login", 200, "<form></form>"), "not a results page"),
+        # the endpoint's own path, without its 200
+        (FetchResult("stub", 204), "not a results page"),
+        (FetchResult("stub", text="[]"), "the fetcher reported no HTTP status"),
     ],
 )
-def test_an_answer_other_than_the_endpoints_200_stops_the_search_keeping_the_earlier_pages(answer):
+def test_an_answer_other_than_the_endpoints_200_stops_the_search_keeping_the_earlier_pages(
+    answer, message
+):
     fetcher = PagedFetcher([linkedin_card("111"), answer])
-    with pytest.raises(Stopped, match="not a results page") as stop:
+    with pytest.raises(Stopped, match=message) as stop:
         asyncio.run(linkedin.search(fetcher, query="x", location="Seattle", results=5))
     assert [job["id"] for job in stop.value.partial] == ["111"]
 
@@ -1021,6 +1027,7 @@ def test_applicant_count_ignores_the_prose_around_it():
         ("Wees een van de eerste 25 sollicitanten", 25),  # the prose is localized
         ("applicants", None),
         ("9" * 4301 + " applicants", None),  # past the digits int() reads, so not a count
+        ("9" * 400 + " applicants", None),  # past float range, which make_job refuses
     ):
         job = parsed(job_page(applicants=caption))
         assert job.get("applicants") == expected

@@ -13,7 +13,7 @@ lazy from bs4 import BeautifulSoup
 from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, Stopped, employment_type, make_job
 from jobrake.sites.postings import fill_details, postings_of, readable_url
-from jobrake.sites.responses import collect, json_ld, json_page, offset_pages, read_json
+from jobrake.sites.responses import collect, failure, json_ld, json_page, offset_pages, read_json
 from jobrake.utils import (
     as_dict,
     as_int,
@@ -77,11 +77,13 @@ def _parse_card(listing: dict[str, Any]) -> JobDict:
         title=listing.get("title"),
         company=listing.get("companyName"),
         locations=[_place(listing)],
-        date=epoch_ms_to_iso(listing.get("datePosted")),
+        date=epoch_ms_to_iso(listing.get("datePosted"), name="date", url=url),
         company_logo=as_str(listing.get("companyLogoURL")),
         language=as_str(listing.get("language")),
-        posted_at=epoch_ms_to_iso(listing.get("dateOriginal") or listing.get("datePosted")),
-        expires_at=epoch_ms_to_iso(listing.get("dateExpire")),
+        posted_at=epoch_ms_to_iso(
+            listing.get("dateOriginal") or listing.get("datePosted"), name="posted_at", url=url
+        ),
+        expires_at=epoch_ms_to_iso(listing.get("dateExpire"), name="expires_at", url=url),
         site_data={
             "section": listing.get("section"),
             "labels": listing.get("listingLabels") or None,
@@ -167,10 +169,8 @@ async def _posting_fields(fetcher: Fetcher, url: str) -> dict[str, Any] | None:
     result = await fetcher.fetch(url)
     if result.status in (404, 410):
         return None
-    # A posting page comes with HTTP 200, as the shared readers require of every site's data.
-    if result.error or result.status != 200:
-        failure = result.error or f"HTTP {result.status}"
-        raise Stopped(f"stepstone request for {url} failed: {failure}")
+    if reason := failure(result):
+        raise Stopped(f"stepstone request for {url} failed: {reason}")
     page = BeautifulSoup(result.text, "html.parser")
     posting = next(iter(json_ld(page, {"JobPosting"})), None)
     if posting is None:

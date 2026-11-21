@@ -40,10 +40,11 @@ def _parse_posting(posting: dict[str, Any]) -> JobDict:
     categories = as_dict(posting.get("categories"))
     primary = categories.get("location")
     others = as_list(categories.get("allLocations"))
+    url = posting.get("hostedUrl")
     return make_job(
         site="lever",
         id=posting.get("id"),
-        url=posting.get("hostedUrl"),
+        url=url,
         title=posting.get("text"),
         locations=[
             # The posting's country is the primary location's.
@@ -57,7 +58,7 @@ def _parse_posting(posting: dict[str, Any]) -> JobDict:
         team=as_str(categories.get("team")),
         # Lever's unspecified is no workplace type.
         workplace_type=workplace_type(as_str(posting.get("workplaceType"))),
-        posted_at=epoch_ms_to_iso(posting.get("createdAt")),
+        posted_at=epoch_ms_to_iso(posting.get("createdAt"), name="posted_at", url=url),
         apply_url=as_str(posting.get("applyUrl")),
     )
 

@@ -24,6 +24,12 @@ UNREADABLE = r"^acme sent a response this version cannot read \("
         (network_down(), {}, "^acme request failed: connection reset$"),
         # A body that would read as an empty list, sent without the 200 the data comes with.
         (FetchResult("stub", 204, '{"jobs": []}'), {}, "^acme request failed: HTTP 204$"),
+        # A caller's fetcher that sets no status.
+        (
+            FetchResult("stub", text='{"jobs": []}'),
+            {},
+            "^acme request failed: the fetcher reported no HTTP status$",
+        ),
         (ok("not JSON"), {}, UNREADABLE + "JSONDecodeError"),
         (ok("\n<!DOCTYPE html><title>Maintenance</title>"), {}, "^acme sent a web page where"),
         (ok("[" + "9" * 5000 + "]"), {}, UNREADABLE + "ValueError"),

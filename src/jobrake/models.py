@@ -1,8 +1,8 @@
 """The ``JobDict`` record every site returns, the helpers that build it, and ``Stopped``."""
 
 import logging
-import math
 import re
+import reprlib  # repr refuses an integer past 4,300 digits, and reprlib shortens it
 from typing import Any, Literal, NotRequired, TypedDict, cast, get_args
 
 from jobrake.utils import as_int, as_str, finite, iso_date, well_formed
@@ -83,7 +83,9 @@ SUMMARY_FIELDS = tuple(name for name in JOB_FIELDS if name not in IDENTITY_FIELD
 _SCALARS = {
     str: ("a string", lambda value: isinstance(value, str)),
     float: ("a finite number", lambda value: finite(value) is not None),
-    int: ("an integer", lambda value: as_int(value) is not None),
+    # An integer past float range is no usable field value, and past 4,300 digits Python cannot
+    # write it as JSON, so the cache could not store the record.
+    int: ("an integer in float range", lambda value: finite(as_int(value)) is not None),
 }
 # The details with a rule of their own: a menu, a structure, or a date _readable_date checks.
 _OWN_RULES = ("workplace_type", "site_data", "keywords", "posted_at", "expires_at")
@@ -109,7 +111,7 @@ def _place(entry: object) -> dict[str, Any]:
         TypeError: ``entry`` is not an object or has a key that is not a ``Place`` field.
     """
     if not isinstance(entry, dict):
-        raise TypeError(f"a place must be an object, got {entry!r}")
+        raise TypeError(f"a place must be an object, got {reprlib.repr(entry)}")
     if unknown := entry.keys() - Place.__annotations__.keys():
         raise TypeError(f"not a place field: {', '.join(sorted(unknown))}")
     parts: dict[str, Any] = {}
@@ -142,7 +144,7 @@ def make_places(value: object) -> list[Place]:
     if value is None:
         return []
     if not isinstance(value, list):
-        raise TypeError(f"job field locations must be a list, got {value!r}")
+        raise TypeError(f"job field locations must be a list, got {reprlib.repr(value)}")
     places: list[Place] = []
     for place in filter(None, map(_place, value)):
         if place not in places:
@@ -151,8 +153,13 @@ def make_places(value: object) -> list[Place]:
 
 
 def _strict_json(value: object) -> object:
-    """Replace each NaN or infinity inside value with None, because strict JSON has neither."""
-    if isinstance(value, float) and not math.isfinite(value):
+    """
+    Replace each NaN, infinity, or integer past float range inside value with None.
+
+    Strict JSON has no NaN or infinity, and Python cannot write an integer past 4,300 digits as
+    JSON.
+    """
+    if isinstance(value, int | float) and not isinstance(value, bool) and finite(value) is None:
         return None
     if isinstance(value, dict):
         return {key: _strict_json(entry) for key, entry in value.items()}
@@ -175,7 +182,9 @@ def _site_data(value: object) -> dict[str, Any] | None:
     if value is None:
         return None
     if not isinstance(value, dict) or not all(isinstance(key, str) for key in value):
-        raise TypeError(f"job field site_data must be an object with text keys, got {value!r}")
+        raise TypeError(
+            f"job field site_data must be an object with text keys, got {reprlib.repr(value)}"
+        )
     fields = {key: _strict_json(entry) for key, entry in value.items()}
     return {key: entry for key, entry in fields.items() if entry not in (None, "", [])} or None
 
@@ -190,7 +199,7 @@ def _keywords(value: object) -> list[str] | None:
     if value is None:
         return None
     if not isinstance(value, list) or not all(isinstance(entry, str) for entry in value):
-        raise TypeError(f"job field keywords must be a list of strings, got {value!r}")
+        raise TypeError(f"job field keywords must be a list of strings, got {reprlib.repr(value)}")
     return [entry.strip() for entry in value if entry.strip()] or None
 
 
@@ -198,13 +207,17 @@ def _detail(name: str, value: object) -> object:
     """
     Normalize one detail value, or return None to leave its key out.
 
+    A ``workplace_type`` text outside ``WORKPLACE_TYPES`` is left out.
+
     Raises:
-        TypeError: A detail other than a date or ``workplace_type`` is not of its ``JobDict``
-            type, or ``site_data`` or ``keywords`` is malformed.
+        TypeError: A detail other than a date is not of its ``JobDict`` type, or ``site_data`` or
+            ``keywords`` is malformed.
     """
     if isinstance(value, str):
         value = value.strip() or None
     if name == "workplace_type":
+        if value is not None and not isinstance(value, str):
+            raise TypeError(f"job field workplace_type must be a string, got {reprlib.repr(value)}")
         return value if value in WORKPLACE_TYPES else None
     if name == "site_data":
         return _site_data(value)
@@ -214,7 +227,7 @@ def _detail(name: str, value: object) -> object:
         return value
     kind, fits = _SCALAR_CHECKS[name]
     if not fits(value):
-        raise TypeError(f"job field {name} must be {kind}, got {value!r}")
+        raise TypeError(f"job field {name} must be {kind}, got {reprlib.repr(value)}")
     return value
 
 
@@ -243,9 +256,9 @@ def make_job(**fields: Any) -> JobDict:
 
     Raises:
         TypeError: An identity field is missing, blank, or not a string, a field is not a
-            ``JobDict`` key, a detail other than a date or ``workplace_type`` is not of its
-            ``JobDict`` type, such as ``applicants`` given as text or ``salary_min`` as NaN, or
-            ``locations``, ``site_data``, or ``keywords`` is malformed.
+            ``JobDict`` key, a detail other than a date is not of its ``JobDict`` type, such as
+            ``applicants`` given as text or ``salary_min`` as NaN, or ``locations``,
+            ``site_data``, or ``keywords`` is malformed.
     """
     if unknown := fields.keys() - set(JOB_FIELDS):
         raise TypeError(f"not a job field: {', '.join(sorted(unknown))}")
@@ -254,7 +267,9 @@ def make_job(**fields: Any) -> JobDict:
     for name in IDENTITY_FIELDS:
         value = fields.get(name)
         if not isinstance(value, str) or not value.strip():
-            raise TypeError(f"job field {name} must be a nonblank string, got {value!r}")
+            raise TypeError(
+                f"job field {name} must be a nonblank string, got {reprlib.repr(value)}"
+            )
         job[name] = value.strip()
     for name in SUMMARY_FIELDS:
         value = fields.get(name)

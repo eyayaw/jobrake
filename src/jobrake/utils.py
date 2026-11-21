@@ -314,6 +314,25 @@ def split_url(text: str) -> SplitResult:
         return SplitResult("", "", "", "", "")
 
 
+# One label of a host name: RFC 1035, sections 2.3.1 and 2.3.4, as RFC 1123, section 2.1, lets it
+# start with a digit (checked 2026-11-21).
+HOST_LABEL = r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?"
+
+
+def on_domain(parts: SplitResult, domain: str) -> bool:
+    """Tell whether a URL is on ``domain`` or a subdomain, with no credentials and no port but 443."""
+    try:
+        port = parts.port
+    except ValueError:  # a port that is not a number in range
+        return False
+    host = re.compile(rf"(?:{HOST_LABEL}\.)*{re.escape(domain)}")
+    return (
+        "@" not in parts.netloc
+        and port in (None, 443)
+        and bool(host.fullmatch(parts.hostname or ""))
+    )
+
+
 def as_str(value: object) -> str | None:
     """Return a JSON value when it is a string, made well-formed, or None for anything else."""
     return well_formed(value) if isinstance(value, str) else None
@@ -363,12 +382,13 @@ def cutoff(max_age_hours: int | None) -> datetime | None:
         return None
 
 
-def epoch_ms_to_iso(ms: object) -> str | None:
+def epoch_ms_to_iso(ms: object, *, name: str, url: object) -> str | None:
     """
     Convert a site's epoch milliseconds to an ISO 8601 UTC timestamp.
 
     ``None`` returns ``None``. A value that is no number, is out of range, or resolves before the
-    year 2000, as epoch seconds do, logs a warning and returns ``None``.
+    year 2000, as epoch seconds do, logs a warning that names the field ``name`` of the posting at
+    ``url``, and returns ``None``.
     """
     if ms is None:
         return None
@@ -378,11 +398,15 @@ def epoch_ms_to_iso(ms: object) -> str | None:
     except ValueError, OSError, OverflowError:
         stamp = None
     if stamp is None:
-        logger.warning("not epoch milliseconds: %r", ms)
+        logger.warning("%s %r of %s is not epoch milliseconds", name, ms, url)
         return None
     if stamp.year < 2000:
         logger.warning(
-            "%r resolves before 2000, so it looks like epoch seconds rather than milliseconds", ms
+            "%s %r of %s resolves before 2000, so it looks like epoch seconds rather than "
+            "milliseconds",
+            name,
+            ms,
+            url,
         )
         return None
     return stamp.isoformat()

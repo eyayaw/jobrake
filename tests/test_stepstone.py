@@ -94,6 +94,18 @@ def test_search_parses_a_card_with_its_coordinates_and_dates() -> None:
     assert city["site_data"] == {"section": "main", "labels": ["BLAD", "REMOTE"]}
 
 
+def test_a_date_that_is_not_epoch_milliseconds_is_left_out_with_a_warning_naming_it(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    card = {**CARDS[0], "dateOriginal": "soon", "dateExpire": "later"}
+    [job] = asyncio.run(stepstone.search(PagedFetcher([_page([card], 1)]), query="data"))
+
+    assert not {"posted_at", "expires_at"} & set(job)
+    url = "https://www.stepstone.de/job/14660809"
+    assert f"posted_at 'soon' of {url} is not epoch milliseconds" in caplog.text
+    assert f"expires_at 'later' of {url} is not epoch milliseconds" in caplog.text
+
+
 def test_a_multi_city_card_keeps_its_label_and_drops_the_zero_coordinate() -> None:
     fetcher = PagedFetcher([_page(CARDS, 2)])
     [_, deloitte] = asyncio.run(stepstone.search(fetcher, query="data"))

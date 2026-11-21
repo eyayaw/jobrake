@@ -11,7 +11,7 @@ from typing import Annotated, Any
 from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, Stopped, employment_type, make_job
 from jobrake.sites.responses import parse_postings, read_xml
-from jobrake.utils import checked, finite, html_text
+from jobrake.utils import HOST_LABEL, checked, finite, html_text
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +23,7 @@ LANGUAGES = ("en", "de", "fr", "es", "nl", "it", "pt")
 
 # The board becomes the first label of the host name, so it must be one DNS label, or a value
 # such as x@evil.com# would send the request elsewhere.
-_BOARD = re.compile(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?", re.IGNORECASE | re.ASCII)
+_BOARD = re.compile(HOST_LABEL, re.IGNORECASE | re.ASCII)
 
 # The salary types measured on 62 postings of 71 boards (2026-11-15). Another type leaves the period
 # out and keeps the amounts.

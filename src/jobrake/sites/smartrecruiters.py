@@ -20,7 +20,7 @@ API_URL = "https://api.smartrecruiters.com/v1/companies"
 POSTING_URL = "https://jobs.smartrecruiters.com/{company}/{id}"
 # A posting's page path, where a title slug may follow the ID, as in
 # /BoschGroup/744000158197889-product-expert.
-_POSTING_PATH = re.compile(r"/([^/\s]+)/([0-9]+)(?:-[^/]*)?/?")
+_POSTING_PATH = re.compile(r"/([^/]+)/([0-9]+)(?:-[^/]*)?/?")
 PAGE_SIZE = 100  # the largest limit the API accepts
 
 
@@ -212,7 +212,8 @@ def card(reference: str) -> JobDict:
     hosted = (
         parts.scheme in ("http", "https") and parts.netloc.lower() == "jobs.smartrecruiters.com"
     )
-    if not (hosted and (match := _POSTING_PATH.fullmatch(parts.path))):
+    match = _POSTING_PATH.fullmatch(parts.path)
+    if not (hosted and match and match[1].strip()):
         raise ValueError(
             f"{reference!r} is not a SmartRecruiters posting URL. Pass a record's url, such "
             "as https://jobs.smartrecruiters.com/BoschGroup/744000158197889"

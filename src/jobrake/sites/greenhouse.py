@@ -8,7 +8,7 @@ from urllib.parse import quote
 from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, make_job
 from jobrake.sites.responses import json_list, parse_postings, read_json
-from jobrake.utils import as_dict, as_int, as_str, checked, html_text
+from jobrake.utils import as_dict, as_int, as_list, as_str, checked, html_text
 
 logger = logging.getLogger(__name__)
 
@@ -29,12 +29,8 @@ def _parse_posting(posting: dict[str, Any]) -> JobDict:
     # Greenhouse escapes the description HTML, so its tags arrive as entities.
     content = unescape(as_str(posting.get("content")) or "")
     # Greenhouse does not say which of several departments hires, so only a lone one counts.
-    departments = posting.get("departments")
-    department = (
-        as_dict(departments[0]).get("name")
-        if isinstance(departments, list) and len(departments) == 1
-        else None
-    )
+    departments = as_list(posting.get("departments"))
+    department = as_dict(departments[0]).get("name") if len(departments) == 1 else None
     return make_job(
         site="greenhouse",
         id=str(posting_id),
