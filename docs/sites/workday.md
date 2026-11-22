@@ -2,8 +2,7 @@
 
 jobrake searches one employer's career site on [Workday](https://www.workday.com) through the JSON
 API behind it. Workday does not document that API, so what we say here comes from our tests on
-NVIDIA's career site in October 2026 and on two more career sites, in different Workday data
-centers, on 2026-11-14. Another employer's site may behave differently.
+NVIDIA's career site and two more, in different Workday data centers. Another employer's site may behave differently.
 
 ```sh
 jobrake workday search -b https://zillow.wd5.myworkdayjobs.com/Zillow_Group_External -q analyst
@@ -55,13 +54,4 @@ address copied from the browser. You get what a `--details` search would give.
 
 ## Requests
 
-Workday reports at most 2,000 postings per search, and jobrake warns you when a search reaches
-that. Narrow the search with `--query` to reach the rest.
-
-If a page fails, the search stops with the postings it has, and `scrape`
-raises [`Stopped`](../reference.md#stopped) with them in `partial`.
-An empty page before the number Workday reported stops it as well: postings may have closed during
-the search, so a rerun may find more.
-
-With `--details`, a posting removed or withdrawn since the search, or one jobrake could not fetch,
-keeps what its search result had.
+Workday reports at most 2,000 postings per search. Narrow the search with `--query` to reach the rest.

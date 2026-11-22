@@ -27,11 +27,11 @@ document them, so what we say here about their behavior comes from our own tests
 
 `--query` is the site's keyword search. It matches whole words and their other forms.
 In our tests, `economics` also found openings through their job family, Economic Affairs.
-A search returns 100 openings by default, and the site listed 448 on 2026-11-16, so raise `--results` to read them all.
+Raise `--results` to read past the first 100 openings.
 
 `--max-age-hours` sends the site's own age filter, which counts in whole days, so jobrake rounds your hours up.
-Use a multiple of 24 to get exactly the age you ask for. The filter also took the other day counts
-we tried on 2026-11-17, not only the 1, 7, and 30 the site's menu offers.
+Use a multiple of 24 to get exactly the age you ask for. In our tests, the filter also took day counts
+beyond the 1, 7, and 30 its menu offers.
 
 The other filters take a name as the site's [search page](https://careers.un.org/jobopening?language=en)
 shows it, in any letter case, or the site's own code:
@@ -79,15 +79,7 @@ entity that hires, the duty stations, and the dates the opening opens and closes
 
 ## Requests
 
-A search with a filter from the table first reads the site's list of values, then the openings,
-newest job ID first. Many openings share a start date, and the site orders those differently from
-one request to the next, so jobrake sorts by job ID, which in our tests gave each opening once.
-An opening that closes or appears during a long search still shifts the later pages, so the search can miss one.
-
-If a request fails, the search stops with the openings it has, and `scrape`
-raises [`Stopped`](../reference.md#stopped) with them in `partial`.
-It also stops when the site sends an empty page before the number of openings it reported.
-Openings may have closed during the search, so a rerun may find the ones it skipped.
+An opening that closes or appears during a long search shifts the later pages, so the search can miss one.
 
 ## Terms
 

@@ -187,8 +187,9 @@ which `tests/test_docs.py` requires. `scrape`, the CLI, and the contract test in
   don't copy its surface: a sentence frame repeated across pages reads as a template.
 - Leave out what jobrake already prints, its errors, warnings, and logs, and what `--help` says,
   along with input normalization, request sizes, and other internals.
-  Mark measured behavior as measured, with its date, and claim no more than the measurement shows:
-  "usually" or "most" needs the count behind it.
+  Mark measured behavior as measured, "in our tests", and say what it means for the reader in plain
+  words such as "can" or "some". The sample, the count, and the date go in the code comment beside
+  the code that relies on them.
 
 ## Sites
 

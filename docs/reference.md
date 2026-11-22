@@ -133,9 +133,6 @@ The options several sites share and the output formats are in the [README](../RE
 ### Options
 
 Each site takes only the filters it applies.
-`jobrake linkedin search --remote` fails as an unrecognized argument and exits 2,
-and `scrape("linkedin", remote=True)` raises `TypeError` before any request and lists LinkedIn's
-options.
 An option left at its unset value, or an empty list, stays out of the search.
 A list option takes several values after one flag, `--attributes CF3CP 6QC5F`, or across repeats.
 A posting must match every option given. Within one list option, a posting needs to match only
@@ -175,7 +172,7 @@ A reference is a search result's `url` or another address of the posting:
 
 Any other reference is an error, and nothing is fetched.
 Results follow the order given and have the fields of a search with `--details`, except a field only
-the search result carries, such as SmartRecruiters' `department`.
+the search result carries, such as StepStone's `site_data`.
 Several references to one posting return one record.
 The command takes the same `--output` and `--format` as a search.
 A posting that is gone or unreachable is reported on stderr and left out, and when one was
@@ -257,6 +254,8 @@ A failed request, an answer other than HTTP 200, or a page that ends a search sh
 the site reported raises `jobrake.Stopped`.
 Its `partial`, a list of `JobDict`, holds the postings collected before the search stopped,
 and is `[]` when there are none.
+A search can end short when postings close while it pages through the results,
+so a rerun may find the ones it skipped.
 
 A details search that could not fetch every posting fetches the others first, then raises
 `Stopped`. `partial` holds every search result, with details where the fetch succeeded,
@@ -317,7 +316,6 @@ No other site is cached.
 The lifetime must be a positive number of seconds.
 An invalid value draws a warning and falls back to the default.
 
-A cached posting stays fresh for seven days and is fetched again after that.
 A posting that its site reports gone is not cached.
 An upgrade keeps the cache.
 A cached posting keeps the fields the older version extracted until it expires,

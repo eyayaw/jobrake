@@ -21,8 +21,7 @@ jobs = asyncio.run(scrape("academictransfer", query="economics", vacancy_type="s
 
 `--vacancy-type` picks a tab of the site's jobs page: `scientific` for academic vacancies,
 `non_scientific` for the others, or `all`, the default.
-The site held 728 active vacancies on 2026-11-17, and `--results` defaults to 100,
-so pass `--results 1000` to read them all.
+To read every vacancy, pass a large `--results`, such as 1000.
 
 ## Fields
 
@@ -33,8 +32,7 @@ application link, the keywords, and the weekly hours ([every key](../reference.m
 - `description` joins the vacancy's description, requirements, terms of employment, additional
   information, and how to apply, and leaves out the organization's and the department's own descriptions.
 - The site names no currency or period for a salary, so jobrake records every range as euros a
-  month. In our tests on 2026-11-17, most academic economics vacancies with a range named an
-  amount in euros a month in their text, and all of them were in the Netherlands.
+  month, as most vacancies in our tests stated it. Check the text of a vacancy whose figures look off.
   A vacancy without a range has no salary keys.
 - `employment_type` is `permanent` or `temporary`, and `language` is `en` or `nl`, the language
   the vacancy is written in.
@@ -43,15 +41,11 @@ application link, the keywords, and the weekly hours ([every key](../reference.m
 
 ## Requests
 
-A search first reads the site's jobs page once, for the public token its search script sends,
-then pages through the list API that page reads, newest first.
-jobrake waits 10 seconds before each request to the API, the crawl delay the robots.txt of
-`www.academictransfer.com` asks for, so a search of 500 vacancies waits 100 seconds in all.
-We have not measured how long the token stays valid: our longest test, two pages, took 22 seconds.
+jobrake waits [10 seconds](https://www.academictransfer.com/robots.txt) before each request,
+as the site asks, so a search of 500 vacancies waits 100 seconds in all.
 
-If a request fails, or jobrake finds no token on the jobs page, the search stops with the
-vacancies read so far, and `scrape` raises [`Stopped`](../reference.md#stopped) with them in `partial`.
-It also stops when the API sends an empty page before the count it reported.
+A search starts by reading a public token from the site's jobs page, and stops if there is none.
+We have not measured how long the token stays valid: our longest test, two pages, took 22 seconds.
 
 ## Terms
 

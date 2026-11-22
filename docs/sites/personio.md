@@ -35,7 +35,7 @@ when present, its description, subcompany, department, keywords, and salary ([ev
 - Personio writes each description in one language, and its feed in any other language lists
   the posting bare. jobrake reads the default language first, then fills each bare posting,
   title included, from the first of English, German, French, Spanish, Dutch, Italian, and
-  Portuguese that describes it. In our tests on 2026-11-15, the other languages described every posting the
+  Portuguese that describes it. In our tests, the other languages described every posting the
   default feed left bare.
 - `company` is the posting's subcompany, such as `tado GmbH`,
   which Personio names when the employer has set up subcompanies.
@@ -46,11 +46,3 @@ when present, its description, subcompany, department, keywords, and salary ([ev
 - `site_data` holds `seniority`, `schedule`, `occupation`, `occupationCategory`, and,
   when present, `recruitingCategory` and `yearsOfExperience`, as the feed names them.
 - A record has no workplace type or application link.
-
-## Requests
-
-A search reads the board's feed in its default language, then the next language in the order
-above while a posting still lacks a description, so it takes one to eight requests.
-Most boards in our tests on 2026-11-15 took one or two.
-If the first request fails, the search stops with nothing. If a later one fails, it keeps the
-postings already read, and `scrape` raises [`Stopped`](../reference.md#stopped) with them in `partial`.

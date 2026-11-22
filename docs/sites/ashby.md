@@ -18,8 +18,7 @@ jobs = asyncio.run(scrape("ashby", board="openai"))
 
 ## Options
 
-`--board` takes the board token, the part of the board's address that names the employer:
-`openai` in `jobs.ashbyhq.com/openai`.
+`--board` is the path segment of the board's URL: `openai` in `jobs.ashbyhq.com/openai`.
 
 Ashby filters nothing on its side, so narrow the postings yourself, for example to the remote ones:
 
@@ -41,8 +40,3 @@ application link, and the salary range ([every key](../reference.md#fields-by-si
 - `site_data` holds the posting's `summaryComponents` as Ashby sends them,
   which is where equity, commission, and bonus appear beside the salary range.
 - A search also returns postings the employer marked unlisted, which Ashby intends for direct links only.
-
-## Requests
-
-A single request returns the whole board. If it fails, you get nothing, and `scrape` raises
-[`Stopped`](../reference.md#stopped).

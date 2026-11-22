@@ -18,8 +18,8 @@ jobs = asyncio.run(scrape("workable", board="huggingface"))
 
 ## Options
 
-`--board` takes the board token, the part of the board's address that names the employer:
-`huggingface` in `apply.workable.com/huggingface`.
+The first path segment of the board's URL is what `--board` takes: `huggingface` in
+`apply.workable.com/huggingface`.
 
 Workable's widget returns the whole board and filters nothing, so narrow it yourself, for example
 to the postings in France:
@@ -41,8 +41,3 @@ education, such as `Master's Degree` ([every key](../reference.md#fields-by-site
 - When the posting's own city, state, and country match none of its listed places, they become one more place.
 - `workplace_type` is only ever `remote`, because Workable flags only remote postings.
 - A record has no salary or language, because the board does not publish them.
-
-## Requests
-
-The whole board comes in one request. If it fails, the search returns nothing, and `scrape`
-raises [`Stopped`](../reference.md#stopped).

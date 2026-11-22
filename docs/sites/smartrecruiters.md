@@ -19,7 +19,7 @@ jobs = asyncio.run(scrape("smartrecruiters", board="BoschGroup", query="engineer
 
 ## Options
 
-`--board` takes the board token, the part of the board's address that names the employer:
+`--board` takes the company identifier, the first path segment of the board's URL:
 `BoschGroup` in `jobs.smartrecruiters.com/BoschGroup`. Capitalization did not matter in our tests.
 
 SmartRecruiters answers a token it does not know as it answers a board with no postings,
@@ -30,7 +30,7 @@ that the employer has no openings.
 `--remote` keeps the postings SmartRecruiters files as remote, which can include ones whose
 `workplace_type` is `hybrid`.
 For a large board, raise `--results` above its default of 100:
-Bosch Group's board held more than 5,000 postings in our tests.
+Bosch Group's board held thousands of postings in our tests.
 
 ## Fields
 
@@ -49,15 +49,4 @@ language. The department and the workplace type come when the employer set them.
 
 `jobrake smartrecruiters postings` fetches postings by URL: a search result's `url`, such as
 `https://jobs.smartrecruiters.com/BoschGroup/744000158197889`, or the posting's address with its
-title slug. You get what a `--details` search would give, except the `department`, which only a search result carries.
-
-## Requests
-
-jobrake reads the board page after page until it has `--results` postings or the board runs out
-of matches. If a page fails, the search stops with the postings it has, and `scrape`
-raises [`Stopped`](../reference.md#stopped) with them in `partial`.
-An empty page before the number of matches SmartRecruiters reported stops it too: postings that
-closed mid-search may have shifted the pages, so a rerun may find what it skipped.
-
-With `--details`, a posting that SmartRecruiters reports gone, with HTTP 404 or by marking it
-inactive, keeps what its search result had, and so does one jobrake could not fetch.
+title slug. You get what a `--details` search would give, except a field only the search result had.

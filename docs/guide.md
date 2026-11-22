@@ -1,6 +1,5 @@
 # jobrake guide
 
-Each section is one task that spans several sites.
 A site's own options and quirks are on its page under [sites](sites/).
 
 - [Search by keyword and place](#search-by-keyword-and-place)
@@ -16,8 +15,8 @@ A site's own options and quirks are on its page under [sites](sites/).
 
 ## Search by keyword and place
 
-The searches in this section run on Indeed, LinkedIn, and StepStone.
-Choose a site and supply a job title or keywords:
+Indeed, LinkedIn, and StepStone search by keyword and place.
+Choose one and supply a job title or keywords:
 
 ```sh
 jobrake indeed search -q "data scientist" -c nl -l Amsterdam -n 2
@@ -185,8 +184,9 @@ jobrake inomics search -n 500 | jq '[.[] | select(.date != null and .date >= "20
 A LinkedIn, Workday, SmartRecruiters, StepStone, or INOMICS search returns each posting without
 its description. Add `--details` (`details=True`) to fetch each posting during the search.
 The other sites return the description with the search itself.
-A posting that could not be fetched keeps its search result, so you still get every posting.
-Fetch the missed ones later with the site's `postings`.
+A posting that could not be fetched keeps its search result, so you still get every posting,
+but the search ends as [stopped](#recover-from-a-stopped-search), with the missed ones in `failed`.
+Fetch them later with the site's `postings`.
 
 ### Fetch known postings
 

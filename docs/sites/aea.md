@@ -53,8 +53,7 @@ date, and, when JOE has them, the application deadline, the hiring department, a
 
 A few idiosyncrasies of these fields:
 
-- JOE keeps a listing active past its deadline. On 2026-11-17, nearly a third of the active
-  listings were past theirs, so check `expires_at`.
+- JOE may keep a listing active past its deadline, so check `expires_at`.
 - `site_data.status` holds a status such as `Position has been filled` once the employer closes the search.
 - The salary is free text in `site_data.salary_range`, such as `Competitive` or `$145,000/year`,
   so a record has no salary fields.
@@ -64,13 +63,6 @@ A few idiosyncrasies of these fields:
   JOE writes the country in words, so a place has no `country_code`.
 - `posted_at`, `date`, and `expires_at` are calendar dates without a time.
 - `id` joins the JOE issue that carried the listing and the listing's number, such as `2026-02_111477855`.
-
-## Requests
-
-A search reads the JOE listings page with your filters, then the XML export that page links,
-which holds the full text. So a search costs two requests whether it finds 5 listings or 500,
-and one that finds nothing stops after the first. If either request fails, the search stops
-with nothing, and `scrape` raises [`Stopped`](../reference.md#stopped).
 
 ## Terms
 

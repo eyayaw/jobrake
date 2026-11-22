@@ -215,8 +215,8 @@ for job in asyncio.run(main()):
 `scrape` takes the same options as the CLI, as keyword arguments with underscores, and checks
 them before any request. A failed request raises `jobrake.Stopped`, whose `partial` holds the
 postings collected until then.
-To recover from `Stopped` or fetch details later, see the
-[guide](https://github.com/eyayaw/jobrake/blob/main/docs/guide.md).
+To [recover from `Stopped`](https://github.com/eyayaw/jobrake/blob/main/docs/guide.md#recover-from-a-stopped-search)
+or [fetch details later](https://github.com/eyayaw/jobrake/blob/main/docs/guide.md#fetch-known-postings), see the guide.
 See the [reference](https://github.com/eyayaw/jobrake/blob/main/docs/reference.md#python-api) for every function.
 
 ## Supported job boards

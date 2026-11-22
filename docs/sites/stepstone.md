@@ -47,7 +47,7 @@ jobrake stepstone search -q "data scientist" -l Mannheim -r 10 \
 ### Remote
 
 `--remote` applies the filter behind the website's "Nur Home-Office" switch,
-which the listings API honored in our tests on 2026-11-15. With a location,
+which the listings API honored in our tests. With a location,
 it also brings fully remote postings from the rest of the country, marked `regionalExtended`.
 
 ## Fields
@@ -58,12 +58,12 @@ A search gives you each posting's `title`, `company`, `locations`, and dates, it
 posting's page ([every key](../reference.md#fields-by-site)).
 
 - `--details` can move `posted_at` and `date`. The page dates a posting to when it went online,
-  which in our tests was up to 15 hours after the search result's `posted_at`.
+  which in our tests could be hours after the search result's `posted_at`.
 - `locations` holds one place, named as StepStone writes it. For a posting open in several
   cities, that name lists them all. With `--details`, a posting in one city also gets its `city` and `region`.
 - `site_data.labels` holds StepStone's labels, such as `REMOTE`, `EASY_APPLY`, and
   `NO_COVER_LETTER`. `REMOTE` marks a posting that allows home office, but not every such posting carries it.
-- StepStone sends a salary range, but the range is StepStone's own estimate, not the employer's figure, so jobrake leaves it out.
+- StepStone sends a salary range that it estimates itself, so jobrake leaves it out.
 - A record has no application link and no workplace type. A posting only says whether home office
   is possible, in the same words for a fully and a partly remote role.
 - `expires_at` is when StepStone expects to take the posting down.
@@ -73,13 +73,3 @@ posting's page ([every key](../reference.md#fields-by-site)).
 `jobrake stepstone postings` fetches postings by URL: a search result's `url`, such as
 `https://www.stepstone.de/job/14569042`, or the longer address that ends in `--<id>-inline.html`.
 You get what a `--details` search would give, except `site_data`, which only a search result carries.
-
-## Requests
-
-If a search page fails, the search stops with the postings it has, and `scrape`
-raises [`Stopped`](../reference.md#stopped) with them in `partial`.
-It also stops when StepStone sends an empty page before the number of matches it reported.
-Postings may have closed during the search and shifted the pages, so a rerun may find the ones it skipped.
-
-With `--details`, a posting that StepStone has taken down (HTTP 404 or 410), or that jobrake could
-not fetch, keeps what its search result had.

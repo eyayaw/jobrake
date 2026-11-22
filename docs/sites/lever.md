@@ -18,9 +18,8 @@ jobs = asyncio.run(scrape("lever", board="spotify"))
 
 ## Options
 
-`--board` takes the board token, the part of the board's address that names the employer:
-`spotify` in `jobs.lever.co/spotify`.
-A board on Lever's EU host, `jobs.eu.lever.co/<token>`, works the same way.
+Pass `--board` the first path segment of the board's URL, on the global or the EU host:
+`spotify` in `jobs.lever.co/spotify` or `jobs.eu.lever.co/spotify`.
 
 A search takes no query, result limit, or filters.
 Lever filters only on the employer's own labels for location, team, department, and commitment,
@@ -47,9 +46,3 @@ the department, the commitment, the workplace type, and the application link ([e
   so jobrake leaves salary out. Salary text in the description stays in `description`.
 - `locations` holds the primary location first, with its `country_code`, and then the other places,
   named as the employer entered them, such as `London, United Kingdom`.
-
-## Requests
-
-One request to Lever's global host returns the whole board.
-When the global host does not know the token, jobrake asks the EU host instead.
-Any other failure stops the search with nothing, and `scrape` raises [`Stopped`](../reference.md#stopped).

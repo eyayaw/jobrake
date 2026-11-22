@@ -32,7 +32,7 @@ Each ad carries its full text, the institution and its logo, the places, the day
 the application deadline, and the hiring department when the ad names one ([every key](../reference.md#fields-by-site)).
 Candidates apply on EJM, at the ad's `url`, so a record has no separate application link.
 
-- In our read of 2026-10-28, a few ads stayed in the feed past their deadline, so check `expires_at`.
+- In our tests, a few ads stayed in the feed past their deadline, so check `expires_at`.
 - `posted_at` and `date` are the day the ad opened on EJM, without a time.
 - An ad open to `All departments` has no `department`.
 - `site_data` holds the ad's `position_types`, such as `Assistant Professor`, and its
@@ -40,11 +40,6 @@ Candidates apply on EJM, at the ad's `url`, so a record has no separate applicat
 - A place carries the city, region, country code, and coordinates the ad gives, such as
   `Boston, Massachusetts, US`. A few ads list no place, and their `locations` is empty.
 - The feed carries no salary, employment type, or workplace type.
-
-## Requests
-
-One request reads the whole feed. If it fails, you get nothing, and `scrape` raises
-[`Stopped`](../reference.md#stopped).
 
 ## Terms
 

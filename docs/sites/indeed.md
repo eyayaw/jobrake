@@ -47,14 +47,13 @@ Leave `--location` out to search the whole country; `--radius` then has no effec
 
 ### Query
 
-jobrake sends the query unchanged to Indeed's `what` field.
 Indeed matches loosely, so a returned posting may not contain every word you typed.
-Where that matters, run several narrow queries and filter the results yourself.
+Narrow the query with the operators below, and filter the results yourself where that is not enough.
 
 Indeed's mobile API treats `title:` and `company:` as field restrictions.
 Inside `title:`, parentheses for grouping terms and `OR` work.
 Quotation marks narrow phrase searches, and a leading minus can exclude a term.
-Note that these operators can be combined.
+The operators combine, as the last two lines below show.
 
 ```text
 title:(data OR research)
@@ -170,7 +169,7 @@ Choose the employer whose postings you want.
 
 `jobrake indeed attributes <query>` reads the first 100 postings that match a job title or
 keywords and prints their attribute codes, as `id` and `name`. It applies no posting-age restriction.
-Those postings carry several (hundred) attributes between them.
+Those postings carry hundreds of attributes between them.
 Search the list by label:
 
 ```sh
@@ -195,7 +194,7 @@ You may also get the language, the employment and workplace type, the salary ran
 application link, and the employer's Indeed page and logo.
 Every key is in the [reference](../reference.md#fields-by-site).
 
-A few things about these fields may surprise you:
+Indeed's own conventions shape some of these fields:
 
 - `posted_at` is the posting's publication time, which can be weeks before the date
   Indeed sorts and filters by. See [Posting age](#posting-age).
@@ -203,7 +202,7 @@ A few things about these fields may surprise you:
   `part_time`, `contract`, `temporary`, `internship`, or `per_diem`.
 - `workplace_type` is `remote` or `hybrid`, from Indeed's Remote and Hybrid work tags,
   whose codes are `DSQF7` and `PAXZC`.
-  In our tests, Indeed rarely tagged a posting both, and such a posting has no `workplace_type`.
+  Indeed tags some postings both, and such a posting has no `workplace_type`.
 - A salary given as one figure fills both `salary_min` and `salary_max`,
   and a range open at one end fills only that end.
 - `language` is Indeed's two-letter code. Indeed still uses the old codes `iw` for Hebrew
@@ -212,9 +211,8 @@ A few things about these fields may surprise you:
 
 ## Requests
 
-Indeed gives one search 1,000 results at most, and jobrake warns you when a search reaches that.
+Indeed gives one search 1,000 results at most.
 Split a bigger search by place or by `--max-age-hours`.
 
-If a request fails, or Indeed starts sending pages it already sent, the search stops with what it
-has found: the CLI writes it and exits 1, and `scrape` raises [`Stopped`](../reference.md#stopped)
-with it in `partial`. Wait a while and run the search again.
+If Indeed starts sending pages it already sent, the search stops with what it has found.
+Wait a while and run it again.

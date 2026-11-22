@@ -40,7 +40,6 @@ jobs = asyncio.run(scrape("linkedin", query="data scientist", geoid="102011674",
 
 ### Query
 
-jobrake sends the query unchanged to LinkedIn's `keywords` field.
 LinkedIn matches loosely, so a returned posting may not contain every word you typed.
 Where that matters, run several narrow queries and filter the results yourself.
 
@@ -61,7 +60,7 @@ for an **ambiguous place name**, so include the region and country whenever poss
 ```
 
 If LinkedIn cannot make sense of the name, it returns nothing, as if no posting matched.
-jobrake warns you when that happens. Try a fuller name (i.e., an unambiguous place name) or a geoId.
+Try a fuller name (i.e., an unambiguous place name) or a geoId.
 
 `--geoid` takes a geoId, such as `--geoid 102011674`. This sends that ID straight to LinkedIn
 and `--location` becomes optional. Without a geoId, jobrake searches by the location text.
@@ -75,7 +74,7 @@ A search by geoId ignores the radius for some places, such as Amsterdam and Utre
 ### Employers
 
 Pass an employer's numeric ID to `--company-ids` to find job postings at that company.
-For LinkedIn, we can provide several employers. Use [`jobrake linkedin companies`](#lookups) to find an employer's ID.
+You can pass several. Use [`jobrake linkedin companies`](#lookups) to find an employer's ID.
 
 ```sh
 jobrake linkedin search -l "Netherlands" -q "data scientist" --company-ids 11348
@@ -171,7 +170,7 @@ months) it asks for, the salary range, the applicant count, and whether you appl
 (`apply_type` is `onsite`) or on the employer's site (`offsite`).
 Every key is in the [reference](../reference.md#fields-by-site).
 
-A few things about these fields may surprise you:
+Some of these fields hold less than their names promise:
 
 - `applicants` stops at 200, because LinkedIn shows any larger count as "Over 200".
 - LinkedIn keeps serving postings that no longer take applications.
@@ -204,12 +203,12 @@ posting, sometimes more.
 Each run keeps its own pace, so we advise against running two at once from the same IP:
 together they reach LinkedIn's limit sooner.
 
-LinkedIn serves about 1,000 postings per search at most, and jobrake warns you when a search
-reaches that. Split a bigger search by place or by `--max-age-hours`.
+LinkedIn serves about 1,000 postings per search at most.
+Split a bigger search by place or by `--max-age-hours`.
 
-Even at this pace, LinkedIn turns some requests away, up to a quarter of them in our tests.
+Even at this pace, LinkedIn turns some requests away.
 jobrake retries each one up to five times. If LinkedIn keeps refusing, the search stops with what
-it has found: the CLI writes it and exits 1, and `scrape` raises [`Stopped`](../reference.md#stopped) with it in `partial`.
+it has found.
 Wait a while, then run the search again.
 The postings already fetched come from the [cache](../reference.md#configuration).
 

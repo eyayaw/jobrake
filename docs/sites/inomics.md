@@ -47,7 +47,7 @@ The codes keep INOMICS's own spelling, typos included: `practicioner` and `senio
 such as `J` for labor and demographic economics. Repeat `--category` or `--jel` to match any of several values.
 Different options must all match. jobrake refuses a category or field INOMICS does not know, because INOMICS would quietly return nothing.
 
-INOMICS listed 112 jobs on 2026-11-17, so pass `--results 500` to read them all.
+Pass `--results 500` to read more jobs than the default.
 
 INOMICS has no date filter, so a search takes no `--max-age-hours`.
 To keep the recent postings, pipe the results through `jq` on `date`:
@@ -61,7 +61,7 @@ jobrake inomics search -n 500 | jq '[.[] | select(.date != null and .date >= "20
 INOMICS shows each search result as a card with the title, the employer, the place, the posting
 date, its types, such as `Postdoc Job`, and sometimes whether the job is `remote` or `hybrid`.
 `--details` adds the description and the application deadline from each posting's page,
-and usually the place's region and country code ([every key](../reference.md#fields-by-site)).
+and, when the page names them, the place's region and country code ([every key](../reference.md#fields-by-site)).
 
 - `date` is the day INOMICS shows as posted, and INOMICS moves it to the day it reposts a posting.
   A posting INOMICS also lists as a scholarship is dated on its page by the day it was entered,
@@ -70,9 +70,9 @@ and usually the place's region and country code ([every key](../reference.md#fie
   With `--details`, it is the hiring organization the page names.
 - `locations` is the place as the card writes it, such as `Saarbrücken, Germany`, and sometimes
   only a country. With `--details`, the page's place replaces it when the page names one.
-  Usually that is the same place, but a page without a city drops the card's city, and a page
+  Often that is the same place, but a page without a city drops the card's city, and a page
   without a country code names the place by city and region, such as `Umeå, Västerbotten` for the
-  card's `Umeå, Sweden`. In our tests on 2026-11-18, the pages without a country code were a scholarship and a program.
+  card's `Umeå, Sweden`.
 - `expires_at` is the application deadline, which many postings leave out.
 - `site_data.types` holds the card's types, such as `Assistant Professor / Lecturer Job`.
   A posting can also carry the type of a program, scholarship, or course, such as `PhD Program`.
@@ -83,15 +83,6 @@ and usually the place's region and country code ([every key](../reference.md#fie
 `jobrake inomics postings` fetches postings by URL: a search result's `url`, such as
 `https://inomics.com/job/1555749`, or the posting's address with its title slug.
 It reads only the page, so its records lack `workplace_type` and `site_data`, which only a card carries.
-
-## Requests
-
-A search is one request for the first `--results` postings, to the endpoint INOMICS's own search page reads from.
-If it fails, the search stops with nothing. If INOMICS answers with fewer postings than both `--results`
-and the total it reports, the search stops with the postings it got, and `scrape` raises [`Stopped`](../reference.md#stopped) with them in `partial`.
-
-With `--details`, a posting that INOMICS has taken down (HTTP 404 or 410), or that jobrake could
-not fetch, keeps its card's fields.
 
 ## Terms
 
