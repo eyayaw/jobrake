@@ -11,11 +11,11 @@ lazy from bs4 import BeautifulSoup
 from jobrake.fetchkit import Fetcher
 from jobrake.models import JobDict, Stopped, make_job
 from jobrake.sites.postings import fill_details
-from jobrake.sites.responses import collect
+from jobrake.sites.responses import collect, failure
 from jobrake.utils import checked
 
-from .client import SEARCH_URL, job_id, numeric, on_linkedin, paced_fetch
-from .pages import WORKERS, posting_fields
+from .client import SEARCH_URL, numeric, paced_fetch
+from .pages import WORKERS, card, posting_fields
 
 logger = logging.getLogger(__name__)
 
@@ -31,20 +31,21 @@ def _parse_page(html: str) -> tuple[list[JobDict], int]:
     soup = BeautifulSoup(html, "html.parser")
     cards = soup.find_all("div", class_="base-search-card")
     jobs = []
-    for card in cards:
-        link = card.find("a", class_="base-card__full-link")
+    for tag in cards:
+        link = tag.find("a", class_="base-card__full-link")
         if link is None or not link.get("href"):
             continue
         url = str(link["href"]).split("?")[0]
-        posting_id = job_id(url)
-        # details=True requests this address, so it must be LinkedIn's.
-        if not (posting_id and on_linkedin(url)):
+        # postings and a details search fetch the posting this address names, so card must read it.
+        try:
+            posting_id = card(url)["id"]
+        except ValueError:
             continue
 
-        title_tag = card.find("span", class_="sr-only")
-        company_tag = card.find("h4", class_="base-search-card__subtitle")
-        location_tag = card.find("span", class_="job-search-card__location")
-        time_tag = card.find("time")
+        title_tag = tag.find("span", class_="sr-only")
+        company_tag = tag.find("h4", class_="base-search-card__subtitle")
+        location_tag = tag.find("span", class_="job-search-card__location")
+        time_tag = tag.find("time")
 
         jobs.append(
             make_job(
@@ -74,8 +75,8 @@ async def _pages(
     while start < MAX_START:
         page = {k: v for k, v in (params | {"start": start}).items() if v is not None}
         result = await paced_fetch(fetcher, f"{SEARCH_URL}?{urlencode(page)}")
-        if result.error:
-            raise Stopped(f"linkedin request failed: {result.error}")
+        if result.error or result.status is None:
+            raise Stopped(f"linkedin request failed: {failure(result)}")
         # A page without cards ends the search as complete, so only the search endpoint's HTTP 200
         # counts as a results page.
         if result.status != 200 or urlsplit(result.url).path != urlsplit(SEARCH_URL).path:

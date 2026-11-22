@@ -20,14 +20,23 @@ from jobrake.utils import finite, report_progress
 UNREADABLE = (TypeError, ValueError, LookupError, AttributeError, RecursionError)
 
 
+def failure(result: FetchResult) -> str | None:
+    """Say why a response carries no data, or return None for a site's HTTP 200."""
+    # A site serves its data with HTTP 200. Another 2xx or a redirect the fetcher did not follow
+    # carries no data, and reading its body could pass for an empty result.
+    if result.error:
+        return result.error
+    if result.status is None:
+        return "the fetcher reported no HTTP status"
+    return None if result.status == 200 else f"HTTP {result.status}"
+
+
 def _stop_if_failed(result: FetchResult, site: str, board: str | None, unknown: str | None) -> None:
     if result.status == 404 and unknown:
         raise Stopped(unknown)
-    # A site serves its data with HTTP 200. Another 2xx or a redirect the fetcher did not follow
-    # carries no data, and reading its body could pass for an empty result.
-    if result.error or result.status != 200:
+    if reason := failure(result):
         where = f" for board {board!r}" if board else ""
-        raise Stopped(f"{site} request{where} failed: {result.error or f'HTTP {result.status}'}")
+        raise Stopped(f"{site} request{where} failed: {reason}")
 
 
 def _unreadable(site: str, error: Exception) -> Stopped:

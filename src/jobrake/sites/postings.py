@@ -197,6 +197,11 @@ def postings_of(
             if named["id"] in found
         }
 
+    def _readable(*, references: list[str]) -> None:
+        # So postings.check refuses every reference the call would.
+        for reference in references:
+            card(reference)
+
     # Checked names a function's site after its module.
     postings.__module__ = card.__module__
-    return checked(postings)
+    return checked(validator=_readable)(postings)

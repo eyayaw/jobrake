@@ -31,8 +31,10 @@ applicant tracking systems, and it depends on `httpx` and `bs4`.
   fixed pool of workers, and Indeed's `countries.py` maps ISO country codes to editions.
 - `sites/responses.py`: the response reading the sites share. `read_json`, `read_xml`, and
   `read_html` raise `Stopped` for a failed request or an unreadable response, and the first two for
-  an unknown board. `UNREADABLE` holds the exceptions a parser raises for data it cannot read,
-  which those readers and `parse_postings` catch, and `json_ld` reads a page's schema.org nodes.
+  an unknown board. `failure` says why a response holds no data: its `error`, no status, or a
+  status other than HTTP 200. `UNREADABLE` holds the exceptions a parser raises for data it cannot
+  read, which those readers and `parse_postings` catch, and `json_ld` reads a page's schema.org
+  nodes.
   `json_list` checks the posting list, `json_page` checks a page's list and its total, `cut_short`
   builds the `Stopped` of an empty page before that total, and `parse_postings` skips a malformed
   posting with a warning.
@@ -53,7 +55,7 @@ applicant tracking systems, and it depends on `httpx` and `bs4`.
   which wraps it in a `Checked` that runs those checks and the site's validator on every call,
   or alone through `check`, `menu_codes`, which maps filter values to codes of a site's fixed menu,
   `report_progress`, which `collect` and the posting loop call to log their progress records,
-  and the JSON value, text, number, and date helpers.
+  and the JSON value, text, number, date, and URL helpers.
 - `models.py`: `JobDict`, its `Place`, `make_job`, `make_places`, and `Stopped`.
 - `fetchkit.py`: the `Fetcher` protocol, `FetchResult`, and `HttpxFetcher`.
 - `cache.py`: one SQLite table of `JobDict` records keyed by site and ID, and the shared `CACHE`.
@@ -103,17 +105,18 @@ and the contract test in `tests/test_scrape.py` need no edit.
   A name two sites share keeps one meaning and unit. Every function a site exports carries
   `@checked`, which raises `TypeError` for an unknown, missing, or wrongly typed argument and
   `ValueError` for a value out of range, a blank required string, or a blank list entry,
-  all before the first request. A rule of the site's own on a `search` option, such as Indeed's
-  country editions, goes in the validator `search` passes as `@checked(validator=_validate)`,
-  so `check` raises everything `scrape` would, without a request. The exception is a value only
-  the site's live catalog can confirm, such as a UN Careers duty station, which `search` checks
-  after reading that catalog. `site_options` rejects an annotation or a boolean default that breaks
-  these rules when the module is imported, and
+  all before the first request. A rule of the site's own on an option, such as Indeed's country
+  editions or a `postings` reference its `card` must read, goes in the validator the function
+  passes as `@checked(validator=_validate)`, so `check` raises everything the call would, without
+  a request. The exception is a value only the site's live catalog can confirm, such as a UN
+  Careers duty station, which `search` checks after reading that catalog. `site_options` rejects
+  an annotation or a boolean default that breaks these rules when the module is imported, and
   `test_a_site_meets_the_site_contract` checks that `search` takes no positional option and that a
   shared name keeps its type.
-- A caller can tell a cut-short result from a complete one. A failed request, or a page that ends a
-  search short of the total the site reported, raises `Stopped`, whose `partial` holds what was
-  collected. A site's own result cap warns and returns, because a rerun meets it again.
+- A caller can tell a cut-short result from a complete one. A failed request, an answer other than
+  HTTP 200 among them, or a page that ends a search short of the total the site reported, raises
+  `Stopped`, whose `partial` holds what was collected. A site's own result cap warns and returns,
+  because a rerun meets it again.
   A details search that could not read every posting also puts the URLs of the unread ones in
   `failed`, so the site's `postings` can retry them even when a later search drops them.
   `postings` never raises `Stopped` and leaves a failed reference out of its result.

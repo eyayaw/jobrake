@@ -957,7 +957,8 @@ that sends a POST when `json` is given.
 With `follow_redirects=False`, return the first response,
 including its `Location` header. LinkedIn uses this to pace each redirect hop.
 `fetch` returns a `FetchResult` and reports a failed request in its `error`.
-A status of 400 or more sets `error` on its own.
+A status of 400 or more sets `error` on its own,
+and jobrake reads a response as data only when its `status` is 200.
 An exception your own `Fetcher` raises propagates out of `scrape()`.
 
 ## Request limits and partial results

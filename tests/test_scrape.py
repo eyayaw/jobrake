@@ -10,7 +10,9 @@ from hypothesis import given
 from hypothesis import strategies as st
 
 from jobrake import Stopped, check, cli, identify, scrape, sites
+from jobrake.models import make_job
 from jobrake.sites import SITES
+from jobrake.sites.postings import readable_url
 from jobrake.utils import checked, site_options
 
 
@@ -166,6 +168,8 @@ def test_check_and_scrape_reject_bad_options_before_any_request(site, kwargs, er
             "https://www.indeed.com/jobs?q=economist&vjk=1a2b3c4d5e6f7a8b",
             ("indeed", "1a2b3c4d5e6f7a8b"),
         ),
+        # HTTPS's own port names the same address.
+        ("https://www.indeed.com:443/viewjob?jk=1a2b3c4d5e6f7a8b", ("indeed", "1a2b3c4d5e6f7a8b")),
         (
             "https://NVIDIA.wd5.myworkdayjobs.com/en-US/NVIDIAExternalCareerSite"
             "/job/US-CA-Santa-Clara/Networking-Architect_JR1996377/?source=email",
@@ -173,6 +177,10 @@ def test_check_and_scrape_reject_bad_options_before_any_request(site, kwargs, er
         ),
         (
             "https://jobs.smartrecruiters.com/BoschGroup/744000158197889-product-expert?trk=x",
+            ("smartrecruiters", "744000158197889"),
+        ),
+        (
+            "https://jobs.smartrecruiters.com/Bosch Group/744000158197889",
             ("smartrecruiters", "744000158197889"),
         ),
     ],
@@ -190,6 +198,9 @@ def test_identify_names_the_site_and_id_a_search_gives(link, named):
         # A posting link carries neither credentials nor a port.
         "https://acme@www.indeed.com/viewjob?jk=1a2b3c4d5e6f7a8b",
         "https://www.indeed.com:8443/viewjob?jk=1a2b3c4d5e6f7a8b",
+        # A host name's labels are never empty and never start or end with a hyphen.
+        "https://-.indeed.com/viewjob?jk=1a2b3c4d5e6f7a8b",
+        "https://www..linkedin.com/jobs/view/4449382178",
         "https://example.com/jobs/view/4449382178",
         "https://inomics.com/scholarship/postdoctoral-scholarship-1555359",
         # A posting ID holds digits 0-9, and \d also matches other scripts' digits.
@@ -208,6 +219,23 @@ def test_card_names_a_link_urlsplit_refuses_in_its_own_message(site):
     # urlsplit raises its own ValueError, "Invalid IPv6 URL", for an unbalanced bracket.
     with pytest.raises(ValueError, match=r"^'https://\[/job/1' is (not|neither) "):
         SITES[site].card("https://[/job/1")
+
+
+def test_a_card_url_that_reads_back_as_another_posting_is_refused():
+    # postings would key the posting under the ID card reads, not the card's own.
+    def card(url):
+        return make_job(site="acme", id="2", url=url)
+
+    with pytest.raises(TypeError, match="does not read back as posting '1'"):
+        readable_url(card, "1", "https://acme.test/1")
+
+
+@pytest.mark.parametrize(
+    "site", [site for site, module in SITES.items() if "postings" in module.__all__]
+)
+def test_postings_check_refuses_a_reference_the_call_refuses(site):
+    with pytest.raises(ValueError, match=r"^'not a url' is (not|neither) "):
+        SITES[site].postings.check(references=["not a url"])
 
 
 @given(st.one_of(st.text(), st.text().map("https://".__add__)))

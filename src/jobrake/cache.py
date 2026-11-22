@@ -87,7 +87,7 @@ class Cache:
     Each row read passes through ``make_job``, so a row it rejects, such as one whose keys no longer
     fit ``JobDict`` or whose ``applicants`` is text, is a miss, which the next fetch replaces.
     A storage or decoding failure logs one warning with the path and disables this instance,
-    so callers see misses and keep fetching. A lock another process holds past SQLite's busy
+    so callers see misses and keep fetching. A lock another connection holds past SQLite's busy
     timeout skips the cache for ``LOCK_PAUSE`` seconds.
 
     Attributes:
@@ -139,7 +139,7 @@ class Cache:
             self.close()
         self._paused_until = time.monotonic() + LOCK_PAUSE
         logger.warning(
-            "cache %s is locked by another process, so jobrake skips it for %d seconds",
+            "cache %s is locked by another connection, so jobrake skips it for %d seconds",
             self.path,
             LOCK_PAUSE,
         )
@@ -160,7 +160,7 @@ class Cache:
         Read the fresh records of one site for the requested posting IDs.
 
         A row ``make_job`` rejects is left out, and the count of rejected rows logs at DEBUG.
-        A lock another process holds returns an empty dict, as does a call in the pause after one.
+        A lock another connection holds returns an empty dict, as does a call in the pause after one.
         Any other storage or decoding failure also returns an empty dict and disables the cache.
         """
         ids = list(dict.fromkeys(ids))
@@ -197,7 +197,7 @@ class Cache:
         """
         Store records, each under its own site and ID, replacing an older row.
 
-        A lock another process holds skips the write, as does the pause after one, and any other
+        A lock another connection holds skips the write, as does the pause after one, and any other
         storage or serialization failure disables the cache.
         """
         conn = self._connect()
