@@ -42,7 +42,7 @@ SECTIONS = {
 # The JEL Classifications menu takes 00 for a listing open to any field, and the JEL letters.
 JEL_FIELDS = ("00", *"ABCDEFGHIJKLMNOPQRYZ")
 # JOE answers an unknown code with no listings, so a search refuses one before its request.
-_codes = partial(menu_codes, "JOE")
+_codes = partial(menu_codes, "AEA JOE")
 
 
 def _validate(*, section: list[str] | None, jel: list[str] | None, **_: object) -> None:
@@ -194,16 +194,18 @@ async def search(
             "ListingsForm[recent_only][0][from]": f"{since:%m/%d/%Y}",
             "ListingsForm[recent_only][0][to]": f"{datetime.now(UTC):%m/%d/%Y}",
         }
-    logger.info("reading the aea listings page")
+    logger.info("reading the AEA JOE listings page")
     page = await fetcher.fetch(f"{SEARCH_URL}?{urlencode(fields)}")
     export, dates = read_html(page, _listings, site="aea")
     if export is None:
         return []
-    logger.info("reading the aea export of %d listings", len(dates))
+    logger.info("reading the AEA JOE export of %d listings", len(dates))
     positions = read_xml(await fetcher.fetch(export), _positions, site="aea")
     jobs = parse_postings(positions, partial(_parse_position, dates=dates), site="aea")
     if undated := sum(job["date"] is None for job in jobs):
-        logger.warning("%d aea listings of the export are missing from the listings page", undated)
+        logger.warning(
+            "%d AEA JOE listings of the export are missing from the listings page", undated
+        )
     order = {joe_id: rank for rank, joe_id in enumerate(dates)}
     return sorted(jobs, key=lambda job: order.get(job["id"], len(order)))
 

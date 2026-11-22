@@ -17,6 +17,31 @@ lazy from bs4.element import Tag
 
 logger = logging.getLogger(__name__)
 
+# A site's name in a message. Logger names, progress labels, and the CLI use the site's key.
+SITE_NAMES = {
+    "academictransfer": "AcademicTransfer",
+    "aea": "AEA JOE",
+    "ashby": "Ashby",
+    "econjobmarket": "EconJobMarket",
+    "greenhouse": "Greenhouse",
+    "indeed": "Indeed",
+    "inomics": "INOMICS",
+    "lever": "Lever",
+    "linkedin": "LinkedIn",
+    "personio": "Personio",
+    "smartrecruiters": "SmartRecruiters",
+    "stepstone": "StepStone",
+    "uncareers": "UN Careers",
+    "workable": "Workable",
+    "workday": "Workday",
+}
+
+
+def site_name(site: str) -> str:
+    """Return the name a message gives a site, or the key of a site without one, such as a test's."""
+    return SITE_NAMES.get(site, site)
+
+
 _BLOCK_TAGS = ("p", "div", "li", "ul", "ol", "h1", "h2", "h3", "h4", "h5", "h6", "table", "tr", "br", )  # fmt: skip
 # Characters that render as nothing and can split a word or reverse a run of text. ZWJ, ZWNJ,
 # and the LRM and RLM marks stay, because Persian, Arabic, and Indic text use them.

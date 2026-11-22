@@ -81,7 +81,7 @@ async def search(fetcher: Fetcher) -> list[JobDict]:
         Stopped: The request failed or EconJobMarket sent an unreadable response.
             ``partial`` is empty.
     """
-    logger.info("reading the econjobmarket ad feed")
+    logger.info("reading the EconJobMarket ad feed")
     result = await fetcher.fetch(API_URL)
     ads = read_json(result, json_list, site="econjobmarket")
     return parse_postings(ads, _parse_ad, site="econjobmarket")

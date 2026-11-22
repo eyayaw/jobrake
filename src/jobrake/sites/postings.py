@@ -9,7 +9,7 @@ from jobrake import cache
 from jobrake.fetchkit import Fetcher
 from jobrake.models import IDENTITY_FIELDS, JobDict, Stopped, make_job
 from jobrake.sites.responses import UNREADABLE
-from jobrake.utils import Checked, checked, report_progress
+from jobrake.utils import Checked, checked, report_progress, site_name
 
 # A site's reader of the posting at a card's URL: the posting's fields, or None when the site
 # reports the posting gone. It raises Stopped for a posting it could not read, and Halt when no
@@ -106,7 +106,7 @@ async def _read_each(
                 raise error from None
         logger.warning(
             "reading %s postings stopped at %d of %d: %s",
-            site,
+            site_name(site),
             len(found),
             len(unique),
             errors.exceptions[0],
@@ -131,7 +131,7 @@ async def fill_details(
     filled = [_merge(card, record) if (record := found.get(card["id"])) else card for card in cards]
     if failed := [card["url"] for card in cards if card["id"] not in found]:
         raise Stopped(
-            f"{cards[0]['site']} could not fetch the details of {len(failed)} of {len(cards)} "
+            f"{site_name(cards[0]['site'])} could not fetch the details of {len(failed)} of {len(cards)} "
             "postings. Pass their URLs to postings to retry them",
             partial=filled,
             failed=failed,

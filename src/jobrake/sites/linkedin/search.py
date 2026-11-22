@@ -76,23 +76,23 @@ async def _pages(
         page = {k: v for k, v in (params | {"start": start}).items() if v is not None}
         result = await paced_fetch(fetcher, f"{SEARCH_URL}?{urlencode(page)}")
         if result.error or result.status is None:
-            raise Stopped(f"linkedin request failed: {failure(result)}")
+            raise Stopped(f"LinkedIn request failed: {failure(result)}")
         # A page without cards ends the search as complete, so only the search endpoint's HTTP 200
         # counts as a results page.
         if result.status != 200 or urlsplit(result.url).path != urlsplit(SEARCH_URL).path:
             raise Stopped(
-                f"linkedin sent HTTP {result.status} from {result.url} for the page at offset "
+                f"LinkedIn sent HTTP {result.status} from {result.url} for the page at offset "
                 f"{start}, not a results page. Wait a while, then rerun"
             )
         cards, raw = _parse_page(result.text)
         if not raw and start == 0 and params["geoId"]:
-            logger.warning("linkedin returned no postings for geoId=%s", params["geoId"])
+            logger.warning("LinkedIn returned no postings for geoId=%s", params["geoId"])
         elif not raw and start == 0:
             # An unresolvable location and a genuine no-results page both return an empty 200.
             # The guest geocoder often needs a region and country. "Berlin" works,
             # while bare "Amsterdam" does not.
             logger.warning(
-                "linkedin returned no postings for location=%r. "
+                "LinkedIn returned no postings for location=%r. "
                 "A location without its region and country may not resolve; try "
                 "'Amsterdam, North Holland, Netherlands'",
                 params["location"],
@@ -104,8 +104,8 @@ async def _pages(
         # end. Advance by the server's own card count.
         start += raw
     logger.warning(
-        "linkedin's guest search serves nothing past offset %d, fewer postings than requested. "
-        "Narrow the search to reach more of its inventory",
+        "LinkedIn's guest search serves nothing past offset %d, fewer postings than requested. "
+        "Split the search, by place or by posting age, to reach the rest",
         MAX_START,
     )
 
@@ -169,9 +169,9 @@ async def search(
             other than digits 0-9.
     """
     if location:
-        logger.info("searching linkedin for %r in %r", query, location)
+        logger.info("searching LinkedIn for %r in %r", query, location)
     else:
-        logger.info("searching linkedin for %r with geoId %s", query, geoid)
+        logger.info("searching LinkedIn for %r with geoId %s", query, geoid)
     params: dict[str, object] = {
         "keywords": query,
         "location": location or None,

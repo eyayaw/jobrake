@@ -185,8 +185,6 @@ keywords the same way, and `site_data` holds JSON.
 A place name can itself contain `; `, such as Greenhouse's `Remote, Canada; Remote, United States`,
 so read JSON or JSONL to count places.
 
-A command that fails partway still writes the postings it got and exits 1.
-
 ### As a library
 
 ```python

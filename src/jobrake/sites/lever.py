@@ -82,7 +82,7 @@ async def search(
         ValueError: ``board`` is blank.
     """
     token = board.strip()
-    logger.info("reading lever board %r", token)
+    logger.info("reading Lever board %r", token)
     for api_url in API_URLS:
         result = await fetcher.fetch(f"{api_url}/{quote(token, safe='')}?mode=json")
         if result.status != 404:
@@ -93,7 +93,7 @@ async def search(
         json_list,
         site="lever",
         board=token,
-        unknown=f"lever has no board {token!r} on its global or EU host. Pass the token that "
+        unknown=f"Lever has no board {token!r} on its global or EU host. Pass the token that "
         "ends the employer's board URL, jobs.lever.co/<token> or jobs.eu.lever.co/<token>",
     )
     return parse_postings(postings, _parse_posting, site="lever")

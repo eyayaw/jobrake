@@ -2,6 +2,15 @@
 
 ## [Unreleased](https://github.com/eyayaw/jobrake/compare/v0.37.0...HEAD)
 
+### Changed
+
+- Errors, warnings, and logs name a site as its page does, such as `LinkedIn request failed` and
+  `unknown AEA JOE JEL field`. They used the site's key, such as `linkedin`, which commands still take.
+- Indeed's `--company-ids` help and its error call the value an employer key, as Indeed's page does.
+  They said company ID.
+- The warning at Indeed's and LinkedIn's result cap advises splitting the search by place or by
+  posting age. It said to narrow the search.
+
 ## [0.37.0](https://github.com/eyayaw/jobrake/releases/tag/v0.37.0) - 2026-11-22
 
 ### Changed

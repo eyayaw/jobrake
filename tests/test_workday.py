@@ -387,7 +387,7 @@ def test_a_card_without_a_requisition_id_is_skipped(caplog):
     jobs = asyncio.run(workday.search(StubFetcher({"/jobs": ok(page(malformed))}), board=BOARD))
     # An ID with underscores of its own stays whole.
     assert [job["id"] for job in jobs] == ["nvidia:JR_2024_00123", "nvidia:JR2019010"]
-    assert caplog.text.count("skipping malformed workday posting") == 2
+    assert caplog.text.count("skipping malformed Workday posting") == 2
 
 
 def test_a_card_whose_url_card_cannot_read_back_is_skipped():
@@ -429,4 +429,4 @@ def test_paging_ends_at_results_or_the_first_total_and_stops_at_an_early_empty_p
     pages = [page(numbered(20), total=43), page(numbered(20, 20), total=0)]
     fetcher = PagedFetcher([*pages, page(numbered(3, 40), total=0)])
     assert len(asyncio.run(workday.search(fetcher, board=BOARD, results=100))) == 43
-    assert "workday reports at most 43 postings per search" in caplog.text
+    assert "Workday reports at most 43 postings per search" in caplog.text

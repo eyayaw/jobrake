@@ -11,6 +11,7 @@ from jobrake.fetchkit import FetchResult
 from jobrake.models import make_job
 from jobrake.sites import SITES
 from jobrake.sites.responses import collect, json_list, parse_postings, read_json
+from jobrake.utils import site_name
 
 UNKNOWN = "acme has no board 'x'"
 UNREADABLE = r"^acme sent a response this version cannot read \("
@@ -75,7 +76,9 @@ def test_a_malformed_posting_is_skipped_with_a_warning(caplog):
 @pytest.mark.parametrize("site", ["ashby", "greenhouse", "lever", "workable"])
 def test_a_board_site_names_an_unknown_board(site):
     fetcher = StubFetcher({"": not_found()})
-    with pytest.raises(Stopped, match=rf"^{site} has no board 'acme/x'.*\. Pass the token") as stop:
+    with pytest.raises(
+        Stopped, match=rf"^{site_name(site)} has no board 'acme/x'.*\. Pass the token"
+    ) as stop:
         asyncio.run(SITES[site].search(fetcher, board="acme/x"))
     assert stop.value.partial == []
     assert fetcher.requests

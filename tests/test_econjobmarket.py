@@ -122,4 +122,4 @@ def test_an_ad_whose_url_holds_no_number_is_skipped(caplog):
     fetcher = StubFetcher({"json/Ads": ok(json.dumps(malformed))})
     jobs = asyncio.run(econjobmarket.search(fetcher))
     assert [job["id"] for job in jobs] == ["12558"]
-    assert "skipping malformed econjobmarket posting" in caplog.text
+    assert "skipping malformed EconJobMarket posting" in caplog.text

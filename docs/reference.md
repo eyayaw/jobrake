@@ -233,7 +233,8 @@ the key in `jk`, or in `vjk` on a search page.
 Any other link, including a bare LinkedIn ID or a Greenhouse posting, gives `None`.
 
 ```python
-jobrake.identify("https://nl.indeed.com/viewjob?jk=1a2b3c4d5e6f7a8b")  # ('indeed', '1a2b3c4d5e6f7a8b')
+jobrake.identify("https://nl.indeed.com/viewjob?jk=1a2b3c4d5e6f7a8b")
+# ('indeed', '1a2b3c4d5e6f7a8b')
 ```
 
 ### Site functions

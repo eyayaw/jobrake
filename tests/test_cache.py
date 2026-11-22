@@ -94,7 +94,7 @@ def test_a_row_that_no_longer_fits_job_dict_is_a_miss(make_cache, caplog):
     run_sql(cache, "INSERT INTO jobs VALUES ('linkedin', '333', ?, unixepoch())", (retyped,))
     with caplog.at_level(logging.DEBUG, logger="jobrake.cache"):
         assert cache.get("linkedin", ["111", "222", "333"]) == {"222": other}
-    assert "2 rows for linkedin did not fit JobDict" in caplog.text
+    assert "2 rows for LinkedIn did not fit JobDict" in caplog.text
     cache.put([JOB])
     assert cache.get("linkedin", ["111"]) == {"111": JOB}
 

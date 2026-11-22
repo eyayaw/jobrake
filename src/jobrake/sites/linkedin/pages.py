@@ -288,7 +288,7 @@ async def _request(fetcher: Fetcher, url: str) -> FetchResult | None:
         # paced_fetch has spent its retries, so the next posting would likely be refused too.
         # Stop instead of repeating them for every remaining posting.
         raise Halt(
-            "linkedin is rate limiting this IP. Wait a while, then rerun to fill in the rest"
+            "LinkedIn is rate limiting this IP. Wait a while, then rerun to fill in the rest"
         )
     if result.status in (404, 410):
         return None

@@ -209,6 +209,6 @@ def test_a_json_boolean_is_neither_a_vacancy_number_nor_a_menu_code():
 def test_a_jobs_page_without_a_readable_token_stops_the_search_before_the_api(payload):
     page = f'<script type="application/json" id="__NUXT_DATA__">{payload}</script>'
     fetcher = PagedFetcher([page])
-    with pytest.raises(Stopped, match="academictransfer sent a response this version cannot read"):
+    with pytest.raises(Stopped, match="AcademicTransfer sent a response this version cannot read"):
         asyncio.run(academictransfer.search(fetcher))
     assert len(fetcher.requests) == 1

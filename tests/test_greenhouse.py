@@ -96,4 +96,4 @@ def test_a_posting_without_an_integer_id_is_skipped(caplog):
     fetcher = StubFetcher({"boards/airbnb/jobs": board(malformed)})
     jobs = asyncio.run(greenhouse.search(fetcher, board="airbnb"))
     assert [job["id"] for job in jobs] == ["8264827"]
-    assert "skipping malformed greenhouse posting" in caplog.text
+    assert "skipping malformed Greenhouse posting" in caplog.text

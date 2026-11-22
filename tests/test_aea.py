@@ -123,7 +123,7 @@ def test_a_search_reads_the_page_for_dates_and_the_export_for_the_rest(caplog):
             },
         },
     ]
-    assert "skipping malformed aea posting" in caplog.text
+    assert "skipping malformed AEA JOE posting" in caplog.text
     page, export = fetcher.requests
     assert parse_qs(urlsplit(page).query) == {
         "ListingsForm[lpp]": ["5000"],

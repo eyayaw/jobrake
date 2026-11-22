@@ -154,7 +154,7 @@ class Fabrics:
         """
         fabric = result.headers.get("x-li-fabric")
         logger.debug(
-            "linkedin %s %s %s",
+            "LinkedIn %s %s %s",
             fabric,
             "refused" if result.status == 429 else "answered",
             f"a request pinned to {pinned}" if pinned else "an unpinned request",
@@ -176,7 +176,7 @@ class Fabrics:
                 ]
         if fabric and (found := _LIDC.search(result.headers.get("set-cookie", ""))):
             if fabric not in self.known:
-                logger.debug("linkedin fabric %s found, %d known", fabric, len(self.known) + 1)
+                logger.debug("LinkedIn fabric %s found, %d known", fabric, len(self.known) + 1)
             self.known[fabric] = found.group(1)
 
 

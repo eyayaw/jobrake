@@ -135,7 +135,7 @@ def test_an_opening_becomes_a_record_with_a_place_per_duty_station(caplog):
             },
         }
     ]
-    assert "skipping malformed uncareers posting" in caplog.text
+    assert "skipping malformed UN Careers posting" in caplog.text
 
 
 def test_search_pages_by_job_id_until_results_or_the_total_and_stops_at_an_early_empty_page():

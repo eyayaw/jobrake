@@ -151,14 +151,14 @@ def _pages(
         # so only a search without filters hints at a misspelling.
         if offset == 0 and not cards and total <= 0 and params.keys() == {"limit"}:
             logger.info(
-                "smartrecruiters board %r returned no postings. SmartRecruiters answers the same "
+                "SmartRecruiters board %r returned no postings. SmartRecruiters answers the same "
                 "for an unknown board, so check the identifier that follows "
                 "jobs.smartrecruiters.com/ in the board's URL",
                 token,
             )
         return cards, total
 
-    where = f"smartrecruiters board {token!r}"
+    where = f"SmartRecruiters board {token!r}"
     return offset_pages(read, _parse_card, site="smartrecruiters", where=where)
 
 
@@ -195,7 +195,7 @@ async def search(
         ValueError: ``board`` is blank, or ``results`` or ``max_age_hours`` is below 1.
     """
     token = board.strip()
-    logger.info("reading smartrecruiters board %r", token)
+    logger.info("reading SmartRecruiters board %r", token)
     params = _filters(query, max_age_hours, remote=remote) | {"limit": min(PAGE_SIZE, results)}
     jobs = await collect("smartrecruiters", _pages(fetcher, token, params), results)
     return await fill_details(fetcher, jobs, _posting_fields) if details else jobs

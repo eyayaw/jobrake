@@ -84,7 +84,7 @@ def _one_per_shortcode(jobs: list[JobDict]) -> list[JobDict]:
 async def search(
     fetcher: Fetcher,
     *,
-    board: Annotated[str, "board token from the employer's careers page URL, e.g., huggingface"],
+    board: Annotated[str, "board token from the employer's board URL, e.g., huggingface"],
 ) -> list[JobDict]:
     """
     List every published posting on one employer's Workable board.
@@ -100,7 +100,7 @@ async def search(
         ValueError: ``board`` is blank.
     """
     token = board.strip()
-    logger.info("reading workable board %r", token)
+    logger.info("reading Workable board %r", token)
     result = await fetcher.fetch(f"{API_URL}/{quote(token, safe='')}?details=true")
     postings, company = read_json(
         result,
@@ -108,8 +108,8 @@ async def search(
         lambda account: (json_list(account, "jobs"), as_str(account.get("name"))),
         site="workable",
         board=token,
-        unknown=f"workable has no board {token!r}. Pass the token that follows the host in the "
-        "employer's careers page URL, apply.workable.com/<token>",
+        unknown=f"Workable has no board {token!r}. Pass the token that follows the host in the "
+        "employer's board URL, apply.workable.com/<token>",
     )
     return _one_per_shortcode(
         parse_postings(postings, lambda posting: _parse_posting(posting, company), site="workable")

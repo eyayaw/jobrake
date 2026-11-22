@@ -249,7 +249,7 @@ async def search(
         # now. Its menu offers 1, 7, and 30, but it takes any whole number and truncates a fraction
         # (measured 2026-11-17), so the hours round up to whole days in integer arithmetic.
         config["span"] = [str(-(-max_age_hours // 24))]
-    logger.info("reading uncareers openings%s", f" with {config}" if config else "")
+    logger.info("reading UN Careers openings%s", f" with {config}" if config else "")
     return await collect("uncareers", _pages(fetcher, config, min(PAGE_SIZE, results)), results)
 
 

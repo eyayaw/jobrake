@@ -139,7 +139,7 @@ async def _pages(
     tenant, site_url, api_url, _ = _career_site(board)
     parse = functools.partial(_parse_card, site_url=site_url, tenant=tenant)
     unknown = (
-        f"workday has no career site at {board!r}. Copy the URL of the employer's "
+        f"Workday has no career site at {board!r}. Copy the URL of the employer's "
         f"job search page, such as {EXAMPLE_BOARD}"
     )
     offset, total = 0, None
@@ -158,14 +158,14 @@ async def _pages(
         # so the first page's total stands.
         total = page_total if total is None else total
         if not cards and offset < total:
-            raise cut_short(f"workday site {site_url}", total, offset)
+            raise cut_short(f"Workday site {site_url}", total, offset)
         if not cards:
             break
         offset += len(cards)
         yield parse_postings(cards, parse, site="workday"), total
     if total >= MAX_TOTAL:
         logger.warning(
-            "workday reports at most %d postings per search, fewer than requested. "
+            "Workday reports at most %d postings per search, fewer than requested. "
             "Narrow the search with a query to reach the rest",
             MAX_TOTAL,
         )
@@ -254,7 +254,7 @@ async def search(
             lists the URLs of the postings that missed theirs.
         ValueError: ``board`` is not a Workday career site URL.
     """
-    logger.info("searching workday site %s for %r", _career_site(board)[1], query)
+    logger.info("searching Workday site %s for %r", _career_site(board)[1], query)
     pages = _pages(fetcher, board, query, min(PAGE_SIZE, results))
     jobs = await collect("workday", pages, results)
     return await fill_details(fetcher, jobs, _detail_fields) if details else jobs

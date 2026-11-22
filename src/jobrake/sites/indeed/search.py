@@ -345,14 +345,14 @@ async def _pages(
             break
         if cursor in cursors:
             raise Stopped(
-                f"indeed sent the cursor of an earlier page again after {served} results, so the "
+                f"Indeed sent the cursor of an earlier page again after {served} results, so the "
                 "search cannot reach the rest. Rerun it to start a new cursor chain"
             )
         cursors.add(cursor)
     if served >= MAX_RESULTS:
         logger.warning(
-            "indeed serves at most %d results per search, fewer than requested. "
-            "Narrow the search to reach more of its inventory",
+            "Indeed serves at most %d results per search, fewer than requested. "
+            "Split the search, by place or by posting age, to reach the rest",
             MAX_RESULTS,
         )
 
@@ -364,8 +364,8 @@ def _validate(
     # Indeed intersects the employer keys it receives, so a search takes one.
     if len(company_ids or []) > 1:
         raise ValueError(
-            "indeed takes one company ID per search. "
-            "Search each company on its own and combine the results"
+            "Indeed takes one employer key per search. "
+            "Search each employer on its own and combine the results"
         )
     if language is not None and re.fullmatch(r"[A-Za-z]{2}", language) is None:
         raise ValueError(
@@ -383,7 +383,7 @@ async def search(
     radius: Annotated[int, "search radius in kilometers"] = 40,
     results: Annotated[int, "maximum number of postings"] = 10,
     max_age_hours: Annotated[int | None, "maximum posting age in hours"] = None,
-    company_ids: Annotated[list[str] | None, "Indeed company ID, one per search"] = None,
+    company_ids: Annotated[list[str] | None, "Indeed employer key, one per search"] = None,
     remote: Annotated[bool, "only postings Indeed tags Remote"] = False,
     language: Annotated[str | None, "two-letter posting language code, e.g., en"] = None,
     attributes: Annotated[list[str] | None, "attribute codes a posting must all carry"] = None,
@@ -414,7 +414,7 @@ async def search(
     base_url = f"https://{subdomain}.indeed.com"
     headers = {**API_HEADERS, "indeed-co": api_code}
     logger.info(
-        "searching indeed for %r in %r", query, f"{location}, {country}" if location else country
+        "searching Indeed for %r in %r", query, f"{location}, {country}" if location else country
     )
     build = functools.partial(
         _build_query,

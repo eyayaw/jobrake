@@ -12,7 +12,7 @@ lazy from bs4 import BeautifulSoup
 
 from jobrake.fetchkit import FetchResult
 from jobrake.models import JobDict, Stopped
-from jobrake.utils import finite, report_progress
+from jobrake.utils import finite, report_progress, site_name
 
 # What a parser raises for site data it cannot read: a missing key or index, a value of the wrong
 # type, text that does not parse, such as JSON, a number, a date, or a URL, or a value nested deeper
@@ -36,12 +36,12 @@ def _stop_if_failed(result: FetchResult, site: str, board: str | None, unknown: 
         raise Stopped(unknown)
     if reason := failure(result):
         where = f" for board {board!r}" if board else ""
-        raise Stopped(f"{site} request{where} failed: {reason}")
+        raise Stopped(f"{site_name(site)} request{where} failed: {reason}")
 
 
 def _unreadable(site: str, error: Exception) -> Stopped:
     return Stopped(
-        f"{site} sent a response this version cannot read ({error!r}), likely an API change"
+        f"{site_name(site)} sent a response this version cannot read ({error!r}), likely an API change"
     )
 
 
@@ -72,7 +72,7 @@ def read_json[T](
         # 2026-11-14 on two career sites).
         if result.text.lstrip().startswith("<"):
             raise Stopped(
-                f"{site} sent a web page where its API sends JSON, so the site may be "
+                f"{site_name(site)} sent a web page where its API sends JSON, so the site may be "
                 "under maintenance. Try again later"
             ) from error
         raise _unreadable(site, error) from error
@@ -206,7 +206,7 @@ def parse_postings(
         try:
             jobs.append(parse(item))
         except UNREADABLE as error:
-            logger.warning("skipping malformed %s posting: %r", site, error)
+            logger.warning("skipping malformed %s posting: %r", site_name(site), error)
     return jobs
 
 
@@ -238,7 +238,7 @@ async def offset_pages[T](
         if offset >= total:
             return
     if offset < total:
-        raise cut_short(where or site, total, offset)
+        raise cut_short(where or site_name(site), total, offset)
 
 
 async def collect(

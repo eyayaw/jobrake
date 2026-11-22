@@ -278,13 +278,13 @@ async def search(
         params["country"] = country.strip().upper()
     if fields:
         params["economics"] = ",".join(dict.fromkeys(fields))
-    logger.info("searching inomics for %r", query)
+    logger.info("searching INOMICS for %r", query)
     result = await fetcher.fetch(f"{SEARCH_URL}?{urlencode(params)}", headers=API_HEADERS)
     cards, total = read_json(result, _cards, site="inomics")
     jobs = parse_postings(cards, _parse_card, site="inomics")[:results]
     if len(cards) < min(results, total):
         raise Stopped(
-            f"inomics counted {total} postings but sent {len(cards)}, so the result may be "
+            f"INOMICS counted {total} postings but sent {len(cards)}, so the result may be "
             "incomplete. A rerun reads the current list",
             partial=jobs,
         )

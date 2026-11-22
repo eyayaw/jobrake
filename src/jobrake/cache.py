@@ -13,6 +13,7 @@ from gettext import ngettext
 from pathlib import Path
 
 from jobrake.models import JobDict, make_job
+from jobrake.utils import site_name
 
 logger = logging.getLogger(__name__)
 
@@ -189,7 +190,9 @@ class Cache:
         if rejected:
             rows = ngettext("%d row", "%d rows", rejected) % rejected
             logger.debug(
-                "cache: %s for %s did not fit JobDict and will be fetched again", rows, site
+                "cache: %s for %s did not fit JobDict and will be fetched again",
+                rows,
+                site_name(site),
             )
         return found
 

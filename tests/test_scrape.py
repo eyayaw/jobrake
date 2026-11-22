@@ -13,7 +13,12 @@ from jobrake import Stopped, check, cli, identify, scrape, sites
 from jobrake.models import make_job
 from jobrake.sites import SITES
 from jobrake.sites.postings import readable_url
-from jobrake.utils import checked, site_options
+from jobrake.utils import SITE_NAMES, checked, site_options
+
+
+def test_every_site_has_the_name_its_messages_use():
+    # A site missing here would show its key, such as "academictransfer", in its errors.
+    assert SITE_NAMES.keys() == SITES.keys()
 
 
 @pytest.mark.parametrize("site", SITES)
@@ -102,7 +107,7 @@ def test_a_site_function_the_cli_cannot_build_fails_when_decorated(function, mat
             ValueError,
             "company_ids holds a blank entry",
         ),
-        ("indeed", {"country": "us", "company_ids": ["a", "b"]}, ValueError, "one company ID"),
+        ("indeed", {"country": "us", "company_ids": ["a", "b"]}, ValueError, "one employer key"),
         ("linkedin", {}, ValueError, "location is required"),
         ("linkedin", {"location": "   "}, ValueError, "location is required"),
         ("linkedin", {"geoid": ""}, ValueError, "must use digits"),
@@ -126,7 +131,7 @@ def test_a_site_function_the_cli_cannot_build_fails_when_decorated(function, mat
             "aea",
             {"jel": ["Labor"]},
             ValueError,
-            "unknown JOE JEL field 'Labor'. Use one of 00, A, B",
+            "unknown AEA JOE JEL field 'Labor'. Use one of 00, A, B",
         ),
         ("inomics", {"category": ["Dean"]}, ValueError, "unknown INOMICS category 'Dean'"),
         ("inomics", {"jel": ["Y"]}, ValueError, "unknown INOMICS JEL field 'Y'. Use one of A, B"),

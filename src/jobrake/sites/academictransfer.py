@@ -167,7 +167,7 @@ async def search(
     params: dict[str, Any] = {"vacancy_type": kind, "is_active": "true", "ordering": "-start_date"}
     if keyword := query.strip():
         params["search"] = keyword
-    logger.info("searching academictransfer for %r", query)
+    logger.info("searching AcademicTransfer for %r", query)
     token = read_html(await fetcher.fetch(TOKEN_PAGE), _token, site="academictransfer")
     pages = _pages(fetcher, params, token, min(PAGE_SIZE, results))
     return await collect("academictransfer", pages, results)

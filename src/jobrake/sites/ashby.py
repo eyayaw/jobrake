@@ -104,14 +104,14 @@ async def search(
         ValueError: ``board`` is blank.
     """
     token = board.strip()
-    logger.info("reading ashby board %r", token)
+    logger.info("reading Ashby board %r", token)
     result = await fetcher.fetch(f"{API_URL}/{quote(token, safe='')}?includeCompensation=true")
     postings = read_json(
         result,
         lambda page: json_list(page, "jobs"),
         site="ashby",
         board=token,
-        unknown=f"ashby has no board {token!r}. Pass the token that ends the employer's "
+        unknown=f"Ashby has no board {token!r}. Pass the token that ends the employer's "
         "board URL, jobs.ashbyhq.com/<token>",
     )
     return parse_postings(postings, _parse_posting, site="ashby")

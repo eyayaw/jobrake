@@ -24,7 +24,7 @@ from .fetchkit import HttpxFetcher
 from .io import RENDERERS
 from .models import JobDict, Stopped
 from .sites import SITES
-from .utils import site_options
+from .utils import site_name, site_options
 
 logger = logging.getLogger(__name__)
 
@@ -286,7 +286,7 @@ def _fetched(
     """
     for reference, job in found.items():
         if job is None:
-            logger.warning("%s is no longer on %s", reference, args.site)
+            logger.warning("%s is no longer on %s", reference, site_name(args.site))
     jobs = (job for job in found.values() if job is not None)
     # Like a stopped search, a fetch with a failed reference writes what it got and exits 1.
     status = 1 if any(reference not in found for reference in args.references) else None
@@ -331,7 +331,7 @@ def _write_jobs(args: argparse.Namespace, jobs: list[JobDict], fmt: str) -> int 
         logger.info(ngettext("found %d job", "found %d jobs", count), count)
         return _write_stdout(RENDERERS[fmt](jobs))
     if not jobs:
-        logger.warning("no jobs found, so %s was not created", args.output)
+        logger.warning("no postings found, so %s was not created", args.output)
         return None
     text = RENDERERS[fmt](jobs)
     created = written = False

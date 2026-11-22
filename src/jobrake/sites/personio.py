@@ -122,7 +122,7 @@ async def _feed(fetcher: Fetcher, board: str, language: str | None = None) -> li
         _positions,
         site="personio",
         board=board,
-        unknown=f"personio serves no feed for board {board!r}, so the board does not exist or its "
+        unknown=f"Personio serves no feed for board {board!r}, so the board does not exist or its "
         "employer switched the feed off. Pass the name before .jobs.personio.de in the employer's "
         "career site URL",
     )
@@ -150,7 +150,7 @@ async def search(
         ValueError: ``board`` is not a subdomain.
     """
     token = board.strip().lower()
-    logger.info("reading personio board %r", token)
+    logger.info("reading Personio board %r", token)
     jobs = {job["id"]: job for job in await _feed(fetcher, token)}
     for language in LANGUAGES:
         blank = [posting for posting, job in jobs.items() if "description" not in job]

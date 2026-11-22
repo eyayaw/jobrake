@@ -16,7 +16,7 @@ from pathlib import Path
 import pytest
 from fakes import StubFetcher
 
-from jobrake import Stopped, cli
+from jobrake import Stopped, cli, utils
 from jobrake.models import JOB_FIELDS, make_job
 from jobrake.sites import SITES
 
@@ -161,10 +161,11 @@ def test_a_lookup_prints_its_candidates_or_fails(
 def test_postings_command_writes_what_it_fetched_and_fails_on_a_failed_reference(
     fake_site, fetchers, monkeypatch, capsys, caplog, references, written, status
 ):
+    monkeypatch.setitem(utils.SITE_NAMES, "fakesite", "Fake Site")
     monkeypatch.setattr(sys, "argv", ["jobrake", "fakesite", "postings", *references])
     assert cli.main() == status
     assert json.loads(capsys.readouterr().out) == [fake_site.job(n) for n in written]
-    assert ("gone is no longer on fakesite" in caplog.text) == ("gone" in references)
+    assert ("gone is no longer on Fake Site" in caplog.text) == ("gone" in references)
     assert all(fetcher.closed for fetcher in fetchers)
 
 
@@ -255,12 +256,12 @@ def test_a_search_the_library_rejects_is_a_cli_error_before_any_request(
 
 
 def test_a_stopped_search_writes_what_it_collected_and_fails(run_cli, stub_search, capsys, caplog):
-    stub_search("indeed", Stopped("indeed request failed: HTTP 429", partial=JOBS[:1]))
+    stub_search("indeed", Stopped("Indeed request failed: HTTP 429", partial=JOBS[:1]))
     assert run_cli() == 1
     assert json.loads(capsys.readouterr().out) == JOBS[:1]
-    assert "indeed request failed: HTTP 429" in caplog.text
+    assert "Indeed request failed: HTTP 429" in caplog.text
 
-    stub_search("indeed", Stopped("indeed request failed: HTTP 429"))
+    stub_search("indeed", Stopped("Indeed request failed: HTTP 429"))
     assert run_cli() == 1
     assert capsys.readouterr().out == ""
 

@@ -197,7 +197,7 @@ def test_a_failed_language_request_keeps_the_postings_read():
 def test_a_board_without_a_feed_stops_with_nothing():
     fetcher = StubFetcher({"/xml": not_found()})
     with pytest.raises(
-        Stopped, match=r"^personio serves no feed for board 'acme', so the board"
+        Stopped, match=r"^Personio serves no feed for board 'acme', so the board"
     ) as stop:
         asyncio.run(personio.search(fetcher, board="acme"))
     assert stop.value.partial == []
@@ -209,7 +209,7 @@ def test_a_board_without_a_feed_stops_with_nothing():
 )
 def test_a_body_that_is_not_the_feed_is_unreadable(body, error):
     with pytest.raises(
-        Stopped, match=rf"^personio sent a response this version cannot read \({error}"
+        Stopped, match=rf"^Personio sent a response this version cannot read \({error}"
     ):
         asyncio.run(personio.search(StubFetcher({"/xml": ok(body)}), board="tado"))
 

@@ -170,12 +170,12 @@ async def _posting_fields(fetcher: Fetcher, url: str) -> dict[str, Any] | None:
     if result.status in (404, 410):
         return None
     if reason := failure(result):
-        raise Stopped(f"stepstone request for {url} failed: {reason}")
+        raise Stopped(f"StepStone request for {url} failed: {reason}")
     page = BeautifulSoup(result.text, "html.parser")
     posting = next(iter(json_ld(page, {"JobPosting"})), None)
     if posting is None:
         raise Stopped(
-            f"stepstone served {url} without its posting data, so the site may be under "
+            f"StepStone served {url} without its posting data, so the site may be under "
             "maintenance or its markup changed. Try again later"
         )
     return _parse_posting(posting, result.text)
@@ -259,7 +259,7 @@ async def search(
             failed.
         ValueError: ``results`` or ``max_age_hours`` is below 1, or ``radius`` is below 0.
     """
-    logger.info("searching stepstone for %r in %r", query, location or "Germany")
+    logger.info("searching StepStone for %r in %r", query, location or "Germany")
     shared = _params(query, location, radius, max_age_hours, str(uuid.uuid4()), remote=remote)
     jobs = await collect("stepstone", _pages(fetcher, shared, min(PAGE_SIZE, results)), results)
     return await fill_details(fetcher, jobs, _posting_fields) if details else jobs
