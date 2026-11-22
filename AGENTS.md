@@ -180,9 +180,15 @@ which `tests/test_docs.py` requires. `scrape`, the CLI, and the contract test in
   it needs them, are Options, Lookups, Fields, Requests, and Terms, in that order.
 - Keep CLI help terse. It comes from the `Annotated` help of each option and the first docstring
   line of each site and site function. Caveats and site quirks go on the site's page.
-- The docs tell readers what they need to use jobrake. Leave out input normalization,
-  request sizes, and other internals. A measured behavior says so where it is stated,
-  with when and on what it was measured.
+- Write the docs for someone running a job search who wants to get on with it, as a colleague who
+  has used jobrake would: say what they need, trust them with the obvious, and say plainly what we
+  measured, what we don't know, and what we advise against. The authors are "we".
+  Learn the voice from the owner's own text in the README and the LinkedIn and Indeed pages, and
+  don't copy its surface: a sentence frame repeated across pages reads as a template.
+- Leave out what jobrake already prints, its errors, warnings, and logs, and what `--help` says,
+  along with input normalization, request sizes, and other internals.
+  Mark measured behavior as measured, with its date, and claim no more than the measurement shows:
+  "usually" or "most" needs the count behind it.
 
 ## Sites
 
