@@ -64,8 +64,9 @@ applicant tracking systems, and it depends on `httpx` and `bs4`.
 - `tests/`: offline, built on the stub fetcher in `tests/fakes.py`.
   `tests/fakesite.py` is a fake site the tests register.
 
-A new site is a module under `sites/` and one entry in `SITES`. `scrape`, the CLI,
-and the contract test in `tests/test_scrape.py` need no edit.
+A new site is a module under `sites/`, one entry in `SITES`, and its page, `docs/sites/<site>.md`,
+which `tests/test_docs.py` requires. `scrape`, the CLI, and the contract test in
+`tests/test_scrape.py` need no edit.
 
 ## Non-goals
 
@@ -97,8 +98,8 @@ and the contract test in `tests/test_scrape.py` need no edit.
   A site treats two of its entries as one place only when its response says so.
   Where one source's fields override another's, an empty `locations` overrides nothing.
 - `site_data` holds fields only one site carries, under that site's own names, as JSON values.
-  Each site's fields section in the reference lists its keys, and a key moves into `JobDict` once a
-  second site shares its meaning.
+  Each site's page lists its keys, and a key moves into `JobDict` once a second site shares its
+  meaning.
 - A site owns its options. `search` declares only the options its server applies, keyword-only,
   as `Annotated[T, "help"]` with `T` one of `str`, `int`, `bool`, `list[str]`, or `T | None`,
   and with defaults in the signature. A boolean option defaults to `False`.
@@ -171,12 +172,17 @@ and the contract test in `tests/test_scrape.py` need no edit.
 - The tagline is one image with no feature list:
   "The job boards shed new postings every day. Bring a rake." It heads the README. The package and
   repository descriptions say what jobrake does.
-- Keep the README as a short landing page. Put detailed usage and output in `docs/guide.md`,
-  and each site's fields and request behavior in `docs/reference.md`.
+- The README holds what a user needs to start: installation, a run with its real output, the
+  options every site shares, the output formats, the sites, and how jobrake requests and caches.
+- `docs/guide.md` holds tasks that span sites, one section each. `docs/reference.md` holds the
+  record, the fields by site, the commands, the Python API, and configuration.
+- `docs/sites/<site>.md` holds everything about one site and reads on its own. Its sections, when
+  it needs them, are Options, Lookups, Fields, Requests, and Terms, in that order.
 - Keep CLI help terse. It comes from the `Annotated` help of each option and the first docstring
-  line of each site and site function. Caveats and site quirks go in the guide.
-- The guide tells readers what they need to use jobrake. Leave out input normalization,
-  request sizes, and other internals.
+  line of each site and site function. Caveats and site quirks go on the site's page.
+- The docs tell readers what they need to use jobrake. Leave out input normalization,
+  request sizes, and other internals. A measured behavior says so where it is stated,
+  with when and on what it was measured.
 
 ## Sites
 
