@@ -1,5 +1,59 @@
 # Changelog
 
+## [Unreleased](https://github.com/eyayaw/jobrake/compare/v0.37.0...HEAD)
+
+## [0.37.0](https://github.com/eyayaw/jobrake/releases/tag/v0.37.0) - 2026-11-22
+
+### Changed
+
+- **Breaking:** jobrake reads a site's answer as data only when it comes with HTTP 200. Another
+  status below 400, such as a 204 or an unfollowed redirect, stops a search or lookup with
+  `Stopped` and leaves a posting unfetched, and so does a `FetchResult` from a caller's `Fetcher`
+  that sets no `status`. jobrake read such an answer's body as data.
+- **Breaking:** `identify` gives `None` for an Indeed link with credentials or a port other than
+  443, as for LinkedIn, and for a LinkedIn or Indeed host with a label that is no DNS label, such
+  as `-.indeed.com` or `a_b.linkedin.com`. It named the posting. `linkedin.postings` raises
+  `ValueError` for such a host, which it requested.
+- The docs give each site one page, `docs/sites/<site>.md`, and links to the old per-site
+  headings in the guide and reference no longer resolve.
+- A date or timestamp jobrake cannot read, in ISO 8601 or in epoch milliseconds, logs a warning
+  that names its field and the posting's URL, such as `posted_at 1763000000 of https://...`. The
+  warning showed only the value.
+- `date` falls back to `posted_at` when the given `date` does not parse, as it does when `date` is
+  missing.
+
+### Fixed
+
+- `jobrake -h`, `--version`, a usage error, or a crash keeps its exit status when the reader of its
+  output closes the pipe, as in `jobrake -h | true`. It exited 120.
+- `check` and `scrape` report an integer option past 4,300 digits as having too many digits. They
+  called a negative one too large.
+- A StepStone posting on the prime meridian or the equator keeps its coordinates. Only 0, 0 means
+  StepStone gave no point, but a single zero dropped both.
+- A posting reference or Workday board that Python cannot split as a URL, such as
+  `https://[/job/1`, gets the site's own error and its example. The error was `Invalid IPv6 URL`.
+- A SQLite lock that another process holds past the 5-second busy timeout skips the cache for a
+  minute, after which jobrake uses it again. It disabled the cache until the process exited.
+- An Indeed posting URL reads back as its own key when the key holds `&`.
+- `.check()` on Indeed's `places`, `companies`, and `attributes` rejects an unknown country
+  edition, and `.check()` on a site's `postings` rejects a reference that `postings` refuses. Both
+  passed, though the call itself raises `ValueError`.
+- A StepStone, UN Careers, or AcademicTransfer search skips a card whose ID is a JSON `true`,
+  which it gave the ID `True`. AcademicTransfer leaves out a `true` contract type or education
+  level, which it read as code 1.
+- A StepStone, SmartRecruiters, Workday, or LinkedIn search skips a card whose URL the site's
+  `postings` could not read back as that posting, such as one with a non-numeric StepStone ID, a
+  SmartRecruiters company that is blank or holds `/`, `?`, or `#`, a Workday path outside `/job/`
+  or with a query, or a LinkedIn link off a posting's page. Such a SmartRecruiters card could end
+  a details search with `ValueError`.
+- A LinkedIn applicant count past float range is left out. One past 4,300 digits ended a
+  `postings` call or a details search with `ValueError`.
+- A cached record whose detail other than a date no longer has its field's type, such as
+  `applicants` as text or `workplace_type` as a number, is a cache miss and is fetched again.
+- `make_job` refuses an integer detail past float range, and such an integer inside `site_data`
+  becomes `None`. One past 4,300 digits, which Python cannot write as JSON, disabled the cache when
+  the record was stored.
+
 ## [0.36.0](https://github.com/eyayaw/jobrake/releases/tag/v0.36.0) - 2026-11-20
 
 ### Changed
