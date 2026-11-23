@@ -57,6 +57,7 @@ applicant tracking systems, and it depends on `httpx` and `bs4`.
   `report_progress`, which `collect` and the posting loop call to log their progress records,
   and the JSON value, text, number, date, and URL helpers.
 - `models.py`: `JobDict`, its `Place`, `make_job`, `make_places`, and `Stopped`.
+- `countries.py`: the ISO 3166-1 table and `alpha2`, which `checked` and `make_places` share.
 - `fetchkit.py`: the `Fetcher` protocol, `FetchResult`, and `HttpxFetcher`.
 - `cache.py`: one SQLite table of `JobDict` records keyed by site and ID, and the shared `CACHE`.
 - `cli.py` builds `jobrake <site> <command>` from `SITES`, one command per function a site exports,
@@ -83,9 +84,10 @@ which `tests/test_docs.py` requires. `scrape`, the CLI, and the contract test in
 - `board`: the token, or for Workday the career site URL, that names one employer's board on an ATS
   site, such as `airbnb` on Greenhouse. Every ATS site declares it as a required `str` named
   `board`, with the short flag `-b`.
-- `country`: a country's ISO 3166-1 alpha-2 code, in either case, such as `de`.
-  A site that searches one country edition at a time takes it and maps it to the site's own code.
-  It replaces country names and Indeed's codes.
+- `country`: a country's ISO 3166-1 code, alpha-2 or alpha-3, in either case, such as `de` or `deu`.
+  `checked` rejects anything else and passes the site the upper-case alpha-2 code, which the site
+  translates to its own form. A place's `country_code` is the same upper-case alpha-2 code, and
+  `make_places` converts a site's alpha-3 code to it. It replaces country names and Indeed's codes.
 - One record. Every site returns `JobDict` records with the same keys, types, and units.
   The identity keys `site`, `id`, and `url` and the summary keys `title`, `company`, `locations`,
   and `date` are always present. A detail key appears only when it has a value.

@@ -74,8 +74,9 @@ Each place in `locations` has a `name`, the site's label for it or its parts joi
 when the site gives no label,
 and carries `city`, `region`, `country_code`, `latitude`, and `longitude` only
 when the site gives them for that place.
-`country_code` has the form of an ISO 3166-1 alpha-2 code, such as `US`,
-and jobrake checks the form only.
+`country_code` is an ISO 3166-1 alpha-2 code, such as `US`. jobrake converts a site's alpha-3 code
+to alpha-2, and leaves the key out when the site gives no code or something else, such as a
+country name.
 jobrake parses nothing out of a place's name, so a place named `Seattle, WA` carries no `city`
 unless the site sent one. A place the site lists twice with the same parts appears once.
 Places that share a name but differ in any part, such as `Remote` in two countries, each appear.

@@ -269,7 +269,8 @@ file, call `jobrake.check` on each. It raises what the search would, without a r
 ```python
 import jobrake
 
-jobrake.check("indeed", query="economist", country="zz")  # ValueError: unknown Indeed country 'zz'
+# ValueError: Indeed has no edition for 'SI'
+jobrake.check("indeed", query="economist", country="si")
 ```
 
 ## Show progress

@@ -5,6 +5,7 @@ import re
 import reprlib  # repr refuses an integer past 4,300 digits, and reprlib shortens it
 from typing import Any, Literal, NotRequired, TypedDict, cast, get_args
 
+from jobrake.countries import alpha2
 from jobrake.utils import as_int, as_str, finite, iso_date, well_formed
 
 logger = logging.getLogger(__name__)
@@ -18,8 +19,7 @@ class Place(TypedDict, closed=True):
     One place a posting names, with the parts the site gives for it.
 
     ``name`` is the site's label for the place, or its city, region, and country code joined when
-    the site gives no label. ``country_code`` is two uppercase letters in the form of an ISO 3166-1
-    alpha-2 code. ``make_places`` checks the form only, so an unassigned code such as ``ZZ`` stays.
+    the site gives no label. ``country_code`` is an ISO 3166-1 alpha-2 code in upper case.
     Nothing is parsed out of a label.
     """
 
@@ -96,16 +96,16 @@ _SCALAR_CHECKS = {
     if name not in _OWN_RULES
 }
 _PLACE_TEXT = ("city", "region", "country_code")
-_ALPHA2 = re.compile(r"[A-Za-z]{2}")
 
 
 def _place(entry: object) -> dict[str, Any]:
     """
     Normalize one place, leaving out a blank or malformed part.
 
-    A place without a name is named from its city, region, and country code. A ``country_code``
-    that is not two letters, such as a country name, is left out. The result has no ``name`` when
-    the place has neither a name nor a text part.
+    A place without a name is named from its city, region, and country code. An alpha-3
+    ``country_code`` is converted to alpha-2, and anything that is not an assigned ISO 3166-1 code,
+    such as a country name or ``ZZ``, is dropped. The result has no ``name`` when the place
+    has neither a name nor a text part.
 
     Raises:
         TypeError: ``entry`` is not an object or has a key that is not a ``Place`` field.
@@ -118,7 +118,7 @@ def _place(entry: object) -> dict[str, Any]:
     for key in _PLACE_TEXT:
         text = (as_str(entry.get(key)) or "").strip()
         if key == "country_code":
-            text = text.upper() if _ALPHA2.fullmatch(text) else ""
+            text = alpha2(text) or ""
         if text:
             parts[key] = text
     for key in ("latitude", "longitude"):

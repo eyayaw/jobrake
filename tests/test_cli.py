@@ -239,7 +239,7 @@ def test_invalid_site_arguments_fail_before_scraping(monkeypatch, stub_search):
     ("argv", "message"),
     [
         (["linkedin", "search"], "location is required without a geoid"),
-        (["indeed", "search", "-c", "atlantis"], "unknown Indeed country 'atlantis'"),
+        (["indeed", "search", "-c", "si"], "Indeed has no edition for 'SI'"),
     ],
 )
 def test_a_search_the_library_rejects_is_a_cli_error_before_any_request(

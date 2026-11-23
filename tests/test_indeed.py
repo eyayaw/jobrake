@@ -85,7 +85,7 @@ def test_company_lookup_keeps_usable_keys_in_indeed_order():
     assert params["country"] == ["NL"]
     for name, country, message in [
         (" ", "us", "is blank"),
-        ("ABN", "atlantis", "unknown Indeed country"),
+        ("ABN", "si", "Indeed has no edition for 'SI'"),
     ]:
         with pytest.raises(ValueError, match=message):
             asyncio.run(indeed.companies(fetcher, name, country=country))
@@ -129,8 +129,8 @@ def test_places_lists_edition_suggestions():
 @pytest.mark.parametrize("lookup", [indeed.places, indeed.companies, indeed.attributes])
 def test_a_lookup_check_rejects_an_unknown_edition(lookup):
     text = dict.fromkeys(site_options(lookup), "x")  # the lookup's text and its country
-    with pytest.raises(ValueError, match="unknown Indeed country 'atlantis'"):
-        lookup.check(**text | {"country": "atlantis"})
+    with pytest.raises(ValueError, match="Indeed has no edition for 'SI'"):
+        lookup.check(**text | {"country": "si"})
 
 
 def test_a_posting_url_reads_back_as_its_key():
@@ -148,6 +148,9 @@ def test_an_iso_code_selects_its_edition():
         ("GB", "GB", "uk"),
         ("my", "MY", "malaysia"),
         (" nl ", "NL", "nl"),
+        # checked hands Indeed the alpha-2 code of an alpha-3 code and of UK.
+        ("deu", "DE", "de"),
+        ("uk", "GB", "uk"),
     ):
         fetcher = StubFetcher({"apis.indeed.com": ok(json.dumps(indeed_payload(["a"])))})
         (job,) = asyncio.run(indeed.search(fetcher, query="x", country=country))
@@ -523,7 +526,7 @@ def test_attribute_lookup_preserves_distinct_codes_and_skips_malformed_entries()
     assert len(fetcher.requests) == 1
     for query, country, message in (
         (" ", "us", "is blank"),
-        ("data", "unknown", "unknown Indeed country"),
+        ("data", "svn", "Indeed has no edition for 'SI'"),
     ):
         with pytest.raises(ValueError, match=message):
             asyncio.run(indeed.attributes(fetcher, query, country=country))

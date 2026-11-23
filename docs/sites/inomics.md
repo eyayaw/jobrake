@@ -21,7 +21,7 @@ jobs = asyncio.run(scrape("inomics", country="de", category=["postdoc"], details
 
 ## Options
 
-`--country` keeps the postings in one country, given by its ISO 3166-1 alpha-2 code, such as `de`.
+`--country` keeps the postings in one country, given by its ISO 3166-1 code, such as `de` or `deu`.
 `--category` takes a category of the site's Job Type menu, by its name or its code:
 
 | Code                 | Category                             |

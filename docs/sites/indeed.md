@@ -37,9 +37,8 @@ Indeed sends the details it has with the search results, so there is no need for
 ### Country and location
 
 Indeed searches one country edition at a time, so `--country` is required.
-Set it to the country's ISO 3166-1 alpha-2 code, such as `de`, `gb`, or `us`, case insensitive.
-A code with no Indeed edition gives an error that lists the codes Indeed serves,
-so `--country zz` is a quick way to see them.
+Set it to the country's ISO 3166-1 code, such as `de`, `gb`, or `us`, case insensitive.
+A country with no Indeed edition, such as `si`, gives an error that lists the codes Indeed serves.
 
 `--location` narrows that edition to a city or another place within it,
 and [`jobrake indeed places`](#lookups) suggests the names Indeed knows.

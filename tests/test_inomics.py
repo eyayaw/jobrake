@@ -90,7 +90,7 @@ def test_a_search_reads_every_block_of_cards_and_sends_its_filters():
         inomics.search(
             fetcher,
             query=" labor ",
-            country="de",
+            country="deu",  # an alpha-3 code reaches INOMICS as its alpha-2 code
             category=["Postdoc", "PROFESSOR", " postdoc "],
             jel=["j", "E", "J"],
             results=21,

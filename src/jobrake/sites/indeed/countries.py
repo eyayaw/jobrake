@@ -3,7 +3,7 @@
 from typing import Annotated
 
 # The country option of every Indeed function that searches one edition.
-Country = Annotated[str, "ISO 3166-1 alpha-2 code of an Indeed edition, e.g., de, gb, or us"]
+Country = Annotated[str, "ISO 3166-1 code of an Indeed edition, e.g., de, gb, or us"]
 
 # The country sites Indeed lists at https://www.indeed.com/worldwide, as read on 2026-10-29.
 # The code is also the edition's API code and, except in _SUBDOMAINS, its website subdomain.
@@ -22,7 +22,7 @@ _SUBDOMAINS = {"gb": "uk", "my": "malaysia", "us": "www"}
 
 def indeed_domain(country: str) -> tuple[str, str]:
     """
-    Resolve an ISO country code, in either case, to an Indeed edition.
+    Resolve an ISO 3166-1 alpha-2 code, in either case, to an Indeed edition.
 
     Returns:
         The website subdomain and uppercase API country code.
@@ -33,7 +33,7 @@ def indeed_domain(country: str) -> tuple[str, str]:
     code = country.strip().lower()
     if code not in _EDITIONS:
         raise ValueError(
-            f"unknown Indeed country {country!r}. Pass the ISO 3166-1 alpha-2 code of an "
-            f"Indeed edition: {' '.join(sorted(_EDITIONS))}"
+            f"Indeed has no edition for {country!r}. Pass the code of one: "
+            f"{' '.join(sorted(_EDITIONS))}"
         )
     return _SUBDOMAINS.get(code, code), code.upper()

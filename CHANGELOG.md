@@ -4,6 +4,12 @@
 
 ### Changed
 
+- **Breaking:** A place's `country_code` is always an assigned ISO 3166-1 alpha-2 code. jobrake
+  converts alpha-3 codes, turns `UK` into `GB`, and drops unassigned codes such as `ZZ`, which it
+  used to keep.
+- `country` accepts ISO 3166-1 alpha-3 codes, such as `deu`, as well as alpha-2, and `uk` for the
+  United Kingdom. Every site rejects any other value before its first request. Before, `country`
+  took alpha-2 codes only, and only INOMICS checked them.
 - Errors, warnings, and logs name a site as its page does, such as `LinkedIn request failed` and
   `unknown AEA JOE JEL field`. They used the site's key, such as `linkedin`, which commands still take.
 - Indeed's `--company-ids` help and its error call the value an employer key, as Indeed's page does.

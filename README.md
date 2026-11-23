@@ -168,6 +168,7 @@ These options mean the same on every site that takes them:
 | Option                  | Effect                                                                         |
 | ----------------------- | ------------------------------------------------------------------------------ |
 | `--query`, `-q`         | Job title or keywords                                                          |
+| `--country`, `-c`       | A country's ISO 3166-1 code, alpha-2 or alpha-3, such as `de` or `deu`         |
 | `--results`, `-n`       | The number of postings to return. The default is 10 on Indeed and LinkedIn, 20 on Workday, and 100 elsewhere |
 | `--max-age-hours`, `-a` | Only postings this many hours old or newer. No age limit by default            |
 | `--radius`, `-r`        | The search radius around `--location`, in kilometers                           |

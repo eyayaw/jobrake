@@ -3,12 +3,12 @@
 import json
 import math
 import pickle
-import re
 
 import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
+from jobrake.countries import ALPHA3
 from jobrake.models import (
     IDENTITY_FIELDS,
     SUMMARY_FIELDS,
@@ -19,7 +19,10 @@ from jobrake.models import (
 )
 
 _TEXT = st.one_of(
-    st.none(), st.integers(), st.text(max_size=6), st.sampled_from(["de", " NL ", "USA"])
+    st.none(),
+    st.integers(),
+    st.text(max_size=6),
+    st.sampled_from(["de", " NL ", "USA", "uk", "ZZ"]),
 )
 _NUMBER = st.one_of(st.none(), st.text(max_size=4), st.integers(), st.floats())
 _PLACE = st.fixed_dictionaries(
@@ -205,7 +208,7 @@ def test_places_come_out_named_distinct_and_unchanged_by_a_second_pass(places):
         place not in job["locations"][:index] for index, place in enumerate(job["locations"])
     )
     codes = [place["country_code"] for place in job["locations"] if "country_code" in place]
-    assert all(re.fullmatch("[A-Z]{2}", code) for code in codes)
+    assert all(code in ALPHA3 for code in codes)
     # A NaN equals itself inside a container, so the comparison above cannot see one.
     assert all(
         math.isfinite(place[key])
@@ -219,7 +222,11 @@ def test_a_place_keeps_what_the_site_gives_and_a_malformed_one_is_rejected():
     locations = [
         {"city": " Berlin ", "country_code": "de", "latitude": 52.5},
         {"name": "Berlin, DE", "city": "Berlin", "country_code": "DE", "latitude": 52.5},  # again
-        {"name": "Boston", "country_code": "USA"},  # a country name, not a code
+        {"name": "Boston", "country_code": "Germany"},  # a country name, not a code
+        {"name": "Hanoi", "country_code": "vnm"},  # an alpha-3 code
+        {"name": "Leeds", "country_code": "UK"},  # ISO reserves UK for GB
+        {"name": "Nowhere", "country_code": "ZZ"},  # unassigned
+        {"name": "Juba", "country_code": "ß"},  # upper-cases to SS, South Sudan's code
         {"latitude": 1.0},  # coordinates alone name no place
         {"name": "Remote", "country_code": "US"},
         {"name": "Remote", "region": "Ontario"},  # matching names do not make these places equal
@@ -232,6 +239,10 @@ def test_a_place_keeps_what_the_site_gives_and_a_malformed_one_is_rejected():
             "latitude": 52.5,
         },
         {"name": "Boston"},
+        {"name": "Hanoi", "country_code": "VN"},
+        {"name": "Leeds", "country_code": "GB"},
+        {"name": "Nowhere"},
+        {"name": "Juba"},
         {"name": "Remote", "country_code": "US"},
         {"name": "Remote", "region": "Ontario"},
     ]

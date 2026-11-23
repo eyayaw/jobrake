@@ -80,13 +80,7 @@ _HOSTS = {"inomics.com", "www.inomics.com"}
 _codes = functools.partial(menu_codes, "INOMICS")
 
 
-def _validate(
-    *, country: str | None, category: list[str] | None, jel: list[str] | None, **_: object
-) -> None:
-    if country is not None and not re.fullmatch(r"[A-Za-z]{2}", country.strip()):
-        raise ValueError(
-            f"country {country!r} is not an ISO 3166-1 alpha-2 code. Pass one such as de"
-        )
+def _validate(*, category: list[str] | None, jel: list[str] | None, **_: object) -> None:
     _codes("category", CATEGORIES, category)
     _codes("JEL field", JEL_FIELDS.keys(), jel)
 
@@ -238,7 +232,7 @@ async def search(
     fetcher: Fetcher,
     *,
     query: Annotated[str, "job title or keywords"] = "",
-    country: Annotated[str | None, "ISO 3166-1 alpha-2 country code, e.g., de"] = None,
+    country: Annotated[str | None, "ISO 3166-1 country code, e.g., de"] = None,
     category: Annotated[list[str] | None, "posting category, e.g., postdoc or Professor"] = None,
     jel: Annotated[list[str] | None, "JEL field, e.g., J or Q"] = None,
     results: Annotated[int, "maximum number of postings"] = 100,
@@ -259,7 +253,7 @@ async def search(
             is empty. INOMICS sent fewer cards than it counted, and ``partial`` holds them.
             With ``details``, a posting's page could not be fetched, and ``partial`` holds every
             posting, filled where its fetch succeeded, and ``failed`` the URLs of the others.
-        ValueError: ``country`` is not an alpha-2 code, a ``category`` or ``jel`` value names no
+        ValueError: ``country`` is not an ISO 3166-1 code, a ``category`` or ``jel`` value names no
             entry of the site's menus, or ``results`` is below 1.
     """
     categories = [f"job-{code}" for code in _codes("category", CATEGORIES, category)]
@@ -273,9 +267,9 @@ async def search(
     }
     if keyword := query.strip():
         params["textsearch"] = keyword
-    # INOMICS takes the code in upper case only: country=de matched no posting on 2026-11-17.
+    # INOMICS matches upper case only, as checked passes it: country=de matched no posting on 2026-11-17.
     if country:
-        params["country"] = country.strip().upper()
+        params["country"] = country
     if fields:
         params["economics"] = ",".join(dict.fromkeys(fields))
     logger.info("searching INOMICS for %r", query)
