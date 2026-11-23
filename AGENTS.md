@@ -6,7 +6,7 @@ jobrake reads the postings a job board publishes and returns each one as a recor
 fields, whichever board it came from. It is an async Python package and CLI that reads LinkedIn's
 guest API, Indeed's GraphQL API, the AcademicTransfer jobs page's list API, the AEA JOE listings
 page and its XML export, EconJobMarket's ad feed, the INOMICS search page's results endpoint and job
-pages, StepStone's mobile listings API, the UN Careers web app's list API, and the board APIs of
+pages, ReliefWeb's API, StepStone's mobile listings API, the UN Careers web app's list API, and the board APIs of
 applicant tracking systems, and it depends on `httpx` and `bs4`.
 
 ## Map

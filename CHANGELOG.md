@@ -2,6 +2,12 @@
 
 ## [Unreleased](https://github.com/eyayaw/jobrake/compare/v0.37.0...HEAD)
 
+### Added
+
+- `reliefweb` reads ReliefWeb's humanitarian and development postings, each with its description,
+  by keyword, country, and posting age. It reads the appname ReliefWeb approved for you from
+  `JOBRAKE_RELIEFWEB_APPNAME`.
+
 ### Changed
 
 - **Breaking:** A place's `country_code` is always an assigned ISO 3166-1 alpha-2 code. jobrake

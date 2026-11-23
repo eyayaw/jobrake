@@ -31,6 +31,7 @@ SITE_NAMES = {
     "lever": "Lever",
     "linkedin": "LinkedIn",
     "personio": "Personio",
+    "reliefweb": "ReliefWeb",
     "smartrecruiters": "SmartRecruiters",
     "stepstone": "StepStone",
     "uncareers": "UN Careers",

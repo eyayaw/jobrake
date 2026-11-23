@@ -1,4 +1,4 @@
-"""Fixtures for an isolated cache, a fresh fabric pool, and a fake site."""
+"""Fixtures for an isolated cache, a fresh fabric pool, a ReliefWeb appname, and a fake site."""
 
 import fakesite
 import pytest
@@ -23,6 +23,12 @@ def isolated_cache(tmp_path, monkeypatch):
 def fresh_fabrics(monkeypatch):
     """Start every test with a new fabric pool, as a new process does."""
     monkeypatch.setattr(client, "POOL", client.Fabrics())
+
+
+@pytest.fixture(autouse=True)
+def reliefweb_appname(monkeypatch):
+    """Give every ReliefWeb search the appname it needs, in place of a developer's own."""
+    monkeypatch.setenv("JOBRAKE_RELIEFWEB_APPNAME", "jobrake-tests")
 
 
 @pytest.fixture
