@@ -1,5 +1,10 @@
 # jobrake agent instructions
 
+Each rule here is a proxy for a reason. Know the reason before you apply the rule, and judge the
+work by the reason: code or prose that passes every rule and still reads or runs badly is not done.
+The code and text already in the repo are evidence of decisions, not templates. Take what was
+decided, and write the rest from understanding.
+
 ## Purpose
 
 jobrake reads the postings a job board publishes and returns each one as a record with the same
