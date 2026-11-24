@@ -15,7 +15,7 @@ A site's own options and quirks are on its page under [sites](sites/).
 
 ## Search by keyword and place
 
-Indeed, LinkedIn, and StepStone search by keyword and place.
+Indeed, LinkedIn, StepStone, and XING search by keyword and place.
 Choose one and supply a job title or keywords:
 
 ```sh
@@ -30,6 +30,8 @@ and `--location` narrows that edition to a city or area within it.
 LinkedIn has no editions: pass the place as text to `--location`, or its ID to `--geoid`,
 and leave `--country` out.
 StepStone searches Germany only, so `--location` is a German city or postal code.
+XING covers Germany, Austria, and Switzerland in one search, and its `--location` takes a city or
+postal code in any of them.
 
 When Indeed or LinkedIn does not recognize a place, look it up with `places` and search with a name or ID it returns:
 
@@ -181,8 +183,8 @@ jobrake inomics search -n 500 | jq '[.[] | select(.date != null and .date >= "20
 
 ## Fetch posting details
 
-A LinkedIn, Workday, SmartRecruiters, StepStone, or INOMICS search returns each posting without
-its description. Add `--details` (`details=True`) to fetch each posting during the search.
+A LinkedIn, Workday, SmartRecruiters, StepStone, INOMICS, or XING search returns each posting
+without its description. Add `--details` (`details=True`) to fetch each posting during the search.
 The other sites return the description with the search itself.
 A posting that could not be fetched keeps its search result, so you still get every posting,
 but the search ends as [stopped](#recover-from-a-stopped-search), with the missed ones in `failed`.

@@ -24,6 +24,7 @@ from . import (
     uncareers,
     workable,
     workday,
+    xing,
 )
 
 # One entry per site. A site exports search() and any of the lookups and postings().
@@ -44,6 +45,7 @@ SITES: dict[str, ModuleType] = {
     "uncareers": uncareers,
     "workable": workable,
     "workday": workday,
+    "xing": xing,
 }
 
 

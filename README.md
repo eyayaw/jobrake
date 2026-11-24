@@ -240,6 +240,7 @@ See the [reference](https://github.com/eyayaw/jobrake/blob/main/docs/reference.m
 | <a href="https://careers.un.org"><img src="https://www.un.org/sites/un2.un.org/themes/bootstrap_un2/favicon.ico" alt="" height="16"></a> <a href="https://github.com/eyayaw/jobrake/blob/main/docs/sites/uncareers.md">`uncareers`</a> | Web app's list API, every UN Secretariat opening | Included in search results | — |
 | <a href="https://www.workable.com"><img src="https://www.workable.com/static/apple-touch-icon.png" alt="" height="16"></a> <a href="https://github.com/eyayaw/jobrake/blob/main/docs/sites/workable.md">`workable`</a> | Public widget API, one employer's board | Included in search results | `--board` |
 | <a href="https://www.workday.com"><img src="https://www.workday.com/favicon.ico" alt="" height="16"></a> <a href="https://github.com/eyayaw/jobrake/blob/main/docs/sites/workday.md">`workday`</a> | Career site JSON API, one employer's career site | Optional and cached, one request per posting | `--board`, the career site URL |
+| <a href="https://www.xing.com"><img src="https://www.xing.com/favicon.ico" alt="" height="16"></a> <a href="https://github.com/eyayaw/jobrake/blob/main/docs/sites/xing.md">`xing`</a> | Mobile-app GraphQL API, German-speaking job market | Optional and cached, one request per posting | — |
 
 On an employer-board site, `--board` takes the employer's token from the board's address,
 such as `airbnb` in `boards.greenhouse.io/airbnb`, and Workday takes the career site's address.
@@ -293,8 +294,9 @@ Before a pull request, run `uvx prek run --all-files`, as CI does.
 > [SmartRecruiters](https://www.smartrecruiters.com/legal/terms-of-use/),
 > [StepStone](https://www.stepstone.de/ueber-stepstone/general-terms-of-use-from-april-27th-2022/),
 > [UN Careers](https://www.un.org/en/about-us/terms-of-use),
-> [Workable](https://www.workable.com/terms), and
-> [Workday](https://www.workday.com/en-us/legal/site-terms.html).
+> [Workable](https://www.workable.com/terms),
+> [Workday](https://www.workday.com/en-us/legal/site-terms.html), and
+> [XING](https://www.xing.com/terms).
 
 ---
 
