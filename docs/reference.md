@@ -74,8 +74,9 @@ Each place in `locations` has a `name`, the site's label for it or its parts joi
 when the site gives no label,
 and carries `city`, `region`, `country_code`, `latitude`, and `longitude` only
 when the site gives them for that place.
-`country_code` has the form of an ISO 3166-1 alpha-2 code, such as `US`,
-and jobrake checks the form only.
+`country_code` is an ISO 3166-1 alpha-2 code, such as `US`. jobrake converts a site's alpha-3 code
+to alpha-2, and leaves the key out when the site gives no code or something else, such as a
+country name.
 jobrake parses nothing out of a place's name, so a place named `Seattle, WA` carries no `city`
 unless the site sent one. A place the site lists twice with the same parts appears once.
 Places that share a name but differ in any part, such as `Remote` in two countries, each appear.
@@ -101,22 +102,22 @@ Which sites fill each detail key, and whether a search fills it or only `--detai
 
 | Key | From a search | Only with `--details` |
 | --- | --- | --- |
-| `description` | [AcademicTransfer](sites/academictransfer.md), [AEA JOE](sites/aea.md), [Ashby](sites/ashby.md), [EconJobMarket](sites/econjobmarket.md), [Greenhouse](sites/greenhouse.md), [Indeed](sites/indeed.md), [Lever](sites/lever.md), [Personio](sites/personio.md), [UN Careers](sites/uncareers.md), [Workable](sites/workable.md) | [INOMICS](sites/inomics.md), [LinkedIn](sites/linkedin.md), [SmartRecruiters](sites/smartrecruiters.md), [StepStone](sites/stepstone.md), [Workday](sites/workday.md) |
+| `description` | [AcademicTransfer](sites/academictransfer.md), [AEA JOE](sites/aea.md), [Ashby](sites/ashby.md), [EconJobMarket](sites/econjobmarket.md), [Greenhouse](sites/greenhouse.md), [Indeed](sites/indeed.md), [Lever](sites/lever.md), [Personio](sites/personio.md), [ReliefWeb](sites/reliefweb.md), [UN Careers](sites/uncareers.md), [Workable](sites/workable.md) | [INOMICS](sites/inomics.md), [LinkedIn](sites/linkedin.md), [SmartRecruiters](sites/smartrecruiters.md), [StepStone](sites/stepstone.md), [Workday](sites/workday.md) |
 | `language` | [AcademicTransfer](sites/academictransfer.md), [Greenhouse](sites/greenhouse.md), [Indeed](sites/indeed.md), [SmartRecruiters](sites/smartrecruiters.md), [StepStone](sites/stepstone.md) | — |
-| `company_url` | [Indeed](sites/indeed.md) | [LinkedIn](sites/linkedin.md), [StepStone](sites/stepstone.md) |
+| `company_url` | [Indeed](sites/indeed.md), [ReliefWeb](sites/reliefweb.md) | [LinkedIn](sites/linkedin.md), [StepStone](sites/stepstone.md) |
 | `company_logo` | [EconJobMarket](sites/econjobmarket.md), [Indeed](sites/indeed.md), [StepStone](sites/stepstone.md) | [LinkedIn](sites/linkedin.md) |
 | `department` | [AcademicTransfer](sites/academictransfer.md), [AEA JOE](sites/aea.md), [Ashby](sites/ashby.md), [EconJobMarket](sites/econjobmarket.md), [Greenhouse](sites/greenhouse.md), [Lever](sites/lever.md), [Personio](sites/personio.md), [SmartRecruiters](sites/smartrecruiters.md), [Workable](sites/workable.md) | — |
 | `team` | [Ashby](sites/ashby.md), [Lever](sites/lever.md) | — |
-| `employment_type` | [AcademicTransfer](sites/academictransfer.md), [Ashby](sites/ashby.md), [Indeed](sites/indeed.md), [Lever](sites/lever.md), [Personio](sites/personio.md), [SmartRecruiters](sites/smartrecruiters.md), [Workable](sites/workable.md) | [LinkedIn](sites/linkedin.md), [StepStone](sites/stepstone.md), [Workday](sites/workday.md) |
+| `employment_type` | [AcademicTransfer](sites/academictransfer.md), [Ashby](sites/ashby.md), [Indeed](sites/indeed.md), [Lever](sites/lever.md), [Personio](sites/personio.md), [ReliefWeb](sites/reliefweb.md), [SmartRecruiters](sites/smartrecruiters.md), [Workable](sites/workable.md) | [LinkedIn](sites/linkedin.md), [StepStone](sites/stepstone.md), [Workday](sites/workday.md) |
 | `workplace_type` | [Ashby](sites/ashby.md), [Indeed](sites/indeed.md), [INOMICS](sites/inomics.md), [Lever](sites/lever.md), [SmartRecruiters](sites/smartrecruiters.md), [Workable](sites/workable.md) | — |
 | `salary_min`, `salary_max`, `salary_currency`, `salary_period` | [AcademicTransfer](sites/academictransfer.md), [Ashby](sites/ashby.md), [Indeed](sites/indeed.md), [Personio](sites/personio.md) | [LinkedIn](sites/linkedin.md) |
-| `posted_at` | [AcademicTransfer](sites/academictransfer.md), [AEA JOE](sites/aea.md), [Ashby](sites/ashby.md), [EconJobMarket](sites/econjobmarket.md), [Greenhouse](sites/greenhouse.md), [Indeed](sites/indeed.md), [INOMICS](sites/inomics.md), [Lever](sites/lever.md), [Personio](sites/personio.md), [SmartRecruiters](sites/smartrecruiters.md), [StepStone](sites/stepstone.md), [UN Careers](sites/uncareers.md), [Workable](sites/workable.md) | [LinkedIn](sites/linkedin.md), [Workday](sites/workday.md) |
-| `expires_at` | [AcademicTransfer](sites/academictransfer.md), [AEA JOE](sites/aea.md), [EconJobMarket](sites/econjobmarket.md), [Greenhouse](sites/greenhouse.md), [Indeed](sites/indeed.md), [StepStone](sites/stepstone.md), [UN Careers](sites/uncareers.md) | [INOMICS](sites/inomics.md), [LinkedIn](sites/linkedin.md) |
+| `posted_at` | [AcademicTransfer](sites/academictransfer.md), [AEA JOE](sites/aea.md), [Ashby](sites/ashby.md), [EconJobMarket](sites/econjobmarket.md), [Greenhouse](sites/greenhouse.md), [Indeed](sites/indeed.md), [INOMICS](sites/inomics.md), [Lever](sites/lever.md), [Personio](sites/personio.md), [ReliefWeb](sites/reliefweb.md), [SmartRecruiters](sites/smartrecruiters.md), [StepStone](sites/stepstone.md), [UN Careers](sites/uncareers.md), [Workable](sites/workable.md) | [LinkedIn](sites/linkedin.md), [Workday](sites/workday.md) |
+| `expires_at` | [AcademicTransfer](sites/academictransfer.md), [AEA JOE](sites/aea.md), [EconJobMarket](sites/econjobmarket.md), [Greenhouse](sites/greenhouse.md), [Indeed](sites/indeed.md), [ReliefWeb](sites/reliefweb.md), [StepStone](sites/stepstone.md), [UN Careers](sites/uncareers.md) | [INOMICS](sites/inomics.md), [LinkedIn](sites/linkedin.md) |
 | `apply_url` | [AcademicTransfer](sites/academictransfer.md), [Ashby](sites/ashby.md), [Indeed](sites/indeed.md), [Lever](sites/lever.md), [Workable](sites/workable.md) | [SmartRecruiters](sites/smartrecruiters.md) |
 | `apply_type`, `applicants`, `experience_months` | — | [LinkedIn](sites/linkedin.md) |
 | `education` | [AcademicTransfer](sites/academictransfer.md), [Workable](sites/workable.md) | [LinkedIn](sites/linkedin.md) |
 | `keywords` | [AcademicTransfer](sites/academictransfer.md), [AEA JOE](sites/aea.md), [Personio](sites/personio.md) | — |
-| `site_data` | [AcademicTransfer](sites/academictransfer.md), [AEA JOE](sites/aea.md), [Ashby](sites/ashby.md), [EconJobMarket](sites/econjobmarket.md), [INOMICS](sites/inomics.md), [Personio](sites/personio.md), [StepStone](sites/stepstone.md), [UN Careers](sites/uncareers.md) | [LinkedIn](sites/linkedin.md) |
+| `site_data` | [AcademicTransfer](sites/academictransfer.md), [AEA JOE](sites/aea.md), [Ashby](sites/ashby.md), [EconJobMarket](sites/econjobmarket.md), [INOMICS](sites/inomics.md), [Personio](sites/personio.md), [ReliefWeb](sites/reliefweb.md), [StepStone](sites/stepstone.md), [UN Careers](sites/uncareers.md) | [LinkedIn](sites/linkedin.md) |
 
 ## Command line
 
@@ -323,3 +324,6 @@ and is fetched again earlier only if its cached copy no longer fits the record's
 
 A storage failure disables the cache with a warning, and scraping carries on without it.
 When another connection holds the cache locked, jobrake skips the cache for a minute with a warning, then uses it again.
+
+`JOBRAKE_RELIEFWEB_APPNAME` holds the appname ReliefWeb approved for you. Every `reliefweb` search
+needs it, and it has no default ([how to request one](sites/reliefweb.md)).

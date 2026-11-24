@@ -96,11 +96,12 @@ def test_a_site_function_the_cli_cannot_build_fails_when_decorated(function, mat
             "indeed",
             {"country": " "},
             ValueError,
-            "country is blank. Pass the ISO 3166-1 alpha-2 code",
+            "country is blank. Pass the ISO 3166-1 code",
         ),
         # The site validators raise the rows below, except the blank list entry, which
         # @checked rejects on every site.
-        ("indeed", {"country": "atlantis"}, ValueError, "unknown Indeed country"),
+        ("indeed", {"country": "atlantis"}, ValueError, "not an ISO 3166-1 code"),
+        ("indeed", {"country": "si"}, ValueError, "Indeed has no edition"),
         (
             "indeed",
             {"country": "us", "company_ids": [" "]},
@@ -137,7 +138,11 @@ def test_a_site_function_the_cli_cannot_build_fails_when_decorated(function, mat
         ("inomics", {"jel": ["Y"]}, ValueError, "unknown INOMICS JEL field 'Y'. Use one of A, B"),
         # The slug INOMICS's search takes for a JEL field is not a value --jel accepts.
         ("inomics", {"jel": ["laweconomics"]}, ValueError, "unknown INOMICS JEL field"),
-        ("inomics", {"country": "deu"}, ValueError, "not an ISO 3166-1 alpha-2 code"),
+        ("inomics", {"country": "zz"}, ValueError, "not an ISO 3166-1 code"),
+        # A blank optional country would search every country, or none.
+        ("inomics", {"country": " "}, ValueError, "not an ISO 3166-1 code"),
+        # Unicode upper-cases ß to SS, South Sudan's code.
+        ("inomics", {"country": "ß"}, ValueError, "not an ISO 3166-1 code"),
     ],
 )
 def test_check_and_scrape_reject_bad_options_before_any_request(site, kwargs, error, match):

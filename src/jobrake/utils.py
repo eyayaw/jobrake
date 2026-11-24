@@ -15,6 +15,8 @@ from urllib.parse import SplitResult, urlsplit
 lazy from bs4 import BeautifulSoup
 lazy from bs4.element import Tag
 
+from jobrake.countries import alpha2
+
 logger = logging.getLogger(__name__)
 
 # A site's name in a message. Logger names, progress labels, and the CLI use the site's key.
@@ -29,6 +31,7 @@ SITE_NAMES = {
     "lever": "Lever",
     "linkedin": "LinkedIn",
     "personio": "Personio",
+    "reliefweb": "ReliefWeb",
     "smartrecruiters": "SmartRecruiters",
     "stepstone": "StepStone",
     "uncareers": "UN Careers",
@@ -207,9 +210,10 @@ class Checked[**P, R]:
     """
     A site function that checks every call against its annotations and its site's rules first.
 
-    The signature is read once, at decoration, so a site function that breaks the rules of
-    ``site_options`` fails when its module is imported. Error messages name the site after its
-    module below ``jobrake.sites``.
+    The site function and its validator receive ``country`` as an upper-case alpha-2 code, whichever
+    ISO 3166-1 code the caller passed. The signature is read once, at decoration, so a site function
+    that breaks the rules of ``site_options`` fails when its module is imported. Error messages name
+    the site after its module below ``jobrake.sites``.
     """
 
     def __init__(
@@ -225,8 +229,8 @@ class Checked[**P, R]:
         self._site = function.__module__.removeprefix("jobrake.sites.").partition(".")[0]
 
     async def __call__(self, *args: P.args, **kwargs: P.kwargs) -> R:
-        self._verify(*args, **kwargs)
-        return await self._function(*args, **kwargs)
+        bound = self._verify(*args, **kwargs)
+        return await self._function(*bound.args, **bound.kwargs)
 
     def check(self, **options: object) -> None:
         """
@@ -235,11 +239,12 @@ class Checked[**P, R]:
         Raises:
             TypeError: An option is unknown, missing, or of the wrong type.
             ValueError: ``results``, ``radius``, or ``max_age_hours`` is below its minimum,
-                a required string or a list entry is blank, or the site's rules refuse a value.
+                a required string or a list entry is blank, ``country`` is not an ISO 3166-1 code,
+                or the site's rules refuse a value.
         """
         self._verify(None, **options)
 
-    def _verify(self, *args: object, **kwargs: object) -> None:
+    def _verify(self, *args: object, **kwargs: object) -> inspect.BoundArguments:
         try:
             bound = self._signature.bind(*args, **kwargs)
         except TypeError as error:
@@ -250,8 +255,15 @@ class Checked[**P, R]:
         _, *given = bound.arguments.items()
         values = dict(given)
         _check(self._options, values)
+        if isinstance(country := values.get("country"), str):
+            if not (code := alpha2(country)):
+                raise ValueError(
+                    f"country {country!r} is not an ISO 3166-1 code. Pass one such as de or deu"
+                )
+            bound.arguments["country"] = values["country"] = code
         if self._validator is not None:
             self._validator(**values)
+        return bound
 
 
 @overload

@@ -1,13 +1,16 @@
 # jobrake agent instructions
 
+Each rule here is a proxy for a reason. Know the reason before you apply the rule, and judge the
+work by the reason: code or prose that passes every rule and still reads or runs badly is not done.
+The code and text already in the repo are evidence of decisions, not templates. Take what was
+decided, and write the rest from understanding.
+
 ## Purpose
 
 jobrake reads the postings a job board publishes and returns each one as a record with the same
-fields, whichever board it came from. It is an async Python package and CLI that reads LinkedIn's
-guest API, Indeed's GraphQL API, the AcademicTransfer jobs page's list API, the AEA JOE listings
-page and its XML export, EconJobMarket's ad feed, the INOMICS search page's results endpoint and job
-pages, StepStone's mobile listings API, the UN Careers web app's list API, and the board APIs of
-applicant tracking systems, and it depends on `httpx` and `bs4`.
+fields, whichever board it came from. It is an async Python package and CLI that reads what each
+board serves without a sign-in, through the board's documented API or feed or through the endpoints
+behind its own web pages and mobile app, and it depends on `httpx` and `bs4`.
 
 ## Map
 
@@ -26,7 +29,7 @@ applicant tracking systems, and it depends on `httpx` and `bs4`.
   In the two packages, `search.py` builds requests and parses results, `client.py` holds the URLs
   and headers, plus LinkedIn's pacing, and `lookups.py` holds the lookups. Of the other sites,
   only AcademicTransfer paces its requests, waiting the crawl delay its robots.txt asks for before
-  each request to its list API, and only it, StepStone, and INOMICS send headers of their own.
+  each request to its list API. A site that needs headers of its own keeps them beside its URLs.
   LinkedIn's `pages.py` holds its reader of posting pages, which the posting loop runs with a
   fixed pool of workers, and Indeed's `countries.py` maps ISO country codes to editions.
 - `sites/responses.py`: the response reading the sites share. `read_json`, `read_xml`, and
@@ -57,6 +60,7 @@ applicant tracking systems, and it depends on `httpx` and `bs4`.
   `report_progress`, which `collect` and the posting loop call to log their progress records,
   and the JSON value, text, number, date, and URL helpers.
 - `models.py`: `JobDict`, its `Place`, `make_job`, `make_places`, and `Stopped`.
+- `countries.py`: the ISO 3166-1 table and `alpha2`, which `checked` and `make_places` share.
 - `fetchkit.py`: the `Fetcher` protocol, `FetchResult`, and `HttpxFetcher`.
 - `cache.py`: one SQLite table of `JobDict` records keyed by site and ID, and the shared `CACHE`.
 - `cli.py` builds `jobrake <site> <command>` from `SITES`, one command per function a site exports,
@@ -83,9 +87,10 @@ which `tests/test_docs.py` requires. `scrape`, the CLI, and the contract test in
 - `board`: the token, or for Workday the career site URL, that names one employer's board on an ATS
   site, such as `airbnb` on Greenhouse. Every ATS site declares it as a required `str` named
   `board`, with the short flag `-b`.
-- `country`: a country's ISO 3166-1 alpha-2 code, in either case, such as `de`.
-  A site that searches one country edition at a time takes it and maps it to the site's own code.
-  It replaces country names and Indeed's codes.
+- `country`: a country's ISO 3166-1 code, alpha-2 or alpha-3, in either case, such as `de` or `deu`.
+  `checked` rejects anything else and passes the site the upper-case alpha-2 code, which the site
+  translates to its own form. A place's `country_code` is the same upper-case alpha-2 code, and
+  `make_places` converts a site's alpha-3 code to it. It replaces country names and Indeed's codes.
 - One record. Every site returns `JobDict` records with the same keys, types, and units.
   The identity keys `site`, `id`, and `url` and the summary keys `title`, `company`, `locations`,
   and `date` are always present. A detail key appears only when it has a value.
@@ -133,11 +138,11 @@ which `tests/test_docs.py` requires. `scrape`, the CLI, and the contract test in
   and retries a 429 up to five times. It follows redirects itself, to HTTPS LinkedIn addresses only,
   and paces each hop, so a caller's `Fetcher` must honor `follow_redirects=False`.
   Two workers per data center read posting pages, and concurrent calls each read their own.
-- The cache is transparent. On LinkedIn, Workday, SmartRecruiters, StepStone, and INOMICS it
-  stores the fields of each posting read as a `JobDict`. A reader sees only the posting's URL, so a
-  later card merges with the cached fields as with a fresh read. Rows carry no version, and each
-  row read passes through `make_job`, so a row it rejects is a miss, such as one whose keys no
-  longer fit `JobDict` or `Place` or whose `applicants` is text.
+- The cache is transparent. The posting loop stores the fields of each posting it reads as a
+  `JobDict`, so a site that fetches postings on its own is cached and no other is. A reader sees
+  only the posting's URL, so a later card merges with the cached fields as with a fresh read. Rows
+  carry no version, and each row read passes through `make_job`, so a row it rejects is a miss,
+  such as one whose keys no longer fit `JobDict` or `Place` or whose `applicants` is text.
   `make_job` normalizes a row as it does a site's fields and cannot redo a parser's work, so a
   parser fix reaches a cached posting when its row expires.
   `JOBRAKE_CACHE_PATH` and `JOBRAKE_CACHE_TTL` configure it, and no site function takes a cache

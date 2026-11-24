@@ -9,8 +9,8 @@
 ___The job boards shed new postings every day. Bring a rake.___
 
 jobrake is a Python package and CLI tool for fetching job postings from LinkedIn, Indeed, StepStone,
-AEA JOE, AcademicTransfer, EconJobMarket, INOMICS, UN Careers, and employers' boards on several
-major [ATSs](#supported-job-boards).
+and [many more boards](#supported-job-boards), including academic and UN listings and employers' own
+boards on major ATSs.
 It returns each posting with the [same fields](https://github.com/eyayaw/jobrake/blob/main/docs/reference.md#the-record),
 whichever site it came from.
 
@@ -168,6 +168,7 @@ These options mean the same on every site that takes them:
 | Option                  | Effect                                                                         |
 | ----------------------- | ------------------------------------------------------------------------------ |
 | `--query`, `-q`         | Job title or keywords                                                          |
+| `--country`, `-c`       | A country's ISO 3166-1 code, alpha-2 or alpha-3, such as `de` or `deu`         |
 | `--results`, `-n`       | The number of postings to return. The default is 10 on Indeed and LinkedIn, 20 on Workday, and 100 elsewhere |
 | `--max-age-hours`, `-a` | Only postings this many hours old or newer. No age limit by default            |
 | `--radius`, `-r`        | The search radius around `--location`, in kilometers                           |
@@ -233,6 +234,7 @@ See the [reference](https://github.com/eyayaw/jobrake/blob/main/docs/reference.m
 | <a href="https://www.lever.co"><img src="https://www.lever.co/images/favicon-lever.png" alt="" height="16"></a> <a href="https://github.com/eyayaw/jobrake/blob/main/docs/sites/lever.md">`lever`</a> | Public Postings API, one employer's board | Included in search results | `--board` |
 | <a href="https://www.linkedin.com/jobs"><picture><source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/eyayaw/jobrake/refs/heads/main/docs/assets/sites/linkedin-light.svg"><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/eyayaw/jobrake/refs/heads/main/docs/assets/sites/linkedin-dark.svg"><img src="https://raw.githubusercontent.com/eyayaw/jobrake/refs/heads/main/docs/assets/sites/linkedin-light.svg" alt="" height="16"></picture></a> <a href="https://github.com/eyayaw/jobrake/blob/main/docs/sites/linkedin.md">`linkedin`</a> | Login-free guest API | Optional, paced, and cached | `--location` or `--geoid` |
 | <a href="https://www.personio.com"><img src="https://assets.cdn.personio.de/rebrand/favicon.svg" alt="" height="16"></a> <a href="https://github.com/eyayaw/jobrake/blob/main/docs/sites/personio.md">`personio`</a> | Public XML feed, one employer's career site | Included in search results | `--board` |
+| <a href="https://reliefweb.int/jobs"><img src="https://reliefweb.int/themes/custom/common_design_subtheme/favicon.ico" alt="" height="16"></a> <a href="https://github.com/eyayaw/jobrake/blob/main/docs/sites/reliefweb.md">`reliefweb`</a> | Documented API, humanitarian and development postings | Included in search results | `JOBRAKE_RELIEFWEB_APPNAME` |
 | <a href="https://www.smartrecruiters.com"><img src="https://www.smartrecruiters.com/wp-content/uploads/cropped-web-app-manifest-192x192-1-192x192.png" alt="" height="16"></a> <a href="https://github.com/eyayaw/jobrake/blob/main/docs/sites/smartrecruiters.md">`smartrecruiters`</a> | Public Posting API, one employer's board | Optional and cached, one request per posting | `--board` |
 | <a href="https://www.stepstone.de"><img src="https://www.stepstone.de/favicon.ico" alt="" height="16"></a> <a href="https://github.com/eyayaw/jobrake/blob/main/docs/sites/stepstone.md">`stepstone`</a> | Mobile-app listings API, German job board | Optional and cached, one request per posting | — |
 | <a href="https://careers.un.org"><img src="https://www.un.org/sites/un2.un.org/themes/bootstrap_un2/favicon.ico" alt="" height="16"></a> <a href="https://github.com/eyayaw/jobrake/blob/main/docs/sites/uncareers.md">`uncareers`</a> | Web app's list API, every UN Secretariat opening | Included in search results | — |
@@ -287,6 +289,7 @@ Before a pull request, run `uvx prek run --all-files`, as CI does.
 > [Lever](https://www.lever.co/legal),
 > [LinkedIn](https://www.linkedin.com/legal/user-agreement),
 > [Personio](https://www.personio.com/terms/),
+> [ReliefWeb](https://reliefweb.int/terms-conditions),
 > [SmartRecruiters](https://www.smartrecruiters.com/legal/terms-of-use/),
 > [StepStone](https://www.stepstone.de/ueber-stepstone/general-terms-of-use-from-april-27th-2022/),
 > [UN Careers](https://www.un.org/en/about-us/terms-of-use),
