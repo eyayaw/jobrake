@@ -88,8 +88,8 @@ and `posted_at` holds the full timestamp when the site gives one,
 such as `2026-09-19T05:00:00+00:00`, and the calendar date otherwise.
 jobrake prefers the date a search result states and falls back to the calendar portion
 of `posted_at`.
-The exceptions are LinkedIn, Workday, StepStone, and INOMICS with `--details`, where `date` is the
-calendar date of the `posted_at` that the posting page gives.
+The exceptions are Adzuna, LinkedIn, Workday, StepStone, and INOMICS with `--details`, where `date`
+is the calendar date of the `posted_at` that the posting page gives.
 A page without one leaves the search result's date.
 Compare on `date`, and read `posted_at` for a time of day.
 jobrake converts a site's own form, such as Lever's epoch milliseconds or INOMICS's day-first
@@ -102,22 +102,22 @@ Which sites fill each detail key, and whether a search fills it or only `--detai
 
 | Key | From a search | Only with `--details` |
 | --- | --- | --- |
-| `description` | [AcademicTransfer](sites/academictransfer.md), [AEA JOE](sites/aea.md), [Ashby](sites/ashby.md), [Cornerstone](sites/cornerstone.md), [EconJobMarket](sites/econjobmarket.md), [Greenhouse](sites/greenhouse.md), [Indeed](sites/indeed.md), [Lever](sites/lever.md), [Personio](sites/personio.md), [ReliefWeb](sites/reliefweb.md), [UN Careers](sites/uncareers.md), [Workable](sites/workable.md) | [INOMICS](sites/inomics.md), [LinkedIn](sites/linkedin.md), [SmartRecruiters](sites/smartrecruiters.md), [StepStone](sites/stepstone.md), [Workday](sites/workday.md), [XING](sites/xing.md) |
+| `description` | [AcademicTransfer](sites/academictransfer.md), [AEA JOE](sites/aea.md), [Ashby](sites/ashby.md), [Cornerstone](sites/cornerstone.md), [EconJobMarket](sites/econjobmarket.md), [Greenhouse](sites/greenhouse.md), [Indeed](sites/indeed.md), [Lever](sites/lever.md), [Personio](sites/personio.md), [ReliefWeb](sites/reliefweb.md), [UN Careers](sites/uncareers.md), [Workable](sites/workable.md) | [Adzuna](sites/adzuna.md), [INOMICS](sites/inomics.md), [LinkedIn](sites/linkedin.md), [SmartRecruiters](sites/smartrecruiters.md), [StepStone](sites/stepstone.md), [Workday](sites/workday.md), [XING](sites/xing.md) |
 | `language` | [AcademicTransfer](sites/academictransfer.md), [Greenhouse](sites/greenhouse.md), [Indeed](sites/indeed.md), [SmartRecruiters](sites/smartrecruiters.md), [StepStone](sites/stepstone.md), [XING](sites/xing.md) | — |
 | `company_url` | [Indeed](sites/indeed.md), [ReliefWeb](sites/reliefweb.md), [XING](sites/xing.md) | [LinkedIn](sites/linkedin.md), [StepStone](sites/stepstone.md) |
 | `company_logo` | [EconJobMarket](sites/econjobmarket.md), [Indeed](sites/indeed.md), [StepStone](sites/stepstone.md), [XING](sites/xing.md) | [LinkedIn](sites/linkedin.md) |
 | `department` | [AcademicTransfer](sites/academictransfer.md), [AEA JOE](sites/aea.md), [Ashby](sites/ashby.md), [EconJobMarket](sites/econjobmarket.md), [Greenhouse](sites/greenhouse.md), [Lever](sites/lever.md), [Personio](sites/personio.md), [SmartRecruiters](sites/smartrecruiters.md), [Workable](sites/workable.md) | — |
 | `team` | [Ashby](sites/ashby.md), [Lever](sites/lever.md) | — |
-| `employment_type` | [AcademicTransfer](sites/academictransfer.md), [Ashby](sites/ashby.md), [Indeed](sites/indeed.md), [Lever](sites/lever.md), [Personio](sites/personio.md), [ReliefWeb](sites/reliefweb.md), [SmartRecruiters](sites/smartrecruiters.md), [Workable](sites/workable.md), [XING](sites/xing.md) | [LinkedIn](sites/linkedin.md), [StepStone](sites/stepstone.md), [Workday](sites/workday.md) |
+| `employment_type` | [AcademicTransfer](sites/academictransfer.md), [Adzuna](sites/adzuna.md), [Ashby](sites/ashby.md), [Indeed](sites/indeed.md), [Lever](sites/lever.md), [Personio](sites/personio.md), [ReliefWeb](sites/reliefweb.md), [SmartRecruiters](sites/smartrecruiters.md), [Workable](sites/workable.md), [XING](sites/xing.md) | [LinkedIn](sites/linkedin.md), [StepStone](sites/stepstone.md), [Workday](sites/workday.md) |
 | `workplace_type` | [Ashby](sites/ashby.md), [Indeed](sites/indeed.md), [INOMICS](sites/inomics.md), [Lever](sites/lever.md), [SmartRecruiters](sites/smartrecruiters.md), [Workable](sites/workable.md), [XING](sites/xing.md) | — |
-| `salary_min`, `salary_max`, `salary_currency`, `salary_period` | [AcademicTransfer](sites/academictransfer.md), [Ashby](sites/ashby.md), [Indeed](sites/indeed.md), [Personio](sites/personio.md), [XING](sites/xing.md) | [LinkedIn](sites/linkedin.md) |
-| `posted_at` | [AcademicTransfer](sites/academictransfer.md), [AEA JOE](sites/aea.md), [Ashby](sites/ashby.md), [Cornerstone](sites/cornerstone.md), [EconJobMarket](sites/econjobmarket.md), [Greenhouse](sites/greenhouse.md), [Indeed](sites/indeed.md), [INOMICS](sites/inomics.md), [Lever](sites/lever.md), [Personio](sites/personio.md), [ReliefWeb](sites/reliefweb.md), [SmartRecruiters](sites/smartrecruiters.md), [StepStone](sites/stepstone.md), [UN Careers](sites/uncareers.md), [Workable](sites/workable.md), [XING](sites/xing.md) | [LinkedIn](sites/linkedin.md), [Workday](sites/workday.md) |
-| `expires_at` | [AcademicTransfer](sites/academictransfer.md), [AEA JOE](sites/aea.md), [Cornerstone](sites/cornerstone.md), [EconJobMarket](sites/econjobmarket.md), [Greenhouse](sites/greenhouse.md), [Indeed](sites/indeed.md), [ReliefWeb](sites/reliefweb.md), [StepStone](sites/stepstone.md), [UN Careers](sites/uncareers.md), [XING](sites/xing.md) | [INOMICS](sites/inomics.md), [LinkedIn](sites/linkedin.md) |
-| `apply_url` | [AcademicTransfer](sites/academictransfer.md), [Ashby](sites/ashby.md), [Indeed](sites/indeed.md), [Lever](sites/lever.md), [Workable](sites/workable.md), [XING](sites/xing.md) | [SmartRecruiters](sites/smartrecruiters.md) |
+| `salary_min`, `salary_max`, `salary_currency`, `salary_period` | [AcademicTransfer](sites/academictransfer.md), [Ashby](sites/ashby.md), [Indeed](sites/indeed.md), [Personio](sites/personio.md), [XING](sites/xing.md) | [Adzuna](sites/adzuna.md), [LinkedIn](sites/linkedin.md) |
+| `posted_at` | [AcademicTransfer](sites/academictransfer.md), [AEA JOE](sites/aea.md), [Ashby](sites/ashby.md), [Cornerstone](sites/cornerstone.md), [EconJobMarket](sites/econjobmarket.md), [Greenhouse](sites/greenhouse.md), [Indeed](sites/indeed.md), [INOMICS](sites/inomics.md), [Lever](sites/lever.md), [Personio](sites/personio.md), [ReliefWeb](sites/reliefweb.md), [SmartRecruiters](sites/smartrecruiters.md), [StepStone](sites/stepstone.md), [UN Careers](sites/uncareers.md), [Workable](sites/workable.md), [XING](sites/xing.md) | [Adzuna](sites/adzuna.md), [LinkedIn](sites/linkedin.md), [Workday](sites/workday.md) |
+| `expires_at` | [AcademicTransfer](sites/academictransfer.md), [AEA JOE](sites/aea.md), [Cornerstone](sites/cornerstone.md), [EconJobMarket](sites/econjobmarket.md), [Greenhouse](sites/greenhouse.md), [Indeed](sites/indeed.md), [ReliefWeb](sites/reliefweb.md), [StepStone](sites/stepstone.md), [UN Careers](sites/uncareers.md), [XING](sites/xing.md) | [Adzuna](sites/adzuna.md), [INOMICS](sites/inomics.md), [LinkedIn](sites/linkedin.md) |
+| `apply_url` | [AcademicTransfer](sites/academictransfer.md), [Ashby](sites/ashby.md), [Indeed](sites/indeed.md), [Lever](sites/lever.md), [Workable](sites/workable.md), [XING](sites/xing.md) | [Adzuna](sites/adzuna.md), [SmartRecruiters](sites/smartrecruiters.md) |
 | `apply_type`, `applicants`, `experience_months` | — | [LinkedIn](sites/linkedin.md) |
 | `education` | [AcademicTransfer](sites/academictransfer.md), [Workable](sites/workable.md) | [LinkedIn](sites/linkedin.md) |
 | `keywords` | [AcademicTransfer](sites/academictransfer.md), [AEA JOE](sites/aea.md), [Personio](sites/personio.md) | — |
-| `site_data` | [AcademicTransfer](sites/academictransfer.md), [AEA JOE](sites/aea.md), [Ashby](sites/ashby.md), [EconJobMarket](sites/econjobmarket.md), [INOMICS](sites/inomics.md), [Personio](sites/personio.md), [ReliefWeb](sites/reliefweb.md), [StepStone](sites/stepstone.md), [UN Careers](sites/uncareers.md), [XING](sites/xing.md) | [LinkedIn](sites/linkedin.md) |
+| `site_data` | [AcademicTransfer](sites/academictransfer.md), [Adzuna](sites/adzuna.md), [AEA JOE](sites/aea.md), [Ashby](sites/ashby.md), [EconJobMarket](sites/econjobmarket.md), [INOMICS](sites/inomics.md), [Personio](sites/personio.md), [ReliefWeb](sites/reliefweb.md), [StepStone](sites/stepstone.md), [UN Careers](sites/uncareers.md), [XING](sites/xing.md) | [LinkedIn](sites/linkedin.md) |
 
 ## Command line
 
@@ -227,8 +227,8 @@ jobrake.check("uncareers", duty_station=["Genva"])  # passes, and the search rai
 ```
 
 `identify` reads a posting's link and returns the `site` and `id` a search gives that posting.
-It sends no request. It reads the posting URLs that `postings` takes, and Indeed links that carry
-the key in `jk`, or in `vjk` on a search page.
+It sends no request. It reads the posting URLs that `postings` takes, Adzuna's posting links, and
+Indeed links that carry the key in `jk`, or in `vjk` on a search page.
 Any other link, including a bare LinkedIn ID or a Greenhouse posting, gives `None`.
 
 ```python
@@ -262,6 +262,7 @@ so a rerun may find the ones it skipped.
 A details search that could not fetch every posting fetches the others first, then raises
 `Stopped`. `partial` holds every search result, with details where the fetch succeeded,
 and `failed` holds the URLs of the rest. Pass them to the site's `postings` to retry.
+Adzuna has no `postings`, so its `failed` stays empty. Rerun the search to retry.
 LinkedIn stops fetching early after a rate limit that outlasts its retries,
 and the postings it never tried are in `failed` too.
 
@@ -304,8 +305,8 @@ For a handler that draws them, see the [guide](guide.md#show-progress).
 
 ## Configuration
 
-jobrake keeps the LinkedIn, Workday, SmartRecruiters, StepStone, INOMICS, and XING postings it
-fetched in one SQLite file, `jobrake.sqlite3`, under your user cache directory:
+jobrake keeps the Adzuna, LinkedIn, Workday, SmartRecruiters, StepStone, INOMICS, and XING
+postings it fetched in one SQLite file, `jobrake.sqlite3`, under your user cache directory:
 `~/Library/Caches/jobrake/` on macOS, `$XDG_CACHE_HOME/jobrake/` on Linux
 (`~/.cache/jobrake/` when that variable is unset), and `%LOCALAPPDATA%\jobrake\` on Windows.
 No other site is cached.

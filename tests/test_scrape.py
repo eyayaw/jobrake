@@ -102,6 +102,7 @@ def test_a_site_function_the_cli_cannot_build_fails_when_decorated(function, mat
         # @checked rejects on every site.
         ("indeed", {"country": "atlantis"}, ValueError, "not an ISO 3166-1 code"),
         ("indeed", {"country": "si"}, ValueError, "Indeed has no edition"),
+        ("adzuna", {"country": "jp"}, ValueError, "Adzuna has no edition"),
         (
             "indeed",
             {"country": "us", "company_ids": [" "]},
@@ -204,6 +205,14 @@ def test_check_and_scrape_reject_bad_options_before_any_request(site, kwargs, er
         (
             "https://jobs.smartrecruiters.com/Bosch Group/744000158197889",
             ("smartrecruiters", "744000158197889"),
+        ),
+        (
+            "https://www.adzuna.co.uk/jobs/land/ad/5575618204?utm_medium=mobile-app",
+            ("adzuna", "5575618204"),
+        ),
+        (
+            "https://www.adzuna.de/details/5954501613",
+            ("adzuna", "5954501613"),
         ),
     ],
 )

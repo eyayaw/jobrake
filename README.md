@@ -225,6 +225,7 @@ See the [reference](https://github.com/eyayaw/jobrake/blob/main/docs/reference.m
 | Site | Search | Posting details | Requires |
 | --- | --- | --- | --- |
 | <a href="https://www.academictransfer.com"><img src="https://www.academictransfer.com/favicon.ico" alt="" height="16"></a> <a href="https://github.com/eyayaw/jobrake/blob/main/docs/sites/academictransfer.md">`academictransfer`</a> | The jobs page's list API, Dutch academic and research vacancies | Included in search results | — |
+| <a href="https://www.adzuna.com"><img src="https://www.adzuna.co.uk/favicon.ico" alt="" height="16"></a> <a href="https://github.com/eyayaw/jobrake/blob/main/docs/sites/adzuna.md">`adzuna`</a> | Mobile-app API, 19 country editions | Optional and cached, one request per posting | `--country` |
 | <a href="https://www.aeaweb.org/joe/listings"><img src="https://www.aeaweb.org/favicon.ico" alt="" height="16"></a> <a href="https://github.com/eyayaw/jobrake/blob/main/docs/sites/aea.md">`aea`</a> | JOE listings page and its XML export, every active listing | Included in search results | — |
 | <a href="https://www.ashbyhq.com"><img src="https://www.ashbyhq.com/favicon.png" alt="" height="16"></a> <a href="https://github.com/eyayaw/jobrake/blob/main/docs/sites/ashby.md">`ashby`</a> | Public Job Posting API, one employer's board | Included in search results | `--board` |
 | <a href="https://www.cornerstoneondemand.com"><img src="https://www.cornerstoneondemand.com/favicon.ico" alt="" height="16"></a> <a href="https://github.com/eyayaw/jobrake/blob/main/docs/sites/cornerstone.md">`cornerstone`</a> | Career site search API, one employer's career site | Included in search results | `--board`, the career site URL |
@@ -283,6 +284,7 @@ Before a pull request, run `uvx prek run --all-files`, as CI does.
 > Scraping may violate their ToS, and any of them may rate-limit or block your IP address.
 > You are responsible for checking and complying with their terms:
 > [AcademicTransfer](https://www.academictransfer.com/en/terms-conditions-privacy/),
+> [Adzuna](https://www.adzuna.co.uk/terms-and-conditions.html),
 > [AEA JOE](https://www.aeaweb.org/joe/listings),
 > [Ashby](https://www.ashbyhq.com/resources/terms-and-policies),
 > [Cornerstone](https://www.cornerstoneondemand.com/terms-of-use/),

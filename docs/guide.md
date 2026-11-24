@@ -15,17 +15,18 @@ A site's own options and quirks are on its page under [sites](sites/).
 
 ## Search by keyword and place
 
-Indeed, LinkedIn, StepStone, and XING search by keyword and place.
+Adzuna, Indeed, LinkedIn, StepStone, and XING search by keyword and place.
 Choose one and supply a job title or keywords:
 
 ```sh
+jobrake adzuna search -q "data scientist" -c nl -l Amsterdam -n 2
 jobrake indeed search -q "data scientist" -c nl -l Amsterdam -n 2
 jobrake linkedin search -q "data scientist" -l "Amsterdam, North Holland, Netherlands" -n 2
 jobrake stepstone search -q "data scientist" -l Berlin -n 2
 ```
 
 Each site names a place its own way.
-Indeed searches one country edition at a time, so `--country` is required,
+Adzuna and Indeed search one country edition at a time, so `--country` is required,
 and `--location` narrows that edition to a city or area within it.
 LinkedIn has no editions: pass the place as text to `--location`, or its ID to `--geoid`,
 and leave `--country` out.
@@ -186,12 +187,14 @@ jobrake inomics search -n 500 | jq '[.[] | select(.date != null and .date >= "20
 
 ## Fetch posting details
 
-A LinkedIn, Workday, SmartRecruiters, StepStone, INOMICS, or XING search returns each posting
-without its description. Add `--details` (`details=True`) to fetch each posting during the search.
+An Adzuna, LinkedIn, Workday, SmartRecruiters, StepStone, INOMICS, or XING search returns each
+posting without its description. Add `--details` (`details=True`) to fetch each posting during the
+search.
 The other sites return the description with the search itself.
 A posting that could not be fetched keeps its search result, so you still get every posting,
 but the search ends as [stopped](#recover-from-a-stopped-search), with the missed ones in `failed`.
-Fetch them later with the site's `postings`.
+Fetch them later with the site's `postings`. Adzuna has no `postings` and leaves `failed` empty,
+so rerun an Adzuna search instead: it fetches only the postings the cache lacks.
 
 ### Fetch known postings
 

@@ -124,14 +124,17 @@ which `tests/test_docs.py` requires. `scrape`, the CLI, and the contract test in
   `Stopped`, whose `partial` holds what was collected. A site's own result cap warns and returns,
   because a rerun meets it again.
   A details search that could not read every posting also puts the URLs of the unread ones in
-  `failed`, so the site's `postings` can retry them even when a later search drops them.
+  `failed` when the site exports `postings`, so `postings` can retry them even when a later search
+  drops them.
   `postings` never raises `Stopped` and leaves a failed reference out of its result.
 - A site whose search cards lack fields its posting endpoint serves takes `details` on `search` and
-  exports `postings(fetcher, references)`, so a caller can fill cards in the same run or a later
-  one. A reference is at least a record's `url`. `postings` keys its result by the references given
-  and maps a posting the site reports gone to `None`.
+  exports `postings(fetcher, references)` when a posting URL alone can be read back, so a caller
+  can fill cards in the same run or a later one. A reference is at least a record's `url`.
+  `postings` keys its result by the references given and maps a posting the site reports gone to
+  `None`.
   The posting outranks its card: with `details`, every field the posting has a value for replaces
   the card's, `date` and `locations` among them, and only `site`, `id`, and `url` stay the card's.
+  `site_data` merges key by key, so the card keeps any key the record lacks.
 - The transport is the caller's. Code takes a `Fetcher` and leaves it open,
   and the caller that created it closes it. LinkedIn requests go through `paced_fetch`,
   which pins requests to LinkedIn's data centers in turn, paces them once per process,
