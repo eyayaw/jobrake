@@ -24,6 +24,7 @@ SITE_NAMES = {
     "academictransfer": "AcademicTransfer",
     "aea": "AEA JOE",
     "ashby": "Ashby",
+    "cornerstone": "Cornerstone",
     "econjobmarket": "EconJobMarket",
     "greenhouse": "Greenhouse",
     "indeed": "Indeed",

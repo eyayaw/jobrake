@@ -122,6 +122,18 @@ def test_a_site_function_the_cli_cannot_build_fails_when_decorated(function, mat
             "not a Workday career site",
         ),  # urlsplit refuses
         (
+            "cornerstone",
+            {"board": "https://example.com/jobs"},
+            ValueError,
+            "not a Cornerstone career site",
+        ),
+        (
+            "cornerstone",
+            {"board": "https://[/x"},
+            ValueError,
+            "not a Cornerstone career site",
+        ),  # urlsplit refuses
+        (
             "academictransfer",
             {"vacancy_type": "phd"},
             ValueError,
@@ -257,7 +269,11 @@ def test_identify_never_raises(text):
 def test_an_integer_option_beyond_float_range_reaches_the_first_request(site):
     # check accepts an integer beyond float range, so a search's own arithmetic must accept it too.
     options = site_options(SITES[site].search)
-    board = "https://acme.wd1.myworkdayjobs.com/External" if site == "workday" else "acme"
+    boards = {
+        "cornerstone": "https://acme.csod.com/ux/ats/careersite/1/home?c=acme",
+        "workday": "https://acme.wd1.myworkdayjobs.com/External",
+    }
+    board = boards.get(site, "acme")
     required = {"board": board, "country": "us", "location": "Seattle"}
     needed = {name: value for name, value in required.items() if name in options}
     for name in (name for name, option in options.items() if option.kind is int):
