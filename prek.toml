@@ -13,7 +13,7 @@ id = "ruff-format"
 name = "ruff format"
 language = "system"
 entry = "uv run --locked ruff format --check --force-exclude"
-types_or = ["python", "pyi"]
+types_or = ["python", "pyi", "markdown"]
 
 [[repos.hooks]]
 id = "ty"
