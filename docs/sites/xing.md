@@ -46,7 +46,7 @@ and industry. `--details` adds the description ([every key](../reference.md#fiel
   XING gives no period, and its app shows salaries per year, so `salary_period` is `YEAR`.
 - `apply_url` is the employer's application page or XING's own apply link. A posting that takes
   applications by email has none.
-- `site_data` holds `career_level`, `discipline`, and `industry`, in English.
+- `site_data` holds `careerLevel`, `discipline`, and `industry`, in English.
 
 ### Postings you already know
 

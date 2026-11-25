@@ -186,7 +186,7 @@ def test_search_parses_cards_advertised_salary_and_leaves_estimate_out() -> None
         "expires_at": "2027-10-02T11:19:06Z",
         "apply_url": "https://apply.example.com/kpmg/158291337",
         "site_data": {
-            "career_level": "Entry level",
+            "careerLevel": "Entry level",
             "discipline": "Consulting",
             "industry": "Auditing, tax, law",
         },

@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 # XING's GraphQL endpoint and the logged-out API key of its Android app, com.xing.android 26.52.0p
 # (checked 2026-11-24). Without the Authorization header the API returns HTTP 401. English labels
-# keep career_level, discipline, and industry the same whatever the posting's language.
+# keep careerLevel, discipline, and industry the same whatever the posting's language.
 API_URL = "https://api.xing.com/vendor/xing-one/api"
 APP_KEY = "37cade477746b5cba99e4529cf0fa6fb13697938"  # gitleaks:allow  public Android app key
 API_HEADERS = {
@@ -194,12 +194,8 @@ def _visible_fields(posting: dict[str, Any]) -> dict[str, Any]:
         "expires_at": as_str(posting.get("activeUntil")),
         "apply_url": as_str(as_dict(posting.get("application")).get("url")),
         "site_data": {
-            key: as_str(as_dict(posting.get(field)).get("localizationValue"))
-            for key, field in (
-                ("career_level", "careerLevel"),
-                ("discipline", "discipline"),
-                ("industry", "industry"),
-            )
+            field: as_str(as_dict(posting.get(field)).get("localizationValue"))
+            for field in ("careerLevel", "discipline", "industry")
         },
     }
 
