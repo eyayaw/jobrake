@@ -37,6 +37,7 @@ SITE_NAMES = {
     "uncareers": "UN Careers",
     "workable": "Workable",
     "workday": "Workday",
+    "xing": "XING",
 }
 
 

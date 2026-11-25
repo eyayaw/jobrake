@@ -4,6 +4,8 @@
 
 ### Added
 
+- `xing` searches XING's job market in Germany, Austria, and Switzerland by keyword, place, posting
+  age, and remote work. `--details` or `postings` fetches each posting's description.
 - `reliefweb` searches ReliefWeb's humanitarian and development postings by keyword, country, and
   posting age, and returns each posting with its description. It reads the appname ReliefWeb
   approved for you from `JOBRAKE_RELIEFWEB_APPNAME`.

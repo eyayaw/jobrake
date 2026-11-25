@@ -102,22 +102,22 @@ Which sites fill each detail key, and whether a search fills it or only `--detai
 
 | Key | From a search | Only with `--details` |
 | --- | --- | --- |
-| `description` | [AcademicTransfer](sites/academictransfer.md), [AEA JOE](sites/aea.md), [Ashby](sites/ashby.md), [EconJobMarket](sites/econjobmarket.md), [Greenhouse](sites/greenhouse.md), [Indeed](sites/indeed.md), [Lever](sites/lever.md), [Personio](sites/personio.md), [ReliefWeb](sites/reliefweb.md), [UN Careers](sites/uncareers.md), [Workable](sites/workable.md) | [INOMICS](sites/inomics.md), [LinkedIn](sites/linkedin.md), [SmartRecruiters](sites/smartrecruiters.md), [StepStone](sites/stepstone.md), [Workday](sites/workday.md) |
-| `language` | [AcademicTransfer](sites/academictransfer.md), [Greenhouse](sites/greenhouse.md), [Indeed](sites/indeed.md), [SmartRecruiters](sites/smartrecruiters.md), [StepStone](sites/stepstone.md) | — |
-| `company_url` | [Indeed](sites/indeed.md), [ReliefWeb](sites/reliefweb.md) | [LinkedIn](sites/linkedin.md), [StepStone](sites/stepstone.md) |
-| `company_logo` | [EconJobMarket](sites/econjobmarket.md), [Indeed](sites/indeed.md), [StepStone](sites/stepstone.md) | [LinkedIn](sites/linkedin.md) |
+| `description` | [AcademicTransfer](sites/academictransfer.md), [AEA JOE](sites/aea.md), [Ashby](sites/ashby.md), [EconJobMarket](sites/econjobmarket.md), [Greenhouse](sites/greenhouse.md), [Indeed](sites/indeed.md), [Lever](sites/lever.md), [Personio](sites/personio.md), [ReliefWeb](sites/reliefweb.md), [UN Careers](sites/uncareers.md), [Workable](sites/workable.md) | [INOMICS](sites/inomics.md), [LinkedIn](sites/linkedin.md), [SmartRecruiters](sites/smartrecruiters.md), [StepStone](sites/stepstone.md), [Workday](sites/workday.md), [XING](sites/xing.md) |
+| `language` | [AcademicTransfer](sites/academictransfer.md), [Greenhouse](sites/greenhouse.md), [Indeed](sites/indeed.md), [SmartRecruiters](sites/smartrecruiters.md), [StepStone](sites/stepstone.md), [XING](sites/xing.md) | — |
+| `company_url` | [Indeed](sites/indeed.md), [ReliefWeb](sites/reliefweb.md), [XING](sites/xing.md) | [LinkedIn](sites/linkedin.md), [StepStone](sites/stepstone.md) |
+| `company_logo` | [EconJobMarket](sites/econjobmarket.md), [Indeed](sites/indeed.md), [StepStone](sites/stepstone.md), [XING](sites/xing.md) | [LinkedIn](sites/linkedin.md) |
 | `department` | [AcademicTransfer](sites/academictransfer.md), [AEA JOE](sites/aea.md), [Ashby](sites/ashby.md), [EconJobMarket](sites/econjobmarket.md), [Greenhouse](sites/greenhouse.md), [Lever](sites/lever.md), [Personio](sites/personio.md), [SmartRecruiters](sites/smartrecruiters.md), [Workable](sites/workable.md) | — |
 | `team` | [Ashby](sites/ashby.md), [Lever](sites/lever.md) | — |
-| `employment_type` | [AcademicTransfer](sites/academictransfer.md), [Ashby](sites/ashby.md), [Indeed](sites/indeed.md), [Lever](sites/lever.md), [Personio](sites/personio.md), [ReliefWeb](sites/reliefweb.md), [SmartRecruiters](sites/smartrecruiters.md), [Workable](sites/workable.md) | [LinkedIn](sites/linkedin.md), [StepStone](sites/stepstone.md), [Workday](sites/workday.md) |
-| `workplace_type` | [Ashby](sites/ashby.md), [Indeed](sites/indeed.md), [INOMICS](sites/inomics.md), [Lever](sites/lever.md), [SmartRecruiters](sites/smartrecruiters.md), [Workable](sites/workable.md) | — |
-| `salary_min`, `salary_max`, `salary_currency`, `salary_period` | [AcademicTransfer](sites/academictransfer.md), [Ashby](sites/ashby.md), [Indeed](sites/indeed.md), [Personio](sites/personio.md) | [LinkedIn](sites/linkedin.md) |
-| `posted_at` | [AcademicTransfer](sites/academictransfer.md), [AEA JOE](sites/aea.md), [Ashby](sites/ashby.md), [EconJobMarket](sites/econjobmarket.md), [Greenhouse](sites/greenhouse.md), [Indeed](sites/indeed.md), [INOMICS](sites/inomics.md), [Lever](sites/lever.md), [Personio](sites/personio.md), [ReliefWeb](sites/reliefweb.md), [SmartRecruiters](sites/smartrecruiters.md), [StepStone](sites/stepstone.md), [UN Careers](sites/uncareers.md), [Workable](sites/workable.md) | [LinkedIn](sites/linkedin.md), [Workday](sites/workday.md) |
-| `expires_at` | [AcademicTransfer](sites/academictransfer.md), [AEA JOE](sites/aea.md), [EconJobMarket](sites/econjobmarket.md), [Greenhouse](sites/greenhouse.md), [Indeed](sites/indeed.md), [ReliefWeb](sites/reliefweb.md), [StepStone](sites/stepstone.md), [UN Careers](sites/uncareers.md) | [INOMICS](sites/inomics.md), [LinkedIn](sites/linkedin.md) |
-| `apply_url` | [AcademicTransfer](sites/academictransfer.md), [Ashby](sites/ashby.md), [Indeed](sites/indeed.md), [Lever](sites/lever.md), [Workable](sites/workable.md) | [SmartRecruiters](sites/smartrecruiters.md) |
+| `employment_type` | [AcademicTransfer](sites/academictransfer.md), [Ashby](sites/ashby.md), [Indeed](sites/indeed.md), [Lever](sites/lever.md), [Personio](sites/personio.md), [ReliefWeb](sites/reliefweb.md), [SmartRecruiters](sites/smartrecruiters.md), [Workable](sites/workable.md), [XING](sites/xing.md) | [LinkedIn](sites/linkedin.md), [StepStone](sites/stepstone.md), [Workday](sites/workday.md) |
+| `workplace_type` | [Ashby](sites/ashby.md), [Indeed](sites/indeed.md), [INOMICS](sites/inomics.md), [Lever](sites/lever.md), [SmartRecruiters](sites/smartrecruiters.md), [Workable](sites/workable.md), [XING](sites/xing.md) | — |
+| `salary_min`, `salary_max`, `salary_currency`, `salary_period` | [AcademicTransfer](sites/academictransfer.md), [Ashby](sites/ashby.md), [Indeed](sites/indeed.md), [Personio](sites/personio.md), [XING](sites/xing.md) | [LinkedIn](sites/linkedin.md) |
+| `posted_at` | [AcademicTransfer](sites/academictransfer.md), [AEA JOE](sites/aea.md), [Ashby](sites/ashby.md), [EconJobMarket](sites/econjobmarket.md), [Greenhouse](sites/greenhouse.md), [Indeed](sites/indeed.md), [INOMICS](sites/inomics.md), [Lever](sites/lever.md), [Personio](sites/personio.md), [ReliefWeb](sites/reliefweb.md), [SmartRecruiters](sites/smartrecruiters.md), [StepStone](sites/stepstone.md), [UN Careers](sites/uncareers.md), [Workable](sites/workable.md), [XING](sites/xing.md) | [LinkedIn](sites/linkedin.md), [Workday](sites/workday.md) |
+| `expires_at` | [AcademicTransfer](sites/academictransfer.md), [AEA JOE](sites/aea.md), [EconJobMarket](sites/econjobmarket.md), [Greenhouse](sites/greenhouse.md), [Indeed](sites/indeed.md), [ReliefWeb](sites/reliefweb.md), [StepStone](sites/stepstone.md), [UN Careers](sites/uncareers.md), [XING](sites/xing.md) | [INOMICS](sites/inomics.md), [LinkedIn](sites/linkedin.md) |
+| `apply_url` | [AcademicTransfer](sites/academictransfer.md), [Ashby](sites/ashby.md), [Indeed](sites/indeed.md), [Lever](sites/lever.md), [Workable](sites/workable.md), [XING](sites/xing.md) | [SmartRecruiters](sites/smartrecruiters.md) |
 | `apply_type`, `applicants`, `experience_months` | — | [LinkedIn](sites/linkedin.md) |
 | `education` | [AcademicTransfer](sites/academictransfer.md), [Workable](sites/workable.md) | [LinkedIn](sites/linkedin.md) |
 | `keywords` | [AcademicTransfer](sites/academictransfer.md), [AEA JOE](sites/aea.md), [Personio](sites/personio.md) | — |
-| `site_data` | [AcademicTransfer](sites/academictransfer.md), [AEA JOE](sites/aea.md), [Ashby](sites/ashby.md), [EconJobMarket](sites/econjobmarket.md), [INOMICS](sites/inomics.md), [Personio](sites/personio.md), [ReliefWeb](sites/reliefweb.md), [StepStone](sites/stepstone.md), [UN Careers](sites/uncareers.md) | [LinkedIn](sites/linkedin.md) |
+| `site_data` | [AcademicTransfer](sites/academictransfer.md), [AEA JOE](sites/aea.md), [Ashby](sites/ashby.md), [EconJobMarket](sites/econjobmarket.md), [INOMICS](sites/inomics.md), [Personio](sites/personio.md), [ReliefWeb](sites/reliefweb.md), [StepStone](sites/stepstone.md), [UN Careers](sites/uncareers.md), [XING](sites/xing.md) | [LinkedIn](sites/linkedin.md) |
 
 ## Command line
 
@@ -127,7 +127,7 @@ The options several sites share and the output formats are in the [README](../RE
 | -------------------------------------------------------- | ------------------------------------------------- |
 | [`indeed`](sites/indeed.md)                              | `search`, `places`, `companies`, `attributes`     |
 | [`linkedin`](sites/linkedin.md)                          | `search`, `postings`, `places`, `companies`       |
-| [`inomics`](sites/inomics.md), [`smartrecruiters`](sites/smartrecruiters.md), [`stepstone`](sites/stepstone.md), [`workday`](sites/workday.md) | `search`, `postings` |
+| [`inomics`](sites/inomics.md), [`smartrecruiters`](sites/smartrecruiters.md), [`stepstone`](sites/stepstone.md), [`workday`](sites/workday.md), [`xing`](sites/xing.md) | `search`, `postings` |
 | [`uncareers`](sites/uncareers.md)                        | `search`, `filters`                               |
 | every other site                                         | `search`                                          |
 
@@ -170,6 +170,7 @@ A reference is a search result's `url` or another address of the posting:
 | StepStone                | `stepstone.de/job/<id>`, or the longer address that ends in `--<id>-inline.html`  |
 | SmartRecruiters, INOMICS | the posting's address with its title slug                                         |
 | Workday                  | the posting's address copied from the browser                                     |
+| XING                     | the posting's address under `xing.com/jobs/<slug>-<id>`                           |
 
 Any other reference is an error, and nothing is fetched.
 Results follow the order given and have the fields of a search with `--details`, except a field only
@@ -303,8 +304,8 @@ For a handler that draws them, see the [guide](guide.md#show-progress).
 
 ## Configuration
 
-jobrake keeps the LinkedIn, Workday, SmartRecruiters, StepStone, and INOMICS postings it fetched
-in one SQLite file, `jobrake.sqlite3`, under your user cache directory:
+jobrake keeps the LinkedIn, Workday, SmartRecruiters, StepStone, INOMICS, and XING postings it
+fetched in one SQLite file, `jobrake.sqlite3`, under your user cache directory:
 `~/Library/Caches/jobrake/` on macOS, `$XDG_CACHE_HOME/jobrake/` on Linux
 (`~/.cache/jobrake/` when that variable is unset), and `%LOCALAPPDATA%\jobrake\` on Windows.
 No other site is cached.
