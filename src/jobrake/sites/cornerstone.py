@@ -1,4 +1,4 @@
-"""Search an employer's Cornerstone career site through its public search API."""
+"""Search an employer's Cornerstone career site through the search API behind it."""
 
 import functools
 import itertools
@@ -283,7 +283,7 @@ async def search(
     max_age_hours: Annotated[int | None, "maximum posting age in hours, rounded up to days"] = None,
 ) -> list[JobDict]:
     """
-    Search one employer's Cornerstone career site, each requisition with its description.
+    Search one employer's Cornerstone career site and list the requisitions it returns.
 
     ``max_age_hours`` rounds up to whole days. The search first reads the career site's page,
     which holds the anonymous token and the regional host of its API.
