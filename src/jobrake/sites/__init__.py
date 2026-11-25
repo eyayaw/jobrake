@@ -9,6 +9,7 @@ from jobrake.utils import Checked
 
 from . import (
     academictransfer,
+    adzuna,
     aea,
     ashby,
     cornerstone,
@@ -31,6 +32,7 @@ from . import (
 # One entry per site. A site exports search() and any of the lookups and postings().
 SITES: dict[str, ModuleType] = {
     "academictransfer": academictransfer,
+    "adzuna": adzuna,
     "aea": aea,
     "ashby": ashby,
     "cornerstone": cornerstone,

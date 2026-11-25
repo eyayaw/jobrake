@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 # A site's name in a message. Logger names, progress labels, and the CLI use the site's key.
 SITE_NAMES = {
     "academictransfer": "AcademicTransfer",
+    "adzuna": "Adzuna",
     "aea": "AEA JOE",
     "ashby": "Ashby",
     "cornerstone": "Cornerstone",

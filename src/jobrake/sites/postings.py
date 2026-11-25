@@ -30,11 +30,14 @@ class Halt(Exception):
 def _merge(card: JobDict, record: JobDict) -> JobDict:
     # The card keeps its identity, and the posting's record wins wherever it has a value.
     # make_job left a field the posting lacks as None or [], or out of the record.
-    kept = {
+    kept: dict[str, Any] = {
         name: value
         for name, value in record.items()
         if name not in IDENTITY_FIELDS and value not in (None, [])
     }
+    if "site_data" in kept:
+        # site_data holds separate fields, so the record's keys join the card's.
+        kept["site_data"] = (card.get("site_data") or {}) | kept["site_data"]
     return make_job(**(card | kept))
 
 
@@ -115,26 +118,37 @@ async def _read_each(
 
 
 async def fill_details(
-    fetcher: Fetcher, cards: list[JobDict], read: Reader, *, workers: int = 1
+    fetcher: Fetcher,
+    cards: list[JobDict],
+    read: Reader,
+    *,
+    workers: int = 1,
+    retryable: bool = True,
 ) -> list[JobDict]:
     """
     Fill each card with its posting's record, reading ``workers`` postings at a time.
 
     The record wins wherever it has a value, and the card keeps its ``site``, ``id``, and ``url``.
-    A posting the site reports gone keeps its card.
+    A posting the site reports gone keeps its card. ``retryable`` says whether the site exports
+    ``postings``, which can retry an unread posting on its own.
 
     Raises:
         Stopped: A posting could not be read. ``partial`` holds every card, filled where its read
-            succeeded, and ``failed`` the URLs of the cards whose read failed.
+            succeeded, and ``failed`` the URLs of the cards whose read failed when ``retryable``.
     """
     found = await _read_each(fetcher, cards, read, workers)
     filled = [_merge(card, record) if (record := found.get(card["id"])) else card for card in cards]
     if failed := [card["url"] for card in cards if card["id"] not in found]:
+        action = (
+            "Pass their URLs to postings to retry them"
+            if retryable
+            else "Rerun the search to retry them, which skips the postings already cached"
+        )
         raise Stopped(
-            f"{site_name(cards[0]['site'])} could not fetch the details of {len(failed)} of {len(cards)} "
-            "postings. Pass their URLs to postings to retry them",
+            f"{site_name(cards[0]['site'])} could not fetch the details of {len(failed)} of "
+            f"{len(cards)} postings. {action}",
             partial=filled,
-            failed=failed,
+            failed=failed if retryable else [],
         )
     return filled
 

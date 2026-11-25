@@ -297,7 +297,7 @@ class Stopped(Exception):
     not be fetched. ``partial`` holds the records the call collected, ``[]`` when there are none.
     After a failed details fetch it holds every card, filled where its posting was read, and
     ``failed`` holds the URLs of the unread postings, for the site's ``postings`` to retry.
-    ``failed`` is ``[]`` after any other stop.
+    ``failed`` is ``[]`` after any other stop, and on a site without ``postings``.
     """
 
     def __init__(
