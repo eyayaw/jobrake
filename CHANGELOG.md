@@ -4,9 +4,9 @@
 
 ### Added
 
-- `reliefweb` reads ReliefWeb's humanitarian and development postings, each with its description,
-  by keyword, country, and posting age. It reads the appname ReliefWeb approved for you from
-  `JOBRAKE_RELIEFWEB_APPNAME`.
+- `reliefweb` searches ReliefWeb's humanitarian and development postings by keyword, country, and
+  posting age, and returns each posting with its description. It reads the appname ReliefWeb
+  approved for you from `JOBRAKE_RELIEFWEB_APPNAME`.
 
 ### Changed
 
