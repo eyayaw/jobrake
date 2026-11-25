@@ -531,6 +531,10 @@ async def search(
     shared: dict[str, Any] = {
         key: text for key, text in (("q", query.strip()), ("w", place)) if text
     }
+    # With w and without d, five searches in the DE, GB, and FR editions reported the same total as
+    # d=0, and Leipzig, Leeds, and Lyon returned the same postings (2026-11-25). At d=0, 3 of 293
+    # Leipzig postings, 32 of 1,000 for Leeds, and 263 of 1,000 for Lyon named a place other than
+    # the city.
     if radius is not None:
         # Integer arithmetic keeps radii beyond float range from overflowing.
         shared["d"] = (radius * 1_000_000 + 804_672) // 1_609_344 if edition.miles else radius

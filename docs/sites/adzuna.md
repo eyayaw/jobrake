@@ -24,6 +24,9 @@ jobs = asyncio.run(
 `--country` is required and names one of Adzuna's editions: `at`, `au`, `be`, `br`, `ca`, `ch`,
 `de`, `es`, `fr`, `gb`, `in`, `it`, `mx`, `nl`, `nz`, `pl`, `sg`, `us`, or `za`.
 
+In our tests, a `--location` search without `--radius` returned the same postings as `-r 0`.
+Some of them name a nearby town, such as Villeurbanne for Lyon.
+
 Adzuna filters by whole days, so `--max-age-hours` rounds up: `-a 25` reaches back two days.
 
 ## Fields
