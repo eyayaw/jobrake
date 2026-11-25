@@ -227,6 +227,7 @@ See the [reference](https://github.com/eyayaw/jobrake/blob/main/docs/reference.m
 | <a href="https://www.academictransfer.com"><img src="https://www.academictransfer.com/favicon.ico" alt="" height="16"></a> <a href="https://github.com/eyayaw/jobrake/blob/main/docs/sites/academictransfer.md">`academictransfer`</a> | The jobs page's list API, Dutch academic and research vacancies | Included in search results | — |
 | <a href="https://www.aeaweb.org/joe/listings"><img src="https://www.aeaweb.org/favicon.ico" alt="" height="16"></a> <a href="https://github.com/eyayaw/jobrake/blob/main/docs/sites/aea.md">`aea`</a> | JOE listings page and its XML export, every active listing | Included in search results | — |
 | <a href="https://www.ashbyhq.com"><img src="https://www.ashbyhq.com/favicon.png" alt="" height="16"></a> <a href="https://github.com/eyayaw/jobrake/blob/main/docs/sites/ashby.md">`ashby`</a> | Public Job Posting API, one employer's board | Included in search results | `--board` |
+| <a href="https://www.cornerstoneondemand.com"><img src="https://www.cornerstoneondemand.com/favicon.ico" alt="" height="16"></a> <a href="https://github.com/eyayaw/jobrake/blob/main/docs/sites/cornerstone.md">`cornerstone`</a> | Career site search API, one employer's career site | Included in search results | `--board`, the career site URL |
 | <a href="https://econjobmarket.org"><img src="https://econjobmarket.org/images/ejm_logo.png" alt="" height="16"></a> <a href="https://github.com/eyayaw/jobrake/blob/main/docs/sites/econjobmarket.md">`econjobmarket`</a> | Public ad feed, every open ad | Included in search results | — |
 | <a href="https://www.greenhouse.com"><img src="https://cdn.simpleicons.org/greenhouse" alt="" height="16"></a> <a href="https://github.com/eyayaw/jobrake/blob/main/docs/sites/greenhouse.md">`greenhouse`</a> | Public Job Board API, one employer's board | Included in search results | `--board` |
 | <a href="https://www.indeed.com"><picture><source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/eyayaw/jobrake/refs/heads/main/docs/assets/sites/indeed-light.svg"><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/eyayaw/jobrake/refs/heads/main/docs/assets/sites/indeed-dark.svg"><img src="https://raw.githubusercontent.com/eyayaw/jobrake/refs/heads/main/docs/assets/sites/indeed-light.svg" alt="" height="16"></picture></a> <a href="https://github.com/eyayaw/jobrake/blob/main/docs/sites/indeed.md">`indeed`</a> | Mobile-app GraphQL API | Included in search results | `--country` |
@@ -243,7 +244,8 @@ See the [reference](https://github.com/eyayaw/jobrake/blob/main/docs/reference.m
 | <a href="https://www.xing.com"><img src="https://www.xing.com/favicon.ico" alt="" height="16"></a> <a href="https://github.com/eyayaw/jobrake/blob/main/docs/sites/xing.md">`xing`</a> | Mobile-app GraphQL API, German-speaking job market | Optional and cached, one request per posting | — |
 
 On an employer-board site, `--board` takes the employer's token from the board's address,
-such as `airbnb` in `boards.greenhouse.io/airbnb`, and Workday takes the career site's address.
+such as `airbnb` in `boards.greenhouse.io/airbnb`, while Cornerstone and Workday take the career
+site's address.
 
 Glassdoor is not planned, as it is
 [part of Indeed](https://web.archive.org/web/20260704043638/https://www.glassdoor.com/about/).
@@ -283,6 +285,7 @@ Before a pull request, run `uvx prek run --all-files`, as CI does.
 > [AcademicTransfer](https://www.academictransfer.com/en/terms-conditions-privacy/),
 > [AEA JOE](https://www.aeaweb.org/joe/listings),
 > [Ashby](https://www.ashbyhq.com/resources/terms-and-policies),
+> [Cornerstone](https://www.cornerstoneondemand.com/terms-of-use/),
 > [EconJobMarket](https://backend.econjobmarket.org/docs/ad-redisplay/Ad-Redisplay.0.md),
 > [Greenhouse](https://www.greenhouse.com/legal),
 > [Indeed](https://www.indeed.com/legal),

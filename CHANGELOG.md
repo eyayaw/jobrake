@@ -4,6 +4,8 @@
 
 ### Added
 
+- `cornerstone` searches an employer's Cornerstone career site by keyword, country, and posting
+  age, and returns each opening with its description.
 - `xing` searches XING's job market in Germany, Austria, and Switzerland by keyword, place, posting
   age, and remote work. `--details` or `postings` fetches each posting's description.
 - `reliefweb` searches ReliefWeb's humanitarian and development postings by keyword, country, and

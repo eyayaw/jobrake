@@ -84,9 +84,9 @@ which `tests/test_docs.py` requires. `scrape`, the CLI, and the contract test in
 
 - The design follows from the purpose. No caller's needs shape it.
 - `site`: the unit jobrake reads, such as `linkedin` or `indeed`. It replaces "provider".
-- `board`: the token, or for Workday the career site URL, that names one employer's board on an ATS
-  site, such as `airbnb` on Greenhouse. Every ATS site declares it as a required `str` named
-  `board`, with the short flag `-b`.
+- `board`: the token, or for Cornerstone and Workday the career site URL, that names one employer's
+  board on an ATS site, such as `airbnb` on Greenhouse. Every ATS site declares it as a required
+  `str` named `board`, with the short flag `-b`.
 - `country`: a country's ISO 3166-1 code, alpha-2 or alpha-3, in either case, such as `de` or `deu`.
   `checked` rejects anything else and passes the site the upper-case alpha-2 code, which the site
   translates to its own form. A place's `country_code` is the same upper-case alpha-2 code, and

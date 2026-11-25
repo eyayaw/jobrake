@@ -104,7 +104,8 @@ Indeed takes one employer per search, and LinkedIn several.
 ## Read an employer's board
 
 Many employers publish their openings on a board that their applicant tracking system (ATS) hosts.
-jobrake reads boards on Ashby, Greenhouse, Lever, Personio, SmartRecruiters, Workable, and Workday.
+jobrake reads boards on Ashby, Cornerstone, Greenhouse, Lever, Personio, SmartRecruiters, Workable,
+and Workday.
 A search names one employer's board with `--board`.
 An Ashby, Greenhouse, Lever, Personio, or Workable search returns every posting on the board:
 
@@ -124,11 +125,13 @@ jobs = asyncio.run(scrape("greenhouse", board="airbnb"))
 
 These sites filter nothing on their side, so [pipe the results](#pipe-results) to narrow a board
 down.
-SmartRecruiters and Workday take a query and a result limit, and SmartRecruiters also filters by age and by remote work.
+Cornerstone, SmartRecruiters, and Workday take a query and a result limit. Cornerstone also filters
+by country and age, and SmartRecruiters by age and by remote work.
 
 The board token is the part of the board's address that names the employer,
 such as `airbnb` in `boards.greenhouse.io/airbnb`.
-Workday has no token. Pass the address of the employer's job search page instead.
+Cornerstone and Workday have no token. Pass the address of the employer's career site or job search
+page instead.
 
 On [SmartRecruiters](sites/smartrecruiters.md#options), a misspelled token returns an empty board
 instead of an error, so check the token before you conclude that an employer has no openings.
