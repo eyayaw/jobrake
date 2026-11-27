@@ -1,4 +1,4 @@
-"""Search an employer's Cornerstone career site through the search API behind it."""
+"""Search an employer's Cornerstone career site."""
 
 import functools
 import itertools
@@ -186,9 +186,10 @@ def _parse_date(raw: object, culture: str) -> str | None:
     """
     Convert a Cornerstone short date in ``culture`` to ISO 8601, or None when absent.
 
-    Cornerstone sends ``"-"`` when a posting has no expiration date (measured 2026-11-24 on
-    Henkel's board). Unrecognized text passes through so ``make_job`` warns and omits it.
+    Cornerstone sends ``"-"`` when a posting has no expiration date. Unrecognized text passes
+    through so ``make_job`` warns and omits it.
     """
+    # Measured 2026-11-24 on Henkel's board.
     text = (as_str(raw) or "").strip()
     if not text or text == "-":
         return None
@@ -305,7 +306,6 @@ async def search(
         "cultureName": context.culture_name,
         "searchText": query.strip(),
         "states": [],
-        # checked passes the country as its upper-case alpha-2 code.
         "countryCodes": [country] if country else [],
         "cities": [],
         "placeID": "",

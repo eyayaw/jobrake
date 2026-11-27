@@ -31,6 +31,7 @@ class FetchResult:
         url: Final response URL, or the requested URL when no response arrived.
         status: HTTP status, or ``None`` when no response arrived.
         text: Response body, kept for HTTP error responses too.
+        headers: Response headers with lowercased names.
         error: Failure message, or ``None`` after a successful request.
     """
 
@@ -88,8 +89,8 @@ class HttpxFetcher:
         if not math.isfinite(timeout) or timeout <= 0:
             raise ValueError("timeout must be finite and positive")
         self._client = httpx.AsyncClient(timeout=timeout, headers=_HEADERS, transport=transport)
-        # httpx.Headers matches names in any case, as HTTP does (RFC 9110, section 5.1, checked
-        # 2026-11-19), so a caller's "user-agent" replaces the default "User-Agent".
+        # httpx.Headers matches names case-insensitively (RFC 9110 §5.1), so a caller's
+        # "user-agent" replaces the default "User-Agent".
         self._client.headers.update(headers or {})
 
     async def fetch(

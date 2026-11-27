@@ -21,7 +21,7 @@ UNREADABLE = (TypeError, ValueError, LookupError, AttributeError, RecursionError
 
 
 def failure(result: FetchResult) -> str | None:
-    """Say why a response carries no data, or return None for a site's HTTP 200."""
+    """Return why a response carries no data, or None for HTTP 200."""
     # A site serves its data with HTTP 200. Another 2xx or a redirect the fetcher did not follow
     # carries no data, and reading its body could pass for an empty result.
     if result.error:
@@ -97,8 +97,8 @@ def read_xml[T](
             or the body is unreadable.
     """
     _stop_if_failed(result, site, board, unknown)
-    # Expat opens no file or connection, and Expat 2.7.2 and later limit entity expansion
-    # (https://docs.python.org/3/library/xml.html, 2026-11-15).
+    # Expat does not open external entities, and Expat 2.7.2+ limits entity expansion
+    # (https://docs.python.org/3/library/xml.html).
     try:
         return unpack(ET.fromstring(result.text))
     except (ET.ParseError, *UNREADABLE) as error:
@@ -126,8 +126,8 @@ def json_ld(page: BeautifulSoup, types: Set[str]) -> list[dict[str, Any]]:
     Return the page's JSON-LD nodes whose ``@type`` names one of ``types``, in page order.
 
     A node may head a script, sit in a top-level array, or sit in an ``@graph``, and its ``@type``
-    may be a list (JSON-LD 1.1, sections 3.5, 4.9, and 9, checked 2026-11-20). A script that does
-    not parse is skipped, so the page's other nodes stay readable.
+    may be a list (JSON-LD 1.1, sections 3.5, 4.9, and 9). A script that does not parse is skipped,
+    so the page's other nodes stay readable.
     """
     # A stack, so the nodes come out in document order without recursing into the page's nesting.
     stack: list[Any] = []
@@ -185,8 +185,7 @@ def cut_short(where: str, total: int, offset: int) -> Stopped:
     """
     return Stopped(
         f"{where} reported {total} postings but sent an empty page after {offset}, so the result "
-        "may be incomplete. Postings may have closed during the search. A rerun reads the "
-        "current list"
+        "may be incomplete. Postings may have closed during the search; try running it again"
     )
 
 

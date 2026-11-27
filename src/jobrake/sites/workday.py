@@ -1,4 +1,4 @@
-"""Search an employer's Workday career site through the JSON API behind it."""
+"""Search an employer's Workday career site."""
 
 import functools
 import json
@@ -172,10 +172,9 @@ async def _pages(
 
 
 def _withdrawn(text: str) -> bool:
-    # A posting taken off its career site can answer 403 with error S22 in the body (measured
-    # 2026-11-14 on two career sites). career-ops reads that answer the same way (liveness-api.mjs
-    # in https://github.com/career-ops-hq/career-ops, checked 2026-11-14). Any other 403 is a block,
-    # which a rerun may pass.
+    # A posting taken off its career site can answer 403 with errorCode S22 in the body (measured
+    # 2026-11-14 on two career sites); career-ops reads that answer the same way (liveness-api.mjs
+    # in https://github.com/career-ops-hq/career-ops). Any other 403 is treated as a temporary block.
     try:
         return as_dict(json.loads(text)).get("errorCode") == "S22"
     except ValueError, RecursionError:
@@ -187,7 +186,7 @@ def _parse_details(payload: dict[str, Any]) -> dict[str, Any]:
     Return the detail fields of a posting from its ``jobPostingInfo``.
 
     A posting with a start date takes its ``date`` from it, because the card's date counts from
-    today in UTC and can be a day past Workday's own.
+    today in UTC and can be off by a day from Workday's own.
     """
     info = payload["jobPostingInfo"]
     country = as_dict(as_dict(info.get("jobRequisitionLocation")).get("country"))
@@ -278,7 +277,7 @@ def card(reference: str) -> JobDict:
         raise ValueError(
             f"{reference!r} is not a Workday posting URL. Pass a record's url, such as "
             f"{EXAMPLE_BOARD}/job/Remote-USA/Applied-Scientist_P751481-1"
-        ) from None
+        )
     return make_job(site="workday", id=f"{tenant}:{match.group(1)}", url=site_url + path)
 
 

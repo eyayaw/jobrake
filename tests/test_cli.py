@@ -462,6 +462,8 @@ def test_invalid_output_fails_before_scraping(run_cli, stub_search, tmp_path, ca
     with pytest.raises(SystemExit):
         run_cli("-o", str(tmp_path / "jobs.xlsx"))
     with pytest.raises(SystemExit):
+        run_cli("-o", str(tmp_path / "jobs"))
+    with pytest.raises(SystemExit):
         run_cli("-o", str(tmp_path / "missing" / "jobs.json"))
     with pytest.raises(SystemExit):
         run_cli("-o", str(tmp_path))
@@ -481,13 +483,14 @@ def test_invalid_output_fails_before_scraping(run_cli, stub_search, tmp_path, ca
         run_cli("-o", str(locked / "jobs.json"))
     errors = capsys.readouterr().err
     assert "unsupported output extension" in errors
+    assert "has no file extension" in errors
     assert "output directory does not exist" in errors
     assert "output path is a directory" in errors
     assert f"output file already exists: {existing}" in errors
     assert f"output file already exists: {dangling}" in errors
     assert f"output directory is not writable: {locked}" in errors
     assert "usage:" not in errors
-    assert errors.count("Run 'jobrake indeed search -h' for help.") == 6
+    assert errors.count("Run 'jobrake indeed search -h' for help.") == 7
 
 
 def test_status_handler_progress():

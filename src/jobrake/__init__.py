@@ -1,4 +1,4 @@
-"""Read job boards' postings and return each one as the same record."""
+"""Read job postings from multiple boards using one shared record shape."""
 
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _get_version

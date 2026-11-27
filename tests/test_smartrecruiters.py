@@ -320,7 +320,7 @@ def test_details_fill_each_card_and_stop_when_one_fails(caplog):
     assert fetcher.requests[1:] == [f"{POSTINGS}744000158197889", f"{POSTINGS}744000158108729"]
     fetcher.responses["postings/744000158108729"] = network_down()
     fetcher.requests.clear()
-    with pytest.raises(Stopped, match="details of 1 of 2 postings") as stop:
+    with pytest.raises(Stopped, match="details for 1 of 2 postings") as stop:
         asyncio.run(smartrecruiters.search(fetcher, board="BoschGroup", details=True))
     # The filled posting comes from the cache, so the rerun asks only about the other one.
     assert fetcher.requests[1:] == [f"{POSTINGS}744000158108729"]

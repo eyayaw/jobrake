@@ -70,7 +70,7 @@ DISCOVERY = 12  # unpinned requests to spend looking for them
 # fabric refused it.
 RETRIES = 5
 
-# Match HTTPX's default: https://www.python-httpx.org/api/#asyncclient (checked 2026-11-07).
+# Match HTTPX's default: https://www.python-httpx.org/api/#asyncclient.
 _MAX_REDIRECTS = 20
 
 # LinkedIn's guest 429 responses carry no Retry-After header. A 429 from a full window clears once
@@ -194,7 +194,7 @@ async def paced_fetch(fetcher: Fetcher, url: str) -> FetchResult:
     for _ in range(_MAX_REDIRECTS + 1):
         result = await _fetch_with_retries(fetcher, url)
         location = result.headers.get("location")
-        # GET redirects: https://www.rfc-editor.org/rfc/rfc9110#section-15.4 (checked 2026-11-07).
+        # GET redirects: https://www.rfc-editor.org/rfc/rfc9110#section-15.4.
         if result.error or result.status not in {301, 302, 303, 307, 308} or not location:
             return result
         try:
@@ -251,16 +251,16 @@ async def _fetch_on_turn(fetcher: Fetcher, url: str, tried: set[str]) -> FetchRe
 
 
 def on_linkedin(url: str) -> bool:
-    """Tell whether a URL is an HTTPS LinkedIn address with the default port and no credentials."""
+    """Return whether a URL is an HTTPS LinkedIn address with the default port and no credentials."""
     parts = split_url(url)
     return parts.scheme == "https" and on_domain(parts, "linkedin.com")
 
 
 def numeric(text: str) -> bool:
     """
-    Tell whether text is all digits 0-9, as a LinkedIn ID is.
+    Return whether text is all ASCII digits 0-9, as a LinkedIn ID is.
 
-    ``isdigit`` alone also accepts other scripts' digits, such as fullwidth ones.
+    ``isdigit`` alone also accepts non-ASCII digits, such as fullwidth ones.
     """
     return text.isascii() and text.isdigit()
 

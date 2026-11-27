@@ -79,13 +79,13 @@ JOB_FIELDS = tuple(JobDict.__annotations__)
 IDENTITY_FIELDS = ("site", "id", "url")
 DETAIL_FIELDS = tuple(name for name in JOB_FIELDS if name in JobDict.__optional_keys__)
 SUMMARY_FIELDS = tuple(name for name in JOB_FIELDS if name not in IDENTITY_FIELDS + DETAIL_FIELDS)
-# What a scalar detail of each type must be, and the check of it.
+# Expected type and validator for each scalar detail field.
 _SCALARS = {
     str: ("a string", lambda value: isinstance(value, str)),
     float: ("a finite number", lambda value: finite(value) is not None),
-    # An integer past float range is no usable field value, and past 4,300 digits Python cannot
-    # write it as JSON, so the cache could not store the record.
-    int: ("an integer in float range", lambda value: finite(as_int(value)) is not None),
+    # An integer past float range is unusable as a field value, and past 4,300 digits Python
+    # refuses to serialize it to JSON (breaking cache writes).
+    int: ("an integer within float range", lambda value: finite(as_int(value)) is not None),
 }
 # The details with a rule of their own: a menu, a structure, or a date _readable_date checks.
 _OWN_RULES = ("workplace_type", "site_data", "keywords", "posted_at", "expires_at")
@@ -108,10 +108,10 @@ def _place(entry: object) -> dict[str, Any]:
     has neither a name nor a text part.
 
     Raises:
-        TypeError: ``entry`` is not an object or has a key that is not a ``Place`` field.
+        TypeError: ``entry`` is not a dict or has a key that is not a ``Place`` field.
     """
     if not isinstance(entry, dict):
-        raise TypeError(f"a place must be an object, got {reprlib.repr(entry)}")
+        raise TypeError(f"a place must be a dict, got {reprlib.repr(entry)}")
     if unknown := entry.keys() - Place.__annotations__.keys():
         raise TypeError(f"not a place field: {', '.join(sorted(unknown))}")
     parts: dict[str, Any] = {}
@@ -176,14 +176,14 @@ def _site_data(value: object) -> dict[str, Any] | None:
     One example is the infinity that ``json.loads`` makes of ``1e400``.
 
     Raises:
-        TypeError: ``value`` is not an object with text keys, so a cache row of another
+        TypeError: ``value`` is not a dict with string keys, so a cache row of another
             shape is a miss.
     """
     if value is None:
         return None
     if not isinstance(value, dict) or not all(isinstance(key, str) for key in value):
         raise TypeError(
-            f"job field site_data must be an object with text keys, got {reprlib.repr(value)}"
+            f"job field site_data must be a dict with string keys, got {reprlib.repr(value)}"
         )
     fields = {key: _strict_json(entry) for key, entry in value.items()}
     return {key: entry for key, entry in fields.items() if entry not in (None, "", [])} or None
@@ -232,7 +232,7 @@ def _detail(name: str, value: object) -> object:
 
 
 def _readable_date(name: str, value: object, url: str) -> object:
-    """Return a date or timestamp ``iso_date`` reads as given, or None after a warning naming it."""
+    """Return a date or timestamp unchanged if ``iso_date`` reads it, else warn and return None."""
     if value is None or iso_date(value):
         return value
     logger.warning(

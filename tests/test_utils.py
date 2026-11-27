@@ -42,7 +42,14 @@ def test_html_text_renders_what_a_reader_sees(html, text):
         "<span hidden>x</span>",
         '<p style="opacity:.0">x</p>',
         '<p style="visibility:hidden">x</p>',
+        '<div style="visibility:hidden">x<span style="visibility:hidden"></span></div>',
+        '<div style="visibility:hidden">x<span style="visibility:inherit">y</span></div>',
+        '<div style="visibility:hidden">x<span style="display:none;visibility:visible">y</span></div>',
         '<p style="font-size:0px">x</p>',
+        '<div style="font-size:0">x<span style="font-size:0px"></span></div>',
+        '<div style="font-size:0"><span style="font-size:2em">x</span></div>',
+        '<div style="visibility:hidden;font-size:0">'
+        '<span style="visibility:visible">a</span><span style="font-size:16px">b</span></div>',
         '<p style="display:/**/none">x</p>',
         "<p>&#8203;</p>",  # an invisible character written as an entity
     ],
@@ -61,6 +68,10 @@ def test_html_text_drops_text_a_reader_never_sees(hidden):
         '<p style="display:none;display:block">x</p>',  # the last declaration wins
         '<div style="font-size:0"><span style="font-size:16px">x</span></div>',
         '<div style="visibility:hidden"><span style="visibility:visible">x</span></div>',
+        '<div style="visibility:hidden"><span style="visibility:initial">x</span></div>',
+        '<div style="visibility:hidden">leak<span style="visibility:visible">x</span></div>',
+        '<div style="visibility:hidden;font-size:0">'
+        '<span style="visibility:visible"><b style="font-size:16px">x</b></span></div>',
     ],
 )
 def test_html_text_keeps_styled_text_a_reader_sees(shown):

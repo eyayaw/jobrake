@@ -15,7 +15,6 @@ def _csv(jobs: list[JobDict]) -> str:
     and ``site_data`` holds the site's fields as JSON.
     """
     buf = io.StringIO()
-    # A missing detail field leaves its cell empty.
     writer = csv.DictWriter(buf, fieldnames=JOB_FIELDS, restval="", lineterminator="\n")
     writer.writeheader()
     writer.writerows(

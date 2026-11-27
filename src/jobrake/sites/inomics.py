@@ -279,7 +279,7 @@ async def search(
     if len(cards) < min(results, total):
         raise Stopped(
             f"INOMICS counted {total} postings but sent {len(cards)}, so the result may be "
-            "incomplete. A rerun reads the current list",
+            "incomplete; try running it again",
             partial=jobs,
         )
     return await fill_details(fetcher, jobs, _posting_fields) if details else jobs

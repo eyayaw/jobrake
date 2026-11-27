@@ -57,7 +57,7 @@ def _listings(page: BeautifulSoup) -> tuple[str | None, dict[str, str]]:
     Raises:
         TypeError: The page is not a listings page, or it shows postings without both their dates
             and an export link.
-        ValueError: The export link is not an address urlsplit can read.
+        ValueError: The export link is not a valid URL.
     """
     if page.select_one("form#ListingsForm") is None:
         raise TypeError("the page holds no listings form")

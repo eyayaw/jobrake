@@ -157,6 +157,35 @@ def test_an_unusable_environment_ttl_falls_back(seconds):
         assert Cache().ttl == TTL
 
 
+def test_unexpandable_cache_path_falls_back_to_default_or_disables(monkeypatch, tmp_path, caplog):
+    monkeypatch.setenv("JOBRAKE_CACHE_PATH", "~nonexistent_user_xyz/jobrake.sqlite3")
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
+    monkeypatch.setattr("jobrake.cache.sys.platform", "linux")
+    fallback = Cache()
+    assert fallback.path == tmp_path / "jobrake" / "jobrake.sqlite3"
+    assert "unknown home directory" in caplog.text
+
+    caplog.clear()
+    monkeypatch.delenv("XDG_CACHE_HOME", raising=False)
+    monkeypatch.setattr("jobrake.cache.Path.home", mock.Mock(side_effect=RuntimeError("no home")))
+    disabled = Cache()
+    assert disabled.path is None
+    assert disabled.get("linkedin", ["111"]) == {}
+    assert "cache disabled" in caplog.text
+
+
+def test_unset_home_disables_default_cache_instead_of_crashing(monkeypatch, caplog):
+    monkeypatch.delenv("JOBRAKE_CACHE_PATH", raising=False)
+    monkeypatch.delenv("XDG_CACHE_HOME", raising=False)
+    monkeypatch.delenv("LOCALAPPDATA", raising=False)
+    monkeypatch.setattr("jobrake.cache.Path.home", mock.Mock(side_effect=RuntimeError("no home")))
+    cache = Cache()
+    assert cache.path is None
+    assert cache.get("linkedin", ["111"]) == {}
+    cache.put([JOB])
+    assert "cache disabled" in caplog.text
+
+
 def test_the_shared_cache_reads_the_environment_on_first_use(tmp_path):
     # A fresh interpreter, because the suite's fixture replaces the shared cache.
     code = """

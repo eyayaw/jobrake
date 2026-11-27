@@ -1,4 +1,4 @@
-"""Supported sites and the public ``scrape``, ``check``, and ``identify``."""
+"""Supported sites and the public ``scrape``, ``check``, and ``identify`` functions."""
 
 import contextlib
 from types import ModuleType
@@ -93,10 +93,9 @@ def check(site: str, **options: object) -> None:
 
 def identify(link: str) -> tuple[str, str] | None:
     """
-    Return the ``site`` and ``id`` of the posting a link names, as a search returns them, or None.
+    Return the ``(site, id)`` pair for a posting link, or None if unrecognized.
 
-    It sends no request. Each site that defines ``card`` reads its own links, and a link no site
-    reads gives None.
+    Sends no network requests; checks the link against each supported site's URL parser.
     """
     for module in SITES.values():
         if read := getattr(module, "card", None):
