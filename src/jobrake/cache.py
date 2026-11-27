@@ -54,28 +54,32 @@ def _env_seconds(name: str, default: float) -> float:
     return seconds
 
 
-def _default_path() -> Path:
+def _default_path() -> Path | None:
     if override := os.environ.get("JOBRAKE_CACHE_PATH"):
         try:
             return Path(override).expanduser()
         except RuntimeError:
             logger.warning(
-                "JOBRAKE_CACHE_PATH=%r names no home directory; using the default", override
+                "JOBRAKE_CACHE_PATH=%r has an unknown home directory; using the default", override
             )
-    match sys.platform:
-        case "darwin":
-            base = Path.home() / "Library" / "Caches"
-        case "win32":
-            base = Path(os.environ.get("LOCALAPPDATA") or Path.home() / "AppData" / "Local")
-        case "linux" | _:
-            base = Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache")
+    try:
+        match sys.platform:
+            case "darwin":
+                base = Path.home() / "Library" / "Caches"
+            case "win32":
+                base = Path(os.environ.get("LOCALAPPDATA") or Path.home() / "AppData" / "Local")
+            case _:
+                base = Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache")
+    except RuntimeError:
+        logger.warning("cannot determine home directory for default cache path; cache disabled")
+        return None
     return base / "jobrake" / "jobrake.sqlite3"
 
 
 def _locked(error: Exception) -> bool:
-    """Tell whether SQLite refused a statement for a lock another connection held too long."""
-    # An extended code, such as SQLITE_BUSY_SNAPSHOT, carries its primary code in its low byte
-    # (https://sqlite.org/rescode.html, checked 2026-11-21).
+    """Return whether SQLite refused a statement because another connection held a lock too long."""
+    # Extended codes such as SQLITE_BUSY_SNAPSHOT carry their primary code in the low byte
+    # (https://sqlite.org/rescode.html).
     code = getattr(error, "sqlite_errorcode", 0) & 0xFF
     return code in (sqlite3.SQLITE_BUSY, sqlite3.SQLITE_LOCKED)
 
@@ -85,14 +89,14 @@ class Cache:
     Store whole ``JobDict`` records in one SQLite table, keyed by site and posting ID.
 
     A row stays fresh for ``ttl`` seconds, and opening the cache deletes expired rows.
-    Each row read passes through ``make_job``, so a row it rejects, such as one whose keys no longer
-    fit ``JobDict`` or whose ``applicants`` is text, is a miss, which the next fetch replaces.
+    Each row read passes through ``make_job``, so a row it rejects (such as one with obsolete
+    fields or wrong value types) counts as a miss and is replaced on the next fetch.
     A storage or decoding failure logs one warning with the path and disables this instance,
-    so callers see misses and keep fetching. A lock another connection holds past SQLite's busy
-    timeout skips the cache for ``LOCK_PAUSE`` seconds.
+    so callers see misses and keep fetching. If another connection holds the database locked past
+    SQLite's busy timeout, the cache is skipped for ``LOCK_PAUSE`` seconds.
 
     Attributes:
-        path: SQLite database path. The cache opens it on first access.
+        path: SQLite database path, or ``None`` if no home directory could be resolved.
         ttl: Seconds a row remains fresh.
     """
 
@@ -106,11 +110,11 @@ class Cache:
         self.ttl = _env_seconds("JOBRAKE_CACHE_TTL", TTL)
         self.path = Path(path) if path else _default_path()
         self._conn: sqlite3.Connection | None = None
-        self._broken = False
+        self._broken = self.path is None
         self._paused_until = -math.inf  # time.monotonic() before which a lock skips the cache
 
     def _connect(self) -> sqlite3.Connection | None:
-        if self._broken or time.monotonic() < self._paused_until:
+        if self._broken or self.path is None or time.monotonic() < self._paused_until:
             return None
         if self._conn is not None:
             return self._conn
@@ -161,7 +165,7 @@ class Cache:
         Read the fresh records of one site for the requested posting IDs.
 
         A row ``make_job`` rejects is left out, and the count of rejected rows logs at DEBUG.
-        A lock another connection holds returns an empty dict, as does a call in the pause after one.
+        Returns an empty dict if another connection holds a lock or during the pause after one.
         Any other storage or decoding failure also returns an empty dict and disables the cache.
         """
         ids = list(dict.fromkeys(ids))
@@ -169,9 +173,9 @@ class Cache:
         if conn is None or not ids:
             return {}
         try:
-            # One JSON parameter holds every ID, so no call reaches SQLite's limit on parameters.
-            # json_each is built in from SQLite 3.38.0, and the STRICT table needs 3.37.0
-            # (https://sqlite.org/json1.html, checked 2026-11-20).
+            # Pass IDs as one JSON parameter to stay below SQLite's variable limit.
+            # json_each is built in since SQLite 3.38.0 (https://sqlite.org/json1.html),
+            # and STRICT tables require 3.37.0.
             rows = conn.execute(
                 "SELECT id, job FROM jobs"
                 " WHERE site = ? AND id IN (SELECT value FROM json_each(?)) AND stored_at >= ?",
@@ -200,7 +204,7 @@ class Cache:
         """
         Store records, each under its own site and ID, replacing an older row.
 
-        A lock another connection holds skips the write, as does the pause after one, and any other
+        Skips the write if another connection holds a lock or during the pause after one; any other
         storage or serialization failure disables the cache.
         """
         conn = self._connect()

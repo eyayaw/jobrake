@@ -1,4 +1,4 @@
-"""The posting loop of the sites that fetch each posting on its own, and ``postings_of``."""
+"""Shared detail-fetching loop and ``postings_of`` factory for sites with per-posting endpoints."""
 
 import asyncio
 import logging
@@ -103,7 +103,7 @@ async def _read_each(
             for _ in range(workers):
                 group.create_task(work())
     except ExceptionGroup as errors:
-        # A fetcher's own exception leaves as itself and outranks a Halt.
+        # Propagate exceptions from the caller's fetcher directly instead of treating them as Halt.
         for error in errors.exceptions:
             if not isinstance(error, Halt):
                 raise error from None
@@ -139,13 +139,13 @@ async def fill_details(
     found = await _read_each(fetcher, cards, read, workers)
     filled = [_merge(card, record) if (record := found.get(card["id"])) else card for card in cards]
     if failed := [card["url"] for card in cards if card["id"] not in found]:
-        action = (
-            "Pass their URLs to postings to retry them"
-            if retryable
-            else "Rerun the search to retry them, which skips the postings already cached"
-        )
+        if retryable:
+            urls = "its URL" if len(failed) == 1 else "their URLs"
+            action = f"Pass {urls} to 'postings' to retry"
+        else:
+            action = "Rerun the search to retry (cached postings will not be refetched)"
         raise Stopped(
-            f"{site_name(cards[0]['site'])} could not fetch the details of {len(failed)} of "
+            f"{site_name(cards[0]['site'])} could not fetch details for {len(failed)} of "
             f"{len(cards)} postings. {action}",
             partial=filled,
             failed=failed if retryable else [],

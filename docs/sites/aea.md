@@ -1,8 +1,8 @@
 # AEA JOE (`aea`)
 
-[JOE](https://www.aeaweb.org/joe/listings), Job Openings for Economists, is the American Economic
-Association's listing of academic, government, and private-sector openings for economists.
-A search returns the listings JOE shows as active, newest first, each with its full text:
+[JOE](https://www.aeaweb.org/joe/listings) (Job Openings for Economists) is the American Economic
+Association's board for academic, government, and private-sector economist positions. Searches
+return all matching active listings, newest first, with full descriptions:
 
 ```sh
 jobrake aea search -o joe.jsonl
@@ -20,8 +20,8 @@ jobs = asyncio.run(scrape("aea", section=["1", "3"], jel=["J"]))
 
 ## Options
 
-`--query` is the site's keyword search.
-`--section` takes a section of JOE's Section/Type menu, by its name or its code:
+`--query` passes keywords to JOE's search box.
+`--section` filters by JOE's Section/Type menu using either the code or the full label:
 
 | Code | Section                                                                   |
 | ---- | ------------------------------------------------------------------------- |
@@ -36,36 +36,37 @@ jobs = asyncio.run(scrape("aea", section=["1", "3"], jel=["J"]))
 | `5`  | Full-Time Nonacademic                                                     |
 | `6`  | Other Nonacademic (Temporary, Part-Time, Non-Salaried, Consulting, Etc.)  |
 
-JOE files the listings of sections 2 and 4 under subsections, such as `2a`, so `2` or `4` selects both of its subsections.
+Because JOE files listings in sections 2 and 4 under their subsections (`2a`/`2b`, `4a`/`4b`),
+passing `2` or `4` automatically includes both subsections.
 
-`--jel` takes a JEL field by its letter, such as `J` for labor and demographic economics, or `00` for listings open to any field.
-Repeat `--section` or `--jel` to match any of several values. Each option you add narrows the search.
-JOE would return nothing for a section or field it does not know, so jobrake stops you before the search.
+`--jel` filters by JEL classification letter (such as `J` for labor and demographic economics), or
+`00` for listings open to any field. Repeat `--section` or `--jel` to match any of several values;
+combining different flags narrows the results. Unknown codes are rejected locally before sending a
+request, since JOE would silently return zero listings.
 
-JOE dates listings by the day, so `--max-age-hours 168` keeps the listings posted on or after the date seven days ago.
-A search takes no `--results` and returns every listing that matches.
+Because JOE dates listings by calendar day, `--max-age-hours 168` returns everything posted on or
+after the date seven days ago. There is no `--results` flag; every matching listing is returned.
 
 ## Fields
 
-Besides its full text, each listing carries the title, the institution, the places, and the posted
-date, and, when JOE has them, the application deadline, the hiring department, and the keywords
-([every key](../reference.md#fields-by-site)).
+Each listing includes the full text, title, institution, locations, and posted date, plus the
+deadline, department, and keywords when provided. The
+[reference](../reference.md#fields-by-site) lists every populated field.
 
-A few idiosyncrasies of these fields:
+A few JOE quirks to keep in mind:
 
-- JOE may keep a listing active past its deadline, so check `expires_at`.
-- `site_data.status` holds a status such as `Position has been filled` once the employer closes the search.
-- The salary is free text in `site_data.salary_range`, such as `Competitive` or `$145,000/year`,
-  so a record has no salary fields.
-- `site_data` also holds the listing's `section`, its `jel` codes, such as `J2` or `F`, and the
-  `division` of the institution when JOE names one.
-- `locations` holds each place the listing names, such as `Cergy, Ile de France, FRANCE`.
-  JOE writes the country in words, so a place has no `country_code`.
-- `posted_at`, `date`, and `expires_at` are calendar dates without a time.
-- `id` joins the JOE issue that carried the listing and the listing's number, such as `2026-02_111477855`.
+- Expired listings can remain active on JOE past their deadline, so check `expires_at`.
+- Closed searches set `site_data.status` (e.g., `Position has been filled`).
+- Salary is free text (like `Competitive` or `$145,000/year`) and lives in `site_data.salary_range`
+  rather than the structured salary fields.
+- `site_data` also includes `section`, `jel` codes (such as `J2` or `F`), and `division` when present.
+- `locations` lists every location in the posting (e.g., `Cergy, Ile de France, FRANCE`). JOE spells
+  out country names instead of ISO codes, so `country_code` is omitted.
+- `posted_at`, `date`, and `expires_at` are calendar dates only (no time of day).
+- `id` combines the JOE issue and listing number, e.g., `2026-02_111477855`.
 
 ## Terms
 
-The JOE listings page states that its content is for personal use only and that you may not
-scrape, collect, or otherwise use it without the American Economic Association's express written
-permission. The page offers its own XML and Excel downloads of a search.
+The JOE listings page states that content is for personal use only and forbids scraping or
+collecting it without express written permission from the American Economic Association. Note that
+the site also provides its own XML and Excel export buttons.

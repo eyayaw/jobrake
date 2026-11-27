@@ -449,7 +449,7 @@ def test_details_handles_vhash_in_direct_link_fallbacks_gone_and_malformed_answe
             "id=5575618204": ok(json.dumps({"error": "rate limited"})),
         }
     )
-    with pytest.raises(Stopped, match="Rerun the search to retry them") as stop:
+    with pytest.raises(Stopped, match="Rerun the search to retry") as stop:
         asyncio.run(adzuna.search(missing_ad, country="gb", details=True))
     # Adzuna has no postings to retry a URL with, so the CLI names no retry command.
     assert stop.value.failed == []

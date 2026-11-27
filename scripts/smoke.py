@@ -5,7 +5,7 @@ from typing import Any
 
 from jobrake import scrape
 
-# Each site names the United States its own way.
+# Site-specific location arguments for the United States.
 PLACES: dict[str, dict[str, Any]] = {
     "indeed": {"country": "us"},
     "linkedin": {"location": "United States"},
@@ -13,12 +13,11 @@ PLACES: dict[str, dict[str, Any]] = {
 
 
 def column(value: str | None, width: int) -> str:
-    # Title and company are nullable summary fields, and a posting can name no place.
     return f"{(value or '?')[:width]:<{width + 1}}"
 
 
 async def main() -> int:
-    """Print a count and sample fields from each configured search, and return how many failed."""
+    """Run a quick live check against Indeed and LinkedIn, returning the number of failures."""
     failed = 0
     for site, place in PLACES.items():
         try:
@@ -30,7 +29,7 @@ async def main() -> int:
                     f"{column(job['company'], 20)} {column('; '.join(place['name'] for place in job['locations']), 24)} "
                     f"desc={len(job.get('description', ''))}ch"
                 )
-        except Exception as e:  # noqa: BLE001  a smoke run reports each site's failure and goes on
+        except Exception as e:  # noqa: BLE001  report each site's failure and continue
             print(f"{site}: FAILED {type(e).__name__}: {e}")
             failed += 1
         await asyncio.sleep(3)

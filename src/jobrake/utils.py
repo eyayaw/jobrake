@@ -44,7 +44,7 @@ SITE_NAMES = {
 
 
 def site_name(site: str) -> str:
-    """Return the name a message gives a site, or the key of a site without one, such as a test's."""
+    """Return the display name for a site, falling back to its key if unknown."""
     return SITE_NAMES.get(site, site)
 
 
@@ -65,26 +65,56 @@ def _style(tag: Tag) -> dict[str, str]:
 
 
 def _zero(value: str | None) -> bool:
-    """Tell whether a CSS number or length is zero, such as ``0``, ``.0``, or ``0px``."""
+    """Return whether a CSS number or length is zero, such as ``0``, ``.0``, or ``0px``."""
     number = re.fullmatch(r"(\d*\.?\d+)[a-z%]*", value or "")
     return number is not None and float(number[1]) == 0
 
 
-def _hidden(tag: Tag) -> bool:
-    if tag.has_attr("hidden"):
-        return True
-    style = _style(tag)
-    if style.get("display") == "none" or _zero(style.get("opacity")):
-        return True
-    # Visibility and font size inherit, and a descendant that sets either one again can show its
-    # text, so the element then stays.
-    inherited = set()
-    if style.get("visibility") in ("hidden", "collapse"):
-        inherited.add("visibility")
-    if _zero(style.get("font-size")):
-        inherited.add("font-size")
-    descendants = (_style(child) for child in tag.find_all(style=True))
-    return bool(inherited) and not any(inherited & child.keys() for child in descendants)
+_CSS_INHERITED = frozenset({"", "inherit", "unset", "revert", "revert-layer"})
+_RELATIVE_FONT = re.compile(r"[\d.]+\s*(?:em|%)")
+
+
+def _child_hidden_state(
+    style: dict[str, str], *, vis_hidden: bool, zero_font: bool
+) -> tuple[bool, bool]:
+    vis = style.get("visibility", "")
+    if vis in ("hidden", "collapse"):
+        child_vis = True
+    elif vis in ("visible", "initial"):
+        child_vis = False
+    else:
+        child_vis = vis_hidden
+    size = style.get("font-size", "")
+    if size in _CSS_INHERITED:
+        child_font = zero_font
+    else:
+        child_font = _zero(size) or (zero_font and bool(_RELATIVE_FONT.fullmatch(size)))
+    return child_vis, child_font
+
+
+def _strip_hidden(soup: BeautifulSoup) -> None:
+    """Remove script/style elements and text hidden by HTML attributes or inline CSS."""
+    stack: list[tuple[Tag, bool, bool]] = [(soup, False, False)]
+    while stack:
+        node, vis_hidden, zero_font = stack.pop()
+        for child in list(node.children):
+            if not isinstance(child, Tag) and (vis_hidden or zero_font):
+                child.extract()
+                continue
+            if not isinstance(child, Tag):
+                continue
+            style = _style(child)
+            if (
+                child.name in ("style", "script")
+                or child.has_attr("hidden")
+                or style.get("display") == "none"
+                or _zero(style.get("opacity"))
+            ):
+                child.decompose()
+                continue
+            stack.append(
+                (child, *_child_hidden_state(style, vis_hidden=vis_hidden, zero_font=zero_font))
+            )
 
 
 def html_text(html: str) -> str:
@@ -98,10 +128,7 @@ def html_text(html: str) -> str:
     if not html:
         return ""
     soup = BeautifulSoup(html, "html.parser")
-    for tag in soup.find_all(("style", "script")):
-        tag.decompose()
-    for tag in soup.find_all(_hidden):
-        tag.decompose()
+    _strip_hidden(soup)
     for tag in soup.find_all(_BLOCK_TAGS):
         tag.insert_before("\n")
         tag.insert_after("\n")
@@ -201,7 +228,7 @@ def _check(options: dict[str, Option], given: dict[str, object]) -> None:
             raise ValueError(f"{name} is blank. Pass the {option.help}")
         # A blank list entry names nothing either.
         if isinstance(value, list) and not all(item.strip() for item in value):
-            raise ValueError(f"{name} holds a blank entry. Pass the {option.help}")
+            raise ValueError(f"{name} contains a blank entry. Pass the {option.help}")
 
 
 # A site's own rules for its options: it takes every option, defaults included, as a keyword and
@@ -252,8 +279,13 @@ class Checked[**P, R]:
             bound = self._signature.bind(*args, **kwargs)
         except TypeError as error:
             names = [name for name, option in self._options.items() if not option.positional]
-            listing = f"Its options are {', '.join(names)}" if names else "It takes no options"
-            raise TypeError(f"{self._site}: {error}. {listing}") from None
+            if names:
+                listing = f". Its options are {', '.join(names)}"
+            elif not self._options:
+                listing = ". It takes no options"
+            else:
+                listing = ""
+            raise TypeError(f"{self._site}: {error}{listing}") from None
         bound.apply_defaults()
         _, *given = bound.arguments.items()
         values = dict(given)
@@ -354,13 +386,12 @@ def split_url(text: str) -> SplitResult:
         return SplitResult("", "", "", "", "")
 
 
-# One label of a host name: RFC 1035, sections 2.3.1 and 2.3.4, as RFC 1123, section 2.1, lets it
-# start with a digit (checked 2026-11-21).
+# Hostname label per RFC 1035 / RFC 1123 (digits allowed at the start).
 HOST_LABEL = r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?"
 
 
 def on_domain(parts: SplitResult, domain: str) -> bool:
-    """Tell whether a URL is on ``domain`` or a subdomain, with no credentials and no port but 443."""
+    """Return whether a URL is on ``domain`` or a subdomain, with no credentials and no port other than 443."""
     try:
         port = parts.port
     except ValueError:  # a port that is not a number in range
@@ -374,7 +405,7 @@ def on_domain(parts: SplitResult, domain: str) -> bool:
 
 
 def as_str(value: object) -> str | None:
-    """Return a JSON value when it is a string, made well-formed, or None for anything else."""
+    """Return a well-formed string if ``value`` is a ``str``, otherwise None."""
     return well_formed(value) if isinstance(value, str) else None
 
 
@@ -426,9 +457,9 @@ def epoch_ms_to_iso(ms: object, *, name: str, url: object) -> str | None:
     """
     Convert a site's epoch milliseconds to an ISO 8601 UTC timestamp.
 
-    ``None`` returns ``None``. A value that is no number, is out of range, or resolves before the
-    year 2000, as epoch seconds do, logs a warning that names the field ``name`` of the posting at
-    ``url``, and returns ``None``.
+    ``None`` returns ``None``. A non-numeric value, an out-of-range value, or one before the
+    year 2000 (as epoch seconds are) logs a warning naming ``name`` and ``url``, and returns
+    ``None``.
     """
     if ms is None:
         return None

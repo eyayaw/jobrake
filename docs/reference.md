@@ -16,10 +16,9 @@ Every record is a dictionary, with three groups of keys.
 - **Summary keys:** `title`, `company`, `locations`, and `date`.
 - **Detail keys:** included when a value is available.
 
-Identity and summary keys are always present, with `None` for an unavailable summary value
-and `[]` when jobrake found no place.
-An empty `locations` says only that jobrake extracted no place.
-It does not say the posting has no place, nor that it is remote.
+Identity and summary keys are always present, using `None` when a summary value is unavailable and
+`[]` when no locations were extracted. An empty `locations` list only means no place was extracted;
+it does not imply the role is remote or has no location.
 
 | Key | Type | Meaning |
 | --- | --- | --- |
@@ -49,52 +48,45 @@ It does not say the posting has no place, nor that it is remote.
 | `experience_months` | integer | The experience the posting asks for, in whole months |
 | `education` | string | The credential the posting asks for, as the site words it |
 | `keywords` | list of strings | The terms the employer tagged the posting with, in the site's order |
-| `site_data` | object | Fields only this site carries, under the site's own names |
+| `site_data` | object | Site-specific fields under the site's own names |
 
-The keys from `description` down are the detail keys.
-A detail key is absent when the site omits or does not publish the value,
-or when jobrake did not fetch the posting page.
-`employment_type` is a slug of the label the site sends,
-with `contractor` and `intern` read as `contract` and `internship`.
-Indeed sends one of six labels, and elsewhere the values form no fixed list:
-Spotify's board on Lever labels its postings `permanent`.
-Ashby gives `salary_period` as `HOUR`, `DAY`, `WEEK`, `MONTH`, or `YEAR`,
-and so does LinkedIn's page markup.
-Indeed's value and the one in LinkedIn's structured data pass through as sent.
-`workplace_type` appears only when the site states it,
-so an absent one leaves the workplace unknown and does not mean on-site.
+The keys from `description` down are detail keys. They are omitted when the site doesn't publish a
+value, or on `--details` sites when the posting page wasn't fetched.
+`employment_type` slugifies the site's label, normalizing `contractor` to `contract` and `intern`
+to `internship`. Indeed uses a fixed set of six labels, while other boards are free-form (for
+example, Spotify's Lever board labels roles `permanent`).
+Ashby and LinkedIn's page markup report `salary_period` as `HOUR`, `DAY`, `WEEK`, `MONTH`, or
+`YEAR`; Indeed and LinkedIn's structured data pass through as sent.
+`workplace_type` is only set when explicitly stated by the site, so omitting it means unknown rather
+than on-site.
 
-`site_data` holds, for example, EconJobMarket's `position_types`.
-Its keys depend on `site`, and each site's page lists them.
-A key that a second site comes to share with the same meaning moves into the record.
+`site_data` stores fields unique to one site (such as EconJobMarket's `position_types`), listed on
+each site's page. Whenever a second site shares the same concept, that field gets promoted to a
+top-level key.
 
 ### Places
 
-Each place in `locations` has a `name`, the site's label for it or its parts joined
-when the site gives no label,
-and carries `city`, `region`, `country_code`, `latitude`, and `longitude` only
-when the site gives them for that place.
-`country_code` is an ISO 3166-1 alpha-2 code, such as `US`. jobrake converts a site's alpha-3 code
-to alpha-2, and leaves the key out when the site gives no code or something else, such as a
-country name.
-jobrake parses nothing out of a place's name, so a place named `Seattle, WA` carries no `city`
-unless the site sent one. A place the site lists twice with the same parts appears once.
-Places that share a name but differ in any part, such as `Remote` in two countries, each appear.
+Each entry in `locations` has a `name` (the site's label, or its parts joined if there is no label)
+and includes `city`, `region`, `country_code`, `latitude`, and `longitude` only when the site
+provides them.
+`country_code` is an ISO 3166-1 alpha-2 code (such as `US`); alpha-3 codes are converted to
+alpha-2, and non-codes like country names are omitted.
+jobrake never guesses structured fields from free text, so a label like `Seattle, WA` won't set
+`city` unless the site supplied it separately. Exact duplicate places are deduplicated, while
+places sharing a name with different fields (like `Remote` in two countries) stay separate.
 
 ### Dates
 
-A posting can carry two dates. `date` holds the calendar date, such as `2026-09-19`,
-and `posted_at` holds the full timestamp when the site gives one,
-such as `2026-09-19T05:00:00+00:00`, and the calendar date otherwise.
-jobrake prefers the date a search result states and falls back to the calendar portion
-of `posted_at`.
-The exceptions are Adzuna, LinkedIn, Workday, StepStone, and INOMICS with `--details`, where `date`
-is the calendar date of the `posted_at` that the posting page gives.
-A page without one leaves the search result's date.
-Compare on `date`, and read `posted_at` for a time of day.
-jobrake converts a site's own form, such as Lever's epoch milliseconds or INOMICS's day-first
-dates, to ISO 8601. Any other value is dropped with a warning:
-`date` falls back to `posted_at` or becomes `None`, and `posted_at` or `expires_at` is left out.
+Postings can have two date fields: `date` for the calendar date (`2026-09-19`) and `posted_at` for
+the full timestamp when available (`2026-09-19T05:00:00+00:00`), or the calendar date otherwise.
+Usually `date` comes from the search result, falling back to the calendar part of `posted_at`.
+On Adzuna, LinkedIn, Workday, StepStone, and INOMICS with `--details`, `date` is updated to the
+calendar date of the posting page's `posted_at` (keeping the search result's date if the page has
+none).
+Use `date` for day-level filtering and `posted_at` when you need a time of day.
+Site-specific date formats (like Lever's epoch milliseconds or INOMICS's day-first dates) are
+converted to ISO 8601; unparseable values are dropped with a warning (`date` falls back to
+`posted_at` or `None`, and `posted_at`/`expires_at` are omitted).
 
 ## Fields by site
 
@@ -133,14 +125,14 @@ The options several sites share and the output formats are in the [README](../RE
 
 ### Options
 
-Each site takes only the filters it applies.
-An option left at its unset value, or an empty list, stays out of the search.
-A list option takes several values after one flag, `--attributes CF3CP 6QC5F`, or across repeats.
-A posting must match every option given. Within one list option, a posting needs to match only
-one value, except for Indeed's `--attributes`, where it must carry every code.
-An option with a fixed list of values, such as AEA JOE's `--section`, rejects any other value
-before any request.
-Filters apply alongside keywords and geography, before the result limit.
+Each site exposes only the filters its backend actually supports. Unset options and empty lists are
+omitted from requests. List options accept multiple values after a single flag
+(`--attributes CF3CP 6QC5F`) or repeated flags.
+Multiple options combine with AND. Within a single list option, values combine with OR, except on
+Indeed's `--attributes`, where a posting must match every code listed.
+Options with a fixed set of allowed values (like AEA JOE's `--section`) are validated locally before
+sending any request. Filters apply server-side alongside query and location, before `--results`
+limits the count.
 
 ### Lookups
 
@@ -172,15 +164,14 @@ A reference is a search result's `url` or another address of the posting:
 | Workday                  | the posting's address copied from the browser                                     |
 | XING                     | the posting's address under `xing.com/jobs/<slug>-<id>`                           |
 
-Any other reference is an error, and nothing is fetched.
-Results follow the order given and have the fields of a search with `--details`, except a field only
-the search result carries, such as StepStone's `site_data`.
-Several references to one posting return one record.
-The command takes the same `--output` and `--format` as a search.
-A posting that is gone or unreachable is reported on stderr and left out, and when one was
-unreachable, the command writes the others and exits 1.
-In a search with `--details`, a gone posting keeps its search result instead, without details,
-and does not count as a failure.
+Any unrecognized reference raises an error before any request is sent.
+Results keep the input order and include the same fields as `--details`, except for fields that
+exist only on search results (such as StepStone's `site_data`). Duplicate references to the same
+posting return one record, and `--output`/`--format` work the same as in `search`.
+Gone or unreachable postings are logged to stderr and omitted from output; if any posting was
+unreachable, the command writes the rest and exits 1.
+During a `--details` search, a gone posting simply keeps its search summary and does not count as
+a failure.
 
 ### Exit statuses
 
@@ -191,13 +182,14 @@ and does not count as a failure.
 | 2           | An argument is wrong, a site refuses its value, or the `--output` path cannot be used     |
 | 130         | Ctrl-C ended the command                                                                  |
 
-A search or `postings` command that exits 1 still writes the postings it got, and stderr says
-what failed. With none it writes nothing, so empty output always comes from a command that
-completed. Logs and progress go to stderr, and the records to stdout.
+When a `search` or `postings` command exits 1, it still writes whatever postings it collected and
+logs the failure to stderr. If it collected nothing, it writes nothing. An empty JSON array (`[]`)
+or CSV header therefore always means the command completed normally (for JSONL, check the exit
+status). Logs and progress go to stderr; data goes to stdout.
 
-A search that finds nothing writes no file, and on stdout it writes `[]` in JSON, the header row
-in CSV, and nothing in JSONL.
-A write that fails or is interrupted partway removes the file it started, so a rerun can write it.
+A completed search with zero matches writes no `--output` file; on stdout it writes `[]` for JSON,
+just the header row for CSV, and nothing for JSONL. If writing a file fails or is interrupted
+midway, jobrake removes the partial file so you can safely rerun the command.
 
 ## Python API
 
@@ -211,25 +203,24 @@ jobrake.identify(link)  # -> (site, id) or None
 
 `jobrake.JobDict` and `jobrake.Place` are the `TypedDict`s of a record and a place.
 
-`scrape` takes a site's `search` options as keyword arguments, named as the CLI's long options
-with underscores, such as `max_age_hours`.
-It checks them before any request. An unknown, missing, or wrongly typed option raises
-`TypeError`, and an unknown site, a value out of range, a blank required string, or a value the
-site refuses raises `ValueError`.
-Without `fetcher`, it creates and closes an `HttpxFetcher` of its own.
+`scrape` accepts a site's `search` options as keyword arguments (using underscores instead of CLI
+hyphens, like `max_age_hours`) and validates them before making any requests. Unknown, missing, or
+mistyped options raise `TypeError`; unknown sites, out-of-range numbers, blank required strings, or
+values rejected by the site raise `ValueError`. If you omit `fetcher`, `scrape` creates and closes
+its own `HttpxFetcher`.
 
-`check` takes the same arguments as `scrape` without `fetcher` and sends no request.
-A value that only the site's live list can confirm, such as a UN Careers duty station,
-passes `check`, and the search refuses it after reading that list:
+`check` validates the same arguments offline (without `fetcher` or an event loop). Values that can
+only be checked against a site's live filter list, such as a UN Careers duty station, pass `check`
+and fail during the search instead:
 
 ```python
 jobrake.check("uncareers", duty_station=["Genva"])  # passes, and the search raises ValueError
 ```
 
-`identify` reads a posting's link and returns the `site` and `id` a search gives that posting.
-It sends no request. It reads the posting URLs that `postings` takes, Adzuna's posting links, and
-Indeed links that carry the key in `jk`, or in `vjk` on a search page.
-Any other link, including a bare LinkedIn ID or a Greenhouse posting, gives `None`.
+`identify` parses a posting URL offline and returns the `(site, id)` pair that a search would
+produce. It recognizes the URLs accepted by `postings`, Adzuna posting links, and Indeed links with
+a `jk` or `vjk` parameter. Everything else (including bare LinkedIn IDs and Greenhouse URLs)
+returns `None`.
 
 ```python
 jobrake.identify("https://nl.indeed.com/viewjob?jk=1a2b3c4d5e6f7a8b")
@@ -238,36 +229,32 @@ jobrake.identify("https://nl.indeed.com/viewjob?jk=1a2b3c4d5e6f7a8b")
 
 ### Site functions
 
-`jobrake.sites.SITES` maps each site name to its module.
-Each site module exports `search` and the functions behind its other commands,
-and each takes a `Fetcher` first: `search(fetcher, **options)`,
-`postings(fetcher, references)`, and the lookups listed under [Lookups](#lookups).
-Each also has a `.check(**options)` that raises what the call would and sends no request,
-as in `stepstone.postings.check(references=urls)`.
+`jobrake.sites.SITES` maps each site name to its module. Each module exports `search` plus any
+additional command functions (`postings` or [lookups](#lookups)), all taking a `Fetcher` first:
+`search(fetcher, **options)` and `postings(fetcher, references)`. Every exported function also
+exposes `.check(**options)` for offline validation, e.g. `stepstone.postings.check(references=urls)`.
 
-`postings` never raises `Stopped`. It maps each reference to its whole record,
-or to `None` when the site reports the posting gone.
-A reference whose request failed, or whose response jobrake cannot read, is absent from the result,
-and calling the function again retries it.
+`postings` never raises `Stopped`. It maps each reference to its record, or `None` if the site
+reports the posting gone. Any reference that failed to fetch or parse is omitted from the returned
+dict, so calling `postings` again retries it.
 
 ### Stopped
 
-A failed request, an answer other than HTTP 200, or a page that ends a search short of the total
-the site reported raises `jobrake.Stopped`.
-Its `partial`, a list of `JobDict`, holds the postings collected before the search stopped,
-and is `[]` when there are none.
-A search can end short when postings close while it pages through the results,
-so a rerun may find the ones it skipped.
+`jobrake.Stopped` is raised when a request fails, a site returns a non-200 status, or pagination
+returns an empty page before reaching the reported total. `stop.partial` contains the `JobDict`
+records collected so far (`[]` if none). Pagination can come up short if postings close mid-search,
+so rerunning may recover skipped listings.
 
-A details search that could not fetch every posting fetches the others first, then raises
-`Stopped`. `partial` holds every search result, with details where the fetch succeeded,
-and `failed` holds the URLs of the rest. Pass them to the site's `postings` to retry.
-Adzuna has no `postings`, so its `failed` stays empty. Rerun the search to retry.
-LinkedIn stops fetching early after a rate limit that outlasts its retries,
-and the postings it never tried are in `failed` too.
+In a `--details` search, jobrake still tries to fetch all remaining postings before raising
+`Stopped`: `stop.partial` contains every search result (filled where fetches succeeded), and
+`stop.failed` lists the URLs that couldn't be read so you can pass them to `<site>.postings`.
+Adzuna has no `postings` command and leaves `stop.failed` empty; rerun the search instead.
+On LinkedIn, a rate limit that outlasts retries stops fetching early and puts all remaining unread
+URLs in `stop.failed`.
 
-Reaching a site's own result cap is not a failure. jobrake warns and returns what the site served.
-On every site, jobrake skips a posting it cannot read and leaves out a field it cannot read.
+Hitting a site's own result cap is not an error; jobrake logs a warning and returns what the site
+served. Across all sites, unreadable individual postings are skipped and unreadable fields are
+omitted.
 
 ### Fetchers
 
@@ -316,16 +303,16 @@ No other site is cached.
 | `JOBRAKE_CACHE_PATH` | platform user cache | Path to the SQLite file, with home-directory expansion |
 | `JOBRAKE_CACHE_TTL`  | 604800              | Seconds a cached posting is served before a refetch    |
 
-The lifetime must be a positive number of seconds.
-An invalid value draws a warning and falls back to the default.
+The lifetime must be a positive number of seconds; invalid values log a warning and fall back to
+the default.
 
-A posting that its site reports gone is not cached.
-An upgrade keeps the cache.
-A cached posting keeps the fields the older version extracted until it expires,
-and is fetched again earlier only if its cached copy no longer fits the record's fields.
+Postings reported as gone are not cached. Upgrading jobrake preserves the existing cache: cached
+entries keep the fields extracted by the older version until they expire, unless a cached entry no
+longer matches the current schema (in which case it is treated as a miss and refetched).
 
-A storage failure disables the cache with a warning, and scraping carries on without it.
-When another connection holds the cache locked, jobrake skips the cache for a minute with a warning, then uses it again.
+If the cache file fails to open or write, jobrake disables caching with a warning and continues
+normally. If another process holds the SQLite file locked, jobrake pauses cache use for a minute
+with a warning before trying again.
 
-`JOBRAKE_RELIEFWEB_APPNAME` holds the appname ReliefWeb approved for you. Every `reliefweb` search
-needs it, and it has no default ([how to request one](sites/reliefweb.md)).
+`JOBRAKE_RELIEFWEB_APPNAME` holds the appname approved for you by ReliefWeb. Every `reliefweb`
+search requires it and there is no default ([how to request one](sites/reliefweb.md)).

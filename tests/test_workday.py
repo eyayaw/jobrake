@@ -14,8 +14,7 @@ from jobrake.sites import workday
 BOARD = "https://nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite"
 API = "https://nvidia.wd5.myworkdayjobs.com/wday/cxs/nvidia/NVIDIAExternalCareerSite"
 
-# Three cards, as served, from POST {API}/jobs on 2026-10-28: two from a search without keywords and
-# one from a search for part-time "engineer" postings.
+# Three cards from POST {API}/jobs on 2026-10-28.
 CARDS = [
     {
         "title": "Networking Architect",
@@ -247,7 +246,7 @@ def test_details_fill_each_card_and_stop_when_one_fails(today, caplog):
         two_places,
     ]
     assert fetcher.requests[1] == f"{API}/job/US-CA-Santa-Clara/Networking-Architect_JR1996377"
-    with pytest.raises(Stopped, match="details of 2 of 5 postings") as stop:
+    with pytest.raises(Stopped, match="details for 2 of 5 postings") as stop:
         asyncio.run(workday.search(fetcher, board=BOARD, details=True))
     assert [job["id"] for job in stop.value.partial] == [
         "nvidia:JR1996377",

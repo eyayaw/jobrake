@@ -28,9 +28,9 @@ from .countries import Country, indeed_domain
 
 logger = logging.getLogger(__name__)
 
-# JobSpy's query (https://github.com/speedyapply/JobSpy, checked 2026-11-14), trimmed to the fields
-# we keep. `limit: 100` sets the API page size and must stay identical on every request of a cursor
-# chain: Indeed binds the size to its cursor and rejects a changed value with BAD_USER_INPUT.
+# Adapted from JobSpy's GraphQL query (https://github.com/speedyapply/JobSpy), trimmed to the
+# fields we keep. `limit: 100` sets the API page size and must stay identical on every request of a
+# cursor chain: Indeed binds the size to its cursor and rejects a changed value with BAD_USER_INPUT.
 # Pagination continues through pageInfo.nextCursor. The salary range is a union.
 # Range carries both bounds, AtLeast and AtMost carry one, and Exactly carries one value.
 #
@@ -171,11 +171,11 @@ def _scrub_css(text: str) -> str:
 
 def _workplace_type(labels: list[str]) -> WorkplaceType | None:
     """
-    Read the workplace from Indeed's Remote and Hybrid work tags.
+    Read the workplace type from Indeed's Remote and Hybrid work tags.
 
-    Return None when both tags are present or both are absent, because a missing tag proves nothing.
-    Indeed tagged 1 of 100 hybrid postings Remote as well on 2026-10-28.
+    Returns None when both tags are present or both are absent.
     """
+    # Indeed occasionally tags hybrid postings Remote too (1 of 100 sampled on 2026-10-28).
     remote, hybrid = "Remote" in labels, "Hybrid work" in labels
     if remote == hybrid:
         return None
@@ -386,7 +386,9 @@ async def search(
     company_ids: Annotated[list[str] | None, "Indeed employer key, one per search"] = None,
     remote: Annotated[bool, "only postings Indeed tags Remote"] = False,
     language: Annotated[str | None, "two-letter posting language code, e.g., en"] = None,
-    attributes: Annotated[list[str] | None, "attribute codes a posting must all carry"] = None,
+    attributes: Annotated[
+        list[str] | None, "attribute codes that every matching posting must have"
+    ] = None,
 ) -> list[JobDict]:
     """
     Search one Indeed country edition through its GraphQL API.

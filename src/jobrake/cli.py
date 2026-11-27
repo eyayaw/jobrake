@@ -120,10 +120,10 @@ def _add_parser(
 
 def _add_arguments(parser: argparse.ArgumentParser, function: Callable[..., object]) -> None:
     """
-    Add one argument per argument of a site function after the fetcher.
+    Add CLI arguments for each parameter of a site function after the fetcher.
 
-    The text a lookup or ``postings`` takes first becomes a positional argument,
-    and each keyword option a flag named after it.
+    The first parameter of a lookup or ``postings`` becomes a positional argument,
+    and each keyword option becomes a flag named after it.
     """
     for name, option in site_options(function).items():
         if option.positional:
@@ -175,7 +175,7 @@ def _build_parser() -> _ArgumentParser:
                 "--format",
                 "-f",
                 choices=list(RENDERERS),
-                help="output format. Defaults to the --output extension or JSON for stdout",
+                help="output format (defaults to the --output extension, or json for stdout)",
             )
     return parser
 
@@ -312,10 +312,14 @@ def _settle_output(parser: _ArgumentParser, args: argparse.Namespace) -> str:
     else:
         fmt = "json"
     if fmt not in RENDERERS:
-        parser.error(
-            f"unsupported output extension {args.output.suffix!r}. "
-            f"Use {' or '.join('.' + name for name in RENDERERS)} or pass --format"
+        extensions = [f".{name}" for name in RENDERERS]
+        choices = f"{', '.join(extensions[:-1])}, or {extensions[-1]}"
+        problem = (
+            f"unsupported output extension {args.output.suffix!r}"
+            if args.output.suffix
+            else f"output path {args.output} has no file extension"
         )
+        parser.error(f"{problem}. Use {choices} (or pass --format)")
     return fmt
 
 
@@ -369,7 +373,7 @@ def main() -> int | None:
         ``130`` when Ctrl-C interrupts the run on Windows. Elsewhere the process dies of SIGINT
         instead. Normal completion returns ``None``.
     """
-    # Once per process, however often a test calls main.
+    # Re-register cleanly if main() is invoked more than once in the same process.
     atexit.unregister(_settle_streams)
     atexit.register(_settle_streams)
     parser = _build_parser()
@@ -401,12 +405,11 @@ def main() -> int | None:
     except KeyboardInterrupt:
         logger.warning("interrupted, so the output is missing or cut short")
         if sys.platform != "win32":
-            # Die of SIGINT, as CPython does for an uncaught KeyboardInterrupt
-            # (https://bugs.python.org/issue1054041, checked 2026-11-14). A shell stops a loop only
-            # when the command it ran died of the signal.
+            # Re-raise as default SIGINT so parent shells detect interruption and stop loops
+            # (https://bugs.python.org/issue1054041).
             signal.signal(signal.SIGINT, signal.SIG_DFL)
             os.kill(os.getpid(), signal.SIGINT)
-        return 130  # 128 + SIGINT, the status a shell reports for that death
+        return 130  # 128 + SIGINT
     finally:
         # An exceptional exit would otherwise start its traceback beside the progress line.
         handler.clear()

@@ -353,13 +353,14 @@ def _parse_direct_page(page: BeautifulSoup, edition: _Edition) -> dict[str, Any]
     """
     Read a ``direct_link`` details page for cards that carry no ``tracker_hash``.
 
-    Adzuna's schema.org ``JobPosting`` omits ``salary_is_predicted`` and mislabeled monthly pay as
-    ``YEAR`` in our 2026-11-24 check, so this reader leaves the salary out. Editions that omit
-    ``JobPosting`` JSON-LD, or a block without a description, fall back to ``.adp-body``.
+    Adzuna's schema.org ``JobPosting`` omits ``salary_is_predicted`` and can mislabel monthly pay
+    as ``YEAR``, so this reader leaves salary out. Editions that omit ``JobPosting`` JSON-LD, or a
+    block without a description, fall back to ``.adp-body``.
 
     Raises:
         TypeError: The page carries neither a ``JobPosting`` block nor a description body.
     """
+    # Measured 2026-11-24.
     posting = next(iter(json_ld(page, {"JobPosting"})), None)
     body = page.select_one("section.adp-body, div.adp-body")
     description = html_text(as_str(as_dict(posting).get("description")) or "") or (

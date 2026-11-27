@@ -1,8 +1,8 @@
 # Greenhouse (`greenhouse`)
 
-An employer on [Greenhouse](https://www.greenhouse.com) keeps its job board on Greenhouse or on its
-own careers site, as Airbnb does. jobrake reads either through Greenhouse's public Job Board API,
-and a search returns every posting on the board with its description:
+Employers using [Greenhouse](https://www.greenhouse.com) host their openings either on Greenhouse's
+own domain or embedded on their company careers page (as Airbnb does). jobrake reads both through
+Greenhouse's public Job Board API and returns the entire board with full descriptions:
 
 ```sh
 jobrake greenhouse search -b airbnb
@@ -19,11 +19,11 @@ jobs = asyncio.run(scrape("greenhouse", board="airbnb"))
 
 ## Options
 
-`--board` takes the board token, the first path segment of the board's URL on either of
-Greenhouse's hosts: `airbnb` in `boards.greenhouse.io/airbnb`, or `anthropic` in `job-boards.greenhouse.io/anthropic`.
+Pass the employer's URL token to `--board`, such as `airbnb` from `boards.greenhouse.io/airbnb`
+or `anthropic` from `job-boards.greenhouse.io/anthropic`.
 
-Greenhouse filters nothing on its side, so a search returns the whole board.
-Narrow it yourself, for example by title:
+Greenhouse's public API returns all open roles without server-side filtering. Use `jq` or Python to
+slice the output:
 
 ```sh
 jobrake greenhouse search -b airbnb | jq '[.[] | select(.title | test("data"; "i"))]'
@@ -31,14 +31,14 @@ jobrake greenhouse search -b airbnb | jq '[.[] | select(.title | test("data"; "i
 
 ## Fields
 
-A posting carries its title, its place, and its description, and, when present, the company, the
-first-published date, the department, and the language ([every key](../reference.md#fields-by-site)).
+Postings include title, location, and description, plus company name, first-published timestamp,
+department, and language when available (listed in the [reference](../reference.md#fields-by-site)).
+Because Greenhouse leaves salary, employment type, and workplace type to arbitrary per-employer
+custom fields, jobrake omits them.
 
-- `locations` holds one place whose name is the employer's own text, which can list several
-  places, such as `Remote, Canada; Remote, United States`.
-- `department` is set only when Greenhouse lists exactly one department for the posting.
-- `expires_at` is the application deadline, which few postings had in our tests.
-- `url` is the posting on the employer's own careers site when the board lives there,
-  as Airbnb's does, and on `job-boards.greenhouse.io` otherwise.
-- Employers add facts such as a workplace type as custom fields, which differ from
-  board to board. jobrake leaves those out, so a Greenhouse record has no salary, employment type, or workplace type.
+- `locations` has one entry using the employer's exact location string, which may bundle several
+  places (like `Remote, Canada; Remote, United States`).
+- `department` is populated only when a posting belongs to a single department.
+- `expires_at` gives the application deadline when set, though few postings include it.
+- `url` points to the employer's own careers page when hosted there (like Airbnb), or to
+  `job-boards.greenhouse.io` otherwise.

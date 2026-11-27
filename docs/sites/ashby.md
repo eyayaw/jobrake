@@ -1,8 +1,8 @@
 # Ashby (`ashby`)
 
-[Ashby](https://www.ashbyhq.com) hosts employers' job boards at `jobs.ashbyhq.com/<employer>`,
-and jobrake reads one of them through Ashby's public Job Posting API.
-A search returns every posting on the board with its description, unlisted ones included:
+[Ashby](https://www.ashbyhq.com) hosts employer job boards at `jobs.ashbyhq.com/<employer>`.
+jobrake reads a board via Ashby's public Job Posting API and returns every posting with its full
+description, including unlisted postings:
 
 ```sh
 jobrake ashby search -b openai
@@ -18,9 +18,10 @@ jobs = asyncio.run(scrape("ashby", board="openai"))
 
 ## Options
 
-`--board` is the path segment of the board's URL: `openai` in `jobs.ashbyhq.com/openai`.
+Pass the employer slug from the board URL to `--board` (e.g., `openai` from `jobs.ashbyhq.com/openai`).
 
-Ashby filters nothing on its side, so narrow the postings yourself, for example to the remote ones:
+Ashby's public endpoint doesn't support server-side filtering, so pipe to `jq` if you only want a
+subset (such as remote roles):
 
 ```sh
 jobrake ashby search -b openai | jq '[.[] | select(.workplace_type == "remote")]'
@@ -28,15 +29,16 @@ jobrake ashby search -b openai | jq '[.[] | select(.workplace_type == "remote")]
 
 ## Fields
 
-A posting carries its title, its places, its publish time, and its description, and, when the
-employer set them, the employment type, the department, the team, the workplace type, the
-application link, and the salary range ([every key](../reference.md#fields-by-site)).
+Results include the title, locations, publish timestamp, and full description, along with
+employment type, department, team, workplace type, application URL, and salary range whenever the
+employer fills them in. See the [reference](../reference.md#fields-by-site) for the complete field
+table.
 
-- `company` is always `None`, because Ashby's response never names the employer.
-- Ashby gives the country as a name, such as `USA` or `United Kingdom`, so a place has no
-  `country_code`. Its `region` can be a code or a name, such as `NY` or `Ontario`.
-- The salary fields come from the posting's first salary range,
-  and `salary_period` is `HOUR`, `DAY`, `WEEK`, `MONTH`, or `YEAR`.
-- `site_data` holds the posting's `summaryComponents` as Ashby sends them,
-  which is where equity, commission, and bonus appear beside the salary range.
-- A search also returns postings the employer marked unlisted, which Ashby intends for direct links only.
+- `company` is always `None` because Ashby's API response doesn't include the employer's name.
+- Ashby returns country names (`USA`, `United Kingdom`) rather than ISO codes, so `country_code` is
+  left out. `region` may be either an abbreviation (`NY`) or a full name (`Ontario`).
+- Structured salary fields are taken from the first salary range, with `salary_period` set to
+  `HOUR`, `DAY`, `WEEK`, `MONTH`, or `YEAR`.
+- `site_data` stores Ashby's raw `summaryComponents`, which is where equity, bonus, or commission
+  details appear alongside salary.
+- Unlisted postings (intended for direct links) are also returned by Ashby's API.

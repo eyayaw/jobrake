@@ -274,6 +274,8 @@ def _query_input(query: str, location: str | None, radius: int, *, remote: bool)
     if keyword := query.strip():
         body["keywords"] = keyword
     if where := (location or "").strip():
+        # XING's own search sends radius null ("Nur in <city>"), and an omitted radius returned
+        # the same 578 postings as radius 0 for 'ingenieur' in Leipzig (2026-11-25).
         body["location"] = {"text": where, "radius": radius}
     if remote:
         # Matches filter.remoteOption = FULL_REMOTE (both returned the same 285 postings, all
@@ -326,8 +328,6 @@ async def search(
     *,
     query: Annotated[str, "job title or keywords"] = "",
     location: Annotated[str | None, "city or postal code"] = None,
-    # XING's own search covers the location alone ("Nur in Leipzig", radius null), and an omitted
-    # radius returned the 578 postings of radius 0 for 'ingenieur' in Leipzig (2026-11-25).
     radius: Annotated[int, "search radius in kilometers"] = 0,
     results: Annotated[int, "maximum number of postings"] = 100,
     max_age_hours: Annotated[int | None, "maximum posting age in hours"] = None,

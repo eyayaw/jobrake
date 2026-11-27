@@ -187,10 +187,11 @@ def test_an_empty_page_before_the_count_stops_the_search_with_the_pages_before_i
     assert query["limit"] == ["50"]
 
 
-def test_a_json_boolean_is_neither_a_vacancy_number_nor_a_menu_code():
+def test_non_integer_ids_and_boolean_menu_codes_are_rejected():
     numbered = ERASMUS | {"external_id": True}
+    string_id = ERASMUS | {"external_id": "abc"}
     coded = ERASMUS | {"contract_type": True, "education_level": True}
-    fetcher = PagedFetcher([TOKEN_PAGE, _answer(numbered, coded, count=2)])
+    fetcher = PagedFetcher([TOKEN_PAGE, _answer(numbered, string_id, coded, count=3)])
     [job] = asyncio.run(academictransfer.search(fetcher))
     assert job["id"] == "365285"
     assert "employment_type" not in job

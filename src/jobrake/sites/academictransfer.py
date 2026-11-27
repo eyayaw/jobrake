@@ -1,4 +1,4 @@
-"""Search the vacancies on AcademicTransfer, a Dutch job board for academic and research jobs."""
+"""Search AcademicTransfer, a Dutch board for academic and research vacancies."""
 
 import asyncio
 import json
@@ -63,8 +63,8 @@ def _token(page: BeautifulSoup) -> str:
     script = page.find("script", id="__NUXT_DATA__")
     if script is None:
         raise TypeError("the jobs page holds no Nuxt payload")
-    # The payload is a flat array whose objects point at their values by index. A negative index
-    # stands for a value such as undefined (devalue's src/constants.js, checked 2026-11-20).
+    # The Nuxt payload is a flat array whose objects reference values by index; negative indices
+    # represent special devalue sentinels such as undefined.
     data = json.loads(script.get_text())
     holder = next((o for o in data if isinstance(o, dict) and _TOKEN_KEY in o), {})
     index = holder.get(_TOKEN_KEY)
@@ -88,14 +88,15 @@ def _parse_vacancy(vacancy: dict[str, Any]) -> JobDict:
         TypeError: The vacancy lacks an integer ``external_id``.
         AttributeError: The vacancy is not an object.
     """
-    number = vacancy.get("external_id")
+    if (whole := as_int(vacancy.get("external_id"))) is None:
+        raise TypeError(f"external_id {vacancy.get('external_id')!r} is not an integer")
     low, high = _given(vacancy.get("min_salary")), _given(vacancy.get("max_salary"))
     paid = low is not None or high is not None
     sections = (as_str(vacancy.get(name)) for name in _SECTIONS)
     return make_job(
         site="academictransfer",
         # The public number, which the vacancy's page URL carries.
-        id=str(whole) if (whole := as_int(number)) is not None else number,
+        id=str(whole),
         url=vacancy.get("absolute_url"),
         title=vacancy.get("title"),
         company=vacancy.get("organisation_name"),
@@ -146,7 +147,7 @@ async def search(
     fetcher: Fetcher,
     *,
     query: Annotated[str, "job title or keywords"] = "",
-    vacancy_type: Annotated[str, "scientific, non_scientific, or all"] = "all",
+    vacancy_type: Annotated[str, "vacancy category: scientific, non_scientific, or all"] = "all",
     results: Annotated[int, "maximum number of postings"] = 100,
 ) -> list[JobDict]:
     """

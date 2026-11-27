@@ -25,14 +25,14 @@ jobrake linkedin search -q "data scientist" -l "Amsterdam, North Holland, Nether
 jobrake stepstone search -q "data scientist" -l Berlin -n 2
 ```
 
-Each site names a place its own way.
-Adzuna and Indeed search one country edition at a time, so `--country` is required,
-and `--location` narrows that edition to a city or area within it.
-LinkedIn has no editions: pass the place as text to `--location`, or its ID to `--geoid`,
-and leave `--country` out.
-StepStone searches Germany only, so `--location` is a German city or postal code.
-XING covers Germany, Austria, and Switzerland in one search, and its `--location` takes a city or
-postal code in any of them.
+Location handling varies by site:
+- **Adzuna and Indeed** search one country edition at a time, so `--country` is required and
+  `--location` narrows the search to a city or region inside it.
+- **LinkedIn** has no country editions. Pass a place name to `--location` or its ID to `--geoid`
+  (no `--country`).
+- **StepStone** covers Germany only, so `--location` takes a German city or postal code.
+- **XING** covers Germany, Austria, and Switzerland together, accepting a city or postal code in
+  any of the three.
 
 When Indeed or LinkedIn does not recognize a place, look it up with `places` and search with a name or ID it returns:
 
@@ -94,9 +94,9 @@ jobrake indeed search -c nl -q "data scientist" --company-ids 8e8f030e53ea29e4
 jobrake linkedin search -l "Netherlands" --company-ids 11348 215713
 ```
 
-The Indeed search keeps Booking.com's postings.
-The LinkedIn search keeps those of Booking.com and of ING Nederland, whose ID is `215713`.
-Indeed takes one employer per search, and LinkedIn several.
+The Indeed search returns Booking.com postings; the LinkedIn search returns postings from both
+Booking.com and ING Nederland (ID `215713`).
+Indeed allows one employer per search, while LinkedIn accepts several.
 
 > [!TIP]
 > Leave out `--query` to search without keywords, on any site that takes a query.
@@ -124,23 +124,22 @@ from jobrake import scrape
 jobs = asyncio.run(scrape("greenhouse", board="airbnb"))
 ```
 
-These sites filter nothing on their side, so [pipe the results](#pipe-results) to narrow a board
-down.
-Cornerstone, SmartRecruiters, and Workday take a query and a result limit. Cornerstone also filters
-by country and age, and SmartRecruiters by age and by remote work.
+These five boards don't support server-side filtering, so [pipe the results](#pipe-results) to
+narrow them down.
+Cornerstone, SmartRecruiters, and Workday accept a query and a result limit; Cornerstone also
+filters by country and age, and SmartRecruiters by age and remote work.
 
-The board token is the part of the board's address that names the employer,
-such as `airbnb` in `boards.greenhouse.io/airbnb`.
-Cornerstone and Workday have no token. Pass the address of the employer's career site or job search
-page instead.
+The board token is the employer slug in the board's URL, like `airbnb` in
+`boards.greenhouse.io/airbnb`.
+Cornerstone and Workday don't use tokens; pass the employer's career site or job search URL instead.
 
-On [SmartRecruiters](sites/smartrecruiters.md#options), a misspelled token returns an empty board
-instead of an error, so check the token before you conclude that an employer has no openings.
+On [SmartRecruiters](sites/smartrecruiters.md#options), a misspelled token returns an empty list
+instead of an error, so double-check the token before assuming an employer has no openings.
 
 ## Collect postings from several sites
 
-A CSV has the same columns whichever site wrote it, so the files of several searches combine into
-one. This run collects the economics postings of four sites:
+Every site writes the same CSV columns, so you can concatenate files from different boards into one
+table. For example, to gather economics listings from four sites:
 
 ```sh
 mkdir -p runs
@@ -151,15 +150,15 @@ jobrake academictransfer search -q economics -o runs/academictransfer.csv
 awk 'FNR > 1 || NR == 1' runs/*.csv > economics.csv
 ```
 
-The `awk` line drops the header row of every file but the first.
-A site's own fields stay in the `site_data` column.
-The INOMICS rows have no description unless you add `--details`.
-`site` and `id` together name one posting, so use them to drop a posting that two runs share.
+The `awk` command drops the header row from every file after the first.
+Site-specific fields stay in `site_data`, and INOMICS rows won't include descriptions unless you
+pass `--details`.
+Together, `site` and `id` uniquely identify a posting if you need to deduplicate across runs.
 
 > [!TIP]
-> JSONL suits a run you repeat, a daily one for instance.
-> `--output` refuses a file that exists, so give each run its own name, such as the date.
-> Combine the files with `cat`, or read the whole directory into DuckDB.
+> JSONL works well for recurring runs (for instance, a daily cron job).
+> Since `--output` refuses to overwrite existing files, name each file by date and combine them
+> with `cat` or load the whole directory into DuckDB:
 >
 > ```sh
 > jobrake inomics search -n 500 -o runs/2026-08-10.jsonl
@@ -187,14 +186,14 @@ jobrake inomics search -n 500 | jq '[.[] | select(.date != null and .date >= "20
 
 ## Fetch posting details
 
-An Adzuna, LinkedIn, Workday, SmartRecruiters, StepStone, INOMICS, or XING search returns each
-posting without its description. Add `--details` (`details=True`) to fetch each posting during the
-search.
-The other sites return the description with the search itself.
-A posting that could not be fetched keeps its search result, so you still get every posting,
-but the search ends as [stopped](#recover-from-a-stopped-search), with the missed ones in `failed`.
-Fetch them later with the site's `postings`. Adzuna has no `postings` and leaves `failed` empty,
-so rerun an Adzuna search instead: it fetches only the postings the cache lacks.
+Searches on Adzuna, INOMICS, LinkedIn, SmartRecruiters, StepStone, Workday, and XING don't return
+full descriptions by default. Pass `--details` (`details=True`) to fetch each posting's page during
+the search. All other sites already include descriptions in search results.
+
+If some detail fetches fail, jobrake keeps the original search summary for those postings and ends
+with [`Stopped`](#recover-from-a-stopped-search), listing the missed URLs in `.failed` so you can
+retry them with `<site> postings`. Adzuna doesn't have a `postings` command and leaves `.failed`
+empty. Just rerun the search, and cached postings will be reused without refetching.
 
 ### Fetch known postings
 
@@ -247,13 +246,13 @@ async def main():
 postings = asyncio.run(main())
 ```
 
-The two calls share one fetcher, and so one connection pool.
-`postings` leaves out a posting it could not fetch. Call it again with the missing URLs to retry.
+Both calls share one fetcher and connection pool.
+`postings` omits any URL it couldn't fetch. Call it again with the missing URLs to retry.
 
 ## Recover from a stopped search
 
-A search that cannot finish raises [`Stopped`](reference.md#stopped).
-Its `partial` holds the postings collected before the failure:
+If a search cannot finish, it raises [`Stopped`](reference.md#stopped) with the postings collected
+so far in `.partial`:
 
 ```python
 from jobrake import Stopped, scrape
@@ -283,8 +282,8 @@ jobrake.check("indeed", query="economist", country="si")
 
 ## Show progress
 
-The CLI draws its progress line from the `progress` attribute of jobrake's INFO log records,
-and a handler of your own can do the same:
+The CLI renders its progress line from the `progress` attribute on jobrake's `INFO` log records,
+and your own logging handler can do the same:
 
 ```python
 import logging
@@ -304,10 +303,10 @@ logger.addHandler(Progress())
 
 ## Refresh the cache
 
-A cached posting stays fresh for seven days and is fetched again after that.
-To refetch every posting at once, move `jobrake.sqlite3` out of the
-[cache directory](reference.md#configuration), or delete it.
-To bypass the cache for one run, point `JOBRAKE_CACHE_PATH` at a new file:
+Cached postings expire after seven days.
+To force a fresh fetch for everything, delete or move `jobrake.sqlite3` from your
+[cache directory](reference.md#configuration).
+To bypass the cache for a single run, point `JOBRAKE_CACHE_PATH` at a temporary file:
 
 ```sh
 JOBRAKE_CACHE_PATH="$(mktemp -d)/jobrake.sqlite3" jobrake linkedin postings 4449382178

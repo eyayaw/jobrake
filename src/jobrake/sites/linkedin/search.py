@@ -136,7 +136,7 @@ async def search(
     *,
     query: Annotated[str, "job title or keywords"] = "",
     location: Annotated[str | None, "place, preferably with region and country"] = None,
-    geoid: Annotated[str | None, "LinkedIn place ID, in place of a location"] = None,
+    geoid: Annotated[str | None, "LinkedIn place ID (alternative to --location)"] = None,
     radius: Annotated[int | None, "search radius in kilometers"] = None,
     results: Annotated[int, "maximum number of postings"] = 10,
     max_age_hours: Annotated[int | None, "maximum posting age in hours"] = None,

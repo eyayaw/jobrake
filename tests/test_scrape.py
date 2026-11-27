@@ -107,7 +107,7 @@ def test_a_site_function_the_cli_cannot_build_fails_when_decorated(function, mat
             "indeed",
             {"country": "us", "company_ids": [" "]},
             ValueError,
-            "company_ids holds a blank entry",
+            "company_ids contains a blank entry",
         ),
         ("indeed", {"country": "us", "company_ids": ["a", "b"]}, ValueError, "one employer key"),
         ("linkedin", {}, ValueError, "location is required"),
@@ -343,3 +343,15 @@ def test_scrape_closes_its_fetcher_after_a_search_failure(fake_site, monkeypatch
     with pytest.raises(RuntimeError):
         asyncio.run(scrape("fakesite", query="x"))
     assert created.closed == 1
+
+
+def test_checked_type_error_lists_only_actual_options():
+    with pytest.raises(TypeError) as missing_positional:
+        sites.SITES["linkedin"].postings.check()
+    assert "It takes no options" not in str(missing_positional.value)
+
+    with pytest.raises(TypeError, match=r"It takes no options"):
+        sites.SITES["econjobmarket"].search.check(bogus=1)
+
+    with pytest.raises(TypeError, match=r"Its options are country"):
+        sites.SITES["indeed"].places.check()

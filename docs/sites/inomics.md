@@ -1,8 +1,8 @@
 # INOMICS (`inomics`)
 
-[INOMICS](https://inomics.com) lists jobs for economists in academia, research,
-and industry, from PhD positions to professorships.
-A search returns the postings in INOMICS's order of relevance, 100 by default:
+[INOMICS](https://inomics.com) lists jobs for economists across academia, research, and industry,
+from PhD positions to professorships. Searches return postings in INOMICS's relevance order (100 by
+default):
 
 ```sh
 jobrake inomics search -n 500 -o inomics.jsonl
@@ -21,8 +21,8 @@ jobs = asyncio.run(scrape("inomics", country="de", category=["postdoc"], details
 
 ## Options
 
-`--country` keeps the postings in one country, given by its ISO 3166-1 code, such as `de` or `deu`.
-`--category` takes a category of the site's Job Type menu, by its name or its code:
+`--country` filters to one country by ISO 3166-1 code (such as `de` or `deu`).
+`--category` matches INOMICS's Job Type menu by either code or label:
 
 | Code                 | Category                             |
 | -------------------- | ------------------------------------ |
@@ -42,15 +42,16 @@ jobs = asyncio.run(scrape("inomics", country="de", category=["postdoc"], details
 | `senior-industry`    | Executive / Senior Industry Position |
 | `senior-reasercher`  | Senior Researcher / Group Leader     |
 
-The codes keep INOMICS's own spelling, typos included: `practicioner` and `senior-reasercher`.
-`--jel` takes a JEL field of the site's Disciplines menu by its letter, from `A` to `R` or `Z`,
-such as `J` for labor and demographic economics. Repeat `--category` or `--jel` to match any of several values.
-Different options must all match. jobrake refuses a category or field INOMICS does not know, because INOMICS would quietly return nothing.
+The codes preserve INOMICS's exact URL spellings, typos and all (`practicioner`,
+`senior-reasercher`).
 
-Pass `--results 500` to read more jobs than the default.
+`--jel` filters by JEL discipline letter (`A`–`R` or `Z`, e.g., `J` for labor and demographic
+economics). Repeat `--category` or `--jel` to match any of several values; combining different
+options intersects them. Invalid values fail fast locally because INOMICS would otherwise return an
+empty list silently.
 
-INOMICS has no date filter, so a search takes no `--max-age-hours`.
-To keep the recent postings, pipe the results through `jq` on `date`:
+Pass a larger `--results` (such as `-n 500`) to fetch beyond the default 100 postings. INOMICS has
+no date filter, so filter recent postings locally with `jq`:
 
 ```sh
 jobrake inomics search -n 500 | jq '[.[] | select(.date != null and .date >= "2026-11-14")]'
@@ -58,34 +59,33 @@ jobrake inomics search -n 500 | jq '[.[] | select(.date != null and .date >= "20
 
 ## Fields
 
-INOMICS shows each search result as a card with the title, the employer, the place, the posting
-date, its types, such as `Postdoc Job`, and sometimes whether the job is `remote` or `hybrid`.
-`--details` adds the description and the application deadline from each posting's page,
-and, when the page names them, the place's region and country code ([every key](../reference.md#fields-by-site)).
+Search results return the title, employer, location, posted date, posting types (like `Postdoc Job`),
+and sometimes `workplace_type` (`remote` or `hybrid`). Adding `--details` fetches each posting's
+page for the full description, application deadline, and structured location parts (region and
+country code) when available. Salary, employment type, and separate application links are not
+provided; see the [reference](../reference.md#fields-by-site) for the full field breakdown.
 
-- `date` is the day INOMICS shows as posted, and INOMICS moves it to the day it reposts a posting.
-  A posting INOMICS also lists as a scholarship is dated on its page by the day it was entered,
-  so `--details` can move that posting's `date`.
-- `company` is the first employer the card names, and a few cards name none or several.
-  With `--details`, it is the hiring organization the page names.
-- `locations` is the place as the card writes it, such as `Saarbrücken, Germany`, and sometimes
-  only a country. With `--details`, the page's place replaces it when the page names one.
-  Often that is the same place, but a page without a city drops the card's city, and a page
-  without a country code names the place by city and region, such as `Umeå, Västerbotten` for the
-  card's `Umeå, Sweden`.
-- `expires_at` is the application deadline, which many postings leave out.
-- `site_data.types` holds the card's types, such as `Assistant Professor / Lecturer Job`.
-  A posting can also carry the type of a program, scholarship, or course, such as `PhD Program`.
-- A record has no salary, employment type, or application link.
+- `date` reflects the posted date shown on INOMICS, which updates if a posting is reposted. For
+  listings cross-listed as scholarships, the detail page uses the original entry date, so
+  `--details` can shift `date` earlier.
+- `company` uses the first listed employer in search results (a few listings show none or multiple);
+  with `--details`, it uses the hiring organization from the posting page.
+- Search results give `locations` as a plain label like `Saarbrücken, Germany` (or just a country).
+  With `--details`, the posting page's structured location replaces it when present: if a page omits
+  the city, the city is dropped; if it omits the country code, the label uses city and region
+  (e.g., `Umeå, Västerbotten` replacing `Umeå, Sweden`).
+- `expires_at` is the application deadline when listed.
+- `site_data.types` lists the INOMICS posting types (such as `Assistant Professor / Lecturer Job`
+  or `PhD Program`).
 
-### Postings you already know
+### Reading individual postings
 
-`jobrake inomics postings` fetches postings by URL: a search result's `url`, such as
-`https://inomics.com/job/1555749`, or the posting's address with its title slug.
-It reads only the page, so its records lack `workplace_type` and `site_data`, which only a card carries.
+`jobrake inomics postings` accepts either a short URL like `https://inomics.com/job/1555749` or a
+full slugged posting URL. Because it skips search results and reads only the posting page,
+`workplace_type` and `site_data` won't be populated.
 
 ## Terms
 
-The INOMICS [terms and conditions](https://inomics.com/terms-and-conditions), in section C.3.b,
-forbid collecting users' content or information, or otherwise accessing the INOMICS sites,
-"using automated means (such as harvesting bots, robots, spiders, or scrapers) without our permission".
+Section C.3.b of INOMICS's [terms and conditions](https://inomics.com/terms-and-conditions)
+prohibits accessing the site or collecting content "using automated means (such as harvesting bots,
+robots, spiders, or scrapers) without our permission".

@@ -832,7 +832,7 @@ def test_search_stops_when_a_posting_cannot_be_fetched():
     fetcher = StubFetcher(
         {"seeMoreJobPostings": ok(linkedin_card("111")), "jobs/view/111": rate_limited()}
     )
-    with pytest.raises(Stopped, match="details of 1 of 1 postings") as stop:
+    with pytest.raises(Stopped, match="details for 1 of 1 postings") as stop:
         asyncio.run(
             linkedin.search(fetcher, query="x", location="Seattle", results=1, details=True)
         )
@@ -919,6 +919,7 @@ def parse(page) -> JobDict | None:
     fetcher = StubFetcher({"economist-at-acme-111": ok(page)})
     # An earlier parse in the same test must not answer from the cache.
     cache.CACHE.close()
+    assert cache.CACHE.path is not None
     cache.CACHE.path.unlink(missing_ok=True)
     return asyncio.run(linkedin.postings(fetcher, [CANONICAL])).get(CANONICAL)
 
@@ -1449,6 +1450,7 @@ def test_postings_resolve_an_id_before_fetching_the_page():
     for address in others:
         fetcher.requests.clear()
         cache.CACHE.close()
+        assert cache.CACHE.path is not None
         cache.CACHE.path.unlink(missing_ok=True)
         assert asyncio.run(linkedin.postings(fetcher, [address])) == {address: job}
         assert fetcher.requests == [f"{FRAGMENT}/111?_l=en_US", in_en_us(CANONICAL)]

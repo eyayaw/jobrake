@@ -14,13 +14,12 @@ from jobrake.utils import as_dict, as_int, as_list, as_str, checked, cutoff, htm
 
 logger = logging.getLogger(__name__)
 
-# ReliefWeb's v2 API, documented at https://apidoc.reliefweb.int (read 2026-11-24). Every request
-# must name an application ReliefWeb approved in appname. The API returns 400 without one and 403
-# for one it has not approved.
+# ReliefWeb's v2 API (https://apidoc.reliefweb.int). Every request must pass an approved appname;
+# the API returns 400 without one and 403 for an unapproved name.
 JOBS_URL = "https://api.reliefweb.int/v2/jobs"
 APPNAME = "JOBRAKE_RELIEFWEB_APPNAME"
-# The most a call returns, per https://apidoc.reliefweb.int/read/response/ (read 2026-11-24). A page
-# of 1,000 postings took 2 s, against 0.8 s for 100 (2026-11-24).
+# Maximum items per request, per https://apidoc.reliefweb.int/read/response/.
+# A page of 1,000 postings took 2 s, against 0.8 s for 100 (2026-11-24).
 PAGE_SIZE = 1000
 
 
@@ -129,7 +128,6 @@ async def search(
     *,
     query: Annotated[str, "job title or keywords"] = "",
     country: Annotated[str | None, "ISO 3166-1 country code, e.g., ke"] = None,
-    # The newest 100 postings ran from 2026-11-20 to 2026-11-23 when read on 2026-11-24.
     results: Annotated[int, "maximum number of postings"] = 100,
     max_age_hours: Annotated[int | None, "maximum posting age in hours"] = None,
 ) -> list[JobDict]:
@@ -164,7 +162,6 @@ async def search(
     }
     if keyword := query.strip():
         body["query"] = {"value": keyword, "operator": "AND"}
-    # checked has already converted country to alpha-2.
     if conditions := _filters(country, max_age_hours):
         body["filter"] = {"operator": "AND", "conditions": conditions}
     logger.info("reading ReliefWeb postings%s", f" for {keyword!r}" if keyword else "")

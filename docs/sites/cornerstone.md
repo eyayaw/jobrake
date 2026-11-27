@@ -1,9 +1,8 @@
 # Cornerstone (`cornerstone`)
 
-Employers such as the World Bank Group host their career sites on
-[Cornerstone OnDemand](https://www.cornerstoneondemand.com), and jobrake searches one employer's
-site through the undocumented API its pages call. We tested the career sites of the World Bank Group,
-Henkel, and Project HOPE, which Cornerstone serves from its US and European data centers.
+Organizations such as the World Bank Group, Henkel, and Project HOPE host their career sites on
+[Cornerstone OnDemand](https://www.cornerstoneondemand.com). jobrake queries the undocumented search
+API behind those career pages (tested across both US and European Cornerstone data centers).
 
 ```sh
 jobrake cornerstone search -b "https://worldbankgroup.csod.com/ux/ats/careersite/1/home?c=worldbankgroup" -n 200
@@ -22,25 +21,23 @@ jobs = asyncio.run(scrape("cornerstone", board=board, query="economist", results
 
 ## Options
 
-Cornerstone has no board token. Pass `--board` the address of the employer's career site, copied
-from the browser, which has the form `https://<tenant>.csod.com/ux/ats/careersite/<id>/home?c=<corp>`.
-A posting's address on the same site works too, and a `lang` in the address,
-such as `lang=de-DE`, carries over to the search.
+Instead of a short board token, `--board` takes the career site URL copied from your browser:
+`https://<tenant>.csod.com/ux/ats/careersite/<id>/home?c=<corp>`. Any individual posting URL from
+the same site works too, and a `lang` query parameter (like `lang=de-DE`) sets the search language.
 
-`--query` searches the description as well as the title. `--country` keeps the requisitions with a
-location in that country, and a requisition with several locations is found by any of them.
-`--max-age-hours` rounds up to whole days, the unit of Cornerstone's age filter.
+`--query` matches both titles and descriptions. `--country` filters to requisitions with at least
+one location in that country. `--max-age-hours` rounds up to whole days to match Cornerstone's API.
 
 ## Fields
 
-A search result carries the requisition's title, places, description, posting date, and closing
-date when the employer set one ([every key](../reference.md#fields-by-site)).
+Each requisition includes its title, locations, description, posting date, and (when set) closing
+date; see the [fields by site table](../reference.md#fields-by-site) for a summary. Salary,
+employment type, workplace type, and separate application URLs aren't available from this endpoint.
 
-- `company` is always `None`, because one career site can post for several organizations, as the
-  World Bank Group's does for IBRD, IDA, IFC, and MIGA.
-- `id` joins the employer's Cornerstone name and the requisition ID, as in `worldbankgroup:39579`.
-- When Cornerstone gives a place only as a country, its name is the country code, such as `PS`.
-- `description` is the text the search returns. Some employers' posting pages add more around it,
-  such as a summary table or selection criteria, which the record lacks.
-- `posted_at` and `expires_at` are dates without a time.
-- A record has no salary, employment type, workplace type, or application link.
+- `company` is always `None` because a single Cornerstone site can cover multiple entities (for
+  example, the World Bank Group site posts for IBRD, IDA, IFC, and MIGA).
+- `id` combines the tenant name and requisition ID, like `worldbankgroup:39579`.
+- Country-only locations use the ISO country code as their `name` (such as `PS`).
+- `description` comes directly from the search payload; extra blocks that some employers render on
+  individual pages (like summary tables or selection criteria) aren't included.
+- `posted_at` and `expires_at` are calendar dates with no time component.
