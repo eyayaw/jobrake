@@ -68,9 +68,9 @@ behind its own web pages and mobile app, and it depends on `httpx` and `bs4`.
 - `tests/`: offline, built on the stub fetcher in `tests/fakes.py`.
   `tests/fakesite.py` is a fake site the tests register.
 
-A new site is a module under `sites/`, one entry in `SITES`, and its page, `docs/sites/<site>.md`,
-which `tests/test_docs.py` requires. `scrape`, the CLI, and the contract test in
-`tests/test_scrape.py` need no edit.
+A new site is a module under `sites/`, one entry in `SITES` (and its display name in
+`utils.SITE_NAMES`), and its page, `docs/sites/<site>.md`, which `tests/test_docs.py` requires.
+`scrape`, the CLI, and the contract test in `tests/test_scrape.py` need no edit.
 
 ## Non-goals
 
@@ -184,20 +184,25 @@ which `tests/test_docs.py` requires. `scrape`, the CLI, and the contract test in
   options every site shares, the output formats, the sites, and how jobrake requests and caches.
 - `docs/guide.md` holds tasks that span sites, one section each. `docs/reference.md` holds the
   record, the fields by site, the commands, the Python API, and configuration.
-- `docs/sites/<site>.md` holds everything about one site and reads on its own. Its sections, when
-  it needs them, are Options, Lookups, Fields, Requests, and Terms, in that order.
+- `docs/sites/<site>.md` holds everything about one site and reads on its own. When present, the
+  standard sections (`Options`, `Lookups`, `Fields`, `Requests`, `Terms`) stay in that order, and
+  extra `##` sections are allowed when a site needs them.
 - Keep CLI help terse. It comes from the `Annotated` help of each option and the first docstring
   line of each site and site function. Caveats and site quirks go on the site's page.
 - Write the docs for someone running a job search who wants to get on with it, as a colleague who
   has used jobrake would: say what they need, trust them with the obvious, and say plainly what we
-  measured, what we don't know, and what we advise against. The authors are "we".
-  Learn the voice from the owner's own text in the README and the LinkedIn and Indeed pages, and
-  don't copy its surface: a sentence frame repeated across pages reads as a template.
+  observed, what we don't know, and what we advise against. The authors are "we".
+  Write natural, direct English. Avoid stiff pseudo-terse phrasing (`carries`, `holds`, `gives no`,
+  `A record has no...`), internal jargon (`card`, `record`) in site pages, em-dash overuse, and
+  repeated template frames across pages.
 - Leave out what jobrake already prints, its errors, warnings, and logs, and what `--help` says,
   along with input normalization, request sizes, and other internals.
-  Mark measured behavior as measured, "in our tests", and say what it means for the reader in plain
-  words such as "can" or "some". The sample, the count, and the date go in the code comment beside
-  the code that relies on them.
+  Be honest about empirically observed site behavior without repeating a stock phrase like
+  "in our tests". Put sample sizes and dates in code comments *only* for empirical live-site quirks
+  (never on static RFCs, stdlib/SQLite docs, or library defaults, and never inside function
+  signatures or docstrings).
+- Keep `CHANGELOG.md` entries concise and user-facing: group edge-case hardening rather than
+  listing every fuzzer counterexample or warning-wording tweak separately.
 
 ## Sites
 
