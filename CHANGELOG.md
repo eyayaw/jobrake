@@ -4,1046 +4,641 @@
 
 ### Added
 
-- `adzuna` searches Adzuna's 19 country editions by keyword, place, and posting age. `--details`
-  fetches each posting's description and salary.
-- `cornerstone` searches an employer's Cornerstone career site by keyword, country, and posting
-  age, and returns each opening with its description.
-- `xing` searches XING's job market in Germany, Austria, and Switzerland by keyword, place, posting
-  age, and remote work. `--details` or `postings` fetches each posting's description.
-- `reliefweb` searches ReliefWeb's humanitarian and development postings by keyword, country, and
-  posting age, and returns each posting with its description. It reads the appname ReliefWeb
-  approved for you from `JOBRAKE_RELIEFWEB_APPNAME`.
+- `adzuna`: search Adzuna's 19 country editions by keyword, location, and age, with `--details`
+  for full descriptions and advertised salaries.
+- `cornerstone`: search Cornerstone OnDemand employer career sites by keyword, country, and age,
+  with descriptions included.
+- `xing`: search XING's job market (Germany, Austria, and Switzerland) by keyword, location, age,
+  and remote work, with `--details` and `postings` for descriptions.
+- `reliefweb`: search ReliefWeb's humanitarian and development postings via its v2 API using an
+  approved appname in `JOBRAKE_RELIEFWEB_APPNAME`.
 
 ### Changed
 
-- **Breaking:** A place's `country_code` is always an assigned ISO 3166-1 alpha-2 code. jobrake
-  converts alpha-3 codes, turns `UK` into `GB`, and drops unassigned codes such as `ZZ`, which it
-  used to keep.
-- `country` accepts ISO 3166-1 alpha-3 codes, such as `deu`, as well as alpha-2, and `uk` for the
-  United Kingdom. Every site rejects any other value before its first request. Before, `country`
-  took alpha-2 codes only, and only INOMICS checked them.
-- Errors, warnings, and logs name a site as its page does, such as `LinkedIn request failed` and
-  `unknown AEA JOE JEL field`. They used the site's key, such as `linkedin`, which commands still take.
-- Indeed's `--company-ids` help and its error call the value an employer key, as Indeed's page does.
-  They said company ID.
-- The warning at Indeed's and LinkedIn's result cap advises splitting the search by place or by
-  posting age. It said to narrow the search.
+- **Breaking:** `country_code` on places is always an assigned ISO 3166-1 alpha-2 code (alpha-3
+  codes are converted, `UK` becomes `GB`, and unassigned codes like `ZZ` are dropped).
+- `--country` / `country` now accepts ISO 3166-1 alpha-3 codes (such as `deu`) and `uk` in
+  addition to alpha-2 codes, validated before any request across all sites.
+- Errors, warnings, and logs use human-readable site names (like `LinkedIn` and `AEA JOE`) instead
+  of raw module keys, and Indeed's `--company-ids` help and errors refer to "employer key".
+- The warning at Indeed's and LinkedIn's result cap now advises splitting the search by place or by
+  posting age.
+
+### Fixed
+
+- AcademicTransfer now skips vacancies with non-integer string `external_id` values instead of
+  accepting them.
+- When no home directory can be resolved, the default cache is disabled with a warning instead of
+  crashing.
+- Extracted `description` text no longer leaks hidden inline-styled content (including inherited
+  `visibility` and `font-size` rules, hidden descendants, and split overrides).
+- Missing positional arguments on `postings` / lookup functions no longer append `"It takes no
+  options"` to the `TypeError` message.
 
 ## [0.37.0](https://github.com/eyayaw/jobrake/releases/tag/v0.37.0) - 2026-11-22
 
 ### Changed
 
-- **Breaking:** jobrake reads a site's answer as data only when it comes with HTTP 200. Another
-  status below 400, such as a 204 or an unfollowed redirect, stops a search or lookup with
-  `Stopped` and leaves a posting unfetched, and so does a `FetchResult` from a caller's `Fetcher`
-  that sets no `status`. jobrake read such an answer's body as data.
-- **Breaking:** `identify` gives `None` for an Indeed link with credentials or a port other than
-  443, as for LinkedIn, and for a LinkedIn or Indeed host that is not a valid DNS name, such as
-  `-.indeed.com` or `a_b.linkedin.com`. It named the posting. `linkedin.postings` raises
-  `ValueError` for such a host, which it requested.
-- The docs give each site one page, `docs/sites/<site>.md`, and links to the old per-site
-  headings in the guide and reference no longer resolve.
-- A date or timestamp jobrake cannot read, in ISO 8601 or in epoch milliseconds, logs a warning
-  that names its field and the posting's URL, such as `posted_at 1763000000 of https://...`. The
-  warning showed only the value.
-- `date` falls back to `posted_at` when the given `date` does not parse, as it does when `date` is
-  missing.
+- **Breaking:** Non-200 responses (including 204, unfollowed redirects, and `FetchResult` objects
+  with `status=None`) are no longer parsed as data; searches and lookups raise `Stopped` and
+  posting fetches skip them.
+- **Breaking:** `identify` now rejects Indeed URLs with credentials or non-443 ports (matching
+  LinkedIn), and rejects LinkedIn and Indeed URLs with invalid DNS hostnames; `linkedin.postings`
+  raises `ValueError` for invalid hostnames.
+- Split per-site documentation into dedicated pages under `docs/sites/<site>.md`.
+- Unparseable `date`, `posted_at`, and `expires_at` warnings now include the field name and
+  posting URL; unparseable `date` values fall back to `posted_at`.
 
 ### Fixed
 
-- `jobrake -h`, `--version`, a usage error, or a crash keeps its exit status when the reader of its
-  output closes the pipe, as in `jobrake -h | true`. It exited 120.
-- `check` and `scrape` report an integer option past 4,300 digits as having too many digits. They
-  called a negative one too large.
-- A StepStone posting on the prime meridian or the equator keeps its coordinates. A single zero
-  dropped both, though only 0, 0 means StepStone gave none.
-- A posting reference or Workday board that is not a valid URL, such as `https://[/job/1`, gets
-  the site's own error and its example. The error was `Invalid IPv6 URL`.
-- A cache that another process keeps locked is skipped for a minute, then used again. It stayed
-  disabled until the process exited.
-- An Indeed posting URL reads back as its own key when the key holds `&`.
-- `.check()` on Indeed's `places`, `companies`, and `attributes` rejects an unknown country
-  edition, and `.check()` on a site's `postings` rejects a reference that `postings` refuses. Both
-  passed, though the call itself raises `ValueError`.
-- A StepStone, UN Careers, or AcademicTransfer search skips a card whose ID is a JSON `true`,
-  which it gave the ID `True`. AcademicTransfer leaves out a `true` contract type or education
-  level, which it read as code 1.
-- A StepStone, SmartRecruiters, Workday, or LinkedIn search skips a card whose URL the site's
-  `postings` could not read back as that posting, such as one with a non-numeric StepStone ID, a
-  SmartRecruiters company that is blank or holds `/`, `?`, or `#`, a Workday path outside `/job/`
-  or with a query, or a LinkedIn link off a posting's page. Such a SmartRecruiters card could end
-  a details search with `ValueError`.
-- A LinkedIn applicant count past float range is left out. One past 4,300 digits ended a
-  `postings` call or a details search with `ValueError`.
-- A cached record whose detail other than a date no longer has its field's type, such as
-  `applicants` as text or `workplace_type` as a number, is a cache miss and is fetched again.
-- `make_job` refuses an integer detail past float range, and such an integer inside `site_data`
-  becomes `None`. One past 4,300 digits disabled the cache when the record was stored.
+- Fixed broken-pipe handling (`jobrake -h | true`, `--version`, usage errors, and crashes) so
+  stdout/stderr pipe closures no longer turn exit status into 120.
+- Fixed cache lock recovery: if another process holds the SQLite file locked, caching pauses for
+  60 seconds and resumes instead of staying disabled for the rest of the process.
+- Fixed `.check()` on Indeed lookups and on site `postings` functions so they validate country
+  editions and posting references without sending requests.
+- Fixed StepStone coordinate parsing so postings on the equator or prime meridian (`lat=0` or
+  `lon=0`, but not both `0, 0`) keep their coordinates.
+- Fixed Indeed URL parsing when a job key contains `&`.
+- Skipped search cards whose URL cannot be read back by the site's `postings` command (StepStone,
+  SmartRecruiters, Workday, LinkedIn) and cards with JSON boolean IDs (StepStone, UN Careers,
+  AcademicTransfer); AcademicTransfer now omits JSON boolean contract type or education level codes
+  instead of reading them as code `1`.
+- Invalid cached records whose field types no longer match `JobDict` are treated as cache misses.
+- Hardened URL validation, `make_job`, and option checks against malformed URLs (e.g., invalid
+  IPv6 brackets) and out-of-range integers.
 
 ## [0.36.0](https://github.com/eyayaw/jobrake/releases/tag/v0.36.0) - 2026-11-20
 
 ### Changed
 
-- **Breaking:** With `--details`, an INOMICS posting whose page names a city and region but no
-  country code takes that place over the card's, named from both, so `Umeå, Sweden` becomes
-  `Umeå, Västerbotten`. `postings` gave no place for such a page. A posting the cache already holds gains its
-  place when its row expires.
+- **Breaking:** On INOMICS with `--details`, a posting page that gives a city and region without a
+  country code now replaces the search result's location (e.g., `Umeå, Västerbotten` instead of
+  `Umeå, Sweden`); `inomics postings` now returns a location for these pages too.
 
 ### Fixed
 
-- A LinkedIn search skips a card whose link is not a valid URL, and an AEA JOE search raises
-  `Stopped` for such an export link. Both raised `ValueError`, and LinkedIn lost every posting read
-  so far.
-- A LinkedIn search raises `Stopped` when a results request gets an answer other than the search
-  endpoint's HTTP 200, such as a sign-in page, and an Indeed search for a page that repeats an
-  earlier page's cursor. Each ended as a complete search.
-- An INOMICS posting page is read from its schema.org blocks when another script on it does not
-  parse or gives its `@type` as a list. INOMICS raised `JSONDecodeError` for the first, so
-  `inomics.postings` requested none of the references after that page, and skipped the posting for
-  the second. A posting block inside an array or an `@graph` is read too, where INOMICS ignored it.
-- A StepStone posting page is read when its `JobPosting` block sits in an array or an `@graph` or
-  gives its `@type` as a list. StepStone reported it as a page without posting data.
-- An AcademicTransfer search raises `Stopped` when its jobs page's payload does not parse or its
-  token entry names no entry of the payload. It raised `JSONDecodeError` or `IndexError`, or sent
-  a wrong token.
-- A response nested deeper than jobrake can read raises `Stopped`, and `postings` or a details
-  search skips a posting whose fields nest that deep. A page script nested that deep leaves the
-  rest of an INOMICS, StepStone, or LinkedIn posting page readable, and a Workday 403 body nested
-  that deep counts as a failed request. Each raised `RecursionError`.
-- A search takes an integer option beyond float range. AEA JOE's `max_age_hours`, INOMICS's
-  `results`, and LinkedIn's `radius` raised `OverflowError` before the first request.
-  On AEA JOE, an age that reaches back before the year 1 excludes no listing, as on StepStone and
-  SmartRecruiters. `check` raises `ValueError` for an integer of more than 4,300 digits.
-  The search raised after `check` passed.
-- `HttpxFetcher(headers=...)` replaces a default header whatever the case of its name.
-  A name in another case sent the default value as well.
-- A CLI command whose `--output` write fails or meets Ctrl-C removes the file it started, so a
-  rerun can write it. The partial file stayed and made the rerun exit 2 with
-  "output file already exists".
-- A CLI command whose stdout write fails, as on a full disk or in an encoding that cannot hold the
-  output, such as `PYTHONIOENCODING=ascii`, logs `could not write stdout` and exits 1.
-  It ended in a traceback, with exit status 120 on a full disk.
-- A CLI command whose stderr reader closed the pipe, as in `jobrake ... 2>&1 | head`, exits with
-  the status of its run. It could exit 120.
-- A `posted_at` or `expires_at` that is not ISO 8601, or not text, is left out with a warning.
-  They kept the site's value.
-- A `postings` call or a `--details` search with very many postings reads the cache. It turned the
-  cache off for the rest of the process and fetched every posting again.
-- `--help` shows `VALUE` for an option that takes several values. It showed `ID` for every one,
-  including the options that take names or codes.
+- LinkedIn searches now raise `Stopped` on non-200 or redirected non-search responses (such as
+  sign-in walls) instead of ending silently, and Indeed raises `Stopped` if a cursor repeats.
+- LinkedIn skips search cards with malformed URLs instead of aborting the search; AEA JOE raises
+  `Stopped` on malformed export links.
+- Improved JSON-LD parsing on INOMICS and StepStone to handle `@graph`, top-level arrays, list
+  `@type` values, and broken sibling `<script>` blocks.
+- AcademicTransfer now raises `Stopped` when the jobs page Nuxt payload is malformed or missing
+  its API token.
+- `HttpxFetcher(headers=...)` now replaces default headers case-insensitively.
+- CLI `--output` removes partially written files on write error or Ctrl-C; stdout write failures
+  (e.g., full disk or incompatible `PYTHONIOENCODING`) log an error and exit 1 instead of
+  printing a traceback; closed stderr pipes preserve the command's exit code.
+- Fixed large cache lookups exceeding SQLite's parameter limit (which previously disabled the
+  cache).
+- Non-ISO `posted_at` and `expires_at` values are now omitted with a warning instead of kept raw.
+- Hardened response parsing and integer option handling against deeply nested JSON and extreme
+  integer values.
+- CLI `--help` now uses `VALUE` instead of `ID` as the metavar for multi-value flags.
 
 ## [0.35.0](https://github.com/eyayaw/jobrake/releases/tag/v0.35.0) - 2026-11-19
 
 ### Added
 
-- A SmartRecruiters search with `--details`, and `jobrake smartrecruiters postings`, fill
-  `apply_url` with the application link the posting gives. A posting the cache already holds
-  gains it when its row expires.
+- SmartRecruiters `--details` and `postings` now populate `apply_url`.
 
 ### Changed
 
-- **Breaking:** A LinkedIn search with `--details` takes `date` from the posting page, as Workday,
-  StepStone, and INOMICS do. It kept the search result's date.
-- `postings` reads the first of several references to one posting. LinkedIn preferred a
-  title-slug or country-subdomain address, and the other sites read the last reference.
-- `postings` on SmartRecruiters and Workday returns the `url` the posting gives, as a search does,
-  where it kept the reference's address. A posting the cache already holds keeps the address it
-  was stored with until its row expires.
-- A details fetch on Workday, SmartRecruiters, StepStone, and INOMICS reports progress as
-  LinkedIn's does: the cached postings at the start, then each read as it finishes.
-- `jobrake <site> postings --help` reads the same on every site.
-- The posting loop logs under `jobrake.sites.<site>`, the parent of the site's other loggers.
-  LinkedIn's warning for a posting it skips names the URL it requested, as the other sites' do,
-  and its INFO lines that counted the pages before and after the fetch are gone.
+- **Breaking:** LinkedIn searches with `--details` now take `date` from the posting page (matching
+  Workday, StepStone, and INOMICS) instead of keeping the search card's date.
+- `postings` consistently reads the first reference when duplicates are passed, and SmartRecruiters
+  and Workday `postings` return the canonical posting URL.
+- Unified progress reporting, help text, and logger hierarchy (`jobrake.sites.<site>`) across
+  detail-fetching sites.
 
 ### Fixed
 
-- A LinkedIn search with `--details` returns the same record for a posting read from the cache
-  as for one read fresh. A page with a blank title gave no `title` on the first search
-  and the search result's title on the next.
-- A SmartRecruiters search whose filters match nothing logs no hint that the board may be
-  misspelled. The hint stays for an empty search without filters, because an unknown board
-  answers it as an empty board does.
-- A `date` that is not ISO 8601 becomes `None`, and such an AEA
-  `expires_at` is left out, each with a warning. Both kept their first ten characters.
+- LinkedIn `--details` now produces identical results whether a posting comes from cache or a
+  fresh fetch when a page has a blank title.
+- SmartRecruiters no longer logs a "misspelled board?" hint when filters return zero matches (only
+  when an unfiltered search is empty).
+- Unparseable `date` values now become `None` (and unparseable AEA `expires_at` values are
+  omitted) with a warning instead of slicing the first 10 characters.
 
 ## [0.34.0](https://github.com/eyayaw/jobrake/releases/tag/v0.34.0) - 2026-11-18
 
 ### Changed
 
-- `jobrake uncareers search --max-age-hours` takes any positive number of hours and rounds it up
-  to whole days, where it took only 24, 168, or 720.
+- `uncareers search --max-age-hours` now accepts any positive number of hours (rounded up to whole
+  days) instead of only 24, 168, or 720.
 
 ## [0.33.0](https://github.com/eyayaw/jobrake/releases/tag/v0.33.0) - 2026-11-17
 
 ### Added
 
-- `jobrake academictransfer search` reads the active vacancies on AcademicTransfer, a Dutch job
-  board for academic and research jobs, with their descriptions. `--query` and `--vacancy-type`
-  apply the site's own filters.
+- `academictransfer`: search Dutch academic and research vacancies on AcademicTransfer with
+  `--query` and `--vacancy-type`, descriptions included.
 
 ## [0.32.0](https://github.com/eyayaw/jobrake/releases/tag/v0.32.0) - 2026-11-17
 
 ### Added
 
-- Records carry the employer's `keywords` as a list where the site gives them,
-  on Personio and AEA JOE.
-- `jobrake aea search` reads the active listings on AEA JOE, the American Economic Association's Job
-  Openings for Economists, with their full text. `--query`, `--section`, `--jel`, and
-  `--max-age-hours` apply the site's own filters.
-- `jobrake inomics search` reads the jobs for economists on INOMICS, filtered by `--query`,
-  `--country`, `--category`, and `--jel`, and `jobrake inomics postings` fetches known jobs by URL.
-  `--details` adds each job's description and deadline.
+- `keywords` field on `JobDict` (list of strings), populated on Personio and AEA JOE.
+- `aea`: search active listings on AEA JOE (Job Openings for Economists) with `--query`,
+  `--section`, `--jel`, and `--max-age-hours`.
+- `inomics`: search economist jobs on INOMICS (`--query`, `--country`, `--category`, `--jel`,
+  `--details`) and fetch known postings by URL with `inomics postings`.
 
 ### Changed
 
-- **Breaking:** A Personio record carries its keywords in `keywords`, a list,
-  instead of `site_data["keywords"]`, a comma-separated string.
+- **Breaking:** Personio now stores keywords in the top-level `keywords` list instead of a
+  comma-separated string in `site_data["keywords"]`.
 
 ## [0.31.0](https://github.com/eyayaw/jobrake/releases/tag/v0.31.0) - 2026-11-17
 
 ### Added
 
-- `jobrake uncareers filters <option>` and `jobrake.sites.uncareers.filters()` list the values a
-  UN Careers list filter takes, such as every duty station.
+- `jobrake uncareers filters <option>` and `jobrake.sites.uncareers.filters()` to list valid
+  values for UN Careers filters (duty stations, levels, departments, etc.).
 
 ## [0.30.0](https://github.com/eyayaw/jobrake/releases/tag/v0.30.0) - 2026-11-16
 
 ### Added
 
-- `jobrake uncareers search` reads the openings on UN Careers, the United Nations Secretariat's
-  recruitment site, with their descriptions. `--query` is the site's keyword search, and
-  `--category`, `--duty-station`, `--level`, `--department`, `--job-network`, `--job-family`,
-  `--recruitment-type`, and `--max-age-hours` apply its filters by the names its search page shows.
+- `uncareers`: search United Nations Secretariat openings with `--query`, `--category`,
+  `--duty-station`, `--level`, `--department`, `--job-network`, `--job-family`,
+  `--recruitment-type`, and `--max-age-hours`.
 
 ## [0.29.0](https://github.com/eyayaw/jobrake/releases/tag/v0.29.0) - 2026-11-16
 
 ### Added
 
-- `jobrake stepstone search` reads StepStone's German job board through its mobile-app listings API.
-  `--location` takes a German city or postal code and `--radius` widens the search around it.
-  `--remote` keeps the postings StepStone lists as fully remote.
-  A card lacks the description, the employment type, and the company URL, which `--details` and
-  `jobrake stepstone postings` fetch from the posting's page.
-- `jobrake personio search` reads an employer's Personio career site through its public XML feed.
-  A posting that the board's default-language feed leaves without a description comes whole, title
-  included, from the feed in the first other language that describes it.
+- `stepstone`: search StepStone Germany via its mobile API (`--location`, `--radius`, `--remote`,
+  `--details`) and fetch postings by URL via `stepstone postings`.
+- `personio`: read employer career feeds from Personio's public XML API, backfilling blank
+  descriptions from alternate language feeds.
 
 ### Fixed
 
-- `jobrake.identify` and `postings` reject a SmartRecruiters or Workday URL whose ID is written in
-  digits other than 0-9, such as fullwidth ones. They read it as a posting and asked the site for
-  an ID it never issues.
+- `identify` and `postings` reject non-ASCII digits (such as fullwidth digits) in SmartRecruiters
+  and Workday IDs.
 
 ## [0.28.0](https://github.com/eyayaw/jobrake/releases/tag/v0.28.0) - 2026-11-15
 
 ### Added
 
-- A Workday career site on the shared host,
-  `https://wd<n>.myworkdaysite.com/recruiting/<tenant>/<site>`,
-  is read like one on `myworkdayjobs.com`. Its address was rejected as not a Workday URL.
-- A LinkedIn posting that no longer accepts applications carries `closed: true` in `site_data`.
-  LinkedIn keeps serving such a posting, and it read as open.
-- `Stopped.failed` lists the URLs of the postings a details search could not fetch, and the CLI
-  prints the `postings` command that retries them. A failed posting looked like a gone one in
-  `partial`, and a rerun retried it only if the search still listed it.
-- `jobrake.check(site, **options)` raises the error `scrape` would raise for a search's options,
-  without a request or an event loop.
-- `jobrake.identify(link)` returns the `site` and `id` of the posting a LinkedIn, Indeed, Workday,
-  or SmartRecruiters link names, as a search returns them, or `None`, without a request.
+- Support for shared-host Workday URLs (`https://wd<n>.myworkdaysite.com/recruiting/<tenant>/<site>`).
+- LinkedIn postings no longer accepting applications set `site_data["closed"] = True`.
+- `Stopped.failed` lists unread posting URLs after a partial `--details` failure, and the CLI logs
+  the exact `postings` retry command.
+- `jobrake.check(site, **options)` for offline option validation without an event loop.
+- `jobrake.identify(link)` to map posting URLs (LinkedIn, Indeed, Workday, SmartRecruiters) to
+  `(site, id)`.
 
 ### Changed
 
-- Workday and SmartRecruiters cache the postings they fetch for details, as LinkedIn does,
-  so a repeated details search spends a request only on each new posting.
-- A Workday posting read for details that names no primary location lists only its other places.
-  The search result's place led them.
-- A LinkedIn posting page without structured data, such as one placed in a whole country,
-  costs one request for its details, where it cost two.
+- Enabled local SQLite caching for Workday and SmartRecruiters detail fetches (matching LinkedIn).
+- Workday detail fetches without a primary location no longer prepend the search card's location.
+- LinkedIn postings without JSON-LD now cost one request instead of two.
 
 ### Fixed
 
-- A site that sends a web page where its API sends JSON, as Workday does during maintenance,
-  stops the search with a message that says so and to try again later.
-  The message blamed an API change.
-- A LinkedIn posting read for details takes its places whole from its page,
-  which jobrake now requests in English.
-  The record joined the search result's place name to the page's parts,
-  so a page in the posting country's language gave `Den Haag` under
-  `The Hague, South Holland, Netherlands`, and a posting open in several cities could name one city
-  and carry another's parts. The page's `company` is in English too, such as `MediaTek`
-  where a Taiwanese page gave `聯發科技`.
-  A record already cached keeps its old values until its row expires.
+- When an API returns an HTML maintenance page instead of JSON (such as Workday), jobrake reports
+  possible maintenance instead of blaming an API change.
+- LinkedIn detail pages are now requested in English (`?_l=en_US`) and replace search-card places
+  whole, preventing mixed-language city/region pairs and mismatched multi-city locations.
 
 ## [0.27.0](https://github.com/eyayaw/jobrake/releases/tag/v0.27.0) - 2026-11-14
 
 ### Changed
 
-- **Breaking:** A LinkedIn posting reference must be an HTTPS address on LinkedIn's default port,
-  without credentials. `postings` rejects an `http://` address, another port, or `user:pass@`
-  with `ValueError`, where it requested them.
-- `docs/reference.md` lists every returned key with its type and meaning.
-  It marks Ashby's `workplace_type` and Lever's `employment_type`
-  and `workplace_type` as present only when the site gives them,
-  where it listed them as always present.
+- **Breaking:** LinkedIn posting references must use HTTPS on the default port without embedded
+  credentials; `http://`, custom ports, or `user:pass@` raise `ValueError`.
+- Expanded `docs/reference.md` with every record field's type and meaning, and corrected
+  optionality notes for Ashby and Lever fields.
 
 ### Fixed
 
-- A Lever posting the employer marked on-site carries `workplace_type`.
-  Lever's API sends `onsite`, which jobrake read as no workplace type.
-- An Indeed description that holds braces in its prose, such as `{"id": 1}`, keeps its text.
-  jobrake cut the clause before the brace, and a brace that never closed made the read slow.
-  The cleanup now leaves an empty rule and a rule whose value holds a semicolon, such as a data URI.
-- A lone surrogate in the text of a posting or a lookup result becomes U+FFFD.
-  It crashed the CLI with a traceback, left an empty `--output` file that made the rerun fail,
-  and turned the LinkedIn cache off for the rest of the run.
-- A LinkedIn search card whose link leaves LinkedIn is skipped,
-  so `--details` requests no other host.
-- Ctrl-C ends a command with one line, where it printed the traceback of the canceled search.
-- An error found after the arguments parse, such as a blank board or an output file that exists,
-  names the command and points to its help, `jobrake greenhouse search -h`,
-  where it pointed to `jobrake -h`.
-- Indeed `attributes` reports Indeed's own message when Indeed answers with a GraphQL error,
-  as `search` does. It reported a response it could not read.
-- The warning that disables the cache says how to recover: delete the file if it is damaged,
-  or set `JOBRAKE_CACHE_PATH` to another path.
-- The CLI logs `found 1 job` and `wrote 1 job` for one posting.
+- Lever's `onsite` label now maps to `workplace_type="on_site"`.
+- Fixed Indeed's CSS-scrubbing regex so prose containing braces (like `{"id": 1}`) is preserved
+  without backtracking stalls.
+- Replaced lone UTF-16 surrogates in scraped text with U+FFFD so they cannot crash CLI output or
+  disable caching.
+- LinkedIn skips search cards linking off `linkedin.com` so `--details` never fetches external
+  hosts.
+- Ctrl-C exits cleanly with a single warning line instead of a traceback; post-parse CLI errors
+  now reference the subcommand's `-h` help.
+- Indeed `attributes` surfaces GraphQL error messages properly, and cache-disable warnings include
+  recovery instructions.
 
 ## [0.26.0](https://github.com/eyayaw/jobrake/releases/tag/v0.26.0) - 2026-11-13
 
-This release routes every site through one response reader and one page loop, and makes `fetchkit`
-and seven of the nine sites single modules.
-In a live comparison, every posting that both this release and 0.25.0 returned was equal,
-on all nine sites.
+Consolidated response parsing, pagination, `fetchkit`, and single-file site modules.
 
 ### Changed
 
-- **Breaking:** `FetchResult.ok` is removed. Test `error is None` in its place.
-- **Breaking:** `jobrake.fetchkit` is one module, so `jobrake.fetchkit.httpx`
-  and `jobrake.fetchkit.types` are gone.
-  Import `Fetcher`, `FetchResult`, and `HttpxFetcher` from `jobrake.fetchkit`.
-- **Breaking:** Ashby, EconJobMarket, Greenhouse, Lever, SmartRecruiters, Workable,
-  and Workday are each one module, so `jobrake.sites.<site>.search` is the search function
-  and no longer a module. Import a site's other names from `jobrake.sites.<site>`.
-- **Breaking:** The CLI writes nothing when a search stops, or a posting fetch fails,
-  with no posting collected. It wrote an empty document, `[]` as JSON or the header row as CSV,
-  which read as a search that found nothing. It still logs the error and exits 1.
-- A custom `Fetcher` needs only `fetch()`,
-  because jobrake closes only an `HttpxFetcher` it created itself.
-- A failed request reads `<site> request failed: <error>`, with the board named
-  when the search has one, in the message of a search, a posting fetch, and a lookup,
-  where each had its own wording. A lookup's message no longer names the text looked up.
-- The CLI logs `found N jobs` before it writes results to stdout,
-  and the sites no longer log their own count.
-- SmartRecruiters and Workday searches ask for the same number of cards on every page, a full page
-  or `results` when that is fewer, where the last pages asked only for the cards still missing.
-- The warning for a site's result cap no longer counts the postings returned.
-- `Stopped` takes `partial` as an optional argument, `[]` by default.
-- `docs/reference.md` holds the returned fields, each site's fields,
-  and each site's request behavior, which `docs/guide.md` held.
-  It adds fields sections for LinkedIn and Indeed.
+- **Breaking:** Removed `FetchResult.ok` (check `error is None` instead).
+- **Breaking:** Flattened `jobrake.fetchkit` into a single module (`jobrake.fetchkit.httpx` and
+  `jobrake.fetchkit.types` removed; import `Fetcher`, `FetchResult`, and `HttpxFetcher` from
+  `jobrake.fetchkit`).
+- **Breaking:** Flattened Ashby, EconJobMarket, Greenhouse, Lever, SmartRecruiters, Workable, and
+  Workday into single modules (`jobrake.sites.<site>.search` is now the function itself).
+- **Breaking:** When a CLI search or `postings` run fails with zero results collected, jobrake now
+  writes nothing instead of an empty `[]` / CSV header (still logging the error and exiting 1).
+- Custom `Fetcher` implementations only need `fetch()` (jobrake never closes caller-supplied
+  fetchers).
+- Standardized failed-request error messages, result-count logging, page sizes on
+  SmartRecruiters/Workday, and optional `partial` on `Stopped`.
+- Moved field and request reference material from `docs/guide.md` into `docs/reference.md`.
 
 ## [0.25.0](https://github.com/eyayaw/jobrake/releases/tag/v0.25.0) - 2026-11-11
 
 ### Added
 
-- LinkedIn, Indeed, Workday, and SmartRecruiters searches report progress after each page,
-  so the CLI draws its progress line while a search runs.
+- Page-by-page progress reporting for LinkedIn, Indeed, Workday, and SmartRecruiters searches.
 
 ### Changed
 
-- The CLI's progress line shows its record's message, such as `workday search 20/60`,
-  in place of a bar, so the line tells a search from a details fetch.
-- LinkedIn's posting-page progress records say `linkedin details`, as Workday's
-  and SmartRecruiters' do, where they said `linkedin pages`.
-- jobrake retries a LinkedIn 429 up to five times, where it retried up to three,
-  so a chance run of refusals rarely ends a search or its detail fetch.
+- Replaced the terminal progress bar with concise status lines (e.g., `workday search 20/60`,
+  `linkedin details 5/10`).
+- Increased LinkedIn HTTP 429 retries from 3 to 5.
 
 ## [0.24.0](https://github.com/eyayaw/jobrake/releases/tag/v0.24.0) - 2026-11-10
 
 ### Changed
 
-- **Breaking:** `Fetcher.fetch()` takes `follow_redirects`, which defaults to `True`.
-  A custom fetcher must accept it and, when it is `False`, return the first response
-  with its `Location` header. LinkedIn requests pass `False`.
-- jobrake reads up to six LinkedIn posting pages at a time, so a slow response
-  or a retry wait does not delay the next page,
-  and sends requests in short bursts within each data center's limit.
-- `jobrake linkedin postings` and `linkedin.postings()` read a `www.linkedin.com` title-slug URL as
-  given and follow its page's canonical link to the posting country's host,
-  which saves the lookup request for a US posting.
-- A LinkedIn posting whose page names a canonical address that is not a page of that posting is
-  skipped with a warning, where jobrake returned the page's fields.
+- **Breaking:** `Fetcher.fetch()` must accept `follow_redirects: bool = True` and return the first
+  response (with `Location`) when `False`. LinkedIn requests pass `follow_redirects=False`.
+- Concurrency for LinkedIn posting pages increased to up to 6 in flight across data centers,
+  sending short bursts within each data center's window.
+- `linkedin postings` reads `www.linkedin.com` title-slug URLs directly and follows the canonical
+  link, saving a lookup request for US postings; mismatched canonical links are skipped with a
+  warning.
 
 ### Fixed
 
-- A LinkedIn posting renamed since its URL was recorded keeps its dates, coordinates,
-  and requirements. jobrake follows the canonical link on the page at the old title slug,
-  which LinkedIn served without those fields in our test.
-- A malformed link in one LinkedIn posting's guest fragment skips that posting with a warning,
-  where it aborted the whole `postings` call.
-- A LinkedIn posting whose page redirects to a search page takes its fields from its guest fragment
-  alone, where it took some from the search page.
-  When the fragment has no fields, the posting is skipped with a warning.
-- jobrake follows a LinkedIn redirect itself, to HTTPS LinkedIn addresses only, and paces
-  and pins each hop like any other request, where the HTTP client followed it outside the request
-  limit and without the cookie that pins the request to a data center.
+- Preserved dates, coordinates, and requirements when a renamed LinkedIn posting redirects via its
+  canonical link.
+- Malformed links in a LinkedIn guest fragment now skip just that posting instead of aborting the
+  whole `postings` batch.
+- Postings redirecting to a search page fall back cleanly to the guest fragment instead of scraping
+  the search page.
+- LinkedIn redirect hops are now followed manually (HTTPS `linkedin.com` only) so every hop is
+  paced and pinned to a data center.
 
 ## [0.23.0](https://github.com/eyayaw/jobrake/releases/tag/v0.23.0) - 2026-10-30
 
-This release lets a caller fill Workday and SmartRecruiters search results in the same run
-or a later one, as LinkedIn's already could.
-Indeed takes ISO country codes, and `description` drops text that inline styles
-and invisible characters hide.
-
 ### Added
 
-- `jobrake workday postings URL...`
-  and `workday.postings()` fetch known Workday postings by a search result's `url`.
-- `jobrake smartrecruiters search --details` and `details=True`
-  add each posting's ad as `description`.
-- `jobrake smartrecruiters postings URL...`
-  and `smartrecruiters.postings()` fetch known SmartRecruiters postings by URL.
-- `jobrake linkedin postings` and `linkedin.postings()` accept the link in a LinkedIn job alert
-  email, `/comm/jobs/view/ID`, and a search page's address that names a posting in `currentJobId`.
+- `workday postings` and `smartrecruiters postings` (plus `--details` on SmartRecruiters) for
+  fetching full job descriptions on demand.
+- `linkedin postings` now accepts job alert email URLs (`/comm/jobs/view/ID`) and search URLs with
+  `currentJobId=`.
 
 ### Changed
 
-- **Breaking:** A Workday posting whose requisition ID holds an underscore keeps its whole ID,
-  so its `id` changes, as from `guidewire:15332` to `guidewire:JR_15332`.
-  A card whose path ends in a title word, such as `/job/Remote/Data_Scientist`, is skipped.
-  It used to take `Scientist` as its ID, which unrelated postings could share.
-- **Breaking:** Indeed's `country` and `--country` take the country's ISO 3166-1 alpha-2 code,
-  such as `de` or `gb`, in place of its name. `uk` and `usa` become `gb` and `us`.
-- `description` leaves out text that an inline style or an invisible character hides from a reader,
-  such as an element styled `display:none` or a zero-width space.
-  A cached LinkedIn description keeps such text until its row expires.
-- LinkedIn's page fetch counts pages in its log lines, as in `read 99 of 100 linkedin pages`,
-  instead of details resolved.
-- Workday's detail progress records log under `jobrake.sites.postings`, as SmartRecruiters' do.
+- **Breaking:** Workday requisition IDs containing underscores stay intact (e.g., `guidewire:JR_15332`
+  instead of `guidewire:15332`), and paths ending in non-ID title words like `/Data_Scientist` are
+  skipped.
+- **Breaking:** Indeed `--country` / `country` now uses ISO 3166-1 alpha-2 codes (`de`, `gb`, `us`)
+  instead of country names.
+- `html_text` now strips hidden inline-styled elements (`display:none`, etc.) and invisible
+  zero-width / bidi characters from descriptions.
 
 ### Fixed
 
-- A Workday detail answered with a 403 that names error `S22` counts as a gone posting:
-  `details` keeps its search result and `postings` maps it to `None`.
-  It used to count as a failed request, so a `details` search that met one raised `Stopped`.
-- Indeed's country table drops ten countries its API rejects: Bangladesh, Bulgaria, Croatia, Cyprus,
-  Estonia, Latvia, Lithuania, Malta, Slovakia, and Slovenia.
-  A search of one raises `ValueError` before any request, where it used to stop with HTTP 400.
+- Workday HTTP 403 responses with `errorCode: "S22"` are now treated as withdrawn/gone postings
+  instead of raising `Stopped`.
+- Removed 10 countries rejected by Indeed's API (Bangladesh, Bulgaria, Croatia, Cyprus, Estonia,
+  Latvia, Lithuania, Malta, Slovakia, Slovenia) so they fail locally with `ValueError`.
 
 ## [0.22.0](https://github.com/eyayaw/jobrake/releases/tag/v0.22.0) - 2026-10-29
 
 ### Added
 
-- `department` holds the hiring unit within the employer, on Ashby, Greenhouse, Lever, Workable,
-  SmartRecruiters, and EconJobMarket, and `team` the posting's team on Ashby and Lever.
-- `site_data` holds the fields only one site carries, under that site's own names:
-  EconJobMarket's position types and fields of economics, and Ashby's pay components.
-- `jobrake.Place` types one entry of `locations`.
-  `jobrake.models.make_places()` normalizes a list of them,
-  and `jobrake.models.workplace_type()` maps a site's workplace label to `remote`,
-  `hybrid`, or `on_site`.
+- `department`, `team`, and `site_data` fields on `JobDict`.
+- `jobrake.Place`, `jobrake.models.make_places()`, and `jobrake.models.workplace_type()`.
 
 ### Changed
 
-- **Breaking:** `locations`, a list of places, replaces `location`, `city`, `region`,
-  `country_code`, `latitude`, and `longitude`.
-  Each place has a `name` and only the parts the site gives for it,
-  and a posting open in several places lists each one.
-  Each cached LinkedIn posting is fetched again once, because its row no longer fits.
-- **Breaking:** `workplace_type`, one of `remote`, `hybrid`, or `on_site`, replaces `is_remote`,
-  and appears only when the site states it.
-- CSV writes `locations` as the place names, separated by `; `, and `site_data` as JSON text.
+- **Breaking:** Replaced `location`, `city`, `region`, `country_code`, `latitude`, and `longitude`
+  with `locations` (a list of `Place` dicts). Cached LinkedIn postings refetch once under the new
+  schema.
+- **Breaking:** Replaced `is_remote` with `workplace_type` (`"remote"`, `"hybrid"`, or
+  `"on_site"`), included only when stated by the site.
+- CSV output joins `locations` with `; ` and serializes `site_data` as JSON.
 
 ### Removed
 
-- **Breaking:** `jobrake.utils.join_places()`, because `locations` lists each place on its own.
+- **Breaking:** `jobrake.utils.join_places()`.
 
 ## [0.21.0](https://github.com/eyayaw/jobrake/releases/tag/v0.21.0) - 2026-10-28
 
-This release adds seven sites: employers' boards on six applicant tracking systems,
-and EconJobMarket's ad feed. When a site lists a posting's places one by one,
-its record names each of them in `location`.
-
 ### Added
 
-- `greenhouse`, `ashby`, `lever`, and `workable` sites: `jobrake <site> search -b <token>`
-  and `scrape(site, board=...)` return every posting on one employer's board.
-- `smartrecruiters` site: `jobrake smartrecruiters search -b <token>` pages through one employer's
-  board, with `query`, `results`, `max_age_hours`, and `remote` applied by SmartRecruiters.
-- `workday` site: `jobrake workday search -b <career site URL>` searches one employer's Workday
-  career site, with `query`, `results`, and `details`.
-- `econjobmarket` site: `jobrake econjobmarket search`
-  and `scrape("econjobmarket")` return every open ad from EconJobMarket's public feed.
+- Seven new sites: `greenhouse`, `ashby`, `lever`, `workable`, `smartrecruiters`, `workday`, and
+  `econjobmarket`.
 
 ### Changed
 
-- A blank Indeed `country` raises `ValueError` saying the option is blank,
-  instead of calling it an unknown country.
-- `Stopped` also ends a SmartRecruiters or Workday search whose page comes back empty before the
-  total the site reported.
-- `employment_type()` slugs camelCase labels, so `FullTime` becomes `full_time`.
-- `make_job` uppercases `country_code`.
+- Blank Indeed `country` reports a blank-option `ValueError`; SmartRecruiters and Workday raise
+  `Stopped` on premature empty pages; `employment_type()` handles camelCase labels (`FullTime` ->
+  `full_time`); `make_job` uppercases `country_code`.
 
 ### Fixed
 
-- An Indeed response holding an integer too long to parse raises `Stopped`
-  instead of `ValueError`.
-  A LinkedIn posting page holding one in a JSON-LD block skips that block instead of raising.
+- Oversized integers in Indeed responses raise `Stopped` instead of `ValueError`, and in LinkedIn
+  JSON-LD blocks skip the block instead of crashing.
 
 ## [0.20.0](https://github.com/eyayaw/jobrake/releases/tag/v0.20.0) - 2026-10-28
 
-This release rebuilds jobrake around one contract.
-Every site returns the same `JobDict` record,
-and each site declares only the options its server applies.
-A failed request raises `Stopped`, so a caller can tell a cut-short result from a complete one.
+Major architecture overhaul around a shared `JobDict` schema, per-site option validation, and
+`Stopped` partial-result exceptions.
 
 ### Added
 
-- `jobrake.sites.SITES` maps each site name to its package, and `scrape()` and the CLI read it.
-- `jobrake` exports `Stopped` and `JobDict`.
-- An Indeed search warns when Indeed's 1,000-result cap cuts it short,
-  as a LinkedIn search does at offset 1,000.
-- `query` defaults to an empty string on both sites, so a search by company ID
-  or place needs no `-q ""`.
+- `jobrake.sites.SITES` registry; top-level `Stopped` and `JobDict` exports; Indeed 1,000-result
+  cap warning; default `query=""` on LinkedIn and Indeed.
 
 ### Changed
 
-- **Breaking:** jobrake requires Python 3.15.
-- **Breaking:** `scrape(site, *, fetcher=None, **options)` takes the options of the site's own
-  `search()`. Every function a site exports checks its arguments before any request.
-  An option the site does not apply raises `TypeError`, where it used to be ignored.
-- **Breaking:** A failed request raises `Stopped`,
-  whose `partial` holds the jobs collected before it.
-  A search used to return them as a normal result, and a lookup returned `None`.
-  A `details=True` search also raises it when a posting's details could not be fetched.
-  The CLI writes a stopped search's jobs and exits 1.
-- **Breaking:** Every lookup returns `{"id", "name"}` dicts, where `id` is the value a search takes.
-  `id` replaces `geoId`, `companyId`, `employerKey`, and `key`, and `name` replaces `displayName`,
-  `label`, and an Indeed company's `suggestion`.
-  An Indeed place carries its `suggestion` in both keys and drops `locationType`.
-  Indeed's `places()`, `companies()`, and `attributes()` take `country` by keyword.
-- **Breaking:** `company_ids` filters employers on Indeed as on LinkedIn, replacing `employer_key`,
-  and an Indeed search takes one ID.
-- **Breaking:** Indeed's `radius` takes an integer, 40 by default,
-  and `radius=None` raises `TypeError`. It used to mean 40.
-- **Breaking:** `geoid` takes a LinkedIn place ID of digits 0-9 only, so `geoid=True`,
-  `--geoid` without an ID, and the cached place resolutions are gone.
-  Find an ID with `jobrake linkedin places NAME`.
-- **Breaking:** `linkedin.postings(fetcher, references)` takes a list of posting IDs or URLs,
-  returns their records keyed by the references given, and replaces `fetch_postings()`
-  and `fetch_details()`. A posting LinkedIn reports gone maps to `None`,
-  and a failed reference has no key. `postings()` raises no `Stopped`.
-- **Breaking:** `jobrake linkedin postings REF...` replaces `jobrake details linkedin`.
-  It exits 1 when a reference failed, and a run whose postings are all gone writes `[]` and exits 0.
-- **Breaking:** Every CLI command names its site first:
-  `jobrake linkedin search` replaces `jobrake linkedin`,
-  and `jobrake indeed places NAME` replaces `jobrake places indeed NAME`.
-  Each site's commands are the functions it exports, and `jobrake <site> -h` lists them.
-- **Breaking:** CLI flags take the names of their options: `--max-age-hours` replaces `--max-age`,
-  `--company-ids` replaces `--company`, and `--attributes` replaces `--attribute`.
-  A list flag takes several values after one flag.
-- **Breaking:** A `Fetcher` has one `fetch(url, *, headers=None, json=None)` that sends a POST
-  when `json` is given, so an Indeed search runs on any fetcher.
-  `FetchResult.status` replaces `status_code`, and `FetchResult.error` is a message string.
-- **Breaking:** `JobDict` is a `TypedDict`.
-- **Breaking:** `max_age_hours` defaults to `None` on both sites,
-  so a search without `--max-age-hours` covers postings of any age.
-  It used to keep the past 168 hours.
-- **Breaking:** The cache stores each fetched LinkedIn posting as a whole `JobDict` under its site
-  and posting ID, so it starts empty after this upgrade.
-  The 0.19.0 tables stay in the cache file, so delete the file to reclaim their space.
-  The shared instance is `jobrake.cache.CACHE`, and `Cache.get(site, ids)`
-  and `Cache.put(jobs)` read and write its records.
-- Concurrent LinkedIn requests in one process no longer leave in the order they arrived.
-  Each data center still gets one request per pacing interval.
+- **Breaking:** Requires Python 3.15.
+- **Breaking:** `scrape()` and all site functions validate options strictly before making requests;
+  unsupported options raise `TypeError` instead of being ignored.
+- **Breaking:** Failed requests raise `Stopped` (carrying `.partial`) instead of returning partial
+  lists or `None`; CLI writes partial results and exits 1.
+- **Breaking:** Standardized all lookup outputs to `{"id", "name"}` dicts and made `country`
+  keyword-only on Indeed lookups.
+- **Breaking:** Unified employer filtering under `company_ids` (replacing Indeed's `employer_key`);
+  Indeed `radius` no longer accepts `None`; LinkedIn `geoid` accepts numeric ID strings only
+  (dropping `geoid=True` and cached geoId lookups); `max_age_hours` defaults to `None` (no age
+  limit) instead of 168.
+- **Breaking:** Replaced `fetch_postings` / `fetch_details` and `jobrake details linkedin` with
+  `linkedin.postings(fetcher, references)` and `jobrake linkedin postings REF...`.
+- **Breaking:** CLI subcommands are now site-first (`jobrake <site> search` replaces `jobrake <site>`,
+  and `jobrake <site> <lookup>` replaces `jobrake <lookup> <site>`), and flags match Python option
+  names (`--max-age` -> `--max-age-hours`, `--company` -> `--company-ids`, `--attribute` ->
+  `--attributes`).
+- **Breaking:** Unified `Fetcher.fetch(url, *, headers=None, json=None)`, renamed `status_code` to
+  `status`, made `error` a string, and converted `JobDict` to a `TypedDict`.
+- **Breaking:** Rebuilt the SQLite cache around whole `JobDict` rows keyed by `(site, id)` via
+  `jobrake.cache.CACHE` (previous tables in `jobrake.sqlite3` are unused and can be deleted).
 
 ### Removed
 
-- **Breaking:** `jobrake.defaults`, `jobrake.sites.site_searchers()`, `jobrake.models.Job`,
-  `jobrake.utils.check_filters()` and the other `check_*` helpers, and `jobrake.io.to_json()`,
-  `to_jsonl()`, and `to_csv()`. Render records with `jobrake.io.RENDERERS`.
-- **Breaking:** The modules `jobrake.fetchkit.base` and `limiter`, `jobrake.sites.linkedin.geo`,
-  `companies`, and `postings`, and `jobrake.sites.indeed.geo`, `companies`, and `attributes`.
-  Each site's lookups live in its `lookups` module, and LinkedIn's posting pages in `pages`.
-- **Breaking:** `BaseFetcher`, `PostFetcher`, `ErrorCategory`, `FetchError`, `TokenBucket`,
-  and `build_result` from `jobrake.fetchkit`, and the `cookies`, `follow_redirects`,
-  and `jitter` options of `HttpxFetcher`.
-- **Breaking:** `resolve_geoid`, `parse_cards`, `parse_posting`, `job_id`, `CACHE`, `BASE_URL`,
-  `HEADERS`, `SEARCH_URL`, `TYPEAHEAD_URL`, `FRAGMENT_URL`,
-  and `MAX_START` from `jobrake.sites.linkedin`.
-- **Breaking:** `API_HEADERS`, `API_URL`, `AUTOCOMPLETE_URL`, `INDEED_APP_KEY`, `QUERY`,
-  `build_query`, and `parse_jobs` from `jobrake.sites.indeed`.
-- **Breaking:** LinkedIn's `country`, `employer_key`, `remote`, `language`,
-  and `attributes` options, and Indeed's `details`, `cache`, `geoid`, `easy_apply`,
-  and `early_applicant` options, which each site accepted without applying.
-- **Breaking:** `JOBRAKE_CACHE_RETENTION`, the `retention` and `ttl` arguments of `Cache`,
-  and `POSTINGS`, `ADDRESSES`, `GEOIDS`, and `RETENTION` from `jobrake.cache`,
-  with the posting-address cache and the gone-posting markers.
-- **Breaking:** `cache=False` and `--no-cache`, with no per-call replacement.
-  To bypass the cache, point `JOBRAKE_CACHE_PATH` at a new file.
+- **Breaking:** Removed `jobrake.defaults`, `site_searchers()`, `models.Job`, `check_*` helpers,
+  `io.to_*` writers (use `RENDERERS`), old per-lookup submodules, legacy `fetchkit` classes
+  (`BaseFetcher`, `PostFetcher`, `ErrorCategory`, `FetchError`, `TokenBucket`, `build_result`),
+  `HttpxFetcher`'s `cookies`/`follow_redirects`/`jitter` options, unused per-site cross-options,
+  `JOBRAKE_CACHE_RETENTION`, and `--no-cache` / `cache=False`.
 
 ### Fixed
 
-- A LinkedIn posting URL keeps no tracking query or trailing slash in its record, and a URL
-  with a `#` fragment, a port, or no `www` is accepted.
-- A LinkedIn posting URL whose ID uses digits outside 0-9 raises `ValueError` before any request.
-  It used to spend a request.
-- A LinkedIn posting page without the schema.org block, whose en-US fragment then fails,
-  gets no record and no cache row. It used to be cached without its employment type and salary.
-- A LinkedIn posting fetched by ID whose page lacks the schema.org block
-  costs two requests, where it cost three.
-- `--output` accepts an uppercase extension, such as `jobs.JSON`.
-- An Indeed response whose `results` is not a list stops the search as unreadable.
-  It used to read as an empty or all-malformed page.
-- A LinkedIn posting whose `monthsOfExperience` is not an integer, such as `6.5`,
-  gets no `experience_months`. It used to hold the float.
+- Normalized LinkedIn posting URLs (stripping tracking queries and trailing slashes), validated
+  ASCII-only IDs before requesting, avoided caching incomplete fallback pages, accepted uppercase
+  `--output` extensions, validated Indeed `results` list types, and dropped non-integer
+  `experience_months`.
 
 ## [0.19.0](https://github.com/eyayaw/jobrake/releases/tag/v0.19.0) - 2026-10-26
 
 ### Added
 
-- `HttpxFetcher(transport=...)`
-  replaces the network with an httpx transport, as `httpx.MockTransport` does in tests.
-- `Cache.close()` closes the SQLite connection.
-  A working cache reopens it on the next read or write.
-- `models.JobDict` types the job dictionaries that `make_job` builds and searches return.
+- `HttpxFetcher(transport=...)` for custom transports such as `httpx.MockTransport`.
+- `Cache.close()` and `models.JobDict`.
 
 ### Changed
 
-- **Breaking:** jobrake requires Python 3.14.
-- **Breaking:** `HttpxFetcher` takes every option after `timeout` by keyword,
-  and `indeed.build_query` takes its filters by keyword.
-- **Breaking:** `ErrorCategory` is a `StrEnum`, so `str(ErrorCategory.NETWORK)` is `"network"`
-  instead of `"ErrorCategory.NETWORK"`.
+- **Breaking:** Requires Python 3.14; keyword-only options on `HttpxFetcher` (after `timeout`) and
+  `indeed.build_query`; `ErrorCategory` is now a `StrEnum`.
 
 ## [0.18.0](https://github.com/eyayaw/jobrake/releases/tag/v0.18.0) - 2026-10-18
 
 ### Changed
 
-- **Breaking:** `linkedin.LIMITER` is removed.
-  jobrake sets the LinkedIn pace from the number of data centers it knows,
-  so a caller's own setting would be overwritten.
-- **Breaking:** `linkedin.RETRY_DELAY` is removed.
-  Assigning it never changed the retry delay, because jobrake reads its own copy.
-- **Breaking:** LinkedIn requests carry only the data-center cookie,
-  so cookies seeded on the fetcher reach LinkedIn only when it redirects a request.
-- LinkedIn requests go out about three times as fast.
-  jobrake spreads them over LinkedIn's three data centers, each with its own limit.
-  jobrake retries a 429 up to three times instead of once.
+- **Breaking:** Removed `linkedin.LIMITER` and `linkedin.RETRY_DELAY`, and switched LinkedIn
+  requests to send only the data-center pinning cookie.
+- Sped up LinkedIn scraping ~3× by distributing requests across LinkedIn's three data centers and
+  retrying 429s up to three times.
 
 ### Removed
 
-- Reading `Retry-After` on LinkedIn 429 responses, which the guest API does not send.
+- Stopped parsing `Retry-After` on LinkedIn 429 responses (which the guest API does not send).
 
 ## [0.17.0](https://github.com/eyayaw/jobrake/releases/tag/v0.17.0) - 2026-10-04
 
 ### Added
 
-- Repeated `--attribute CODE` options and `attributes=[...]` filter Indeed jobs by attribute
-  code, and `jobrake attributes indeed -c EDITION QUERY` and `jobrake.sites.indeed.attributes()`
-  list the codes and labels of matching postings.
-- `--language CODE` and `language="en"` filter Indeed searches by posting language,
-  and the result limit counts postings in that language.
-- `--easy-apply` and `--early-applicant`, alone or together, and their library options keep the
-  LinkedIn jobs with Easy Apply or with fewer than 10 applicants.
-- `--remote` and `remote=True` keep the Indeed postings tagged Remote, alongside the company,
-  location, and age filters.
-- `jobrake companies indeed NAME --country EDITION` and `jobrake.sites.indeed.companies()` find
-  Indeed employer keys, and `--company KEY` or `employer_key=KEY` searches one company's jobs.
-- `jobrake companies linkedin NAME` and `jobrake.sites.linkedin.companies()` find LinkedIn company
-  IDs, and repeated `--company ID` options or `company_ids=[...]` search their postings.
-- Indeed results include a language code when Indeed gives one.
-  CSV output gains a `language` column after `description`.
-- `JOBRAKE_CACHE_PATH`, `JOBRAKE_CACHE_TTL`, and `JOBRAKE_CACHE_RETENTION` set the cache's
-  location, freshness, and retention period.
-- `jobrake linkedin` takes `--radius`, `-r`, in kilometers.
-- Every filter belongs to the shared search signature,
-  so one set of options can go to both providers.
-  A provider checks only the filters it applies and warns for each one it ignores.
+- Indeed filters and lookups: `--attribute` / `attributes`, `--language`, `--remote`, company
+  filtering (`--company` / `employer_key`) and lookup (`jobrake companies indeed`), and `language`
+  in returned records/CSV.
+- LinkedIn filters and lookups: `--easy-apply`, `--early-applicant`, `--radius` (km), and company
+  filtering (`--company` / `company_ids`) and lookup (`jobrake companies linkedin`).
+- Cache configuration via `JOBRAKE_CACHE_PATH`, `JOBRAKE_CACHE_TTL`, and `JOBRAKE_CACHE_RETENTION`.
 
 ### Changed
 
-- **Breaking:** `--output` refuses an existing path, so a run cannot replace earlier results.
-  An unwritable output directory is refused before the search starts.
-- **Breaking:** `radius` on a LinkedIn search is kilometers, as on Indeed.
-  LinkedIn reads its distance in miles, so `radius=25` used to reach about 40 km.
-  jobrake now sends the value rounded to whole miles.
-- Searches ask for newest postings first.
-  Indeed already returned that order and LinkedIn's guest endpoint ignores the request,
-  so results are unchanged for now.
-  The guide describes each site's order and how to collect only new postings with `--max-age`.
-- Search query documentation now explains that jobrake forwards text unchanged.
-  - Indeed recognizes field restrictions, such as `title:` and `company:`.
-  - LinkedIn's documented Boolean operators do not work on its guest endpoint.
-- `jobrake details` and `fetch_details()` cache each posting's canonical URL
-  and remember postings whose lookup found them gone.
-  A rerun over the same IDs or `www` URLs sends no lookups,
-  where 100 IDs used to spend about five minutes on them. `--no-cache` still sends every lookup.
-- `--geoid` and `resolve_geoid()` pick the candidate whose name equals the requested one.
-  LinkedIn lists a region ahead of the city that shares its name,
-  so `Utrecht, Utrecht, Netherlands` used to search the province.
-  A name with no exact candidate still takes the first one.
-  This release clears cached place resolutions, so each name resolves again on first use.
-- Gone-posting markers expire after `JOBRAKE_CACHE_RETENTION`, 30 days by default.
-  A posting that once returned 404 or 410 used to be skipped on every later cached run.
-- Indeed warns when a search passes it a `geoid`, which only LinkedIn applies.
-- `--no-cache` and `cache=False` refresh the posting cache instead of bypassing it,
-  so later cached runs see what a refetch found.
-  A refetched page without the schema.org block leaves a fresh cached copy that has the block in
-  place, with its dates, coordinates, and requirements.
+- **Breaking:** `--output` refuses to overwrite existing files and checks directory permissions
+  before searching.
+- **Breaking:** LinkedIn `radius` now uses kilometers (matching Indeed) and converts to whole miles
+  internally.
+- Cached canonical URLs and gone-posting markers (expiring after `JOBRAKE_CACHE_RETENTION`);
+  `--geoid` prefers exact name matches; `--no-cache` refreshes cached entries instead of bypassing
+  writes.
 
 ### Fixed
 
-- `jobrake details` and `fetch_details()` stop warning that a US posting's `www` URL serves no
-  schema.org block. That URL is the posting's canonical address, and its dates
-  and coordinates come through.
-- An Indeed search raises `TypeError` for a non-string `query`, `location`, or `country`.
-  A LinkedIn search does so for `query` and `location`,
-  and for a `geoid` that is neither a string nor a Boolean.
-  These used to surface as `AttributeError` or as a missing-location error.
+- Stopped warning on US `www.linkedin.com` canonical URLs and added upfront `TypeError` validation
+  for non-string search arguments.
 
 ## [0.16.0](https://github.com/eyayaw/jobrake/releases/tag/v0.16.0) - 2026-09-05
 
 ### Added
 
-- `jobrake details linkedin <ID|URL> ...`
-  fetches known postings without repeating a search, with the same `--output`, `--format`,
-  and `--no-cache` options. Several references to one posting return one job.
-  Library callers can use `jobrake.sites.linkedin.fetch_details`.
-  URLs from search results need the fewest requests, and other references a lookup first.
-- jobrake ships a `py.typed` marker, so downstream type checkers use its inline annotations.
-  Without it mypy reports jobrake as missing stubs and falls back to `Any`.
+- `jobrake details linkedin <ID|URL>...` and `linkedin.fetch_details()` for fetching known
+  postings directly.
+- Shipped `py.typed` marker for downstream type checkers.
 
 ### Changed
 
-- `jobrake --help` describes the program and each subcommand instead of listing bare names.
-- The MIT text stands alone in `LICENSE`, and the JobSpy attribution moved to `THIRD_PARTY_NOTICES`,
-  which ships with the package. GitHub read the concatenated file's license as "Other".
-- This release rebuilds both cache tables, clearing existing entries,
-  including the escaped logo URLs described below.
-  Posting fields and place resolutions now have separate format versions.
-  Releases bump the affected version when fields or parsing change,
-  so jobrake refetches those values while preserving the other table's entries.
-- LinkedIn posting pages yield `title`, `company`, and `location`,
-  so one page is enough to build a whole job.
-  A search result filled with details takes these from the posting page wherever it names them.
+- Added CLI descriptions, separated `LICENSE` and `THIRD_PARTY_NOTICES` for GitHub license
+  detection, added versioned cache tables, and extracted `title`/`company`/`location` directly from
+  LinkedIn posting pages.
 
 ### Fixed
 
-- Strings from a LinkedIn posting's schema.org block are HTML-decoded.
-  `company_logo` had carried `&amp;` between its query parameters,
-  which made the image URL answer 403.
-- A warning carrying a transport failure reads as one sentence, with a lowercase label
-  and the status attached, as in `server error (HTTP 500)`.
-- Rejecting a timestamp says why.
-  A value that resolves before the year 2000 is reported as epoch seconds rather than milliseconds.
-- A numeric search argument that is not an integer raises `TypeError` naming the argument.
-  `results=2.5` failed at page slicing, a non-finite `radius`
-  or `max_age_hours` reached Indeed inside a malformed query,
-  and `radius=False` searched a 0 km radius instead of omitting it.
+- HTML-decoded LinkedIn JSON-LD strings (fixing `&amp;` in `company_logo` URLs), clarified
+  transport and epoch-timestamp warnings, and rejected non-integer numeric search options with
+  `TypeError`.
 
 ## [0.15.0](https://github.com/eyayaw/jobrake/releases/tag/v0.15.0) - 2026-09-02
 
 ### Added
 
-- `jobrake linkedin --geoid` searches by LinkedIn's own place ID.
-  The bare flag resolves `--location` through the guest place lookup,
-  reports the qualified place it picked, and saves the resolution in the SQLite cache.
-  A location that fails to resolve returns no jobs.
-  `--geoid 102011674` searches that area directly, with `--location` optional.
-  Library calls take `geoid=True` or a geoId string.
-- `jobrake places linkedin|indeed <name>` prints a provider's candidate places for a name as JSON,
-  best match first: LinkedIn geoIds with their qualified names,
-  or an Indeed edition's canonical location suggestions.
-  `--country` picks the Indeed edition, as in search.
-  The lookups are public as `jobrake.sites.linkedin.places` and `jobrake.sites.indeed.places`,
-  and `jobrake.sites.linkedin.resolve_geoid` returns the single best LinkedIn ID.
+- LinkedIn `--geoid` support and `jobrake places linkedin|indeed <name>` location lookups (with
+  `linkedin.places`, `indeed.places`, and `linkedin.resolve_geoid`).
 
 ### Changed
 
-- **Breaking:** `jobrake indeed` and `jobrake linkedin` replace the `--site` option.
-- **Breaking:** Searches now default to 10 results, a seven-day age limit, a 40 km Indeed radius,
-  and no LinkedIn distance parameter.
-- **Breaking:** Search arguments are renamed: `search_term` to `query`,
-  `results_wanted` to `results`, `hours_old` to `max_age_hours`, `distance` to `radius`,
-  and `detail` to `details`. The CLI renames `--search-term` to `--query`,
-  `--results-wanted` to `--results`, `--hours-old` to `--max-age`, and `--detail` to `--details`.
-- jobrake stores posting details and LinkedIn geoId resolutions
-  in separate tables within `jobrake.sqlite3`.
+- **Breaking:** Replaced `--site` with `jobrake indeed` and `jobrake linkedin` subcommands, updated
+  search defaults (10 results, 7-day age limit, 40 km Indeed radius), and renamed search options
+  (`search_term` -> `query`, `results_wanted` -> `results`, `hours_old` -> `max_age_hours`,
+  `distance` -> `radius`, `detail` -> `details`; CLI `--search-term` -> `--query`,
+  `--results-wanted` -> `--results`, `--hours-old` -> `--max-age`, `--detail` -> `--details`).
 
 ## [0.14.0](https://github.com/eyayaw/jobrake/releases/tag/v0.14.0) - 2026-08-25
 
 ### Added
 
-- Provider searches log their start and result count.
-  LinkedIn detail fetching also logs its progress and, on completion, the resolved count.
-- On a terminal, the CLI renders LinkedIn detail progress as a self-updating bar
-  with a `current/total` count on stderr.
+- Progress logging and terminal progress bar for LinkedIn detail fetches.
 
 ### Changed
 
-- When a search finds no jobs, `--output` leaves the file untouched
-  and warns instead of replacing it with an empty document.
+- Empty searches leave `--output` untouched with a warning instead of writing an empty file.
 
 ### Fixed
 
-- `--output` rejects a directory path or a missing parent directory before any provider requests,
-  and a failed write reports the error instead of a traceback.
+- Validated `--output` paths upfront and reported write errors cleanly without tracebacks.
 
 ## [0.13.0](https://github.com/eyayaw/jobrake/releases/tag/v0.13.0) - 2026-08-24
 
 ### Added
 
-- Search failures warn with the error and number of jobs kept. LinkedIn also
-  warns when its search reaches the 1,000-card ceiling, a detail page yields
-  no usable fields, or a detail request fails transiently.
+- Warnings for search failures, LinkedIn's 1,000-card cap, and failed detail pages.
 
 ### Changed
 
-- LinkedIn stops fetching details when a posting or en-US fragment request
-  still returns 429 after its retries. It returns every posting
-  already resolved. A limited fragment keeps and caches the canonical page's
-  partial fields.
-- The LinkedIn 429 retry honors a seconds-form `Retry-After` header. A delay
-  above one minute skips the retry and returns the 429.
-- A nonpositive `results_wanted`, a negative `distance`, and a blank LinkedIn
-  `location` raise `ValueError` before any request, from `scrape()` and the
-  site `search()` functions.
+- LinkedIn stops detail fetching cleanly on persistent 429s, honors numeric `Retry-After` up to 60s,
+  and validates `results_wanted`, `distance`, and `location` before requesting.
 
 ### Fixed
 
-- Indeed keeps its page size at 100 throughout a cursor chain.
-  A request for 202 results stopped at 200.
-- A LinkedIn posting whose schema.org block carries `NaN`, an infinity, or a number beyond float
-  range leaves it out like any other malformed field. Strict JSON parsers rejected the output.
-- An Indeed number too large for a float costs only that field. It ended the whole scrape with
-  `OverflowError`.
-- Indeed continues pagination when every result on a page is malformed but
-  the response supplies a valid continuation cursor.
-- Malformed LinkedIn salary bounds leave the salary fields out. They stopped the detail fetch.
-- A cached LinkedIn row containing `NaN` or an infinity is a cache miss. It was returned.
+- Fixed Indeed cursor page-size consistency (keeping 100 across pages), continued pagination on
+  all-malformed pages, and stripped non-finite/overflowing numeric values across LinkedIn, Indeed,
+  and cache reads.
 
 ## [0.12.0](https://github.com/eyayaw/jobrake/releases/tag/v0.12.0) - 2026-08-21
 
 ### Added
 
-- `--format` selects the output format: `json`, `jsonl`, or `csv`. It
-  replaces the default JSON on stdout and overrides the `--output` extension.
-- `jobrake.io.to_jsonl` and `to_csv` render a job list to a string, alongside
-  `to_json`.
+- `--format` (`json`, `jsonl`, `csv`) and string renderers `jobrake.io.to_jsonl` / `to_csv`.
 
 ### Changed
 
-- JSON output is compact regardless of result count.
+- Compact JSON output regardless of result count.
 
 ### Removed
 
-- **Breaking:** the `jobrake.io` path writers `write_json`, `write_jsonl`, and
-  `write_csv`. Render with a `to_*` function and write the returned string to
-  a file or stream.
+- **Breaking:** Removed `jobrake.io.write_json`, `write_jsonl`, and `write_csv`.
 
 ### Fixed
 
-- A closed pipe while writing to stdout, as in `jobrake ... | head`, ends the run quietly with exit
-  code 1. It printed a `BrokenPipeError` traceback.
+- Handled broken stdout pipes (`jobrake ... | head`) quietly with exit code 1 instead of a
+  traceback.
 
 ## [0.11.0](https://github.com/eyayaw/jobrake/releases/tag/v0.11.0) - 2026-08-20
 
 ### Changed
 
-- **Breaking:** A job dict always holds the seven identity and summary keys, with `None` for a
-  summary value the site lacks, and a detail field only when it has a value.
+- **Breaking:** Records always contain the seven identity and summary keys (`None` when absent) and
+  include detail keys only when populated.
 
 ### Fixed
 
-- Indeed skips malformed results without discarding valid siblings, preserves
-  parsed jobs when pagination metadata is damaged, and omits provider values
-  that do not match the model type.
-- LinkedIn advances pagination by the raw card count, so overlapping pages and
-  unparseable cards do not truncate a search.
-- LinkedIn accepts the structured forms used for employment type, company
-  logos, country, and other schema.org fields. An unsupported form is left out.
-- A malformed cache timestamp disables the cache and counts as a miss. It stopped the scrape.
-- Searches reject a zero or negative posting-age filter.
-- `HttpxFetcher` classifies protocol and proxy failures as network errors while
-  leaving malformed URLs in the unknown category.
-- LinkedIn fetches each posting ID at most once per detail call, even when
-  several URLs refer to it or its first request fails transiently.
+- Isolated malformed Indeed items, advanced LinkedIn pagination by raw card count, supported more
+  LinkedIn schema.org shapes, handled corrupt cache timestamps gracefully, rejected non-positive
+  age filters, improved `HttpxFetcher` error classification, and deduplicated LinkedIn detail
+  fetches per posting ID.
 
 ## [0.10.0](https://github.com/eyayaw/jobrake/releases/tag/v0.10.0) - 2026-08-18
 
 ### Fixed
 
-- `scrape` validates the site and required geographic arguments before creating
-  its default fetcher. Caller-supplied fetchers remain caller-owned even when
-  they define a falsy value.
-- The posting cache keeps its gone-posting markers during retention cleanup.
-  Invalid stored posting fields and storage failures disable the cache and make
-  subsequent lookups cache misses.
-- Canceled token-bucket waits leave later requests on their expected schedule.
-- `HttpxFetcher` rejects zero, negative, NaN, and infinite timeout values before
-  opening its client.
-- Indeed safely encodes GraphQL search, location, and cursor values and
-  preserves an explicit radius of zero.
-- Indeed deduplicates jobs across pages and terminates pagination when a cursor
-  repeats.
-- LinkedIn deduplicates cards by posting ID and advances pagination by the
-  parsed card count.
-- LinkedIn recognizes `JobPosting` data in JSON-LD graphs and list-valued
-  `@type` fields. Unrelated JSON-LD blocks still allow the blockless-posting
-  fallback.
-- Punctuation-only employment labels resolve to `None`, and invalid
-  epoch-millisecond values receive a consistent `ValueError`.
+- Validated arguments before opening default fetchers, preserved caller-owned fetchers, hardened
+  cache retention/failure handling and `TokenBucket` cancellation, rejected invalid `HttpxFetcher`
+  timeouts, fixed Indeed GraphQL escaping and `radius=0`, deduplicated Indeed/LinkedIn pages, and
+  improved JSON-LD `@graph` / list `@type` handling.
 
 ## [0.9.0](https://github.com/eyayaw/jobrake/releases/tag/v0.9.0) - 2026-08-16
 
-Jobs share one data model across sites, so a field means the same whichever site a row came from.
-`site`, `id`, and `url` address the posting, and `title`, `company`, `location`, and `date` come
-with every search result. The rest, such as `description`, salary, employment type, and structured
-location, we extract from the posting, and each is null when the posting lacks it.
+Unified job data model across LinkedIn and Indeed.
 
 ### Added
 
-- LinkedIn's `--detail` fetches each job's posting page for its description, salary, employment
-  type, posted and expiry timestamps, location details, applicant count, apply type, and more.
-- A country-level LinkedIn posting, such as one in "Spain" or "EMEA", whose page has no structured
-  block, fills from the page markup and one more request, for the en-US guest fragment.
-- Indeed fills the same fields, such as salary, the employer's own apply URL, company page and
-  logo, employment type, remote, coordinates, and expiry, from its search response, at no extra
-  request.
-- `linkedin.fetch_postings(fetcher, urls)` fetches postings by their URLs, through the same cache.
-- `employment_type` labels are unified across sites: LinkedIn's `FULL_TIME`
-  and Indeed's `Full-time` both read back `full_time`.
-- `--version` prints the installed version, and `jobrake.__version__` holds it for the library.
+- LinkedIn `--detail` fetches full posting pages (description, salary, employment type, timestamps,
+  locations, applicants, apply type) with guest-fragment fallback for country-level postings.
+- Indeed extracts the same extended fields from search responses; added `linkedin.fetch_postings()`,
+  normalized `employment_type`, `--version`, and `jobrake.__version__`.
 
 ### Changed
 
-- **Breaking:** `--detail`, still `-d`, and `detail` replace `--fetch-description` and
-  `fetch_description`, and fill more than `description`.
-- **Breaking:** `site` is required when constructing a `Job`, and `(site, id)` identifies a posting
-  across sites.
-- The cache stores whole postings (`postings.sqlite3`, keyed by site and posting id).
-  The old `descriptions.sqlite3` stays where it is, and you can delete it.
-- Field order, and with it the CSV header, reads identity, summary, detail:
-  `site`, `id`, `url`, `title`, `company`, `location`, `date`, `description`, then the rest.
-- `date` derives from the posting timestamp when the search result offers none.
+- **Breaking:** Renamed `--fetch-description` / `fetch_description` to `--detail` / `detail`,
+  required `site` on `Job`, switched caching to whole postings (`postings.sqlite3`), standardized
+  field/CSV order, and derived `date` from `posted_at` when missing.
 
 ### Removed
 
-- **Breaking:** `linkedin.fetch_descriptions` and `parse_description`. The
-  fragment they read costs one request, the same as the whole posting,
-  and carries only the description.
+- **Breaking:** Removed `linkedin.fetch_descriptions` and `parse_description`.
 
 ## [0.8.0](https://github.com/eyayaw/jobrake/releases/tag/v0.8.0) - 2026-08-13
 
-Each site scraper is a package now: `jobrake.linkedin` and `jobrake.indeed`
-split into `client` and `search` modules (LinkedIn also `descriptions`), with
-the public names unchanged.
-
 ### Added
 
-- `site_searches()` maps every supported site to its `search`; `scrape` and
-  the CLI's `--site` choices both draw from it, so a new site registers in
-  one place.
+- `site_searches()` registry powering both `scrape()` and CLI dispatch.
 
 ### Changed
 
-- LinkedIn's request pacing is public API: `linkedin.client.paced_fetch`
-  (the former `_paced_fetch`).
+- Split `jobrake.linkedin` and `jobrake.indeed` into subpackages (`client`, `search`, etc.) and
+  exposed `linkedin.client.paced_fetch`.
 
 ## [0.7.0](https://github.com/eyayaw/jobrake/releases/tag/v0.7.0) - 2026-08-11
 
-`--output` writes JSON, JSONL, or CSV, chosen by the file extension.
-
 ### Added
 
-- `--output PATH` writes results to a file instead of stdout.
-  A bad extension fails before any request. With `--output`, stdout stays silent and a summary line
-  goes to stderr.
-- JSONL output holds one job per line, so files from separate runs merge
-  with a plain `cat runs/*.jsonl`.
-- The writers are library API too: `jobrake.io.write_json`, `write_jsonl`,
-  and `write_csv` save a job list exactly as the CLI does,
-  with the CSV header derived from the job dict itself.
+- `--output PATH` for JSON, JSONL, and CSV export chosen by file extension, along with
+  `jobrake.io.write_json`, `write_jsonl`, and `write_csv`.
 
 ## [0.6.0](https://github.com/eyayaw/jobrake/releases/tag/v0.6.0) - 2026-08-10
 
-Fetched descriptions persist in an on-disk cache, so a repeated search fetches only the postings
-it has not seen.
-
 ### Added
 
-- Descriptions are cached for a week in a SQLite file in the user cache directory, and gone
-  postings are remembered and skipped on later cached runs. Each result is written as it arrives,
-  so an interrupted sweep keeps what it fetched. `--no-cache` or `cache=False` bypasses the cache,
-  and a broken cache costs extra requests, never the scrape.
-- The CLI logs progress and warnings to stderr and keeps chatty dependency loggers quiet, so stdout
-  holds only JSON, for piping.
+- On-disk SQLite cache for fetched LinkedIn descriptions (7-day TTL, gone-posting tracking,
+  `--no-cache` / `cache=False` bypass).
+- Sent CLI logs and warnings to stderr while muting noisy dependency loggers so stdout stays pure
+  JSON.
 
 ### Changed
 
-- `fetch_description` replaces `scrape`'s `linkedin_fetch_description`, so every search accepts the
-  same keywords.
-- `linkedin.search` accepts `country` and ignores it, because LinkedIn resolves places from
-  `location` alone, so one set of arguments works for every site.
-- `indeed.search` accepts `fetch_description` and `cache` and ignores them, because descriptions
-  arrive in the search response.
-- The README leads with the cache, which replaces its hand-rolled store recipe, and orders its
-  sections around the reader. This changelog is new.
+- Renamed `linkedin_fetch_description` to `fetch_description` and aligned search keyword arguments
+  across LinkedIn and Indeed.
+- Added this changelog and reorganized the README.
 
 ## [0.5.0](https://github.com/eyayaw/jobrake/releases/tag/v0.5.0) - 2026-08-10
 
-This release rebuilds the LinkedIn scraper around the site's measured request budget and caches
-fetched descriptions on disk.
-
 ### Added
 
-- Every job dict carries an `id`, LinkedIn's numeric posting ID or Indeed's job key.
-- `linkedin.fetch_descriptions(fetcher, ids)` fetches descriptions by posting ID through LinkedIn's
-  guest fragment. It maps each ID to the text, or to `None` when the posting is gone, and leaves out
-  an ID whose fetch failed, which is safe to retry.
-- Descriptions are cached for a week in a SQLite file in the user cache directory, and gone
-  postings are remembered and skipped on later cached runs. Each result is written as it arrives,
-  so an interrupted sweep keeps what it fetched. `--no-cache` or `cache=False` bypasses the cache,
-  and a broken cache costs extra requests, never the scrape.
-- `fetchkit.TokenBucket` allows `capacity` calls at once, then one per `refill_interval` seconds,
-  and is safe to cancel.
+- `id` field on job dicts (LinkedIn posting ID / Indeed job key), `linkedin.fetch_descriptions()`
+  via the guest fragment, and `fetchkit.TokenBucket`.
 
 ### Changed
 
-- LinkedIn requests are paced by a shared token bucket, a short burst and then about one request
-  every 3 seconds, where they slept a fixed time. A 429 is retried once after the limit clears.
-- Description fetches read the guest fragment, which holds the full job page's text at a tenth of
-  the bandwidth.
-- `fetch_description` replaces `scrape`'s `linkedin_fetch_description`, so every search accepts the
-  same keywords.
-- The README leads with CLI usage and the cache, and holds every site's details in one place.
+- Switched LinkedIn pacing from fixed sleeps to a token bucket with a single retry on HTTP 429,
+  and read descriptions from the lightweight guest fragment.
 
 ### Fixed
 
-- A rate limit mid-run slows pagination down, so a long run finishes. It stopped silently, as at
-  50 results.
-- An empty first page warns that the location likely did not resolve. Qualify the place name, as
-  in "Amsterdam, North Holland, Netherlands".
-- `TokenBucket` and `DescriptionCache` reject parameters that would misbehave, which they accepted,
-  and a canceled wait refunds its token.
+- Handled mid-run LinkedIn rate limits during pagination, warned on empty first pages (likely
+  ambiguous location), and validated `TokenBucket` parameters and wait cancellation.
 
 ## [0.4.0](https://github.com/eyayaw/jobrake/releases/tag/v0.4.0) - 2026-08-08
 
 ### Changed
 
-- **Breaking:** `HttpxFetcher` sends JSON `post` requests itself, so `HttpxPostFetcher` is gone.
+- **Breaking:** Merged `HttpxPostFetcher` into `HttpxFetcher`.
 
 ## [0.3.0](https://github.com/eyayaw/jobrake/releases/tag/v0.3.0) - 2026-08-08
 
 ### Added
 
-- The `PostFetcher` protocol names what the Indeed scraper requires, so jobrake no longer depends
-  on the private fetchkit package.
+- Defined the `PostFetcher` protocol locally, dropping the private `fetchkit` dependency.
 
 ## [0.2.0](https://github.com/eyayaw/jobrake/releases/tag/v0.2.0) - 2026-08-07
 
 ### Added
 
-- `jobrake.fetchkit` vendors the part of fetchkit's transport that jobrake uses.
+- Vendored the `jobrake.fetchkit` transport layer.
