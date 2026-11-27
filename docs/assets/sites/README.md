@@ -1,8 +1,7 @@
 # Site logos
 
 The README's table of supported job boards shows these two logos.
-The other sites' logos load from their owners' servers,
-Greenhouse's comes from the Simple Icons CDN.
+Most other site icons load from their owners' servers, and Greenhouse's loads from the Simple Icons CDN.
 
 | Files | Source | Checked |
 | --- | --- | --- |

@@ -174,9 +174,9 @@ These options mean the same on every site that takes them:
 | `--radius`, `-r`        | The search radius around `--location`, in kilometers                           |
 | `--details`, `-d`       | Fetch each posting for the fields a search result lacks, such as the description |
 | `--output`, `-o`        | Write a new file instead of stdout. An existing file is an error               |
-| `--format`, `-f`        | `json`, `jsonl`, or `csv`. Defaults to the extension of `--output`, else JSON  |
+| `--format`, `-f`        | `json`, `jsonl`, or `csv`. Defaults to the `--output` extension, or JSON for stdout |
 
-A site without `--results` returns every posting that matches.
+Sites without `--results` return all matching postings.
 
 The default output is JSON, one array of records.
 JSONL writes one record per line with the same keys.
@@ -213,9 +213,9 @@ for job in asyncio.run(main()):
 2026-11-02 Economist (ESCB/IO) - EU Institutions and Fora | The European Central Bank
 ```
 
-`scrape` takes the same options as the CLI, as keyword arguments with underscores, and checks
-them before any request. A failed request raises `jobrake.Stopped`, whose `partial` holds the
-postings collected until then.
+`scrape` takes the same options as the CLI (using underscores instead of hyphens) and validates them
+before making any requests. If a request fails partway through, it raises `jobrake.Stopped` with
+the postings collected so far in `.partial`.
 To [recover from `Stopped`](https://github.com/eyayaw/jobrake/blob/main/docs/guide.md#recover-from-a-stopped-search)
 or [fetch details later](https://github.com/eyayaw/jobrake/blob/main/docs/guide.md#fetch-known-postings), see the guide.
 See the [reference](https://github.com/eyayaw/jobrake/blob/main/docs/reference.md#python-api) for every function.
@@ -244,9 +244,8 @@ See the [reference](https://github.com/eyayaw/jobrake/blob/main/docs/reference.m
 | <a href="https://www.workday.com"><img src="https://www.workday.com/favicon.ico" alt="" height="16"></a> <a href="https://github.com/eyayaw/jobrake/blob/main/docs/sites/workday.md">`workday`</a> | Career site JSON API, one employer's career site | Optional and cached, one request per posting | `--board`, the career site URL |
 | <a href="https://www.xing.com"><img src="https://www.xing.com/favicon.ico" alt="" height="16"></a> <a href="https://github.com/eyayaw/jobrake/blob/main/docs/sites/xing.md">`xing`</a> | Mobile-app GraphQL API, German-speaking job market | Optional and cached, one request per posting | — |
 
-On an employer-board site, `--board` takes the employer's token from the board's address,
-such as `airbnb` in `boards.greenhouse.io/airbnb`, while Cornerstone and Workday take the career
-site's address.
+For employer-board sites, pass the employer's URL slug to `--board` (like `airbnb` in
+`boards.greenhouse.io/airbnb`). Cornerstone and Workday take the full career site URL instead.
 
 Glassdoor is not planned, as it is
 [part of Indeed](https://web.archive.org/web/20260704043638/https://www.glassdoor.com/about/).
@@ -254,15 +253,13 @@ Neither is Wellfound, which has no public API and sits behind a Cloudflare chall
 
 ## Requests and caching
 
-jobrake paces its requests to two sites. It spaces out LinkedIn requests and retries one that
-LinkedIn refuses with HTTP 429, and it waits 10 seconds before each request to AcademicTransfer's API.
-It sends every other request without a pause and tries it once, so a failed request ends the
-search with the postings collected so far.
+jobrake paces requests to two sites: LinkedIn (spacing requests out and retrying HTTP 429s) and
+AcademicTransfer (waiting 10 seconds before each API request). All other sites run without delays
+or retries, so a failed request stops the search with whatever postings were collected so far.
 
-jobrake caches the postings it fetches for **seven days**,
-so a repeat run costs no request for them.
-`JOBRAKE_CACHE_PATH` moves the cache and `JOBRAKE_CACHE_TTL` sets its lifetime
-([configuration](https://github.com/eyayaw/jobrake/blob/main/docs/reference.md#configuration)).
+Fetched posting details are cached locally for **seven days**, so repeat runs reuse cached postings
+instead of refetching them. Set `JOBRAKE_CACHE_PATH` to move the cache file or `JOBRAKE_CACHE_TTL`
+to change its lifetime ([configuration](https://github.com/eyayaw/jobrake/blob/main/docs/reference.md#configuration)).
 
 > [!WARNING]
 > LinkedIn answers posting pages with [HTTP 999](https://http.dev/999) from data center IPs, such as a Hetzner VPS.
@@ -271,9 +268,9 @@ so a repeat run costs no request for them.
 
 ## Contributing
 
-Issues and pull requests are welcome.
-The layout and design rules are in [`AGENTS.md`](https://github.com/eyayaw/jobrake/blob/main/AGENTS.md).
-Before a pull request, run `uvx prek run --all-files`, as CI does.
+Issues and pull requests are welcome. Run the test suite and linters before opening a PR:
+`uv run pytest`, `uv run ruff check`, `uv run ruff format --check`, and `uv run ty check` (or
+`uvx prek run --all-files`, which CI runs).
 
 ## Disclaimer
 
