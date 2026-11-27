@@ -1,19 +1,18 @@
 # ReliefWeb (`reliefweb`)
 
-[ReliefWeb](https://reliefweb.int/jobs), run by UN OCHA, lists humanitarian and development
-postings from UN agencies, NGOs, and other organizations: staff jobs, consultancies, internships,
-and volunteer roles.
+[ReliefWeb](https://reliefweb.int/jobs), run by UN OCHA, publishes humanitarian and development
+openings from UN agencies, NGOs, and partner organizations, covering staff roles, consultancies,
+internships, and volunteer positions.
 
-jobrake reads ReliefWeb's [API](https://apidoc.reliefweb.int), which serves only applications
-ReliefWeb has approved, so a search needs an appname of your own. Request one with the
-[form in the API's documentation](https://apidoc.reliefweb.int/#appname). Then set it in your
-shell profile:
+ReliefWeb's [v2 API](https://apidoc.reliefweb.int) requires an approved `appname`. Request one
+through [ReliefWeb's registration form](https://apidoc.reliefweb.int/#appname) and export it in
+your shell:
 
 ```sh
 export JOBRAKE_RELIEFWEB_APPNAME="the-name-reliefweb-approved"
 ```
 
-A search returns the postings newest first, each with its description:
+Searches return postings newest first with full descriptions:
 
 ```sh
 jobrake reliefweb search -n 500 -o reliefweb.jsonl
@@ -31,39 +30,36 @@ jobs = asyncio.run(scrape("reliefweb", query="nutrition", country="so"))
 
 ## Options
 
-`--query` runs the keyword search of ReliefWeb's own job page, so it finds what that page finds.
-It matches more than titles: in our tests, `finance` in Colombia also found postings titled
-`Oficial de Finanzas` and `Asistente Administrativo/a`.
+`--query` runs ReliefWeb's website keyword search, matching beyond job titles (searching `finance`
+in Colombia, for instance, also surfaces `Oficial de Finanzas` and `Asistente Administrativo/a`).
 
-`--country` keeps the postings that name the country, given by its ISO 3166-1 code, such as `ke`
-or `ken`. A posting can name several countries, and a search for any one of them finds it.
+`--country` filters by ISO 3166-1 code (such as `ke` or `ken`) and matches any posting listing that
+country, even when multiple countries are attached.
 
-`--max-age-hours` keeps the postings ReliefWeb published within that many hours.
-In our tests, the default 100 postings went back about three days, so raise `--results` to reach
-further.
+`--max-age-hours` filters by when ReliefWeb published the posting. Because the default `-n 100`
+typically spans only a few days of listings, increase `--results` when looking further back.
 
 ## Fields
 
-A record carries the full description, the organization that posts it, the countries it names,
-the date ReliefWeb published it, and its closing date ([every key](../reference.md#fields-by-site)).
+Each posting includes its full description, hiring organization, listed countries, publication
+timestamp, and closing date. Salary and `workplace_type` are not structured fields on ReliefWeb, so
+check the description for pay or remote eligibility. See the
+[reference](../reference.md#fields-by-site) for all fields.
 
-- `company` is the first organization a posting names, and `company_url` its homepage when
-  ReliefWeb has one. A posting rarely names a second organization, which the record leaves out.
-- `locations` holds one place per country, named as ReliefWeb names it, such as
-  `United Kingdom of Great Britain and Northern Ireland`, with its `country_code`. ReliefWeb gives
-  no city. A region it lists as a country, such as `World`, carries no code.
-- `employment_type` is ReliefWeb's posting type: `job`, `consultancy`, `internship`,
-  `volunteer_opportunity`, or `tender_rfps_eois`, a call for tenders or proposals that the job list
-  carries too.
-- `posted_at` is when the posting appeared on ReliefWeb, and `expires_at` its closing date.
-- A record has no salary or `workplace_type`. A posting that pays or allows remote work says so
-  in its description.
-- `site_data` holds the `experience` ReliefWeb asks for, such as `3-4 years`, the
-  `career_categories` and `themes` it files the posting under, and `how_to_apply`, the posting's
-  own instructions.
+- `company` is the first listed organization, and `company_url` is its homepage when present
+  (postings rarely list a second organization, which is ignored).
+- `locations` has one entry per country using ReliefWeb's label (e.g.,
+  `United Kingdom of Great Britain and Northern Ireland`) and `country_code`, with no city.
+  Non-country entries like `World` omit `country_code`.
+- `employment_type` maps ReliefWeb's posting type: `job`, `consultancy`, `internship`,
+  `volunteer_opportunity`, or `tender_rfps_eois` (calls for tenders/proposals that appear in the
+  job feed).
+- `posted_at` is when the posting went live on ReliefWeb; `expires_at` is the closing date.
+- `site_data` contains `experience` (e.g., `3-4 years`), `career_categories`, `themes`, and
+  `how_to_apply`.
 
 ## Terms
 
-ReliefWeb's [terms and conditions](https://reliefweb.int/terms-conditions) permit downloading and
-copying its material for personal, non-commercial use, and they give no right to redistribute it
-or to compile works from it.
+ReliefWeb's [terms and conditions](https://reliefweb.int/terms-conditions) allow downloading and
+copying content for personal, non-commercial use only, without rights to redistribute or build
+derivative compilations.

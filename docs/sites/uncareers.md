@@ -1,9 +1,9 @@
 # UN Careers (`uncareers`)
 
-[UN Careers](https://careers.un.org) is the recruitment site of the United Nations Secretariat.
-It lists professional, general service, field service, consultant, and internship openings
-across the UN's departments, offices, and missions.
-A search returns the openings newest first, by job ID, each with its description:
+[UN Careers](https://careers.un.org) is the United Nations Secretariat's recruitment portal,
+covering professional, general service, field service, consultant, and internship openings across
+UN departments, offices, and missions. Searches return openings newest first (by job ID) with full
+descriptions:
 
 ```sh
 jobrake uncareers search -n 500 -o un.jsonl
@@ -20,21 +20,21 @@ from jobrake import scrape
 jobs = asyncio.run(scrape("uncareers", duty_station=["Geneva"], level=["P-3", "P-4"]))
 ```
 
-jobrake reads the endpoints behind the site's search page. UN Careers does not
-document them, so what we say here about their behavior comes from our own tests.
+jobrake calls the undocumented JSON endpoints powering the portal's search page.
 
 ## Options
 
-`--query` is the site's keyword search. It matches whole words and their other forms.
-In our tests, `economics` also found openings through their job family, Economic Affairs.
-Raise `--results` to read past the first 100 openings.
+`--query` runs the site's keyword search, matching whole words and their other forms (for example,
+`economics` also picks up roles in the Economic Affairs job family). Increase `--results` if you
+want more than the default 100 openings.
 
-`--max-age-hours` sends the site's own age filter, which counts in whole days, so jobrake rounds your hours up.
-Use a multiple of 24 to get exactly the age you ask for. In our tests, the filter also took day counts
-beyond the 1, 7, and 30 its menu offers.
+`--max-age-hours` rounds up to whole days to match UN Careers' age filter. Use a multiple of 24 for
+an exact day count; the backend accepts arbitrary day counts beyond the 1, 7, and 30 options shown
+in the web dropdown.
 
-The other filters take a name as the site's [search page](https://careers.un.org/jobopening?language=en)
-shows it, in any letter case, or the site's own code:
+The remaining filters accept either the display label from the
+[search page](https://careers.un.org/jobopening?language=en) (case-insensitive) or the internal
+code:
 
 | Option               | Example values                                    |
 | -------------------- | ------------------------------------------------- |
@@ -46,43 +46,44 @@ shows it, in any letter case, or the site's own code:
 | `--job-family`       | `Statistics`, `ECO`, `Human Rights Affairs`       |
 | `--recruitment-type` | `Consultant`, `Intern`, `Temporary Opportunities` |
 
-Give an option several times to match any of its values. Each further option narrows the search.
-UN Careers ignores a value it does not know and returns every opening, so jobrake first reads the
-site's list of values and stops on one it cannot find, naming the closest matches or the command that lists them all.
-The site drops the keyword when a category is set, so jobrake refuses the two together.
-Search by one and filter the results on the other.
+Repeat any filter to match multiple values (OR); different filters combine with AND. Because UN
+Careers silently ignores unknown filter values and dumps the entire board, jobrake fetches the live
+filter catalog first and rejects typos with suggested matches. Also, UN Careers ignores `--query`
+whenever `--category` is passed, so jobrake refuses both together. Search by one and filter locally
+on the other.
 
 ## Lookups
 
-`jobrake uncareers filters <option>` lists every value an option takes.
-For example, `jobrake uncareers filters duty-station` lists the duty stations.
-Each value is an `id` and a `name`, and a search takes either.
-Two names can share a code: level `300` is both `NO-2` and `NO-B`.
-The lookup is also a function, `jobrake.sites.uncareers.filters(fetcher, option)`.
+Run `jobrake uncareers filters <option>` (e.g., `jobrake uncareers filters duty-station`) to list
+every valid `id` and `name` for a filter. A search accepts either value. Note that multiple labels
+can share one code: for instance, `300` maps to both `NO-2` and `NO-B`.
+
+From Python, call `jobrake.sites.uncareers.filters(fetcher, option)`.
 
 ## Fields
 
-An opening's description holds every section of it under its title. The record also names the UN
-entity that hires, the duty stations, and the dates the opening opens and closes
-([every key](../reference.md#fields-by-site)). Candidates apply on `careers.un.org`, at the opening's `url`.
+Descriptions preserve each section under its heading, alongside the hiring UN entity, duty
+stations, and opening/closing timestamps. Candidates apply on `careers.un.org` via `url`; salary,
+employment type, and `workplace_type` aren't exposed as structured fields (remote arrangements
+appear inside the description, usually under `Work Location`). Check the
+[fields-by-site table](../reference.md#fields-by-site) for the full list.
 
-- A staff post's `title` ends in its grade, such as `HUMANITARIAN AFFAIRS OFFICER (PROGRAMME), P3`.
-- `locations` holds one place per duty station, named by the site's label as it is, such as
-  `NEW YORK`, `Juba`, or `FO West Bank`, with no country.
-- `posted_at` and `expires_at` are UTC timestamps that fall at the start and the end of a day in
-  New York, such as `2026-11-13T05:00:00.000Z` and `2026-11-20T04:59:59.000Z`.
-- A record has no salary, employment type, or `workplace_type`. A remote opening says so in its
-  description, in a section such as `Work Location`.
-- `site_data` holds the opening's `category` code, such as `PD` or `INT`, its `level`, such as
-  `P-3` or `CON`, its `recruitment_type`, and its `job_family` and `job_network` when it has them.
-  A `category` can be a code that `--category` does not take, such as `RLG`.
+- Staff post titles include the grade at the end, e.g., `HUMANITARIAN AFFAIRS OFFICER (PROGRAMME), P3`.
+- `locations` creates one entry per duty station using UN Careers' exact label (`NEW YORK`, `Juba`,
+  `FO West Bank`), without country codes.
+- `posted_at` and `expires_at` are UTC timestamps aligned to midnight in New York
+  (`2026-11-13T05:00:00.000Z` / `2026-11-20T04:59:59.000Z`).
+- `site_data` stores `category` (`PD`, `INT`, and occasionally internal codes like `RLG` that
+  `--category` doesn't accept), `level` (`P-3`, `CON`), `recruitment_type`, and (when present)
+  `job_family` and `job_network`.
 
 ## Requests
 
-An opening that closes or appears during a long search shifts the later pages, so the search can miss one.
+Openings added or closed during a multi-page fetch can shift page boundaries, so long searches may
+occasionally miss an opening.
 
 ## Terms
 
-UN Careers links to the UN's [terms of use](https://www.un.org/en/about-us/terms-of-use).
-They permit copying the site's material for personal, non-commercial use,
-and they give no right to redistribute it or to compile works from it.
+UN Careers links to the UN [terms of use](https://www.un.org/en/about-us/terms-of-use), which
+allow copying material for personal, non-commercial use without rights to redistribute or compile
+derivative works.

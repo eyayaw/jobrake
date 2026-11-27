@@ -1,8 +1,9 @@
 # Workday (`workday`)
 
-jobrake searches one employer's career site on [Workday](https://www.workday.com) through the JSON
-API behind it. Workday does not document that API, so what we say here comes from our tests on
-NVIDIA's career site and two more, in different Workday data centers. Another employer's site may behave differently.
+jobrake searches employer career sites hosted on [Workday](https://www.workday.com) through the
+undocumented JSON API behind their job pages. We tested against three Workday career sites
+(including Zillow and NVIDIA) across different data centers; individual employer setups can still
+vary.
 
 ```sh
 jobrake workday search -b https://zillow.wd5.myworkdayjobs.com/Zillow_Group_External -q analyst
@@ -21,37 +22,41 @@ jobs = asyncio.run(scrape("workday", board=board, query="analyst", details=True)
 
 ## Options
 
-Workday has no board token. Pass `--board` the address of the employer's job search page,
-copied from the browser, such as `https://zillow.wd5.myworkdayjobs.com/Zillow_Group_External`.
-The address has the form `https://<tenant>.wd<n>.myworkdayjobs.com/<site>`, with or without a
-language part such as `en-US` before the site name. A posting's address on the same site works too.
-Some employers' sites live at `https://wd<n>.myworkdaysite.com/recruiting/<tenant>/<site>`, which works the same way.
+Rather than a short board token, `--board` takes the career site URL copied straight from your
+browser, such as `https://zillow.wd5.myworkdayjobs.com/Zillow_Group_External`. Both standard
+Workday URL patterns work:
+- `https://<tenant>.wd<n>.myworkdayjobs.com/<site>` (with or without a locale prefix like `en-US`)
+- `https://wd<n>.myworkdaysite.com/recruiting/<tenant>/<site>`
 
-A search returns 20 postings unless you raise `--results`.
-Each employer defines its own Workday filters, such as job category or country,
-so jobrake offers no location, remote, or age filter for Workday.
+Individual posting URLs on the same site work too.
+
+Searches return 20 postings by default; pass `--results` for more. Because every Workday tenant
+configures its own custom facets, jobrake exposes `--query` only (no location, remote, or age
+filters).
 
 ## Fields
 
-A search result carries the posting's title, place, and date. `--details` adds the
-description, the employment type, and `posted_at`, Workday's start date for the posting
-([every key](../reference.md#fields-by-site)).
+Search results return title, location, and an approximate date. Pass `--details` to fetch the full
+description, `employment_type`, and exact `posted_at` start date. Salary, workplace type, and
+application URLs aren't included; see [Fields by site](../reference.md#fields-by-site) for
+the full summary.
 
-- `company` is always `None`, because Workday names only the employer's legal entity, such as `ZINC Zillow, Inc.`.
-- A posting with several locations has an empty `locations` in a search, because the search result
-  shows only their count, such as `2 Locations`. With `--details`, it holds the primary location
-  and then the others, and the primary one gets its `country_code`.
-- Without `--details`, `date` comes from Workday's label, such as "Posted 3 Days Ago", counted back
-  from today in UTC. Workday counts from its own day, so this `date` can be a day late, and a
-  posting labeled "Posted 30+ Days Ago" has none. With `--details`, `date` is Workday's start date.
-- `id` joins the employer's Workday name and the requisition ID, as in `zillow:P751481-1`.
-- A record has no salary, workplace type, or application link.
+- `company` is always `None`, since Workday exposes internal legal entity names (like
+  `ZINC Zillow, Inc.`) rather than a clean employer name.
+- Multi-location postings return an empty `locations` list during search because search results
+  only say `"2 Locations"`. `--details` fills in the primary location (with `country_code`)
+  followed by additional locations.
+- Without `--details`, `date` is computed backwards from Workday's relative label
+  (`"Posted 3 Days Ago"`) in UTC, so it can be off by a day, and `"Posted 30+ Days Ago"` yields
+  `None`. With `--details`, `date` uses Workday's exact `startDate`.
+- `id` combines the tenant and requisition ID, e.g., `zillow:P751481-1`.
 
-### Postings you already know
+### Fetching by posting URL
 
-`jobrake workday postings` fetches postings by URL: a search result's `url` or the posting's
-address copied from the browser. You get what a `--details` search would give.
+`jobrake workday postings` takes any Workday posting URL copied from search output or a browser and
+returns the same fields as a `--details` search.
 
 ## Requests
 
-Workday reports at most 2,000 postings per search. Narrow the search with `--query` to reach the rest.
+Workday caps search results at 2,000 postings per query. Add `--query` terms to break larger boards
+into smaller slices.

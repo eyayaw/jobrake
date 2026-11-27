@@ -1,8 +1,8 @@
 # Lever (`lever`)
 
-[Lever](https://www.lever.co) serves each employer's job board from its global host or its EU host.
-jobrake reads one board through Lever's public Postings API, on whichever host knows it,
-and a search returns every posting with its description:
+[Lever](https://www.lever.co) hosts employer job boards on either its global (`jobs.lever.co`) or EU
+(`jobs.eu.lever.co`) domain. Through Lever's public Postings API, jobrake tries the global host
+first and falls back to the EU host on a 404, returning all open postings with full descriptions:
 
 ```sh
 jobrake lever search -b spotify
@@ -18,13 +18,11 @@ jobs = asyncio.run(scrape("lever", board="spotify"))
 
 ## Options
 
-Pass `--board` the first path segment of the board's URL, on the global or the EU host:
-`spotify` in `jobs.lever.co/spotify` or `jobs.eu.lever.co/spotify`.
+Set `--board` to the employer slug from the URL, such as `spotify` from `jobs.lever.co/spotify` or
+`jobs.eu.lever.co/spotify`.
 
-A search takes no query, result limit, or filters.
-Lever filters only on the employer's own labels for location, team, department, and commitment,
-which must match exactly, so jobrake offers none of them.
-Filter the results yourself instead:
+Lever only supports exact-match server filters on each employer's custom team/location/commitment
+strings, so jobrake fetches the full board and lets you filter locally:
 
 ```sh
 jobrake lever search -b spotify | jq '[.[] | select(.date != null and .date >= "2026-11-14")]'
@@ -32,17 +30,18 @@ jobrake lever search -b spotify | jq '[.[] | select(.date != null and .date >= "
 
 ## Fields
 
-A posting carries its title, its places, the time it was created, and its description.
-The description joins the posting's text, its lists, such as requirements and benefits, under their
-headings, its salary text, and its closing text. When the employer set them, you also get the team,
-the department, the commitment, the workplace type, and the application link ([every key](../reference.md#fields-by-site)).
+Every posting includes title, locations, creation timestamp, and a combined description (main text,
+section lists like requirements and benefits under their headings, salary notes, and closing text),
+plus team, department, employment type, workplace type, and application URL when set.
 
-- `company` is always `None`, because Lever's response never names the employer.
-  Keep the board token with the results if you merge several boards.
-- `employment_type` is the employer's own commitment label as a slug, so it varies by board:
-  `full_time` for `Full-time`, but Spotify's board labels its postings `permanent`.
-- `workplace_type` is `remote`, `hybrid`, or `on_site`, and is absent when the employer left it unspecified.
-- Lever can send a salary range, but its documentation does not list the pay intervals it uses,
-  so jobrake leaves salary out. Salary text in the description stays in `description`.
-- `locations` holds the primary location first, with its `country_code`, and then the other places,
-  named as the employer entered them, such as `London, United Kingdom`.
+- `company` is always `None` because Lever's API omits the employer name. Track the board slug
+  yourself if you're combining multiple boards.
+- `employment_type` slugifies whatever commitment label the employer uses, so values vary across
+  boards (e.g., `full_time` vs. Spotify's `permanent`).
+- `workplace_type` is `remote`, `hybrid`, or `on_site` when specified, and omitted otherwise.
+- Structured salary fields are omitted because Lever's API doesn't document its pay-interval enum;
+  any salary prose stays in `description`.
+- `locations` puts the primary location first (with `country_code`), followed by any secondary
+  locations as entered by the employer (such as `London, United Kingdom`).
+
+See the [reference](../reference.md#fields-by-site) for how Lever compares with other boards.

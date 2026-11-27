@@ -1,8 +1,8 @@
 # EconJobMarket (`econjobmarket`)
 
-[EconJobMarket](https://econjobmarket.org) (EJM) is the job market site for economists:
-academic positions, postdocs, pre-docs, and research jobs at central banks and consultancies.
-jobrake reads EJM's public ad feed. A search returns every open ad:
+[EconJobMarket](https://econjobmarket.org) (EJM) lists academic positions, postdocs, pre-docs, and
+research jobs for economists at universities, central banks, and consultancies. jobrake reads EJM's
+public ad feed and returns every open ad:
 
 ```sh
 jobrake econjobmarket search
@@ -19,7 +19,8 @@ jobs = asyncio.run(scrape("econjobmarket"))
 
 ## Options
 
-EJM's feed takes no query or filters, so jobrake offers none. Narrow the ads yourself, for example to Germany:
+EJM's feed is a single unfiltered dump, so there are no search flags. Filter locally with `jq`, for
+example to pull ads in Germany:
 
 ```sh
 jobrake econjobmarket search \
@@ -28,22 +29,22 @@ jobrake econjobmarket search \
 
 ## Fields
 
-Each ad carries its full text, the institution and its logo, the places, the day it opened on EJM,
-the application deadline, and the hiring department when the ad names one ([every key](../reference.md#fields-by-site)).
-Candidates apply on EJM, at the ad's `url`, so a record has no separate application link.
+Every ad comes with its full text, institution name and logo, locations, opening date, deadline,
+and department when listed (see [Fields by site](../reference.md#fields-by-site)). Applications go
+through EJM at `url`, so `apply_url` isn't set; the feed also omits salary, employment type, and
+workplace type.
 
-- In our tests, a few ads stayed in the feed past their deadline, so check `expires_at`.
-- `posted_at` and `date` are the day the ad opened on EJM, without a time.
-- An ad open to `All departments` has no `department`.
-- `site_data` holds the ad's `position_types`, such as `Assistant Professor`, and its
-  `categories`, fields such as `Econometrics`, each as a list.
-- A place carries the city, region, country code, and coordinates the ad gives, such as
-  `Boston, Massachusetts, US`. A few ads list no place, and their `locations` is empty.
-- The feed carries no salary, employment type, or workplace type.
+- Ads occasionally stay in the feed past their closing date, so filter on `expires_at` if needed.
+- `posted_at` and `date` give the day the ad opened on EJM (date only, no time).
+- Ads marked `All departments` omit `department`.
+- `site_data` includes `position_types` (e.g., `Assistant Professor`) and `categories` (e.g.,
+  `Econometrics`) as lists.
+- Locations include city, region, country code, and coordinates when provided (e.g.,
+  `Boston, Massachusetts, US`); ads without a location have an empty `locations` list.
 
 ## Terms
 
-EJM offers the feed "for personal use and for academic research projects".
-To redisplay EJM ads on your own website, you must notify EJM and get its approval first.
-Any use of the feed must follow EJM's Terms of Use, Privacy Policy, and Research Data Usage Policy.
-See [Accessing the EJM Ad Feed](https://backend.econjobmarket.org/docs/ad-redisplay/Ad-Redisplay.0.md).
+EJM provides the feed "for personal use and for academic research projects." Redisplaying EJM ads on
+your own site requires notifying EJM and getting approval first, and any use must comply with EJM's
+Terms of Use, Privacy Policy, and Research Data Usage Policy. See
+[Accessing the EJM Ad Feed](https://backend.econjobmarket.org/docs/ad-redisplay/Ad-Redisplay.0.md).

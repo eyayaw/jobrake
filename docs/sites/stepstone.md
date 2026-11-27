@@ -1,8 +1,7 @@
 # StepStone (`stepstone`)
 
-jobrake searches [StepStone](https://www.stepstone.de)'s German job board through the listings API
-of StepStone's mobile app. StepStone does not document that API, so what we say here about its
-behavior comes from our own tests.
+jobrake queries [StepStone](https://www.stepstone.de)'s German job board through the undocumented
+listings API used by its mobile app.
 
 ```sh
 jobrake stepstone search -q "data scientist" -l Mannheim -n 20
@@ -19,25 +18,19 @@ from jobrake import scrape
 jobs = asyncio.run(scrape("stepstone", query="data scientist", location="Mannheim", details=True))
 ```
 
-StepStone's search results leave out the description, so add `--details` when you want it.
+Search results omit job descriptions, so pass `--details` when you need full text.
 
 ## Options
 
-| Option                  | Value                                                       | Default        |
-| ----------------------- | ----------------------------------------------------------- | -------------- |
-| `--query`, `-q`         | a job title or keywords                                     | none           |
-| `--location`, `-l`      | a German city or postal code, such as `Mannheim` or `68159` | all of Germany |
-| `--radius`, `-r`        | kilometers around the location                              | 30             |
-| `--results`, `-n`       | the number of postings to return                            | 100            |
-| `--max-age-hours`, `-a` | the oldest posting to keep, in hours                        | no age limit   |
-| `--remote`              | keep only the postings StepStone lists as fully remote      | off            |
-| `--details`, `-d`       | fetch each posting's page                                   | off            |
+StepStone covers Germany only: pass a German city or postal code to `--location` (defaulting to all
+of Germany) and an optional `--radius` in kilometers (default 30 km). `--results` defaults to 100;
+`--max-age-hours` filters by posting age. Run `jobrake stepstone search -h` for the full flag list.
 
 ### Place and radius
 
-StepStone mixes in postings from outside the radius, so a search can return more than the radius holds.
-It marks them in `site_data.section`: `main` for a match inside the radius and `regionalExtended` for one outside it.
-To keep only the matches inside, filter on it:
+StepStone pads search results with listings outside your chosen radius and tags them in
+`site_data.section` (`main` for matches inside the radius, `regionalExtended` for matches outside).
+Filter on `site_data.section` if you want a strict radius:
 
 ```sh
 jobrake stepstone search -q "data scientist" -l Mannheim -r 10 \
@@ -46,30 +39,30 @@ jobrake stepstone search -q "data scientist" -l Mannheim -r 10 \
 
 ### Remote
 
-`--remote` applies the filter behind the website's "Nur Home-Office" switch,
-which the listings API honored in our tests. With a location,
-it also brings fully remote postings from the rest of the country, marked `regionalExtended`.
+`--remote` maps to StepStone's "Nur Home-Office" filter for fully remote roles. When combined with
+`--location`, StepStone still mixes in nationwide remote roles under `regionalExtended`.
 
 ## Fields
 
-A search gives you each posting's `title`, `company`, `locations`, and dates, its language
-(a code such as `de`), the company logo, and StepStone's labels.
-`--details` adds the description, the employment type, and the company's link from each
-posting's page ([every key](../reference.md#fields-by-site)).
+Search results include `title`, `company`, `locations`, dates, `language` (such as `de`),
+`company_logo`, and StepStone's tags. Adding `--details` fetches each posting page for the
+description, `employment_type`, and `company_url`. Every supported key is listed in the
+[reference](../reference.md#fields-by-site).
 
-- `--details` can move `posted_at` and `date`. The page dates a posting to when it went online,
-  which in our tests could be hours after the search result's `posted_at`.
-- `locations` holds one place, named as StepStone writes it. For a posting open in several
-  cities, that name lists them all. With `--details`, a posting in one city also gets its `city` and `region`.
-- `site_data.labels` holds StepStone's labels, such as `REMOTE`, `EASY_APPLY`, and
-  `NO_COVER_LETTER`. `REMOTE` marks a posting that allows home office, but not every such posting carries it.
-- StepStone sends a salary range that it estimates itself, so jobrake leaves it out.
-- A record has no application link and no workplace type. A posting only says whether home office
-  is possible, in the same words for a fully and a partly remote role.
-- `expires_at` is when StepStone expects to take the posting down.
+- `--details` can shift `posted_at` and `date` slightly: the posting page timestamps when the ad
+  went online, which can be hours after the search listing's timestamp.
+- `locations` contains a single entry with StepStone's location text (for multi-city postings, all
+  cities appear in that string). With `--details`, single-city postings also populate `city` and
+  `region`.
+- `site_data.labels` keeps StepStone's badges (`REMOTE`, `EASY_APPLY`, `NO_COVER_LETTER`, etc.).
+  `REMOTE` indicates home-office eligibility, though not every eligible role includes the badge.
+- Salary fields are omitted because StepStone's API only returns its own salary estimates.
+- `apply_url` is omitted. `workplace_type` is also omitted because StepStone's home-office wording
+  doesn't reliably distinguish hybrid from fully remote roles.
+- `expires_at` is when StepStone expects to take the ad offline.
 
-### Postings you already know
+### Looking up known URLs
 
-`jobrake stepstone postings` fetches postings by URL: a search result's `url`, such as
-`https://www.stepstone.de/job/14569042`, or the longer address that ends in `--<id>-inline.html`.
-You get what a `--details` search would give, except `site_data`, which only a search result carries.
+`jobrake stepstone postings` accepts short URLs (`https://www.stepstone.de/job/14569042`) or the
+longer `--<id>-inline.html` form. Because it reads only the posting page, `site_data` (which only
+comes from search results) is absent.

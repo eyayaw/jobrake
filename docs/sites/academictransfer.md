@@ -1,8 +1,8 @@
 # AcademicTransfer (`academictransfer`)
 
 [AcademicTransfer](https://www.academictransfer.com) lists academic and research vacancies at
-universities, medical centers, and research institutes, most of them in the Netherlands.
-A search returns the active vacancies, newest first, each with its description:
+universities, medical centers, and research institutes, mostly in the Netherlands.
+Searches return active vacancies newest first, with full descriptions included:
 
 ```sh
 jobrake academictransfer search -n 1000 -o academictransfer.jsonl
@@ -19,38 +19,36 @@ jobs = asyncio.run(scrape("academictransfer", query="economics", vacancy_type="s
 
 ## Options
 
-`--vacancy-type` picks a tab of the site's jobs page: `scientific` for academic vacancies,
-`non_scientific` for the others, or `all`, the default.
-To read every vacancy, pass a large `--results`, such as 1000.
+`--vacancy-type` matches the tabs on AcademicTransfer's jobs page: `scientific` for academic roles,
+`non_scientific` for support and administrative roles, or `all` (the default).
+If you want the entire active board, bump `--results` up (for example `-n 1000`).
 
 ## Fields
 
-A vacancy also carries its language and the time it was published, and, when it gives them, the
-contract type, the department, the education asked for, the deadline, the salary range, the
-application link, the keywords, and the weekly hours ([every key](../reference.md#fields-by-site)).
+Alongside the title, institution, location, publication timestamp, and language, AcademicTransfer
+often provides the contract type, department, required education, deadline, salary range,
+application URL, keywords, and weekly hours. See the [reference](../reference.md#fields-by-site)
+for the full field breakdown.
 
-- `description` joins the vacancy's description, requirements, terms of employment, additional
-  information, and how to apply, and leaves out the organization's and the department's own descriptions.
-- The site names no currency or period for a salary, so jobrake records every range as euros a
-  month, as most vacancies in our tests stated it. Check the text of a vacancy whose figures look off.
-  A vacancy without a range has no salary keys.
-- `employment_type` is `permanent` or `temporary`, and `language` is `en` or `nl`, the language
-  the vacancy is written in.
-- `locations` holds one place with its `city` and `country_code`, such as `Rotterdam, NL`.
-- `site_data` holds the vacancy's `min_weekly_hours` and `max_weekly_hours` when it gives them.
+- `description` combines the description, requirements, terms of employment, additional
+  information, and application instructions, skipping boilerplate about the employer or department.
+- The API omits currency and pay period, so jobrake records salary ranges as monthly EUR (the
+  convention used by most Dutch academic listings we inspected). Double-check the posting text
+  if a figure looks unusual. Postings without a salary range omit all salary fields.
+- `employment_type` is `permanent` or `temporary`; `language` is `en` or `nl`.
+- `locations` contains a single entry with `city` and `country_code` (such as `Rotterdam, NL`).
+- `site_data` includes `min_weekly_hours` and `max_weekly_hours` when provided.
 
 ## Requests
 
-jobrake waits [10 seconds](https://www.academictransfer.com/robots.txt) before each request,
-as the site asks, so a search of 500 vacancies waits 100 seconds in all.
+jobrake fetches a public token from the jobs page first, then honors the
+[10-second crawl delay](https://www.academictransfer.com/robots.txt) before each API request, so
+fetching 500 vacancies takes roughly 100 seconds.
 
-A search starts by reading a public token from the site's jobs page, and stops if there is none.
-We have not measured how long the token stays valid: our longest test, two pages, took 22 seconds.
+We haven't measured how long a token stays valid; our longest run took 22 seconds.
 
 ## Terms
 
-The robots.txt of `www.academictransfer.com` allows its public pages.
-The robots.txt of `api.academictransfer.com`, which serves the list the jobs page shows,
-disallows every path.
-jobrake reads that API as the site's own jobs page does in your browser, and it waits the crawl
-delay that the robots.txt of `www.academictransfer.com` asks for.
+`www.academictransfer.com/robots.txt` allows public pages with a crawl delay, while
+`api.academictransfer.com/robots.txt` disallows all paths. jobrake calls that list API the same way
+the website's own frontend does in a browser and honors that delay.

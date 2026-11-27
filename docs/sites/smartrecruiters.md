@@ -1,7 +1,7 @@
 # SmartRecruiters (`smartrecruiters`)
 
-jobrake reads one employer's board on [SmartRecruiters](https://www.smartrecruiters.com) through
-SmartRecruiters' public Posting API, which applies a query and filters on the server.
+jobrake reads employer boards on [SmartRecruiters](https://www.smartrecruiters.com) through
+SmartRecruiters' public Posting API, which supports server-side search and filtering.
 
 ```sh
 jobrake smartrecruiters search -b BoschGroup -q engineer
@@ -19,34 +19,33 @@ jobs = asyncio.run(scrape("smartrecruiters", board="BoschGroup", query="engineer
 
 ## Options
 
-`--board` takes the company identifier, the first path segment of the board's URL:
-`BoschGroup` in `jobs.smartrecruiters.com/BoschGroup`. Capitalization did not matter in our tests.
+`--board` is the company slug from the board URL, such as `BoschGroup` in
+`jobs.smartrecruiters.com/BoschGroup` (case-insensitive).
 
-SmartRecruiters answers a token it does not know as it answers a board with no postings,
-so a misspelled token returns nothing, with no error. Check the token against the board's address before you conclude
-that the employer has no openings.
+Watch out for typos: SmartRecruiters responds to an unknown company slug the exact same way as an
+empty board, returning zero results without an error.
 
-`--query` searches posting titles and locations.
-`--remote` keeps the postings SmartRecruiters files as remote, which can include ones whose
-`workplace_type` is `hybrid`.
-For a large board, raise `--results` above its default of 100:
-Bosch Group's board held thousands of postings in our tests.
+`--query` searches job titles and locations. `--remote` filters to SmartRecruiters' remote flag,
+which can also include `hybrid` roles. Large employers can have thousands of openings, so raise
+`--results` above the default 100 when pulling a full board.
 
 ## Fields
 
-A search result carries the posting's title, company, place, release time, employment type, and
-language. The department and the workplace type come when the employer set them.
-`--details` adds the description and the application link ([every key](../reference.md#fields-by-site)).
+Search results return title, company, location, release timestamp, employment type, language, and
+(when set) department and workplace type. Add `--details` for the full description and application
+link; SmartRecruiters' public API does not publish salaries.
 
-- `description` holds every section of the ad under its title, in SmartRecruiters' order:
-  the company description, the job description, the qualifications, and additional information.
-- `workplace_type` is `remote` or `hybrid` when the employer says so. SmartRecruiters has no
-  on-site mark, so other postings have none.
-- `language` is a code such as `en` or `zh-CN`.
-- A record has no salary, because SmartRecruiters does not publish one.
+- `description` stitches together SmartRecruiters' sections under their headings: company
+  description, job description, qualifications, and additional information.
+- `workplace_type` is `remote` or `hybrid` when tagged; SmartRecruiters has no explicit on-site
+  flag, so everything else leaves it unset.
+- `language` is a language/locale code like `en` or `zh-CN`.
 
-### Postings you already know
+See [Fields by site](../reference.md#fields-by-site) for the complete comparison.
 
-`jobrake smartrecruiters postings` fetches postings by URL: a search result's `url`, such as
-`https://jobs.smartrecruiters.com/BoschGroup/744000158197889`, or the posting's address with its
-title slug. You get what a `--details` search would give, except a field only the search result had.
+### Reading individual postings
+
+`jobrake smartrecruiters postings` accepts either the short posting URL
+(`https://jobs.smartrecruiters.com/BoschGroup/744000158197889`) or the longer URL with a title
+slug. Because it reads only the posting endpoint without search results, it returns the same fields
+as a `--details` search except `department`.

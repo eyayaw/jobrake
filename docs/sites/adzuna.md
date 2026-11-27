@@ -1,7 +1,8 @@
 # Adzuna (`adzuna`)
 
-[Adzuna](https://www.adzuna.com) collects postings from employers, agencies, and other job boards
-into one search per country. jobrake reads it through the undocumented API of Adzuna's Android app.
+[Adzuna](https://www.adzuna.com) aggregates listings from employers, staffing agencies, and other
+job boards into separate country editions. jobrake queries the undocumented API behind Adzuna's
+Android app.
 
 ```sh
 jobrake adzuna search -c gb -q economist -l London -n 20
@@ -21,37 +22,38 @@ jobs = asyncio.run(
 
 ## Options
 
-`--country` is required and names one of Adzuna's editions: `at`, `au`, `be`, `br`, `ca`, `ch`,
+`--country` is required and accepts any of Adzuna's 19 editions: `at`, `au`, `be`, `br`, `ca`, `ch`,
 `de`, `es`, `fr`, `gb`, `in`, `it`, `mx`, `nl`, `nz`, `pl`, `sg`, `us`, or `za`.
 
-In our tests, a `--location` search without `--radius` returned the same postings as `-r 0`.
-Some of them name a nearby town, such as Villeurbanne for Lyon.
+Searching with `--location` and no `--radius` behaves like `-r 0`, though results can still include
+neighboring municipalities (for instance, Villeurbanne when searching Lyon).
 
-Adzuna filters by whole days, so `--max-age-hours` rounds up: `-a 25` reaches back two days.
+`--max-age-hours` rounds up to whole days because Adzuna only filters by day (`-a 25` searches the
+last two days).
 
 ## Fields
 
-Search results carry the title, company, place, date, and employment type. `--details` adds the
-description, the salary, `posted_at`, `expires_at`, and coordinates
-([every key](../reference.md#fields-by-site)). A posting Adzuna collected from another board also
-gets that board's name and the application link.
+Search results return the title, company, location, date, and employment type. Adding `--details`
+fetches the full description, advertised salary, `posted_at`, `expires_at`, coordinates, and (for
+listings aggregated from another board) the source board name and application link. Check the
+[fields-by-site reference](../reference.md#fields-by-site) for the full list.
 
-- A salary comes only with `--details`. It is the salary the employer advertised, which Adzuna
-  converts to a yearly figure. We leave out Adzuna's own estimates, and the salary of a posting
-  Adzuna hosts itself, because its page labeled monthly pay as yearly in our tests.
-- `--details` moves `date` to the day Adzuna created the posting, which can be months before
-  the date a search shows.
-- `url` is the posting on Adzuna, and `apply_url` is the posting at its source.
-- `employment_type` holds the work schedule, such as `full_time`, and `site_data.contract_type`
-  says whether the job is `permanent` or a `contract`. When a posting has no schedule,
-  `employment_type` holds the contract type instead. With `--details`, `site_data` also holds
-  Adzuna's `category` and the `source` board.
+- Salaries appear only with `--details` and reflect employer-advertised figures annualized by
+  Adzuna. Adzuna's own salary predictions are dropped, as are salaries on Adzuna-hosted direct
+  pages (where we observed monthly pay mislabeled as yearly).
+- With `--details`, `date` switches to the day Adzuna originally created the listing, which can be
+  months earlier than the modified date shown in search results.
+- `url` points to Adzuna; `apply_url` points to the original source listing.
+- `employment_type` uses the work schedule (`full_time`, `part_time`, etc.) when present, putting
+  `permanent` or `contract` in `site_data.contract_type`. If no schedule is given, `employment_type`
+  falls back to the contract type. With `--details`, `site_data` also includes `category` and
+  `source`.
 
-Adzuna has no `postings` command, because reading a posting from another board takes a hash that
-only its search result carries. To retry the postings a `--details` search could not read, run
-the search again: the postings it already read come from the cache.
+There is no `jobrake adzuna postings` command: fetching an aggregated ad requires a per-search hash
+that only appears in search results. If a `--details` run fails partway through, rerun the same
+search and already-fetched postings will come from the local cache.
 
 ## Requests
 
-In our tests, Adzuna stopped at 1,000 postings per search. Search by city or with a narrower query
-to reach more.
+Adzuna caps searches at 1,000 results. Split large queries by city or narrower keywords to get
+further.

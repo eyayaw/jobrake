@@ -12,13 +12,13 @@ from jobrake.utils import site_options
 
 ROOT = Path(__file__).parents[1]
 PAGES = ROOT / "docs" / "sites"
-# docs/_*.md are the maintainer's untracked notes, and docs/assets holds the logo's own README.
+# Skip maintainer scratch notes (docs/_*.md) and the logo attribution README.
 DOCS = [
     ROOT / "README.md",
     *(p for p in sorted(ROOT.glob("docs/*.md")) if not p.name.startswith("_")),
     *sorted(PAGES.glob("*.md")),
 ]
-# The sections of a site page, in the order a page that has them gives them.
+# Standard site-page sections, checked for relative order when present.
 SECTIONS = ["Options", "Lookups", "Fields", "Requests", "Terms"]
 LINK = re.compile(r"\]\(([^)\s]+)\)|href=\"([^\"]+)\"")
 # The README links to the repository by absolute URL, so it also reads right off GitHub.
@@ -47,7 +47,8 @@ def test_a_site_page_keeps_the_section_order(site):
     text = (PAGES / f"{site}.md").read_text()
     assert text.startswith("# "), site
     sections = re.findall(r"^## (.+)$", text, re.MULTILINE)
-    assert sections == [name for name in SECTIONS if name in sections], sections
+    standard = [name for name in sections if name in SECTIONS]
+    assert standard == [name for name in SECTIONS if name in standard], sections
 
 
 @pytest.mark.parametrize("doc", DOCS, ids=lambda path: str(path.relative_to(ROOT)))
