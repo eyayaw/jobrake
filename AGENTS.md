@@ -1,219 +1,140 @@
 # jobrake agent instructions
 
-Each rule here is a proxy for a reason. Know the reason before you apply the rule, and judge the
-work by the reason: code or prose that passes every rule and still reads or runs badly is not done.
-The code and text already in the repo are evidence of decisions, not templates. Take what was
-decided, and write the rest from understanding.
+Use the code and docs in this repo as evidence of past decisions, not as a prose template.
+Judge changes by whether the code and docs read and work well, not just by ticking rules. Preserve
+useful facts, concrete examples, citations, and the author's voice across docs and comments.
 
 ## Purpose
 
-jobrake reads the postings a job board publishes and returns each one as a record with the same
-fields, whichever board it came from. It is an async Python package and CLI that reads what each
-board serves without a sign-in, through the board's documented API or feed or through the endpoints
-behind its own web pages and mobile app, and it depends on `httpx` and `bs4`.
+jobrake is an async Python package and CLI that reads job postings without sign-in from multiple
+boards (public APIs, feeds, and web/mobile app endpoints) and returns them in one shared record
+format. The design follows from this purpose; no caller's needs shape it. Runtime dependencies stay
+minimal: `httpx` and `beautifulsoup4`.
 
-## Map
+## Architecture map
 
-- `sites/__init__.py`: `SITES`, the registry with one entry per site, `scrape`,
-  which routes a search to its site, `check`, which runs a search's option checks alone,
-  and `identify`, which asks each site's `card` whose posting a link names.
-- `sites/<site>`: one module per site, or a package for LinkedIn and Indeed,
-  which split into several modules. It exports `search` and any of `places`, `companies`,
-  `attributes`, `filters`, and `postings`, and the first line of its docstring is the site's CLI help.
-  A site that exports `postings` defines `card(reference)`, outside `__all__`, and a site may
-  define one for `identify` alone, as Indeed does. `card` reads one posting URL as the card it
-  names and raises `ValueError` for any other reference. `postings_of` builds a site's `postings`
-  from its `card` and its reader, and that `postings` reads every reference with `card` before the
-  first request.
-  LinkedIn's `postings` reads references as its `card` does and also takes a bare posting ID.
-  In the two packages, `search.py` builds requests and parses results, `client.py` holds the URLs
-  and headers, plus LinkedIn's pacing, and `lookups.py` holds the lookups. Of the other sites,
-  only AcademicTransfer paces its requests, waiting the crawl delay its robots.txt asks for before
-  each request to its list API. A site that needs headers of its own keeps them beside its URLs.
-  LinkedIn's `pages.py` holds its reader of posting pages, which the posting loop runs with a
-  fixed pool of workers, and Indeed's `countries.py` maps ISO country codes to editions.
-- `sites/responses.py`: the response reading the sites share. `read_json`, `read_xml`, and
-  `read_html` raise `Stopped` for a failed request or an unreadable response, and the first two for
-  an unknown board. `failure` says why a response holds no data: its `error`, no status, or a
-  status other than HTTP 200. `UNREADABLE` holds the exceptions a parser raises for data it cannot
-  read, which those readers and `parse_postings` catch, and `json_ld` reads a page's schema.org
-  nodes.
-  `json_list` checks the posting list, `json_page` checks a page's list and its total, `cut_short`
-  builds the `Stopped` of an empty page before that total, and `parse_postings` skips a malformed
-  posting with a warning.
-  `collect` gathers the pages a paged search yields: it drops a repeated posting, logs progress,
-  stops at `results`, and keeps the pages before a failure. A paged site yields its pages from a
-  generator and leaves the rest to `collect`. `offset_pages` builds that generator from a site's
-  reader of one page and its card parser.
-- `sites/postings.py`: the posting loop of the sites that fetch each posting on its own,
-  LinkedIn among them. `fill_details` serves `details=True` and `postings_of` builds `postings`,
-  and each site supplies only the reader of the posting at a URL, which raises `Stopped` for a
-  posting it could not read and `Halt` when no posting can be read for now. Each posting read
-  becomes a record of its own, with the posting's own `url` when the reader gives one. The cache
-  stores it, `postings` returns it, and a details search merges it into each card of the posting:
-  the record wins wherever it has a value, and the card keeps its `site`, `id`, and `url`.
-  A cached posting costs no request. `readable_url` keeps a search card's URL only when the site's
-  `card` reads it back unchanged, so `postings` can fetch the card's posting.
-- `utils.py`: `site_options`, which reads the `Annotated` arguments of a site function, `checked`,
-  which wraps it in a `Checked` that runs those checks and the site's validator on every call,
-  or alone through `check`, `menu_codes`, which maps filter values to codes of a site's fixed menu,
-  `report_progress`, which `collect` and the posting loop call to log their progress records,
-  and the JSON value, text, number, date, and URL helpers.
-- `models.py`: `JobDict`, its `Place`, `make_job`, `make_places`, and `Stopped`.
-- `countries.py`: the ISO 3166-1 table and `alpha2`, which `checked` and `make_places` share.
-- `fetchkit.py`: the `Fetcher` protocol, `FetchResult`, and `HttpxFetcher`.
-- `cache.py`: one SQLite table of `JobDict` records keyed by site and ID, and the shared `CACHE`.
-- `cli.py` builds `jobrake <site> <command>` from `SITES`, one command per function a site exports,
-  and `io.py` renders JSON, JSONL, and CSV.
-- `tests/`: offline, built on the stub fetcher in `tests/fakes.py`.
-  `tests/fakesite.py` is a fake site the tests register.
+- `src/jobrake/models.py`: `JobDict`, `Place`, `make_job`, `make_places`, and `Stopped`.
+- `src/jobrake/countries.py`: ISO 3166-1 table and `alpha2` (shared by `@checked` and
+  `make_places`).
+- `src/jobrake/fetchkit.py`: `Fetcher` protocol, `FetchResult`, and `HttpxFetcher`.
+- `src/jobrake/cache.py`: SQLite cache of `JobDict` rows keyed by `(site, id)` and shared `CACHE`.
+- `src/jobrake/utils.py`: `SITE_NAMES`, `site_options`, `@checked`/`Checked`, `menu_codes`,
+  `report_progress`, HTML/JSON/date/URL helpers.
+- `src/jobrake/cli.py` & `io.py`: builds `jobrake <site> <command>` dynamically from `SITES` and
+  renders JSON, JSONL, and CSV.
+- `src/jobrake/sites/__init__.py`: `SITES` registry plus public `scrape`, `check`, and `identify`.
+- `src/jobrake/sites/responses.py`: shared response readers (`read_json`, `read_xml`, `read_html`,
+  `json_ld`), pagination (`collect`, `offset_pages`), `parse_postings`, `failure`, `UNREADABLE`.
+- `src/jobrake/sites/postings.py`: shared detail-fetching loop (`fill_details`), `postings_of`,
+  `Halt`, and `readable_url`.
+- `src/jobrake/sites/<site>`: one module per site (packages for `linkedin/` and `indeed/`). Exports
+  `search` and optionally `postings` or lookups (`places`, `companies`, `attributes`, `filters`).
+  Sites supporting `postings` or `identify` also define `card(reference)` (outside `__all__`),
+  which parses one posting URL or raises `ValueError`. LinkedIn's `postings` also accepts bare
+  numeric posting IDs.
+- `tests/`: fully offline suite using `tests/fakes.py` and `tests/fakesite.py`.
 
-A new site is a module under `sites/`, one entry in `SITES` (and its display name in
-`utils.SITE_NAMES`), and its page, `docs/sites/<site>.md`, which `tests/test_docs.py` requires.
-`scrape`, the CLI, and the contract test in `tests/test_scrape.py` need no edit.
+**Adding a new site:** add `src/jobrake/sites/<site>.py`, register it in `SITES`
+(`sites/__init__.py`) and `SITE_NAMES` (`utils.py`), and add `docs/sites/<site>.md`.
+`scrape`, the CLI, and the contract tests in `tests/test_scrape.py` pick it up automatically.
 
 ## Non-goals
 
-- Filtering or choosing results locally, or translating an option from one site to another.
-  jobrake returns what the site serves.
-- Generic pacing or retries in `fetchkit`. A site adds only the pacing its server demands.
-- A browser fetcher or any optional transport.
-- Compatibility shims and deprecation aliases. A rename removes the old name.
+- Local filtering or sorting of results, or translating options between sites. Return what the site
+  serves.
+- Generic retries or rate limiting in `fetchkit`. Only add pacing where a site requires it.
+- Browser-based scraping or optional transport backends.
+- Backwards-compatibility shims or deprecation aliases. Remove old names on rename.
 
-## Decisions
+## Core contracts
 
-- The design follows from the purpose. No caller's needs shape it.
-- `site`: the unit jobrake reads, such as `linkedin` or `indeed`. It replaces "provider".
-- `board`: the token, or for Cornerstone and Workday the career site URL, that names one employer's
-  board on an ATS site, such as `airbnb` on Greenhouse. Every ATS site declares it as a required
-  `str` named `board`, with the short flag `-b`.
-- `country`: a country's ISO 3166-1 code, alpha-2 or alpha-3, in either case, such as `de` or `deu`.
-  `checked` rejects anything else and passes the site the upper-case alpha-2 code, which the site
-  translates to its own form. A place's `country_code` is the same upper-case alpha-2 code, and
-  `make_places` converts a site's alpha-3 code to it. It replaces country names and Indeed's codes.
-- One record. Every site returns `JobDict` records with the same keys, types, and units.
-  The identity keys `site`, `id`, and `url` and the summary keys `title`, `company`, `locations`,
-  and `date` are always present. A detail key appears only when it has a value.
-  Each site parses its own responses.
-- A posting's places are `locations`, a list of `Place` in the site's order,
-  `[]` when none was extracted. A `Place` has a `name`, the site's label or its parts joined,
-  and only the parts the site gives for that place.
-  `make_job` normalizes places with `make_places`, for every site and every cache read,
-  and nothing is parsed out of a label. Two places are one only when they are equal once normalized.
-  A site treats two of its entries as one place only when its response says so.
-  Where one source's fields override another's, an empty `locations` overrides nothing.
-- `site_data` holds fields only one site carries, under that site's own names, as JSON values.
-  Each site's page lists its keys, and a key moves into `JobDict` once a second site shares its
-  meaning.
-- A site owns its options. `search` declares only the options its server applies, keyword-only,
-  as `Annotated[T, "help"]` with `T` one of `str`, `int`, `bool`, `list[str]`, or `T | None`,
-  and with defaults in the signature. A boolean option defaults to `False`.
-  A name two sites share keeps one meaning and unit. Every function a site exports carries
-  `@checked`, which raises `TypeError` for an unknown, missing, or wrongly typed argument and
-  `ValueError` for a value out of range, a blank required string, or a blank list entry,
-  all before the first request. A rule of the site's own on an option, such as Indeed's country
-  editions or a `postings` reference its `card` must read, goes in the validator the function
-  passes as `@checked(validator=_validate)`, so `check` raises everything the call would, without
-  a request. The exception is a value only the site's live catalog can confirm, such as a UN
-  Careers duty station, which `search` checks after reading that catalog. `site_options` rejects
-  an annotation or a boolean default that breaks these rules when the module is imported, and
-  `test_a_site_meets_the_site_contract` checks that `search` takes no positional option and that a
-  shared name keeps its type.
-- A caller can tell a cut-short result from a complete one. A failed request, an answer other than
-  HTTP 200 among them, or a page that ends a search short of the total the site reported, raises
-  `Stopped`, whose `partial` holds what was collected. A site's own result cap warns and returns,
-  because a rerun meets it again.
-  A details search that could not read every posting also puts the URLs of the unread ones in
-  `failed` when the site exports `postings`, so `postings` can retry them even when a later search
-  drops them.
-  `postings` never raises `Stopped` and leaves a failed reference out of its result.
-- A site whose search cards lack fields its posting endpoint serves takes `details` on `search` and
-  exports `postings(fetcher, references)` when a posting URL alone can be read back, so a caller
-  can fill cards in the same run or a later one. A reference is at least a record's `url`.
-  `postings` keys its result by the references given and maps a posting the site reports gone to
-  `None`.
-  The posting outranks its card: with `details`, every field the posting has a value for replaces
-  the card's, `date` and `locations` among them, and only `site`, `id`, and `url` stay the card's.
-  `site_data` merges key by key, so the card keeps any key the record lacks.
-- The transport is the caller's. Code takes a `Fetcher` and leaves it open,
-  and the caller that created it closes it. LinkedIn requests go through `paced_fetch`,
-  which pins requests to LinkedIn's data centers in turn, paces them once per process,
-  and retries a 429 up to five times. It follows redirects itself, to HTTPS LinkedIn addresses only,
-  and paces each hop, so a caller's `Fetcher` must honor `follow_redirects=False`.
-  Two workers per data center read posting pages, and concurrent calls each read their own.
-- The cache is transparent. The posting loop stores the fields of each posting it reads as a
-  `JobDict`, so a site that fetches postings on its own is cached and no other is. A reader sees
-  only the posting's URL, so a later card merges with the cached fields as with a fresh read. Rows
-  carry no version, and each row read passes through `make_job`, so a row it rejects is a miss,
-  such as one whose keys no longer fit `JobDict` or `Place` or whose `applicants` is text.
-  `make_job` normalizes a row as it does a site's fields and cannot redo a parser's work, so a
-  parser fix reaches a cached posting when its row expires.
-  `JOBRAKE_CACHE_PATH` and `JOBRAKE_CACHE_TTL` configure it, and no site function takes a cache
-  option. Only LinkedIn and AcademicTransfer are paced.
-- Library code logs under the `jobrake` logger and prints nothing. The CLI sends logs to stderr and
-  data to stdout. It exits 2 for a bad argument, and 1 when a search or lookup raises `Stopped`,
-  a named posting could not be fetched, or the output cannot be written. A stopped search and a
-  postings fetch with a failed reference still write the postings they got.
-  With none they write nothing, so an empty document comes only from a command that completed.
-  A stderr that cannot be written, as when its reader closed the pipe, leaves the status as it was,
-  and so does a closed stdout under `-h` or `--version`.
-  Ctrl-C ends a command with one line and removes an output file the command started.
-  The process then dies of SIGINT, so a shell reports 130 and stops a loop that ran it.
+- **Naming:** Use `site` (never "provider"). ATS boards declare a required `board: str` (`-b`):
+  employer slug, or career site URL for Cornerstone and Workday. `country` accepts ISO 3166-1
+  alpha-2 or alpha-3 (case-insensitive); `@checked` passes upper-case alpha-2 to sites.
+- **Records & places:** Identity (`site`, `id`, `url`) and summary (`title`, `company`, `locations`,
+  `date`) keys are always present; detail keys are omitted when absent or empty (`None`, blank
+  strings, empty lists/dicts; `0` is preserved). `locations` is a list of `Place` in the site's
+  order (`[]` when none was extracted). Each `Place` has `name` (site label or joined parts) plus
+  only the parts the site gave, with `country_code` normalized to upper-case alpha-2 by
+  `make_places`. Never parse structured parts out of a label; deduplicate two places only when
+  equal after normalization, and merge two entries into one place only when the site's response
+  says so. Empty `locations` never overrides a non-empty one during merges. Site-only fields live
+  in `site_data` (documented on that site's page) and move to `JobDict` once a second site shares
+  the same meaning.
+- **Options:** `search` exposes only server-supported filters as keyword-only
+  `Annotated[T, "help"]` (`T` in `str`, `int`, `bool`, `list[str]`, or `| None`), with defaults in
+  the signature (`False` for booleans); lookups and `postings` take one positional argument after
+  `fetcher`. Shared option names keep one type, meaning, and unit across sites. Every exported site
+  function uses `@checked` (with `validator=` for site-specific rules) so both calls and `.check()`
+  fail before the first request: `TypeError` for unknown, missing, or wrong-type args, and
+  `ValueError` for out-of-range values, blank required strings, blank list entries, or
+  site-rejected values (except live-catalog checks like UN Careers duty stations).
+- **Failures, `details`, & `postings`:** Failed requests, non-200 responses, unreadable payloads,
+  and empty pages before the reported total raise `Stopped(partial=...)`. Hitting a site's result
+  cap warns and returns normally because a rerun meets it again. Add `details` on `search` when
+  search cards lack fields the posting endpoint serves, and export `postings(fetcher, references)`
+  when a posting URL alone can be read back. `postings_of` validates every reference with `card`
+  before the first request. `postings` never raises `Stopped`: it keys results by the input
+  references, maps gone postings to `None`, and omits failed references. Details searches put unread
+  URLs in `Stopped.failed` when the site exports `postings`, so `postings` can retry them even if a
+  later search drops them.
+- **Detail merging:** When `--details` merges a fetched posting into a search card, the posting
+  wins for every field with a value (not `None` or `[]`; `site_data` merges key-by-key) while the
+  card keeps its `site`, `id`, and `url`. `readable_url` rejects a search card whose URL `card` does
+  not read back unchanged.
+- **Transport & pacing:** Callers own and close any `Fetcher` they pass in. Only two sites are
+  paced:
+  - LinkedIn: `paced_fetch` pins fabrics, paces process-wide, retries 429s up to 5 times, and
+    handles HTTPS-only LinkedIn redirects hop-by-hop (so custom `Fetcher`s must honor
+    `follow_redirects=False`). Posting-page reads use 2 workers per fabric, with each concurrent
+    call running its own pool.
+  - AcademicTransfer: waits the 10s `robots.txt` crawl delay before each API page request.
+- **Caching:** Only the posting loop (`sites/postings.py`) uses `cache.CACHE`, transparently,
+  configured via `JOBRAKE_CACHE_PATH` and `JOBRAKE_CACHE_TTL` (no per-call cache flags). Cached
+  rows carry no version and pass through `make_job` on read; rows rejected by the current schema
+  count as cache misses, while parser fixes reach cached postings only when their rows expire.
+- **CLI & logging:** Library code logs under `jobrake` and never prints. The CLI writes logs and
+  progress to stderr and data to stdout. Exit codes: `0` complete, `1` stopped/failed/write error,
+  `2` bad arguments, `130`/SIGINT on Ctrl-C (removing any newly created `--output` file on write
+  errors or Ctrl-C). Stopped searches and `postings` runs with failed references still write
+  collected records, or write nothing when none were collected, so an empty document comes only
+  from a command that completed. An unwritable stderr (closed pipe), or closed stdout under
+  `-h`/`--version`, keeps the exit status unchanged.
 
-## Style
+## Docs and style
 
-- Keep module docstrings to one-line orientation. Keep short docstrings on one line;
-  longer ones open with a bare `"""` and put the summary on the next line.
-  Put rationale and contracts on the symbol that owns them.
-- Comments explain non-obvious mechanisms or reasons. User-facing messages state what happened,
-  name the likely cause when known, and give a concrete next action.
-- Treat style checks as heuristics, not bans. Preserve useful facts, concrete examples,
-  and the author's voice. Use punctuation where it improves clarity.
-- Wrap prose near 100 columns, at a sentence end or a clause boundary.
-  A line may run to about 120 columns when that keeps a sentence whole or absorbs a short tail.
-- Always write `jobrake` in lowercase.
-- Inside `sites/`, prose uses each site's nouns: postings, cards, and fields.
-  "Job" and "job dict" appear only where the package promises them, in `models`, `scrape`,
-  and the README. Indeed's API says "job", so the word stays in its code.
-- Describe detail fields as what we extract, when present, and avoid "the posting states".
-  "Hydrate" stays in code docstrings, and the README says "fetch" or "fill".
-- The tagline is one image with no feature list:
-  "The job boards shed new postings every day. Bring a rake." It heads the README. The package and
-  repository descriptions say what jobrake does.
-- The README holds what a user needs to start: installation, a run with its real output, the
-  options every site shares, the output formats, the sites, and how jobrake requests and caches.
-- `docs/guide.md` holds tasks that span sites, one section each. `docs/reference.md` holds the
-  record, the fields by site, the commands, the Python API, and configuration.
-- `docs/sites/<site>.md` holds everything about one site and reads on its own. When present, the
-  standard sections (`Options`, `Lookups`, `Fields`, `Requests`, `Terms`) stay in that order, and
-  extra `##` sections are allowed when a site needs them.
-- Keep CLI help terse. It comes from the `Annotated` help of each option and the first docstring
-  line of each site and site function. Caveats and site quirks go on the site's page.
-- Write the docs for someone running a job search who wants to get on with it, as a colleague who
-  has used jobrake would: say what they need, trust them with the obvious, and say plainly what we
-  observed, what we don't know, and what we advise against. The authors are "we".
-  Write natural, direct English. Avoid stiff pseudo-terse phrasing (`carries`, `holds`, `gives no`,
-  `A record has no...`), internal jargon (`card`, `record`) in site pages, em-dash overuse, and
-  repeated template frames across pages.
-- Leave out what jobrake already prints, its errors, warnings, and logs, and what `--help` says,
-  along with input normalization, request sizes, and other internals.
-  Be honest about empirically observed site behavior without repeating a stock phrase like
-  "in our tests". Put sample sizes and dates in code comments *only* for empirical live-site quirks
-  (never on static RFCs, stdlib/SQLite docs, or library defaults, and never inside function
-  signatures or docstrings).
-- Keep `CHANGELOG.md` entries concise and user-facing: group edge-case hardening rather than
-  listing every fuzzer counterexample or warning-wording tweak separately.
+- Always write `jobrake` in lowercase. The authors are "we". Wrap Markdown prose near 100 columns.
+- Keep module docstrings to one line; put rationale and contracts on the symbol that owns them.
+  User-facing errors and warnings state what happened, the likely cause when known, and a concrete
+  next action.
+- Inside `sites/`, use site terminology (`postings`, `cards`, `fields`; Indeed uses `job`). Use
+  "job" and "job dict" only where the package promises them (`models`, `scrape`, and the README).
+  Describe detail fields as what we extract when present (avoid "the posting states"). Keep
+  "hydrate" in code docstrings; README says "fetch" or "fill".
+- Tagline at the top of `README.md`: `"The job boards shed new postings every day. Bring a rake."`
+- Doc layout:
+  - `README.md`: install, real runnable example + output, shared options, formats, sites table,
+    pacing/caching overview.
+  - `docs/guide.md`: cross-site workflows.
+  - `docs/reference.md`: record schema, field matrix, CLI, Python API, configuration.
+  - `docs/sites/<site>.md`: standalone guide per site. Standard `##` sections (`Options`, `Lookups`,
+    `Fields`, `Requests`, `Terms`) keep that relative order when present; extra `##` sections are
+    allowed when helpful.
+- Keep CLI `--help` terse (first docstring line + `Annotated` help); put quirks on the site page.
+- Write docs in plain, direct English for job seekers and developers. Avoid stiff telegraphic
+  wording (`carries`, `holds`, `gives no`, `A record has no...`), internal jargon (`card`, `record`)
+  in site pages, em-dash overuse, and copy-pasted sentence templates across pages.
+- Skip documenting internals, input normalization, request page sizes, and what `--help` or logs
+  already say. State empirically observed site behavior plainly (and note when it is unreliable)
+  without repeating `"in our tests"`. Put sample sizes/dates in inline comments only for live-site
+  quirks (never on RFCs, stdlib, SQLite docs, or library defaults, and never inside signatures or
+  docstrings).
+- Keep `CHANGELOG.md` entries concise and user-facing: group edge-case hardening instead of listing
+  every fuzzer counterexample or warning-wording tweak separately.
 
-## Sites
+## Live requests and verification
 
-- Keep the sites symmetric, with the same names and units for the options they share,
-  so shared code stays shared.
-- Live requests to LinkedIn or Indeed spend the rate budget of my IP. Ask before sending any,
-  and keep them few and paced. The test suite is offline.
-- State site behavior that we measured as measured, and say in the docs when it is unreliable.
-
-## Verify
-
-- A change passes when `prek run --all-files` exits 0. It runs ruff check, ruff format, ty,
-  and pytest from the locked environment. CI runs the same hooks, and so does every commit once
-  `prek install` has run in the clone.
+- The test suite is offline. Ask before making live requests to external boards, and keep any live
+  probes small (especially on LinkedIn, where concurrent runs from the same IP share rate limits).
+- A change is ready when `prek run --all-files` exits 0 (`ruff check`, `ruff format`, `ty`, and
+  `pytest`).
